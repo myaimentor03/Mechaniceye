@@ -1,7 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertDiagnosisSchema } from "@shared/schema";
+import { insertDiagnosisSchema, insertFollowUpSchema, consultationFeedbackSchema } from "@shared/schema";
+import { performEnhancedAnalysis } from "./enhanced-analysis";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -26,67 +27,28 @@ const upload = multer({
   }
 });
 
-// Mock analysis function
-function performMockAnalysis(diagnosisData: any) {
-  const mockScenarios = [
-    {
-      title: "Brake Pad Wear",
-      description: "The squealing noise during braking indicates worn brake pads. The metal wear indicator is making contact with the rotor, creating the high-pitched sound you're hearing.",
-      confidence: 94,
-      severity: "Medium Priority",
-      cost: "$200-400"
-    },
-    {
-      title: "Engine Misfire",
-      description: "Irregular engine sounds and vibrations suggest one or more cylinders are not firing properly, often due to faulty spark plugs or ignition coils.",
-      confidence: 87,
-      severity: "High Priority", 
-      cost: "$150-500"
-    },
-    {
-      title: "Belt Issues",
-      description: "A squealing sound from the engine bay often indicates a worn or loose serpentine belt that needs adjustment or replacement.",
-      confidence: 76,
-      severity: "Low Priority",
-      cost: "$100-250"
-    },
-    {
-      title: "Brake Rotor Warping",
-      description: "Warped brake rotors can cause vibration and noise during braking, especially noticeable at higher speeds.",
-      confidence: 73,
-      severity: "High Priority",
-      cost: "$300-600"
-    },
-    {
-      title: "Suspension Problems",
-      description: "Unusual noises when turning or driving over bumps may indicate worn suspension components like struts or ball joints.",
-      confidence: 68,
-      severity: "Medium Priority",
-      cost: "$400-800"
-    }
-  ];
-
-  // Simple keyword-based selection for demo purposes
-  const keywords = (diagnosisData.description || '').toLowerCase();
-  
-  let selectedScenarios = [...mockScenarios];
-  
-  if (keywords.includes('brake') || keywords.includes('squeal')) {
-    selectedScenarios = selectedScenarios.sort((a, b) => 
-      a.title.toLowerCase().includes('brake') ? -1 : 1
-    );
-  } else if (keywords.includes('engine') || keywords.includes('misfire')) {
-    selectedScenarios = selectedScenarios.sort((a, b) => 
-      a.title.toLowerCase().includes('engine') ? -1 : 1
-    );
+// Subscription tier features
+const SUBSCRIPTION_FEATURES = {
+  basic: {
+    maxAnalyses: 5,
+    features: ['description', 'photos', 'audio'],
+    price: 14.99
+  },
+  premium: {
+    maxAnalyses: 20,
+    features: ['description', 'photos', 'audio', 'vibration'],
+    price: 19.99
+  },
+  expert: {
+    maxAnalyses: -1, // unlimited
+    features: ['description', 'photos', 'audio', 'vibration', 'mechanic_consultation'],
+    price: 24.99
   }
+};
 
-  const [primary, ...alternatives] = selectedScenarios.slice(0, 3);
-  
-  return {
-    primaryDiagnosis: primary,
-    alternativeScenarios: alternatives
-  };
+function checkSubscriptionAccess(userTier: string, feature: string): boolean {
+  const tierFeatures = SUBSCRIPTION_FEATURES[userTier as keyof typeof SUBSCRIPTION_FEATURES];
+  return tierFeatures ? tierFeatures.features.includes(feature) : false;
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -146,14 +108,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate the data
       const validatedData = insertDiagnosisSchema.parse(diagnosisData);
 
-      // Perform mock analysis
-      const analysisResults = performMockAnalysis(validatedData);
+      // Perform enhanced analysis
+      const analysisResults = performEnhancedAnalysis(validatedData);
 
       // Create diagnosis with analysis results
       const diagnosis = await storage.createDiagnosis({
         ...validatedData,
         primaryDiagnosis: analysisResults.primaryDiagnosis,
         alternativeScenarios: analysisResults.alternativeScenarios,
+        needsMoreInfo: analysisResults.needsMoreInfo,
+        additionalQuestions: analysisResults.additionalQuestions,
       });
 
       res.json(diagnosis);
@@ -161,6 +125,152 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Diagnosis creation error:', error);
       res.status(400).json({ 
         message: error.message || "Failed to create diagnosis" 
+      });
+    }
+  });
+
+  // Create follow-up request when previous fixes didn't work
+  app.post("/api/diagnoses/:id/follow-up", upload.fields([
+    { name: 'audio', maxCount: 1 },
+    { name: 'video', maxCount: 1 }
+  ]), async (req, res) => {
+    try {
+      const diagnosisId = req.params.id;
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      
+      // Get original diagnosis
+      const originalDiagnosis = await storage.getDiagnosis(diagnosisId);
+      if (!originalDiagnosis) {
+        return res.status(404).json({ message: "Original diagnosis not found" });
+      }
+
+      // Create follow-up request
+      const followUpData = {
+        originalDiagnosisId: diagnosisId,
+        userId: originalDiagnosis.userId!,
+        additionalInfo: req.body.additionalInfo,
+        newAudioFile: files?.audio?.[0]?.filename || null,
+        newVideoFile: files?.video?.[0]?.filename || null,
+        newVibrationData: req.body.vibrationData ? JSON.parse(req.body.vibrationData) : null,
+      };
+
+      const followUp = await storage.createFollowUp(followUpData);
+
+      // Get previously attempted fixes
+      const previousFollowUps = await storage.getFollowUpsByDiagnosis(diagnosisId);
+      const previousAttempts = [
+        originalDiagnosis.primaryDiagnosis?.title,
+        ...originalDiagnosis.alternativeScenarios?.map(s => s.title) || [],
+        ...previousFollowUps.map(fu => `Follow-up ${fu.id}`)
+      ].filter(Boolean);
+
+      // Perform enhanced analysis with iteration count
+      const iterationCount = previousFollowUps.length + 2; // +1 for original, +1 for current
+      const analysisResults = performEnhancedAnalysis(
+        {
+          description: `${originalDiagnosis.description}\n\nAdditional info: ${followUpData.additionalInfo}`,
+          vehicleInfo: originalDiagnosis.vehicleInfo,
+          timing: originalDiagnosis.timing
+        },
+        iterationCount,
+        previousAttempts
+      );
+
+      // Create new diagnosis with follow-up results
+      const newDiagnosis = await storage.createDiagnosis({
+        userId: originalDiagnosis.userId,
+        vehicleInfo: originalDiagnosis.vehicleInfo!,
+        description: `Follow-up #${iterationCount - 1}: ${followUpData.additionalInfo}`,
+        timing: originalDiagnosis.timing!,
+        audioFile: followUpData.newAudioFile,
+        videoFile: followUpData.newVideoFile,
+        vibrationData: followUpData.newVibrationData,
+        primaryDiagnosis: analysisResults.primaryDiagnosis,
+        alternativeScenarios: analysisResults.alternativeScenarios,
+        needsMoreInfo: analysisResults.needsMoreInfo,
+        additionalQuestions: analysisResults.additionalQuestions,
+        iterationCount,
+      });
+
+      res.json(newDiagnosis);
+    } catch (error: any) {
+      console.error('Follow-up creation error:', error);
+      res.status(400).json({ 
+        message: error.message || "Failed to create follow-up" 
+      });
+    }
+  });
+
+  // Get subscription pricing and features
+  app.get("/api/subscription/tiers", (req, res) => {
+    res.json(SUBSCRIPTION_FEATURES);
+  });
+
+  // Get available mechanics for consultation
+  app.get("/api/mechanics", async (req, res) => {
+    try {
+      const mechanics = await storage.getActiveMechanics();
+      res.json(mechanics);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch mechanics" });
+    }
+  });
+
+  // Start mechanic consultation
+  app.post("/api/consultations", async (req, res) => {
+    try {
+      const { diagnosisId, mechanicId, userId } = req.body;
+      
+      const consultation = await storage.createConsultation({
+        diagnosisId,
+        mechanicId, 
+        userId,
+        status: "pending"
+      });
+
+      res.json(consultation);
+    } catch (error: any) {
+      res.status(400).json({ 
+        message: error.message || "Failed to start consultation" 
+      });
+    }
+  });
+
+  // Submit consultation feedback
+  app.post("/api/consultations/:id/feedback", async (req, res) => {
+    try {
+      const consultationId = req.params.id;
+      const feedbackData = consultationFeedbackSchema.parse(req.body);
+      
+      // Calculate overall score (average of ratings, with wasFixed bonus)
+      const ratingAverage = (
+        feedbackData.politenessRating + 
+        feedbackData.effectivenessRating + 
+        feedbackData.easeOfWorkRating
+      ) / 3;
+      
+      const overallScore = feedbackData.wasFixed ? 
+        Math.min(ratingAverage + 1, 10) : ratingAverage;
+
+      const consultation = await storage.updateConsultation(consultationId, {
+        ...feedbackData,
+        overallScore: overallScore.toString(),
+        status: "completed",
+        completedAt: new Date()
+      });
+
+      // Update mechanic rating based on feedback
+      const consultations = await storage.getConsultationsByMechanic(consultation.mechanicId);
+      const averageRating = consultations
+        .filter(c => c.overallScore)
+        .reduce((sum, c) => sum + parseFloat(c.overallScore!), 0) / consultations.length;
+      
+      await storage.updateMechanicRating(consultation.mechanicId, averageRating);
+
+      res.json(consultation);
+    } catch (error: any) {
+      res.status(400).json({ 
+        message: error.message || "Failed to submit feedback" 
       });
     }
   });
