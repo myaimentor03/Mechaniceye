@@ -32,6 +32,8 @@ export const diagnoses = pgTable("diagnoses", {
     instructions: string[];
     requiredTools: string[];
     estimatedTime: string;
+    wasSuccessful?: boolean;
+    stepsCompleted?: number[];
   }>(),
   alternativeScenarios: json("alternative_scenarios").$type<Array<{
     title: string;
@@ -42,13 +44,53 @@ export const diagnoses = pgTable("diagnoses", {
     instructions: string[];
     requiredTools: string[];
     estimatedTime: string;
+    wasSuccessful?: boolean;
+    stepsCompleted?: number[];
   }>>(),
   needsMoreInfo: boolean("needs_more_info").default(false),
   additionalQuestions: json("additional_questions").$type<string[]>(),
   iterationCount: integer("iteration_count").default(1),
   isResolved: boolean("is_resolved").default(false),
   mechanicConsultationId: varchar("mechanic_consultation_id"),
+  confidenceScore: integer("confidence_score").default(0),
+  confidenceLevel: text("confidence_level").default("low"), // low, medium, high
+  inputTypes: json("input_types").$type<string[]>(), // track what inputs were used
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Fix history log
+export const fixHistoryLog = pgTable("fix_history_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  diagnosisId: varchar("diagnosis_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  attemptNumber: integer("attempt_number").default(1),
+  suggestedFix: json("suggested_fix").$type<{
+    title: string;
+    description: string;
+    instructions: string[];
+    confidence: number;
+  }>(),
+  wasSuccessful: boolean("was_successful"),
+  userFeedback: text("user_feedback"),
+  stepsCompleted: json("steps_completed").$type<number[]>(),
+  timeSpent: integer("time_spent_minutes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Chat export log for mechanic handoff
+export const chatExportLog = pgTable("chat_export_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  diagnosisId: varchar("diagnosis_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  mechanicId: varchar("mechanic_id"),
+  exportData: json("export_data").$type<{
+    userInputs: any[];
+    aiSuggestions: any[];
+    confidenceScores: number[];
+    fixHistory: any[];
+    chatMessages: any[];
+  }>(),
+  exportedAt: timestamp("exported_at").defaultNow(),
 });
 
 export const mechanics = pgTable("mechanics", {
@@ -156,6 +198,16 @@ export const consultationFeedbackSchema = z.object({
   userFeedback: z.string().optional(),
 });
 
+export const insertFixHistoryLogSchema = createInsertSchema(fixHistoryLog).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertChatExportLogSchema = createInsertSchema(chatExportLog).omit({
+  id: true,
+  exportedAt: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertDiagnosis = z.infer<typeof insertDiagnosisSchema>;
@@ -167,3 +219,7 @@ export type Consultation = typeof consultations.$inferSelect;
 export type InsertFollowUp = z.infer<typeof insertFollowUpSchema>;
 export type FollowUpRequest = typeof followUpRequests.$inferSelect;
 export type ConsultationFeedback = z.infer<typeof consultationFeedbackSchema>;
+export type InsertFixHistoryLog = z.infer<typeof insertFixHistoryLogSchema>;
+export type FixHistoryLog = typeof fixHistoryLog.$inferSelect;
+export type InsertChatExportLog = z.infer<typeof insertChatExportLogSchema>;
+export type ChatExportLog = typeof chatExportLog.$inferSelect;

@@ -64,6 +64,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Fix History Log endpoints
+  app.get("/api/fix-history/:diagnosisId", async (req, res) => {
+    try {
+      const { diagnosisId } = req.params;
+      const history = await storage.getFixHistory(diagnosisId);
+      res.json(history);
+    } catch (error) {
+      console.error("Error fetching fix history:", error);
+      res.status(500).json({ message: "Failed to fetch fix history" });
+    }
+  });
+
+  // Update step completion
+  app.post("/api/diagnoses/:diagnosisId/steps", async (req, res) => {
+    try {
+      const { diagnosisId } = req.params;
+      const { suggestionIndex, stepIndex, completed, timeSpent } = req.body;
+      
+      const result = await storage.updateStepCompletion(diagnosisId, {
+        suggestionIndex,
+        stepIndex,
+        completed,
+        timeSpent
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error updating step completion:", error);
+      res.status(500).json({ message: "Failed to update step completion" });
+    }
+  });
+
+  // Mark fix as complete
+  app.post("/api/diagnoses/:diagnosisId/fix-complete", async (req, res) => {
+    try {
+      const { diagnosisId } = req.params;
+      const { suggestionIndex, wasSuccessful, feedback, timeSpent, stepsCompleted } = req.body;
+      
+      const result = await storage.markFixComplete(diagnosisId, {
+        suggestionIndex,
+        wasSuccessful,
+        feedback,
+        timeSpent,
+        stepsCompleted
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error marking fix complete:", error);
+      res.status(500).json({ message: "Failed to mark fix complete" });
+    }
+  });
+
+  // Export chat for mechanic
+  app.post("/api/diagnoses/:diagnosisId/export-chat", async (req, res) => {
+    try {
+      const { diagnosisId } = req.params;
+      const exportData = await storage.exportChatForMechanic(diagnosisId);
+      res.json(exportData);
+    } catch (error) {
+      console.error("Error exporting chat:", error);
+      res.status(500).json({ message: "Failed to export chat" });
+    }
+  });
+
+  // Send to mechanic
+  app.post("/api/diagnoses/:diagnosisId/send-to-mechanic", async (req, res) => {
+    try {
+      const { diagnosisId } = req.params;
+      const result = await storage.sendToMechanic(diagnosisId);
+      res.json(result);
+    } catch (error) {
+      console.error("Error sending to mechanic:", error);
+      res.status(500).json({ message: "Failed to send to mechanic" });
+    }
+  });
+
   // Get all diagnoses
   app.get("/api/diagnoses", async (req, res) => {
     try {
@@ -114,10 +191,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create diagnosis with analysis results
       const diagnosis = await storage.createDiagnosis({
         ...validatedData,
-        primaryDiagnosis: analysisResults.primaryDiagnosis,
-        alternativeScenarios: analysisResults.alternativeScenarios,
-        needsMoreInfo: analysisResults.needsMoreInfo,
-        additionalQuestions: analysisResults.additionalQuestions,
+        confidenceScore: analysisResults.primaryDiagnosis?.confidence || 0,
+        confidenceLevel: analysisResults.primaryDiagnosis?.confidence >= 80 ? "high" : 
+                       analysisResults.primaryDiagnosis?.confidence >= 60 ? "medium" : "low",
+        inputTypes: [
+          validatedData.description ? "description" : null,
+          validatedData.audioFile ? "audio" : null,
+          validatedData.videoFile ? "video" : null,
+          validatedData.vibrationData ? "vibration" : null
+        ].filter(Boolean) as string[]
       });
 
       res.json(diagnosis);
@@ -185,10 +267,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         audioFile: followUpData.newAudioFile,
         videoFile: followUpData.newVideoFile,
         vibrationData: followUpData.newVibrationData,
-        primaryDiagnosis: analysisResults.primaryDiagnosis,
-        alternativeScenarios: analysisResults.alternativeScenarios,
-        needsMoreInfo: analysisResults.needsMoreInfo,
-        additionalQuestions: analysisResults.additionalQuestions,
+        confidenceScore: analysisResults.primaryDiagnosis?.confidence || 0,
+        confidenceLevel: analysisResults.primaryDiagnosis?.confidence >= 80 ? "high" : 
+                       analysisResults.primaryDiagnosis?.confidence >= 60 ? "medium" : "low",
+        inputTypes: [
+          "description",
+          followUpData.newAudioFile ? "audio" : null,
+          followUpData.newVideoFile ? "video" : null,
+          followUpData.newVibrationData ? "vibration" : null
+        ].filter(Boolean) as string[],
         iterationCount,
       });
 

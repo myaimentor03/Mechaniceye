@@ -9,11 +9,17 @@ import {
   type InsertConsultation,
   type FollowUpRequest,
   type InsertFollowUp,
+  type FixHistoryLog,
+  type InsertFixHistoryLog,
+  type ChatExportLog,
+  type InsertChatExportLog,
   users,
   diagnoses,
   mechanics,
   consultations,
-  followUpRequests
+  followUpRequests,
+  fixHistoryLog,
+  chatExportLog
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql } from "drizzle-orm";
@@ -48,6 +54,26 @@ export interface IStorage {
   // Follow-up operations
   createFollowUp(followUp: InsertFollowUp): Promise<FollowUpRequest>;
   getFollowUpsByDiagnosis(diagnosisId: string): Promise<FollowUpRequest[]>;
+  
+  // Fix History operations
+  getFixHistory(diagnosisId: string): Promise<FixHistoryLog[]>;
+  updateStepCompletion(diagnosisId: string, data: {
+    suggestionIndex: number;
+    stepIndex: number;
+    completed: boolean;
+    timeSpent?: number;
+  }): Promise<any>;
+  markFixComplete(diagnosisId: string, data: {
+    suggestionIndex: number;
+    wasSuccessful: boolean;
+    feedback?: string;
+    timeSpent?: number;
+    stepsCompleted?: number[];
+  }): Promise<any>;
+  
+  // Chat Export operations
+  exportChatForMechanic(diagnosisId: string): Promise<any>;
+  sendToMechanic(diagnosisId: string): Promise<any>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -171,6 +197,186 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(followUpRequests)
       .where(eq(followUpRequests.originalDiagnosisId, diagnosisId))
       .orderBy(desc(followUpRequests.createdAt));
+  }
+
+  // Fix History operations
+  async getFixHistory(diagnosisId: string): Promise<FixHistoryLog[]> {
+    return await db.select().from(fixHistoryLog)
+      .where(eq(fixHistoryLog.diagnosisId, diagnosisId))
+      .orderBy(desc(fixHistoryLog.createdAt));
+  }
+
+  async updateStepCompletion(diagnosisId: string, data: {
+    suggestionIndex: number;
+    stepIndex: number;
+    completed: boolean;
+    timeSpent?: number;
+  }): Promise<any> {
+    // Get current diagnosis
+    const diagnosis = await this.getDiagnosis(diagnosisId);
+    if (!diagnosis) {
+      throw new Error("Diagnosis not found");
+    }
+
+    // Update the step completion in the primary diagnosis or alternative scenarios
+    let updated = false;
+    
+    if (data.suggestionIndex === 0 && diagnosis.primaryDiagnosis) {
+      const stepsCompleted = diagnosis.primaryDiagnosis.stepsCompleted || [];
+      if (data.completed && !stepsCompleted.includes(data.stepIndex)) {
+        stepsCompleted.push(data.stepIndex);
+      } else if (!data.completed && stepsCompleted.includes(data.stepIndex)) {
+        const index = stepsCompleted.indexOf(data.stepIndex);
+        stepsCompleted.splice(index, 1);
+      }
+      
+      await db.update(diagnoses)
+        .set({
+          primaryDiagnosis: {
+            ...diagnosis.primaryDiagnosis,
+            stepsCompleted
+          }
+        })
+        .where(eq(diagnoses.id, diagnosisId));
+      updated = true;
+    } else if (data.suggestionIndex > 0 && diagnosis.alternativeScenarios) {
+      const scenarios = [...diagnosis.alternativeScenarios];
+      const scenarioIndex = data.suggestionIndex - 1;
+      
+      if (scenarios[scenarioIndex]) {
+        const stepsCompleted = scenarios[scenarioIndex].stepsCompleted || [];
+        if (data.completed && !stepsCompleted.includes(data.stepIndex)) {
+          stepsCompleted.push(data.stepIndex);
+        } else if (!data.completed && stepsCompleted.includes(data.stepIndex)) {
+          const index = stepsCompleted.indexOf(data.stepIndex);
+          stepsCompleted.splice(index, 1);
+        }
+        
+        scenarios[scenarioIndex] = {
+          ...scenarios[scenarioIndex],
+          stepsCompleted
+        };
+        
+        await db.update(diagnoses)
+          .set({ alternativeScenarios: scenarios })
+          .where(eq(diagnoses.id, diagnosisId));
+        updated = true;
+      }
+    }
+
+    return { success: updated };
+  }
+
+  async markFixComplete(diagnosisId: string, data: {
+    suggestionIndex: number;
+    wasSuccessful: boolean;
+    feedback?: string;
+    timeSpent?: number;
+    stepsCompleted?: number[];
+  }): Promise<any> {
+    // Create fix history log entry
+    const historyEntry: InsertFixHistoryLog = {
+      diagnosisId,
+      userId: "", // Would normally get from session
+      attemptNumber: 1, // Calculate based on existing entries
+      wasSuccessful: data.wasSuccessful,
+      userFeedback: data.feedback,
+      stepsCompleted: data.stepsCompleted,
+      timeSpent: data.timeSpent,
+      suggestedFix: null // Would populate with the actual fix details
+    };
+
+    // Get existing history to calculate attempt number
+    const existingHistory = await this.getFixHistory(diagnosisId);
+    historyEntry.attemptNumber = existingHistory.length + 1;
+
+    await db.insert(fixHistoryLog).values(historyEntry);
+
+    // Update diagnosis with success status and confidence adjustment
+    const diagnosis = await this.getDiagnosis(diagnosisId);
+    if (diagnosis) {
+      let newConfidenceScore = diagnosis.confidenceScore || 0;
+      
+      // Adjust confidence based on success/failure
+      if (data.wasSuccessful) {
+        newConfidenceScore = Math.min(100, newConfidenceScore + 10);
+      } else {
+        newConfidenceScore = Math.max(0, newConfidenceScore - 15);
+      }
+
+      await db.update(diagnoses)
+        .set({
+          confidenceScore: newConfidenceScore,
+          confidenceLevel: newConfidenceScore >= 80 ? "high" : newConfidenceScore >= 60 ? "medium" : "low",
+          isResolved: data.wasSuccessful
+        })
+        .where(eq(diagnoses.id, diagnosisId));
+    }
+
+    return { success: true, wasSuccessful: data.wasSuccessful };
+  }
+
+  // Chat Export operations
+  async exportChatForMechanic(diagnosisId: string): Promise<any> {
+    const diagnosis = await this.getDiagnosis(diagnosisId);
+    const fixHistory = await this.getFixHistory(diagnosisId);
+    
+    if (!diagnosis) {
+      throw new Error("Diagnosis not found");
+    }
+
+    const exportData = {
+      timestamp: new Date().toISOString(),
+      diagnosisId,
+      userInputs: {
+        vehicleInfo: diagnosis.vehicleInfo,
+        description: diagnosis.description,
+        timing: diagnosis.timing,
+        audioFile: diagnosis.audioFile,
+        videoFile: diagnosis.videoFile,
+        vibrationData: diagnosis.vibrationData
+      },
+      aiSuggestions: {
+        primaryDiagnosis: diagnosis.primaryDiagnosis,
+        alternativeScenarios: diagnosis.alternativeScenarios,
+        confidence: diagnosis.confidenceScore
+      },
+      fixHistory: fixHistory.map(h => ({
+        attemptNumber: h.attemptNumber,
+        wasSuccessful: h.wasSuccessful,
+        userFeedback: h.userFeedback,
+        timeSpent: h.timeSpent,
+        stepsCompleted: h.stepsCompleted
+      })),
+      summary: {
+        totalAttempts: fixHistory.length + 1,
+        successfulFixes: fixHistory.filter(h => h.wasSuccessful).length,
+        averageTime: fixHistory.reduce((acc, h) => acc + (h.timeSpent || 0), 0) / Math.max(1, fixHistory.length)
+      }
+    };
+
+    // Log the export
+    const exportLogEntry: InsertChatExportLog = {
+      diagnosisId,
+      userId: "", // Would get from session
+      exportData: exportData as any
+    };
+
+    await db.insert(chatExportLog).values(exportLogEntry);
+    
+    return exportData;
+  }
+
+  async sendToMechanic(diagnosisId: string): Promise<any> {
+    // In a real app, this would send the export data to available mechanics
+    // For now, we'll just mark it as sent
+    const exportData = await this.exportChatForMechanic(diagnosisId);
+    
+    return {
+      success: true,
+      message: "Diagnostic data sent to available mechanics",
+      exportData
+    };
   }
 }
 
