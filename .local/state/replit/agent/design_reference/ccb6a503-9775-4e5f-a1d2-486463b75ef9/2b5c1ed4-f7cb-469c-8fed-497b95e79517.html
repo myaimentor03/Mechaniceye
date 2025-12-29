@@ -1,0 +1,522 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mechanic's Eye - AI Vehicle Diagnostics</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                colors: {
+                    'automotive-blue': '#1E3A8A',
+                    'automotive-orange': '#F97316',
+                    'automotive-gray': '#64748B',
+                    'automotive-light': '#F1F5F9'
+                },
+                fontFamily: {
+                    'inter': ['Inter', 'sans-serif']
+                }
+            }
+        }
+    };
+    </script>
+</head>
+<body class="font-inter bg-gray-50 min-h-screen">
+    <!-- @COMPONENT: AppHeader -->
+    <header class="bg-automotive-blue text-white shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-automotive-orange rounded-lg flex items-center justify-center">
+                        <i class="fas fa-wrench text-white text-lg"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold">Mechanic's Eye</h1>
+                        <p class="text-blue-200 text-sm">AI Vehicle Diagnostics</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button class="p-2 hover:bg-blue-700 rounded-lg transition-colors">
+                        <i class="fas fa-history"></i>
+                    </button>
+                    <button class="p-2 hover:bg-blue-700 rounded-lg transition-colors">
+                        <i class="fas fa-user-circle text-xl"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+    <!-- @END_COMPONENT: AppHeader -->
+
+    <!-- @COMPONENT: MainContainer -->
+    <main class="container mx-auto px-4 py-6 max-w-4xl">
+        
+        <!-- @COMPONENT: DiagnosisForm -->
+        <div id="diagnosis-form" class="space-y-6">
+            <!-- Step Indicator -->
+            <div class="bg-white rounded-xl shadow-sm p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-2xl font-bold text-gray-900">Vehicle Diagnosis</h2>
+                    <div class="flex items-center space-x-2 text-sm text-automotive-gray">
+                        <i class="fas fa-shield-alt text-automotive-orange"></i>
+                        <span>Secure Analysis</span>
+                    </div>
+                </div>
+                
+                <!-- Progress Steps -->
+                <div class="flex items-center space-x-4 mb-8">
+                    <div class="flex items-center">
+                        <div class="w-8 h-8 bg-automotive-orange text-white rounded-full flex items-center justify-center text-sm font-semibold">1</div>
+                        <span class="ml-2 text-automotive-orange font-medium">Upload Data</span>
+                    </div>
+                    <div class="flex-1 h-0.5 bg-gray-200"></div>
+                    <div class="flex items-center">
+                        <div class="w-8 h-8 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-sm font-semibold">2</div>
+                        <span class="ml-2 text-gray-500">Analysis</span>
+                    </div>
+                    <div class="flex-1 h-0.5 bg-gray-200"></div>
+                    <div class="flex items-center">
+                        <div class="w-8 h-8 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-sm font-semibold">3</div>
+                        <span class="ml-2 text-gray-500">Results</span>
+                    </div>
+                </div>
+
+                <!-- Upload Tabs -->
+                <div class="border-b border-gray-200 mb-6">
+                    <nav class="-mb-px flex space-x-8">
+                        <button class="tab-button active py-2 px-1 border-b-2 border-automotive-orange text-automotive-orange font-medium text-sm" data-tab="audio">
+                            <i class="fas fa-volume-up mr-2"></i>Audio
+                        </button>
+                        <button class="tab-button py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm" data-tab="video">
+                            <i class="fas fa-video mr-2"></i>Video
+                        </button>
+                        <button class="tab-button py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm" data-tab="vibration">
+                            <i class="fas fa-wave-square mr-2"></i>Vibration
+                        </button>
+                        <button class="tab-button py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm" data-tab="description">
+                            <i class="fas fa-edit mr-2"></i>Description
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Tab Content -->
+                <div class="tab-content">
+                    <!-- Audio Upload Tab -->
+                    <div id="audio-tab" class="tab-pane active">
+                        <div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-automotive-orange transition-colors cursor-pointer" data-mock="true">
+                            <i class="fas fa-microphone text-4xl text-gray-400 mb-4"></i>
+                            <h3 class="text-lg font-semibold text-gray-900 mb-2">Upload Audio Recording</h3>
+                            <p class="text-gray-600 mb-4">Record or upload audio of the vehicle issue (MP3, WAV, M4A)</p>
+                            <button class="bg-automotive-orange text-white px-6 py-2 rounded-lg font-medium hover:bg-orange-600 transition-colors">
+                                <i class="fas fa-upload mr-2"></i>Choose Audio File
+                            </button>
+                            <input type="file" class="hidden" accept="audio/*" data-implementation="Handle audio file upload">
+                        </div>
+                    </div>
+
+                    <!-- Video Upload Tab -->
+                    <div id="video-tab" class="tab-pane hidden">
+                        <div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-automotive-orange transition-colors cursor-pointer" data-mock="true">
+                            <i class="fas fa-video text-4xl text-gray-400 mb-4"></i>
+                            <h3 class="text-lg font-semibold text-gray-900 mb-2">Upload Video Recording</h3>
+                            <p class="text-gray-600 mb-4">Show the vehicle issue in action (MP4, MOV, AVI)</p>
+                            <button class="bg-automotive-orange text-white px-6 py-2 rounded-lg font-medium hover:bg-orange-600 transition-colors">
+                                <i class="fas fa-upload mr-2"></i>Choose Video File
+                            </button>
+                            <input type="file" class="hidden" accept="video/*" data-implementation="Handle video file upload">
+                        </div>
+                    </div>
+
+                    <!-- Vibration Tab -->
+                    <div id="vibration-tab" class="tab-pane hidden">
+                        <div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-automotive-orange transition-colors cursor-pointer" data-mock="true">
+                            <i class="fas fa-wave-square text-4xl text-gray-400 mb-4"></i>
+                            <h3 class="text-lg font-semibold text-gray-900 mb-2">Vibration Data</h3>
+                            <p class="text-gray-600 mb-4">Use your device's accelerometer to detect vibrations</p>
+                            <button class="bg-automotive-orange text-white px-6 py-2 rounded-lg font-medium hover:bg-orange-600 transition-colors" data-event="click:startVibrationRecording">
+                                <i class="fas fa-play mr-2"></i>Start Recording Vibration
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Description Tab -->
+                    <div id="description-tab" class="tab-pane hidden">
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Describe the issue in your own words</label>
+                                <textarea 
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-automotive-orange focus:border-transparent resize-none" 
+                                    rows="6" 
+                                    placeholder="e.g., My car makes a squealing noise when I brake, especially in the morning. The sound gets worse when it's cold outside..."
+                                    data-bind="userDescription"
+                                    data-mock="true"
+                                ></textarea>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">When does it occur?</label>
+                                    <select class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-automotive-orange focus:border-transparent" data-mock="true">
+                                        <option>Select timing...</option>
+                                        <option>During startup</option>
+                                        <option>While driving</option>
+                                        <option>When braking</option>
+                                        <option>When accelerating</option>
+                                        <option>When turning</option>
+                                        <option>All the time</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Vehicle information</label>
+                                    <input 
+                                        type="text" 
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-automotive-orange focus:border-transparent" 
+                                        placeholder="e.g., 2018 Honda Civic"
+                                        data-bind="vehicleInfo"
+                                        data-mock="true"
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="mt-8 pt-6 border-t border-gray-200">
+                    <button 
+                        id="analyze-button"
+                        class="w-full bg-automotive-blue text-white py-4 px-6 rounded-xl font-semibold text-lg hover:bg-blue-800 transition-colors flex items-center justify-center space-x-2"
+                        data-event="click:startAnalysis"
+                        data-implementation="Validate inputs and start analysis process"
+                    >
+                        <i class="fas fa-search"></i>
+                        <span>Analyze Vehicle Issue</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: DiagnosisForm -->
+
+        <!-- @COMPONENT: AnalysisProgress -->
+        <div id="analysis-progress" class="hidden space-y-6">
+            <div class="bg-white rounded-xl shadow-sm p-8">
+                <div class="text-center">
+                    <div class="w-20 h-20 bg-automotive-orange bg-opacity-10 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <div class="animate-spin">
+                            <i class="fas fa-cog text-3xl text-automotive-orange"></i>
+                        </div>
+                    </div>
+                    
+                    <h2 class="text-2xl font-bold text-gray-900 mb-2">Analyzing Your Vehicle</h2>
+                    <p class="text-gray-600 mb-8">Our AI is processing your data to identify the issue</p>
+                    
+                    <!-- Progress Steps -->
+                    <div class="space-y-4 max-w-md mx-auto">
+                        <div class="flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-200">
+                            <div class="flex items-center space-x-3">
+                                <i class="fas fa-check-circle text-green-500"></i>
+                                <span class="font-medium text-green-800">Processing audio data</span>
+                            </div>
+                            <span class="text-green-600 text-sm">Complete</span>
+                        </div>
+                        
+                        <div class="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
+                            <div class="flex items-center space-x-3">
+                                <div class="animate-spin">
+                                    <i class="fas fa-spinner text-blue-500"></i>
+                                </div>
+                                <span class="font-medium text-blue-800">Matching sound patterns</span>
+                            </div>
+                            <span class="text-blue-600 text-sm">In progress</span>
+                        </div>
+                        
+                        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                            <div class="flex items-center space-x-3">
+                                <i class="fas fa-clock text-gray-400"></i>
+                                <span class="font-medium text-gray-600">Generating diagnosis</span>
+                            </div>
+                            <span class="text-gray-500 text-sm">Pending</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Progress Bar -->
+                    <div class="mt-8">
+                        <div class="flex justify-between text-sm text-gray-600 mb-2">
+                            <span>Analysis Progress</span>
+                            <span id="progress-percentage">67%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-automotive-orange h-2 rounded-full transition-all duration-500" style="width: 67%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: AnalysisProgress -->
+
+        <!-- @COMPONENT: DiagnosisResults -->
+        <div id="diagnosis-results" class="hidden space-y-6">
+            <!-- Results Header -->
+            <div class="bg-white rounded-xl shadow-sm p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-2xl font-bold text-gray-900">Diagnosis Complete</h2>
+                    <div class="flex items-center space-x-2 text-sm text-green-600">
+                        <i class="fas fa-check-circle"></i>
+                        <span>Analysis Successful</span>
+                    </div>
+                </div>
+                
+                <!-- Primary Diagnosis -->
+                <div class="bg-gradient-to-r from-automotive-blue to-blue-600 text-white rounded-xl p-6 mb-6">
+                    <div class="flex items-start justify-between mb-4">
+                        <div>
+                            <h3 class="text-xl font-bold mb-2">Primary Diagnosis</h3>
+                            <p class="text-blue-100">Most likely cause based on your data</p>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-3xl font-bold">94%</div>
+                            <div class="text-blue-200 text-sm">Confidence</div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white bg-opacity-10 rounded-lg p-4">
+                        <h4 class="font-semibold text-lg mb-2" data-bind="primaryDiagnosis.title" data-mock="true">Brake Pad Wear</h4>
+                        <p class="text-blue-100 mb-3" data-bind="primaryDiagnosis.description" data-mock="true">
+                            The squealing noise during braking indicates worn brake pads. The metal wear indicator is making contact with the rotor, creating the high-pitched sound you're hearing.
+                        </p>
+                        
+                        <div class="flex items-center space-x-4 text-sm">
+                            <div class="flex items-center space-x-1">
+                                <i class="fas fa-exclamation-triangle text-yellow-300"></i>
+                                <span data-bind="primaryDiagnosis.severity" data-mock="true">Medium Priority</span>
+                            </div>
+                            <div class="flex items-center space-x-1">
+                                <i class="fas fa-dollar-sign text-green-300"></i>
+                                <span data-bind="primaryDiagnosis.cost" data-mock="true">$200-400</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Alternative Scenarios -->
+                <div class="space-y-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Alternative Possibilities</h3>
+                    
+                    <!-- @MAP: alternativeScenarios.map(scenario => ( -->
+                    <div class="border border-gray-200 rounded-lg p-4 hover:border-automotive-orange transition-colors">
+                        <div class="flex items-start justify-between mb-2">
+                            <h4 class="font-semibold text-gray-900" data-bind="scenario.title" data-mock="true">Brake Rotor Warping</h4>
+                            <div class="text-right">
+                                <div class="text-lg font-semibold text-automotive-gray" data-bind="scenario.confidence" data-mock="true">73%</div>
+                                <div class="text-xs text-gray-500">Confidence</div>
+                            </div>
+                        </div>
+                        <p class="text-gray-600 text-sm mb-2" data-bind="scenario.description" data-mock="true">
+                            Warped brake rotors can cause vibration and noise during braking, especially noticeable at higher speeds.
+                        </p>
+                        <div class="flex items-center space-x-3 text-xs text-gray-500">
+                            <span data-bind="scenario.severity" data-mock="true">High Priority</span>
+                            <span data-bind="scenario.cost" data-mock="true">$300-600</span>
+                        </div>
+                    </div>
+                    
+                    <div class="border border-gray-200 rounded-lg p-4 hover:border-automotive-orange transition-colors">
+                        <div class="flex items-start justify-between mb-2">
+                            <h4 class="font-semibold text-gray-900" data-bind="scenario.title" data-mock="true">Brake Fluid Contamination</h4>
+                            <div class="text-right">
+                                <div class="text-lg font-semibold text-automotive-gray" data-bind="scenario.confidence" data-mock="true">45%</div>
+                                <div class="text-xs text-gray-500">Confidence</div>
+                            </div>
+                        </div>
+                        <p class="text-gray-600 text-sm mb-2" data-bind="scenario.description" data-mock="true">
+                            Contaminated brake fluid can reduce braking effectiveness and cause unusual noises during operation.
+                        </p>
+                        <div class="flex items-center space-x-3 text-xs text-gray-500">
+                            <span data-bind="scenario.severity" data-mock="true">Medium Priority</span>
+                            <span data-bind="scenario.cost" data-mock="true">$100-200</span>
+                        </div>
+                    </div>
+                    <!-- @END_MAP )) -->
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="mt-8 pt-6 border-t border-gray-200">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <button class="flex items-center justify-center space-x-2 bg-automotive-orange text-white py-3 px-4 rounded-lg font-medium hover:bg-orange-600 transition-colors">
+                            <i class="fas fa-map-marker-alt"></i>
+                            <span>Find Mechanics</span>
+                        </button>
+                        <button class="flex items-center justify-center space-x-2 border border-automotive-blue text-automotive-blue py-3 px-4 rounded-lg font-medium hover:bg-blue-50 transition-colors">
+                            <i class="fas fa-download"></i>
+                            <span>Save Report</span>
+                        </button>
+                        <button class="flex items-center justify-center space-x-2 border border-gray-300 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-50 transition-colors" data-event="click:startNewAnalysis">
+                            <i class="fas fa-redo"></i>
+                            <span>New Analysis</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: DiagnosisResults -->
+
+        <!-- Recent Diagnoses -->
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Recent Diagnoses</h3>
+            <div class="space-y-3">
+                <!-- @MAP: recentDiagnoses.map(diagnosis => ( -->
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer" data-mock="true">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-automotive-orange bg-opacity-10 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-wrench text-automotive-orange"></i>
+                        </div>
+                        <div>
+                            <div class="font-medium text-gray-900" data-bind="diagnosis.title" data-mock="true">Engine Misfire</div>
+                            <div class="text-sm text-gray-500" data-bind="diagnosis.date" data-mock="true">2 days ago • 2019 Toyota Camry</div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-semibold text-automotive-blue" data-bind="diagnosis.confidence" data-mock="true">89%</div>
+                        <i class="fas fa-chevron-right text-gray-400"></i>
+                    </div>
+                </div>
+                
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer" data-mock="true">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-automotive-orange bg-opacity-10 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-battery-half text-automotive-orange"></i>
+                        </div>
+                        <div>
+                            <div class="font-medium text-gray-900" data-bind="diagnosis.title" data-mock="true">Battery Issues</div>
+                            <div class="text-sm text-gray-500" data-bind="diagnosis.date" data-mock="true">1 week ago • 2020 Ford F-150</div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-semibold text-automotive-blue" data-bind="diagnosis.confidence" data-mock="true">76%</div>
+                        <i class="fas fa-chevron-right text-gray-400"></i>
+                    </div>
+                </div>
+                <!-- @END_MAP )) -->
+            </div>
+        </div>
+
+    </main>
+    <!-- @END_COMPONENT: MainContainer -->
+
+    <!-- @COMPONENT: BottomNavigation (Mobile) -->
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2">
+        <div class="flex items-center justify-around">
+            <button class="flex flex-col items-center space-y-1 text-automotive-orange">
+                <i class="fas fa-home text-xl"></i>
+                <span class="text-xs font-medium">Home</span>
+            </button>
+            <button class="flex flex-col items-center space-y-1 text-gray-500">
+                <i class="fas fa-history text-xl"></i>
+                <span class="text-xs font-medium">History</span>
+            </button>
+            <button class="flex flex-col items-center space-y-1 text-gray-500">
+                <i class="fas fa-user text-xl"></i>
+                <span class="text-xs font-medium">Profile</span>
+            </button>
+        </div>
+    </nav>
+    <!-- @END_COMPONENT: BottomNavigation -->
+
+    <script>
+    (function() {
+        // @STATE: currentTab = 'audio', analysisStep = 1, isAnalyzing = false
+        
+        // Tab switching functionality
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabPanes = document.querySelectorAll('.tab-pane');
+        
+        tabButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const targetTab = this.getAttribute('data-tab');
+                
+                // Remove active state from all tabs
+                tabButtons.forEach(btn => {
+                    btn.classList.remove('active', 'border-automotive-orange', 'text-automotive-orange');
+                    btn.classList.add('border-transparent', 'text-gray-500');
+                });
+                
+                // Add active state to clicked tab
+                this.classList.add('active', 'border-automotive-orange', 'text-automotive-orange');
+                this.classList.remove('border-transparent', 'text-gray-500');
+                
+                // Hide all tab panes
+                tabPanes.forEach(pane => {
+                    pane.classList.add('hidden');
+                    pane.classList.remove('active');
+                });
+                
+                // Show target tab pane
+                const targetPane = document.getElementById(targetTab + '-tab');
+                if (targetPane) {
+                    targetPane.classList.remove('hidden');
+                    targetPane.classList.add('active');
+                }
+            });
+        });
+        
+        // Analysis simulation
+        const analyzeButton = document.getElementById('analyze-button');
+        const diagnosisForm = document.getElementById('diagnosis-form');
+        const analysisProgress = document.getElementById('analysis-progress');
+        const diagnosisResults = document.getElementById('diagnosis-results');
+        const progressPercentage = document.getElementById('progress-percentage');
+        
+        analyzeButton.addEventListener('click', function() {
+            // TODO: Implement form validation
+            
+            // Show analysis progress
+            diagnosisForm.classList.add('hidden');
+            analysisProgress.classList.remove('hidden');
+            
+            // Simulate analysis progress
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += Math.random() * 20;
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(progressInterval);
+                    
+                    // Show results after analysis completes
+                    setTimeout(() => {
+                        analysisProgress.classList.add('hidden');
+                        diagnosisResults.classList.remove('hidden');
+                    }, 1000);
+                }
+                
+                progressPercentage.textContent = Math.round(progress) + '%';
+                document.querySelector('.bg-automotive-orange').style.width = progress + '%';
+            }, 500);
+        });
+        
+        // New analysis button
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('[data-event="click:startNewAnalysis"]')) {
+                diagnosisResults.classList.add('hidden');
+                diagnosisForm.classList.remove('hidden');
+                
+                // Reset form
+                document.querySelectorAll('textarea, input').forEach(input => {
+                    if (input.type !== 'file') {
+                        input.value = '';
+                    }
+                });
+            }
+        });
+        
+        // @FUNCTIONALITY: File upload handlers would implement drag-and-drop, file validation, and preview functionality
+        // @FUNCTIONALITY: Vibration recording would use device accelerometer API
+        // @FUNCTIONALITY: Real implementation would connect to backend analysis services
+        
+    })();
+    </script>
+</body>
+</html>
