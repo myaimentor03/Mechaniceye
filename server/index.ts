@@ -57,13 +57,12 @@ app.use((req, res, next) => {
   }
 
   // Port + Host (local dev friendly)
-  const port = parseInt(process.env.PORT || "5000", 10);
-  const host = process.env.HOST || "127.0.0.1";
+const PORT = Number(process.env.PORT) || 5000;
+const HOST = "0.0.0.0";
 
-  server.listen(
-    { port, host },
-    () => {
-      log(`serving on http://${host}:${port}`);
-    }
-  );
-})();
+server.listen(
+  { port: PORT, host: HOST },
+  () => {
+    log(`serving on http://${HOST}:${PORT}`);
+  }
+);
