@@ -66,3 +66,8 @@ server.listen(
     log(`serving on http://${HOST}:${PORT}`);
   }
 );
+})().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
+
