@@ -60,12 +60,9 @@ app.use((req, res, next) => {
 const PORT = Number(process.env.PORT) || 5000;
 const HOST = "0.0.0.0";
 
-server.listen(
-  { port: PORT, host: HOST },
-  () => {
-    log(`serving on http://${HOST}:${PORT}`);
-  }
-);
+server.listen(PORT, "0.0.0.0", () => {
+  log(`serving on http://0.0.0.0:${PORT}`);
+});
 })().catch((err) => {
   console.error(err);
   process.exit(1);
