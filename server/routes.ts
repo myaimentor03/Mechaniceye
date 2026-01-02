@@ -303,9 +303,10 @@ app.get("/healthz", (_req, res) => {
     try {
       const mechanics = await storage.getActiveMechanics();
       res.json(mechanics);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch mechanics" });
-    }
+   } catch (error) {
+  console.error("Failed to fetch recent diagnoses:", error);
+  res.status(500).json({ message: "Failed to fetch recent diagnoses" });
+}
   });
 
   // Start mechanic consultation
