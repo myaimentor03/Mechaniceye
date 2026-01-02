@@ -58,20 +58,20 @@ app.get("/healthz", (_req, res) => {
 });
 
   
-  // Get recent diagnoses
-  app.get("/api/diagnoses/recent", async (req, res) => {
-    try {
-      const limit = parseInt(req.query.limit as string) || 10;
-      const diagnoses = await storage.getRecentDiagnoses(limit);
-      res.json(diagnoses);
-   } catch (error: any) {
-  console.error("Failed to fetch recent diagnoses FULL:", error?.stack || error);
-  res.status(500).json({
-    message: "Failed to fetch recent diagnoses",
-    error: String(error?.message || error),
-  });
-}
-  });
+// Get recent diagnoses
+app.get("/api/diagnoses/recent", async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 10;
+    const diagnoses = await storage.getRecentDiagnoses(limit);
+    res.json(diagnoses);
+  } catch (error) {
+    console.error("Failed to fetch recent diagnoses:", error);
+    res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+});
+
 
   // Fix History Log endpoints
   app.get("/api/fix-history/:diagnosisId", async (req, res) => {
@@ -308,9 +308,10 @@ app.get("/healthz", (_req, res) => {
       const mechanics = await storage.getActiveMechanics();
       res.json(mechanics);
    } catch (error) {
-  console.error("Failed to fetch recent diagnoses:", error);
-  res.status(500).json({ message: "Failed to fetch recent diagnoses" });
+  console.error("Failed to fetch mechanics:", error);
+  res.status(500).json({ message: "Failed to fetch mechanics" });
 }
+
   });
 
   // Start mechanic consultation
