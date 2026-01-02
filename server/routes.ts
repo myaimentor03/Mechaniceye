@@ -64,9 +64,13 @@ app.get("/healthz", (_req, res) => {
       const limit = parseInt(req.query.limit as string) || 10;
       const diagnoses = await storage.getRecentDiagnoses(limit);
       res.json(diagnoses);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch recent diagnoses" });
-    }
+   } catch (error: any) {
+  console.error("Failed to fetch recent diagnoses FULL:", error?.stack || error);
+  res.status(500).json({
+    message: "Failed to fetch recent diagnoses",
+    error: String(error?.message || error),
+  });
+}
   });
 
   // Fix History Log endpoints
