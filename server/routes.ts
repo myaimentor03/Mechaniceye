@@ -52,6 +52,11 @@ function checkSubscriptionAccess(userTier: string, feature: string): boolean {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+
+app.get("/healthz", (_req, res) => {
+  res.status(200).send("ok");
+});
+
   
   // Get recent diagnoses
   app.get("/api/diagnoses/recent", async (req, res) => {
