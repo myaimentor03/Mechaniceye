@@ -7,7 +7,6 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-console.log("DB URL IN USE:", process.env.DATABASE_URL?.replace(/:.+@/, ":***@"));
 
 app.use(
   cors({
