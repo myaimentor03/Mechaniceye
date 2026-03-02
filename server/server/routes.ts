@@ -169,6 +169,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     { name: 'audio', maxCount: 1 },
     { name: 'video', maxCount: 1 }
   ]), async (req, res) => {
+
+console.log("Incoming body:", req.body);
+console.log("Incoming files:", req.files);
+
     try {
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
       
