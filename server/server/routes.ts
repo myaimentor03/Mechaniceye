@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { insertDiagnosisSchema, insertFollowUpSchema, consultationFeedbackSchema } from "@shared/schema";
+//import { storage } from "./storage";
+// import { insertDiagnosisSchema, insertFollowUpSchema, consultationFeedbackSchema } from "@shared/schema";
 import { performEnhancedAnalysis } from "./enhanced-analysis";
 import multer from "multer";
 import path from "path";
