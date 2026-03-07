@@ -1,4 +1,4 @@
-import type { Express } from "express";
+ import type { Express } from "express";
 import { createServer, type Server } from "http";
 //import { storage } from "./storage";
 // import { insertDiagnosisSchema, insertFollowUpSchema, consultationFeedbackSchema } from "@shared/schema";
@@ -165,26 +165,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create new diagnosis with file uploads
-  app.post("/api/diagnoses", async (req, res) => {
+app.post("/api/diagnoses", async (req, res) => {
   try {
     console.log("Incoming body:", req.body);
 
-    const diagnosisData = {
+    const diagnosis = {
+      id: Date.now().toString(),
       description: req.body.description || req.body.symptoms || "",
       vehicleInfo: req.body.vehicleInfo || "",
       timing: req.body.timing || "",
       vibrationData: req.body.vibrationData || null,
       audioFile: null,
       videoFile: null,
-    };
-
-    const analysisResults = performEnhancedAnalysis(diagnosisData);
-
-    const diagnosis = {
-      id: Date.now().toString(),
-      ...diagnosisData,
-      analysis: analysisResults,
-      createdAt: new Date()
+      createdAt: new Date(),
+      status: "received"
     };
 
     res.json(diagnosis);
@@ -195,15 +189,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   }
 });
-
-      res.json(diagnosis);
-    } catch (error: any) {
-      console.error('Diagnosis creation error:', error);
-      res.status(400).json({ 
-        message: error.message || "Failed to create diagnosis" 
-      });
-    }
-  });
 
   // Create follow-up request when previous fixes didn't work
   app.post("/api/diagnoses/:id/follow-up", upload.fields([
@@ -371,4 +356,3 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   return httpServer;
 }
-
