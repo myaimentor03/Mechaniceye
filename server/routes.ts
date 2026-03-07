@@ -165,46 +165,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create new diagnosis with file uploads
-  app.post("/api/diagnoses", upload.fields([
-    { name: 'audio', maxCount: 1 },
-    { name: 'video', maxCount: 1 }
-  ]), async (req, res) => {
+  app.post("/api/diagnoses", async (req, res) => {
+  try {
+    console.log("Incoming body:", req.body);
 
-console.log("Incoming body:", req.body);
-console.log("Incoming files:", req.files);
+    const diagnosisData = {
+      description: req.body.description || req.body.symptoms || "",
+      vehicleInfo: req.body.vehicleInfo || "",
+      timing: req.body.timing || "",
+      vibrationData: req.body.vibrationData || null,
+      audioFile: null,
+      videoFile: null,
+    };
 
-    try {
-      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-      
-      // Parse form data
-      const diagnosisData = {
-        description: req.body.description,
-        vehicleInfo: req.body.vehicleInfo,
-        timing: req.body.timing,
-        vibrationData: req.body.vibrationData ? JSON.parse(req.body.vibrationData) : null,
-        audioFile: files?.audio?.[0]?.filename || null,
-        videoFile: files?.video?.[0]?.filename || null,
-      };
+    const analysisResults = performEnhancedAnalysis(diagnosisData);
 
-      // Validate the data
-      const validatedData = 
+    const diagnosis = {
+      id: Date.now().toString(),
+      ...diagnosisData,
+      analysis: analysisResults,
+      createdAt: new Date()
+    };
 
-      // Perform enhanced analysis
-      const analysisResults = performEnhancedAnalysis(validatedData);
-
-      // Create diagnosis with analysis results
-      const diagnosis = await storage.createDiagnosis({
-        ...validatedData,
-        confidenceScore: analysisResults.primaryDiagnosis?.confidence || 0,
-        confidenceLevel: analysisResults.primaryDiagnosis?.confidence >= 80 ? "high" : 
-                       analysisResults.primaryDiagnosis?.confidence >= 60 ? "medium" : "low",
-        inputTypes: [
-          validatedData.description ? "description" : null,
-          validatedData.audioFile ? "audio" : null,
-          validatedData.videoFile ? "video" : null,
-          validatedData.vibrationData ? "vibration" : null
-        ].filter(Boolean) as string[]
-      });
+    res.json(diagnosis);
+  } catch (error) {
+    console.error("Diagnosis creation error:", error);
+    res.status(500).json({
+      message: "Failed to create diagnosis"
+    });
+  }
+});
 
       res.json(diagnosis);
     } catch (error: any) {
@@ -381,3 +371,4 @@ console.log("Incoming files:", req.files);
   const httpServer = createServer(app);
   return httpServer;
 }
+
