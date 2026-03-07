@@ -187,7 +187,7 @@ console.log("Incoming files:", req.files);
       };
 
       // Validate the data
-      const validatedData = insertDiagnosisSchema.parse(diagnosisData);
+      const validatedData = 
 
       // Perform enhanced analysis
       const analysisResults = performEnhancedAnalysis(validatedData);
