@@ -19,7 +19,7 @@ app.use(express.urlencoded({ extended: false }));
   });
 
   // 🔥 SERVE FRONTEND FROM DIST (PRODUCTION)
-  const distPath = path.join(process.cwd(), "dist");
+  const distPath = path.join(process.cwd(), "dist/client");
 
   if (fs.existsSync(distPath)) {
     app.use(express.static(distPath));
