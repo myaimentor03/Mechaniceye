@@ -54,9 +54,10 @@ button, input, select, textarea {
 }
 
 .brand {
-  font-size: 1.15rem;
-  font-weight: 800;
-  letter-spacing: 0.02em;
+  font-size: 1.55rem;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  color: #ffffff;
 }
 
 .nav {
@@ -116,6 +117,126 @@ button, input, select, textarea {
 .simple-page {
   display: grid;
   gap: 24px;
+}
+
+.home-hero {
+  border: 1px solid var(--border);
+  background:
+    radial-gradient(circle at top left, rgba(59,214,255,0.18), transparent 30%),
+    linear-gradient(180deg, rgba(18,34,56,0.98), rgba(12,24,41,0.95));
+  border-radius: 30px;
+  padding: 42px;
+  box-shadow: var(--shadow);
+}
+
+.hero-brand {
+  font-size: clamp(2.5rem, 6vw, 5.2rem);
+  font-weight: 900;
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  color: #ffffff;
+}
+
+.hero-title {
+  margin: 16px 0 0 0;
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  line-height: 1.02;
+  max-width: 900px;
+}
+
+.hero-subtitle {
+  margin: 18px 0 0 0;
+  max-width: 860px;
+  font-size: 1.1rem;
+  line-height: 1.7;
+  color: var(--muted);
+}
+
+.offer-section {
+  display: grid;
+  gap: 18px;
+}
+
+.offer-intro {
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(18,34,56,0.95), rgba(12,24,41,0.95));
+  border-radius: 24px;
+  padding: 24px 28px;
+  box-shadow: var(--shadow);
+}
+
+.offer-intro h2 {
+  margin: 10px 0 8px 0;
+  font-size: 1.8rem;
+}
+
+.offer-intro p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.offer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.offer-card {
+  text-align: left;
+  border: 1px solid rgba(59, 214, 255, 0.34);
+  background:
+    radial-gradient(circle at top right, rgba(59,214,255,0.10), transparent 35%),
+    linear-gradient(180deg, rgba(18,34,56,1), rgba(11,22,37,1));
+  border-radius: 28px;
+  padding: 28px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  color: var(--text);
+}
+
+.offer-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(59, 214, 255, 0.58);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+}
+
+.offer-topline {
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.offer-title {
+  margin-top: 14px;
+  font-size: clamp(1.8rem, 3vw, 2.7rem);
+  line-height: 1;
+  font-weight: 900;
+  color: #ffffff;
+}
+
+.offer-copy {
+  margin-top: 16px;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--muted);
+  min-height: 88px;
+}
+
+.offer-action {
+  margin-top: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(59, 214, 255, 0.45);
+  background: rgba(59,214,255,0.10);
+  color: var(--accent);
+  font-weight: 800;
 }
 
 .page-grid {
@@ -419,7 +540,8 @@ textarea:focus {
   .feature-grid,
   .faq-grid,
   .upload-grid,
-  .field-grid {
+  .field-grid,
+  .offer-grid {
     grid-template-columns: 1fr;
   }
 
@@ -431,6 +553,10 @@ textarea:focus {
 
   .nav {
     justify-content: flex-start;
+  }
+
+  .offer-copy {
+    min-height: auto;
   }
 }
 
@@ -445,7 +571,10 @@ textarea:focus {
   .feature-card,
   .faq-card,
   .alert-card,
-  .legal-card {
+  .legal-card,
+  .home-hero,
+  .offer-intro,
+  .offer-card {
     padding: 20px;
     border-radius: 22px;
   }
@@ -454,5 +583,9 @@ textarea:focus {
   .step-actions {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .hero-brand {
+    font-size: 2.4rem;
   }
 }

@@ -214,6 +214,59 @@ export default function TestBackend() {
     }
   }
 
+  function HomePage() {
+    return (
+      <div className="home-wrap">
+        <div className="home-hero">
+          <div className="hero-brand">Mechanic&apos;s Eye</div>
+          <h1 className="hero-title">Know what to do before you spend money on repairs.</h1>
+          <p className="hero-subtitle">
+            A sharper way to understand vehicle problems, decide whether to fix them, and choose your next move without walking in blind.
+          </p>
+        </div>
+
+        <div className="offer-section">
+          <div className="offer-intro">
+            <div className="eyebrow">Choose Your Next Step</div>
+            <h2>Two clear ways forward</h2>
+            <p>
+              Whether you want answers or you want out, start with the path that fits your situation best.
+            </p>
+          </div>
+
+          <div className="offer-grid">
+            <button className="offer-card offer-card-primary" onClick={() => setPage("intake")}>
+              <div className="offer-topline">Vehicle Diagnosis</div>
+              <div className="offer-title">Find Out What&apos;s Wrong</div>
+              <div className="offer-copy">Capture symptoms, timing, sounds, photos, video, and more before spending money on guesswork.</div>
+              <div className="offer-action">Start My Diagnosis</div>
+            </button>
+
+            <button className="offer-card offer-card-primary" onClick={() => setPage("sell")}>
+              <div className="offer-topline">Sell-As-Is Option</div>
+              <div className="offer-title">Don&apos;t Want to Fix It?</div>
+              <div className="offer-copy">See whether your vehicle may be a fit for an as-is sale instead of pouring more time and money into it.</div>
+              <div className="offer-action">See My Options</div>
+            </button>
+          </div>
+        </div>
+
+        <div className="feature-grid">
+          <div className="feature-card"><h3>Structured Intake</h3><p>Year, make, model, timing, urgency, and symptom story gathered in a useful format.</p></div>
+          <div className="feature-card"><h3>Evidence Support</h3><p>Photos, audio, video, and vibration inputs that make the platform feel ahead of the curve.</p></div>
+          <div className="feature-card"><h3>Practical Direction</h3><p>Designed to help you understand likely causes and prepare for the next real-world step.</p></div>
+        </div>
+
+        <div className="feature-card">
+          <h3>Important Safety Note</h3>
+          <p>
+            Mechanic&apos;s Eye is designed to improve clarity and decision-making. It does not replace in-person inspection, manufacturer procedures, or immediate roadside safety judgment when a vehicle feels dangerous to drive.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   function IntakePage() {
     return (
       <div className="page-grid">
@@ -449,37 +502,6 @@ export default function TestBackend() {
           <div className="warning-box">
             If the vehicle is overheating, has low oil pressure, major brake issues, severe knocking, or feels unsafe, stop and get in-person help.
           </div>
-        </div>
-      </div>
-    );
-  }
-
-  function HomePage() {
-    return (
-      <div className="home-wrap">
-        <div className="hero-card large">
-          <div className="eyebrow">Mechanic&apos;s Eye</div>
-          <h1>Smarter vehicle diagnosis starts with a better intake.</h1>
-          <p>
-            Built to help drivers organize symptoms, capture evidence, and make better repair decisions before spending money blindly.
-          </p>
-          <div className="hero-actions">
-            <button className="primary-btn" onClick={() => setPage("intake")}>Diagnose My Vehicle</button>
-            <button className="secondary-btn" onClick={() => setPage("sell")}>Sell My Vehicle As-Is</button>
-          </div>
-        </div>
-
-        <div className="feature-grid">
-          <div className="feature-card"><h3>Structured Intake</h3><p>Year, make, model, timing, urgency, and symptom story gathered in a useful format.</p></div>
-          <div className="feature-card"><h3>Evidence Support</h3><p>Photos, audio, video, and vibration inputs that make the platform feel ahead of the curve.</p></div>
-          <div className="feature-card"><h3>Practical Direction</h3><p>Designed to help you understand likely causes and prepare for the next real-world step.</p></div>
-        </div>
-
-        <div className="feature-card">
-          <h3>Important Safety Note</h3>
-          <p>
-            Mechanic&apos;s Eye is designed to improve clarity and decision-making. It does not replace in-person inspection, manufacturer procedures, or immediate roadside safety judgment when a vehicle feels dangerous to drive.
-          </p>
         </div>
       </div>
     );
