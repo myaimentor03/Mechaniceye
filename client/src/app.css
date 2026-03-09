@@ -136,7 +136,8 @@ button, input, select, textarea {
 .info-card,
 .feature-card,
 .faq-card,
-.alert-card {
+.alert-card,
+.legal-card {
   border: 1px solid var(--border);
   background:
     linear-gradient(180deg, rgba(18,34,56,0.95), rgba(12,24,41,0.95));
@@ -174,7 +175,10 @@ button, input, select, textarea {
 .helper-text,
 .upload-note,
 .file-pill,
-.field label {
+.field label,
+.notice-strip,
+.legal-copy p,
+.legal-copy li {
   color: var(--muted);
 }
 
@@ -377,6 +381,39 @@ textarea:focus {
   color: #d9ffe9;
 }
 
+.notice-strip {
+  margin-top: 22px;
+  padding: 16px 18px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  border-radius: 18px;
+  line-height: 1.6;
+}
+
+.legal-card {
+  display: grid;
+  gap: 18px;
+}
+
+.legal-block {
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: rgba(8, 17, 30, 0.7);
+  padding: 22px;
+}
+
+.legal-block h3 {
+  margin: 0 0 12px 0;
+  font-size: 1.1rem;
+  color: var(--text);
+}
+
+.legal-copy {
+  display: grid;
+  gap: 10px;
+  line-height: 1.7;
+}
+
 @media (max-width: 1080px) {
   .page-grid,
   .feature-grid,
@@ -407,7 +444,8 @@ textarea:focus {
   .info-card,
   .feature-card,
   .faq-card,
-  .alert-card {
+  .alert-card,
+  .legal-card {
     padding: 20px;
     border-radius: 22px;
   }

@@ -81,8 +81,17 @@ function FileNames({ files }: { files: File[] }) {
   );
 }
 
+function LegalSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="legal-block">
+      <h3>{title}</h3>
+      <div className="legal-copy">{children}</div>
+    </div>
+  );
+}
+
 export default function TestBackend() {
-  const [page, setPage] = useState<"home" | "intake" | "sell" | "help" | "disclaimer">("home");
+  const [page, setPage] = useState<"home" | "intake" | "sell" | "help" | "disclaimer" | "terms" | "privacy">("home");
   const [step, setStep] = useState<1 | 2>(1);
 
   const [year, setYear] = useState("");
@@ -404,6 +413,10 @@ export default function TestBackend() {
                     </div>
                   </div>
 
+                  <div className="notice-strip">
+                    By submitting, you understand that Mechanic&apos;s Eye provides informational guidance only and is not a substitute for hands-on inspection, emergency advice, or in-person safety judgment.
+                  </div>
+
                   <div className="step-actions">
                     <button type="button" className="secondary-btn" onClick={() => setStep(1)}>Back to Vehicle</button>
                     <button type="submit" className="primary-btn" disabled={loading}>{loading ? "Submitting..." : "Submit for Diagnosis"}</button>
@@ -461,6 +474,13 @@ export default function TestBackend() {
           <div className="feature-card"><h3>Evidence Support</h3><p>Photos, audio, video, and vibration inputs that make the platform feel ahead of the curve.</p></div>
           <div className="feature-card"><h3>Practical Direction</h3><p>Designed to help you understand likely causes and prepare for the next real-world step.</p></div>
         </div>
+
+        <div className="feature-card">
+          <h3>Important Safety Note</h3>
+          <p>
+            Mechanic&apos;s Eye is designed to improve clarity and decision-making. It does not replace in-person inspection, manufacturer procedures, or immediate roadside safety judgment when a vehicle feels dangerous to drive.
+          </p>
+        </div>
       </div>
     );
   }
@@ -469,26 +489,106 @@ export default function TestBackend() {
     return (
       <div className="simple-page">
         <div className="hero-card">
-          <div className="eyebrow">Sell Your Vehicle</div>
-          <h1>Don&apos;t want the hassle of fixing it?</h1>
+          <div className="eyebrow">Sell Your Vehicle As-Is</div>
+          <h1>Don&apos;t want the hassle of fixing it, diagnosing it, or dealing with flaky buyers?</h1>
           <p>
-            This path can become a serious revenue stream. For now, we’re positioning it visibly and cleanly so the site does more than just diagnosis.
+            If your vehicle is no longer worth repairing, or you simply do not want to deal with the time,
+            cost, and uncertainty, submit the details below. If it looks like a fit, we may be able to
+            connect it with interested buyers in your area.
           </p>
         </div>
 
         <div className="step-card">
-          <h2>Sell-As-Is Intake Preview</h2>
+          <h2>Vehicle Review Request</h2>
+          <p className="helper-text">
+            Submitting your vehicle does not guarantee a purchase offer. It helps us review whether there may
+            be a fit with buyers in your area.
+          </p>
+
           <div className="field-grid">
-            <div className="field"><label>Year</label><input placeholder="Vehicle year" /></div>
-            <div className="field"><label>Make</label><input placeholder="Vehicle make" /></div>
-            <div className="field"><label>Model</label><input placeholder="Vehicle model" /></div>
-            <div className="field"><label>Mileage</label><input placeholder="Approximate mileage" /></div>
-            <div className="field"><label>Condition</label><input placeholder="Runs / does not run / rough / damaged" /></div>
-            <div className="field"><label>Title Status</label><input placeholder="Clean / rebuilt / lost / not sure" /></div>
+            <div className="field">
+              <label>Year</label>
+              <input placeholder="Vehicle year" />
+            </div>
+
+            <div className="field">
+              <label>Make</label>
+              <input placeholder="Vehicle make" />
+            </div>
+
+            <div className="field">
+              <label>Model</label>
+              <input placeholder="Vehicle model" />
+            </div>
+
+            <div className="field">
+              <label>Approximate Mileage</label>
+              <input placeholder="Approximate mileage" />
+            </div>
+
+            <div className="field">
+              <label>Current Condition</label>
+              <input placeholder="Runs / does not run / rough / damaged" />
+            </div>
+
+            <div className="field">
+              <label>Does It Run?</label>
+              <input placeholder="Yes / No / Sometimes" />
+            </div>
+
+            <div className="field">
+              <label>Title Status</label>
+              <input placeholder="Clean / rebuilt / lost / not sure" />
+            </div>
+
+            <div className="field">
+              <label>Main Problem or Reason for Selling</label>
+              <input placeholder="What is wrong with it or why are you selling it?" />
+            </div>
+
+            <div className="field">
+              <label>City</label>
+              <input placeholder="City" />
+            </div>
+
+            <div className="field">
+              <label>State</label>
+              <input placeholder="State" />
+            </div>
+
+            <div className="field">
+              <label>ZIP Code</label>
+              <input placeholder="ZIP Code" />
+            </div>
+
+            <div className="field">
+              <label>Best Contact Name</label>
+              <input placeholder="Your name" />
+            </div>
+
+            <div className="field">
+              <label>Best Contact Email</label>
+              <input placeholder="Your email" />
+            </div>
+
+            <div className="field">
+              <label>Best Contact Phone</label>
+              <input placeholder="Your phone number" />
+            </div>
+
+            <div className="field">
+              <label>Upload Photos</label>
+              <input type="file" multiple accept="image/*" />
+            </div>
           </div>
+
+          <div className="notice-strip">
+            Submission does not guarantee an offer or purchase. Vehicle review depends on condition, marketability, location, and whether the seller has the legal right to sell the vehicle.
+          </div>
+
           <div className="step-actions">
             <button className="secondary-btn" type="button" onClick={() => setPage("home")}>Back</button>
-            <button className="primary-btn" type="button">Coming Next</button>
+            <button className="primary-btn" type="button">Submit Vehicle for Review</button>
           </div>
         </div>
       </div>
@@ -520,6 +620,105 @@ export default function TestBackend() {
           <h1>Informational guidance, not a substitute for physical inspection.</h1>
           <p>Use caution. Safety-critical vehicle problems still require real-world judgment and in-person help.</p>
         </div>
+
+        <div className="legal-card">
+          <LegalSection title="General Use">
+            <p>Mechanic&apos;s Eye provides informational guidance based on the details submitted by the user. It does not replace hands-on inspection, professional testing, manufacturer procedures, or in-person diagnosis.</p>
+          </LegalSection>
+          <LegalSection title="Safety Warning">
+            <p>If a vehicle has severe brake problems, overheating, low oil pressure, active smoke, fuel leaks, fire risk, major steering failure, or feels unsafe to drive, stop and seek qualified in-person help.</p>
+          </LegalSection>
+          <LegalSection title="No Guaranteed Outcome">
+            <p>Suggestions, likely causes, or next-step guidance may be incomplete or incorrect if the submitted information is incomplete, inaccurate, or missing key test data.</p>
+          </LegalSection>
+          <LegalSection title="User Responsibility">
+            <p>The user remains responsible for decisions related to driving, repair authorization, parts purchases, towing, inspections, and vehicle sale activity.</p>
+          </LegalSection>
+        </div>
+      </div>
+    );
+  }
+
+  function TermsPage() {
+    return (
+      <div className="simple-page">
+        <div className="hero-card">
+          <div className="eyebrow">Terms & Conditions</div>
+          <h1>Rules for using the Mechanic&apos;s Eye platform.</h1>
+          <p>Plain-English protection, because pretending people read mystery legal sludge has never improved civilization.</p>
+        </div>
+
+        <div className="legal-card">
+          <LegalSection title="Acceptance of Terms">
+            <p>By using this website, submitting information, or interacting with Mechanic&apos;s Eye services, you agree to these terms.</p>
+          </LegalSection>
+
+          <LegalSection title="Informational Use Only">
+            <p>Mechanic&apos;s Eye is intended to provide informational vehicle guidance and intake support. It is not a licensed inspection station, emergency service, or guarantee of repair accuracy.</p>
+          </LegalSection>
+
+          <LegalSection title="User-Submitted Information">
+            <p>You are responsible for the accuracy of the information, files, photos, videos, and descriptions you submit. Inaccurate or incomplete information may affect the usefulness of any response or review.</p>
+          </LegalSection>
+
+          <LegalSection title="Acceptable Use">
+            <p>You agree not to submit unlawful, harmful, infringing, abusive, fraudulent, or unrelated material. You should only upload content you have the right to share.</p>
+          </LegalSection>
+
+          <LegalSection title="No Guarantee of Availability or Outcome">
+            <p>We do not guarantee uninterrupted access, permanent storage of uploads, a specific diagnosis result, a specific repair outcome, or a purchase offer for any vehicle submitted through the platform.</p>
+          </LegalSection>
+
+          <LegalSection title="Vehicle Sale Leads">
+            <p>Submitting a vehicle for as-is review does not create an obligation to buy, make an offer, or connect you with a buyer. Any possible interest depends on condition, location, marketability, and lawful ownership.</p>
+          </LegalSection>
+
+          <LegalSection title="Limitation of Liability">
+            <p>To the fullest extent allowed by law, Mechanic&apos;s Eye is not liable for losses, damages, repair costs, towing costs, downtime, missed opportunities, vehicle failures, or other consequences arising from reliance on submitted guidance or platform content.</p>
+          </LegalSection>
+
+          <LegalSection title="Changes to the Platform or Terms">
+            <p>We may update, revise, limit, or discontinue parts of the website, services, workflows, or these terms at any time.</p>
+          </LegalSection>
+        </div>
+      </div>
+    );
+  }
+
+  function PrivacyPage() {
+    return (
+      <div className="simple-page">
+        <div className="hero-card">
+          <div className="eyebrow">Privacy Policy</div>
+          <h1>What information may be collected and how it may be used.</h1>
+          <p>Because once people upload names, locations, media, and vehicle details, pretending privacy is optional becomes a terrible idea.</p>
+        </div>
+
+        <div className="legal-card">
+          <LegalSection title="Information You May Submit">
+            <p>This may include your name, email, phone number, location, vehicle details, symptom descriptions, and media such as photos, audio, video, or other evidence.</p>
+          </LegalSection>
+
+          <LegalSection title="How Information May Be Used">
+            <p>Submitted information may be used to review vehicle issues, organize intake requests, evaluate sell-as-is leads, improve the service workflow, communicate with you, and support future platform operations.</p>
+          </LegalSection>
+
+          <LegalSection title="Third-Party Services">
+            <p>Some submissions, payments, media handling, hosting, or workflow automation may be processed using third-party platforms or service providers as the system evolves.</p>
+          </LegalSection>
+
+          <LegalSection title="Payment Handling">
+            <p>If payments are used, they may be handled by third-party payment providers. Mechanic&apos;s Eye should not be treated as the direct vault for full payment card information unless explicitly stated.</p>
+          </LegalSection>
+
+          <LegalSection title="Media and Uploads">
+            <p>Do not upload sensitive personal documents or unrelated material unless specifically requested. Uploaded media may be reviewed to support diagnosis, lead routing, or platform operations.</p>
+          </LegalSection>
+
+          <LegalSection title="Data Retention and Protection">
+            <p>We may retain submission records for operational, support, or business purposes. While reasonable efforts may be made to handle information responsibly, no online system should be treated as perfectly immune from risk.</p>
+          </LegalSection>
+        </div>
       </div>
     );
   }
@@ -534,6 +733,8 @@ export default function TestBackend() {
           <button onClick={() => setPage("sell")}>Sell As-Is</button>
           <button onClick={() => setPage("help")}>Help</button>
           <button onClick={() => setPage("disclaimer")}>Disclaimer</button>
+          <button onClick={() => setPage("terms")}>Terms</button>
+          <button onClick={() => setPage("privacy")}>Privacy</button>
         </div>
       </div>
 
@@ -543,6 +744,8 @@ export default function TestBackend() {
         {page === "sell" && <SellPage />}
         {page === "help" && <HelpPage />}
         {page === "disclaimer" && <DisclaimerPage />}
+        {page === "terms" && <TermsPage />}
+        {page === "privacy" && <PrivacyPage />}
       </div>
     </div>
   );
