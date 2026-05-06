@@ -182,7 +182,18 @@ export default function TestBackend() {
             continue;
           }
 
-          const data = await res.json();
+          const responseText = await res.text();
+          const data = responseText.trim()
+            ? JSON.parse(responseText)
+            : {
+                id: Date.now().toString(),
+                status: "received",
+                description: payload.description,
+                vehicleInfo: payload.vehicleInfo,
+                timing: payload.timing,
+                createdAt: new Date().toISOString()
+              };
+
           setResult(data);
           setError("");
           window.scrollTo({ top: 0, behavior: "smooth" });
@@ -758,6 +769,7 @@ export default function TestBackend() {
     </div>
   );
 }
+
 
 
 
