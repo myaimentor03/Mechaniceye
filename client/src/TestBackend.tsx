@@ -1,36 +1,8 @@
-import { useMemo, useState } from "react";
+ï»¿import { useMemo, useState } from "react";
 import "./app.css";
+import { YEARS, VEHICLE_DATA, FALLBACK_MAKES, FALLBACK_MODELS, FALLBACK_ENGINES, TRANSMISSION_OPTIONS, DRIVETRAIN_OPTIONS } from "./data/vehicleData";
 
 const API_BASE = "https://mechaniceye-backend-v2.onrender.com";
-const YEARS = Array.from({ length: 2026 - 1980 + 1 }, (_, i) => String(2026 - i));
-
-const VEHICLE_DATA: Record<string, Record<string, { models: Record<string, string[]> }>> = {
-  "2010": {
-    Ford: { models: { Edge: ["3.5L", "I Don't Know"], Escape: ["2.5L", "3.0L V6", "I Don't Know"] } },
-    Toyota: { models: { Tacoma: ["2.7L", "4.0L V6", "I Don't Know"], Camry: ["2.5L", "3.5L V6", "I Don't Know"] } },
-    Honda: { models: { Accord: ["2.4L", "3.5L V6", "I Don't Know"], CRV: ["2.4L", "I Don't Know"] } }
-  },
-  "2014": {
-    Ford: { models: { Escape: ["1.6L", "2.0L", "2.5L", "I Don't Know"], Edge: ["2.0L", "3.5L", "I Don't Know"] } },
-    Toyota: { models: { Tacoma: ["2.7L", "4.0L V6", "I Don't Know"], Camry: ["2.5L", "3.5L V6", "I Don't Know"] } },
-    Honda: { models: { Accord: ["2.4L", "3.5L V6", "I Don't Know"], CRV: ["2.4L", "I Don't Know"] } }
-  },
-  "2020": {
-    Ford: { models: { F150: ["2.7L EcoBoost", "3.5L EcoBoost", "5.0L V8", "I Don't Know"], Escape: ["1.5L", "2.0L", "Hybrid", "I Don't Know"] } },
-    Toyota: { models: { Tacoma: ["2.7L", "3.5L V6", "I Don't Know"], Camry: ["2.5L", "3.5L V6", "Hybrid", "I Don't Know"] } },
-    Honda: { models: { Accord: ["1.5L Turbo", "2.0L Turbo", "Hybrid", "I Don't Know"], CRV: ["1.5L Turbo", "I Don't Know"] } }
-  },
-  "2024": {
-    Ford: { models: { F150: ["2.7L EcoBoost", "3.5L EcoBoost", "5.0L V8", "I Don't Know"], Escape: ["1.5L", "2.0L", "Hybrid", "I Don't Know"] } },
-    Toyota: { models: { Tacoma: ["2.4L Turbo", "I Don't Know"], Camry: ["2.5L", "3.5L V6", "Hybrid", "I Don't Know"] } },
-    Honda: { models: { Accord: ["1.5L Turbo", "2.0L Hybrid", "I Don't Know"], CRV: ["1.5L Turbo", "Hybrid", "I Don't Know"] } }
-  }
-};
-
-const FALLBACK_MAKES = ["Ford", "Toyota", "Honda", "I Don't Know"];
-const FALLBACK_MODELS = ["I Don't Know"];
-const FALLBACK_ENGINES = ["I Don't Know"];
-
 const CATEGORIES = [
   "Engine / Performance",
   "Transmission / Drivetrain",
@@ -60,14 +32,6 @@ const TIMING_OPTIONS = [
   "Under Load"
 ];
 
-const TRANSMISSION_OPTIONS = ["Automatic", "Manual", "CVT", "Dual-Clutch", "I Don't Know"];
-const DRIVETRAIN_OPTIONS = [
-  "Front-Wheel Drive (FWD)",
-  "Rear-Wheel Drive (RWD)",
-  "All-Wheel Drive (AWD)",
-  "Four-Wheel Drive (4WD)",
-  "I Don't Know"
-];
 const URGENCY_OPTIONS = ["Safe to Drive", "Drive Short Distance Only", "Not Safe to Drive", "Will Not Start"];
 
 function FileNames({ files }: { files: File[] }) {
@@ -300,7 +264,7 @@ export default function TestBackend() {
                 <div>
                   <div className="eyebrow">Step {step} of 2</div>
                   <h2>{step === 1 ? "Select Your Vehicle" : "Describe the Issue"}</h2>
-                  <p>{step === 1 ? "Use I Don’t Know where needed. We’re building clarity, not punishing people for not being mechanics." : "Capture the issue, the timing, the urgency, and the evidence."}</p>
+                  <p>{step === 1 ? "Use I Donâ€™t Know where needed. Weâ€™re building clarity, not punishing people for not being mechanics." : "Capture the issue, the timing, the urgency, and the evidence."}</p>
                 </div>
                 <div className="progress-wrap">
                   <div className={`progress-dot ${step >= 1 ? "active" : ""}`}></div>
@@ -371,7 +335,7 @@ export default function TestBackend() {
                   </div>
 
                   <div className="step-actions">
-                    <div className="helper-text">Don’t know every detail? Fill in what you can and keep moving.</div>
+                    <div className="helper-text">Donâ€™t know every detail? Fill in what you can and keep moving.</div>
                     <button type="button" className="primary-btn" onClick={() => setStep(2)}>Continue to Symptoms</button>
                   </div>
                 </>
@@ -626,7 +590,7 @@ export default function TestBackend() {
           <p>Mechanic&apos;s Eye is supposed to reduce confusion, not add more of it.</p>
         </div>
         <div className="faq-grid">
-          <div className="faq-card"><h3>What if I don’t know my engine?</h3><p>Use the I Don&apos;t Know option where available and keep going.</p></div>
+          <div className="faq-card"><h3>What if I donâ€™t know my engine?</h3><p>Use the I Don&apos;t Know option where available and keep going.</p></div>
           <div className="faq-card"><h3>What uploads help most?</h3><p>Photos, sounds, videos, and vibration clues all help paint a better diagnostic picture.</p></div>
           <div className="faq-card"><h3>Can this replace a hands-on inspection?</h3><p>No. It improves clarity and direction, but some problems still require real testing.</p></div>
         </div>
@@ -761,14 +725,18 @@ export default function TestBackend() {
       </div>
 
       <div className="content-shell">
-        {page === "home" && <HomePage />}
-        {page === "intake" && <IntakePage />}
-        {page === "sell" && <SellPage />}
-        {page === "help" && <HelpPage />}
-        {page === "disclaimer" && <DisclaimerPage />}
-        {page === "terms" && <TermsPage />}
-        {page === "privacy" && <PrivacyPage />}
+        {page === "home" && HomePage()}
+        {page === "intake" && IntakePage()}
+        {page === "sell" && SellPage()}
+        {page === "help" && HelpPage()}
+        {page === "disclaimer" && DisclaimerPage()}
+        {page === "terms" && TermsPage()}
+        {page === "privacy" && PrivacyPage()}
       </div>
     </div>
   );
 }
+
+
+
+
