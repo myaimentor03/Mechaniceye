@@ -140,11 +140,13 @@ export default function TestBackend() {
 
     if (!year || !make || !model) {
       setError("Please select the vehicle year, make, and model.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
 
     if (!category || !description || !urgency) {
       setError("Please complete the problem category, description, and urgency.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
 
@@ -152,32 +154,52 @@ export default function TestBackend() {
     setError("");
     setResult(null);
 
-    try {
-      const res = await fetch(`${API_BASE}/api/diagnoses`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          description: buildDescriptionBlock(),
-          vehicleInfo: `${year} ${make} ${model} | Engine: ${engine || "N/A"} | Mileage: ${mileage || "N/A"} | Transmission: ${transmission || "N/A"} | Drivetrain: ${drivetrain || "N/A"}`,
-          timing: timingSelections.length ? `${timingSelections.join(", ")}${otherTiming ? ` | Other: ${otherTiming}` : ""}` : otherTiming || ""
-        })
-      });
+    const payload = {
+      description: buildDescriptionBlock(),
+      vehicleInfo: `${year} ${make} ${model} | Engine: ${engine || "N/A"} | Mileage: ${mileage || "N/A"} | Transmission: ${transmission || "N/A"} | Drivetrain: ${drivetrain || "N/A"}`,
+      timing: timingSelections.length ? `${timingSelections.join(", ")}${otherTiming ? ` | Other: ${otherTiming}` : ""}` : otherTiming || ""
+    };
 
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`HTTP ${res.status}: ${text}`);
+    const endpoints = [
+      `${API_BASE}/api/diagnoses`,
+      "/api/diagnoses"
+    ];
+
+    let lastError = "";
+
+    try {
+      for (const endpoint of endpoints) {
+        try {
+          const res = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+
+          if (!res.ok) {
+            const text = await res.text();
+            lastError = `${endpoint} returned HTTP ${res.status}: ${text}`;
+            continue;
+          }
+
+          const data = await res.json();
+          setResult(data);
+          setError("");
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          return;
+        } catch (err: any) {
+          lastError = `${endpoint} failed: ${err.message || String(err)}`;
+        }
       }
 
-      const data = await res.json();
-      setResult(data);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      throw new Error(lastError || "Submission failed.");
     } catch (err: any) {
       setError(err.message || "Submission failed.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
       setLoading(false);
     }
   }
-
   function HomePage() {
     return (
       <div className="home-wrap">
@@ -736,6 +758,7 @@ export default function TestBackend() {
     </div>
   );
 }
+
 
 
 
