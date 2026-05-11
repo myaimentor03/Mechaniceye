@@ -60,8 +60,11 @@ export default function TestBackend() {
 
   const [year, setYear] = useState("");
   const [make, setMake] = useState("");
-  const [model, setModel] = useState("");
-  const [engine, setEngine] = useState("");
+const [model, setModel] = useState("");
+const [engine, setEngine] = useState("");
+const [manualMake, setManualMake] = useState("");
+const [manualModel, setManualModel] = useState("");
+const [manualEngine, setManualEngine] = useState("");
   const [mileage, setMileage] = useState("");
   const [transmission, setTransmission] = useState("");
   const [drivetrain, setDrivetrain] = useState("");
@@ -84,35 +87,40 @@ export default function TestBackend() {
   const [loading, setLoading] = useState(false);
 
   const availableMakes = useMemo(() => {
-    if (!year || !VEHICLE_DATA[year]) return FALLBACK_MAKES;
-    return [...Object.keys(VEHICLE_DATA[year]), "I Don't Know"];
-  }, [year]);
+  if (!year || !VEHICLE_DATA[year]) return FALLBACK_MAKES;
+  return [...Object.keys(VEHICLE_DATA[year]), "Other Make", "I Don't Know"];
+}, [year]);
 
   const availableModels = useMemo(() => {
-    if (!year || !make || make === "I Don't Know") return FALLBACK_MODELS;
-    return VEHICLE_DATA[year]?.[make] ? [...Object.keys(VEHICLE_DATA[year][make].models), "I Don't Know"] : FALLBACK_MODELS;
-  }, [year, make]);
+  if (!year || !make || make === "I Don't Know" || make === "Other Make") return FALLBACK_MODELS;
+  return VEHICLE_DATA[year]?.[make]
+    ? [...Object.keys(VEHICLE_DATA[year][make].models), "Other Model", "I Don't Know"]
+    : FALLBACK_MODELS;
+}, [year, make]);
 
   const availableEngines = useMemo(() => {
-    if (!year || !make || !model || make === "I Don't Know" || model === "I Don't Know") return FALLBACK_ENGINES;
-    return VEHICLE_DATA[year]?.[make]?.models[model] || FALLBACK_ENGINES;
-  }, [year, make, model]);
+  if (!year || !make || !model || make === "I Don't Know" || model === "I Don't Know" || make === "Other Make" || model === "Other Model") return FALLBACK_ENGINES;
+  return VEHICLE_DATA[year]?.[make]?.models[model] || FALLBACK_ENGINES;
+}, [year, make, model]);
 
   function toggleValue(value: string, values: string[], setValues: (v: string[]) => void) {
     setValues(values.includes(value) ? values.filter((v) => v !== value) : [...values, value]);
   }
 
   function resetVehicleDependents() {
-    setMake("");
-    setModel("");
-    setEngine("");
-  }
+  setMake("");
+  setModel("");
+  setEngine("");
+  setManualMake("");
+  setManualModel("");
+  setManualEngine("");
+}
 
   function buildDescriptionBlock() {
     return [
       `Problem Category: ${category || "Not provided"}`,
-      `Vehicle: ${year} ${make} ${model}`,
-      `Engine: ${engine || "Not provided"}`,
+      `Vehicle: ${year} ${make === "Other Make" ? manualMake : make} ${model === "Other Model" ? manualModel : model}`,
+      `Engine: ${(engine === "Other Engine" || engine === "Unknown Engine") ? (manualEngine || engine) : (engine || "Not provided")}`,
       `Mileage: ${mileage || "Not provided"}`,
       `Transmission: ${transmission || "Not provided"}`,
       `Drivetrain: ${drivetrain || "Not provided"}`,
@@ -138,14 +146,32 @@ export default function TestBackend() {
   async function submitDiagnosis(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!year || !make || !model) {
-      setError("Please select the vehicle year, make, and model.");
+
+    if (!category || !description || !urgency) {
+      setError("Please complete the problem category, description, and urgency.");
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
 
-    if (!category || !description || !urgency) {
-      setError("Please complete the problem category, description, and urgency.");
+    const resolvedMake = make === "Other Make" ? manualMake.trim() : make;
+    const resolvedModel = model === "Other Model" ? manualModel.trim() : model;
+    const resolvedEngine =
+      !engine || engine === "Other Engine" || engine === "Unknown Engine"
+        ? (manualEngine.trim() || engine)
+        : engine;
+
+    const usedManualVehicleEntry =
+      make === "Other Make" ||
+      model === "Other Model" ||
+      engine === "Other Engine" ||
+      engine === "Unknown Engine";
+
+    const unsupportedVehicle =
+      make === "Other Make" ||
+      model === "Other Model";
+
+    if (!year || !resolvedMake || !resolvedModel) {
+      setError("Please select or enter the vehicle year, make, and model.");
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
@@ -156,7 +182,18 @@ export default function TestBackend() {
 
     const payload = {
       description: buildDescriptionBlock(),
-      vehicleInfo: `${year} ${make} ${model} | Engine: ${engine || "N/A"} | Mileage: ${mileage || "N/A"} | Transmission: ${transmission || "N/A"} | Drivetrain: ${drivetrain || "N/A"}`,
+      vehicleInfo: `${year} ${resolvedMake} ${resolvedModel} | Engine: ${resolvedEngine || "N/A"} | Mileage: ${mileage || "N/A"} | Transmission: ${transmission || "N/A"} | Drivetrain: ${drivetrain || "N/A"}`,
+      unsupportedVehicle,
+      manualVehicleEntryUsed: usedManualVehicleEntry,
+      rawVehicleSelection: {
+        year,
+        make,
+        model,
+        engine,
+        manualMake,
+        manualModel,
+        manualEngine,
+      },
       timing: timingSelections.length ? `${timingSelections.join(", ")}${otherTiming ? ` | Other: ${otherTiming}` : ""}` : otherTiming || ""
     };
 
@@ -322,6 +359,12 @@ export default function TestBackend() {
                         <option value="">Select make</option>
                         {availableMakes.map((item) => <option key={item} value={item}>{item}</option>)}
                       </select>
+                      {make === "Other Make" && (
+                        <>
+                          <label>Manual Make</label>
+                          <input value={manualMake} onChange={(e) => setManualMake(e.target.value)} placeholder="Type vehicle make" />
+                        </>
+                      )}
                     </div>
 
                     <div className="field">
@@ -330,6 +373,12 @@ export default function TestBackend() {
                         <option value="">Select model</option>
                         {availableModels.map((item) => <option key={item} value={item}>{item}</option>)}
                       </select>
+                      {model === "Other Model" && (
+                        <>
+                          <label>Manual Model</label>
+                          <input value={manualModel} onChange={(e) => setManualModel(e.target.value)} placeholder="Type vehicle model" />
+                        </>
+                      )}
                     </div>
 
                     <div className="field">
@@ -338,6 +387,12 @@ export default function TestBackend() {
                         <option value="">Select engine</option>
                         {availableEngines.map((item) => <option key={item} value={item}>{item}</option>)}
                       </select>
+                      {(engine === "Other Engine" || engine === "Unknown Engine" || make === "Other Make" || model === "Other Model") && (
+                        <>
+                          <label>Manual Engine</label>
+                          <input value={manualEngine} onChange={(e) => setManualEngine(e.target.value)} placeholder="Type engine if known" />
+                        </>
+                      )}
                     </div>
 
                     <div className="field">
@@ -769,6 +824,8 @@ export default function TestBackend() {
     </div>
   );
 }
+
+
 
 
 
