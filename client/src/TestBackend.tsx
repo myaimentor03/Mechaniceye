@@ -2,7 +2,6 @@
 import "./app.css";
 import { YEARS, VEHICLE_DATA, FALLBACK_MAKES, FALLBACK_MODELS, FALLBACK_ENGINES, TRANSMISSION_OPTIONS, DRIVETRAIN_OPTIONS } from "./data/vehicleData";
 
-const API_BASE = "https://mechaniceye-backend-v2.onrender.com";
 const CATEGORIES = [
   "Engine / Performance",
   "Transmission / Drivetrain",
@@ -198,7 +197,6 @@ const [manualEngine, setManualEngine] = useState("");
     };
 
     const endpoints = [
-      `${API_BASE}/api/diagnoses`,
       "/api/diagnoses"
     ];
 
@@ -220,16 +218,12 @@ const [manualEngine, setManualEngine] = useState("");
           }
 
           const responseText = await res.text();
-          const data = responseText.trim()
-            ? JSON.parse(responseText)
-            : {
-                id: Date.now().toString(),
-                status: "received",
-                description: payload.description,
-                vehicleInfo: payload.vehicleInfo,
-                timing: payload.timing,
-                createdAt: new Date().toISOString()
-              };
+
+          if (!responseText.trim()) {
+            throw new Error(`${endpoint} returned an empty response.`);
+          }
+
+          const data = JSON.parse(responseText);
 
           setResult(data);
           setError("");
@@ -824,6 +818,7 @@ const [manualEngine, setManualEngine] = useState("");
     </div>
   );
 }
+
 
 
 

@@ -1,11 +1,23 @@
  import type { Express } from "express";
 import { createServer, type Server } from "http";
-//import { storage } from "./storage";
-// import { insertDiagnosisSchema, insertFollowUpSchema, consultationFeedbackSchema } from "@shared/schema";
+import { storage } from "./storage";
+// local fallback validation while DB/schema layer is disabled
+const consultationFeedbackSchema = {
+  parse(input: any) {
+    return {
+      politenessRating: Number(input.politenessRating || 0),
+      effectivenessRating: Number(input.effectivenessRating || 0),
+      easeOfWorkRating: Number(input.easeOfWorkRating || 0),
+      wasFixed: !!input.wasFixed,
+      feedback: input.feedback || ""
+    };
+  }
+};
 import { performEnhancedAnalysis } from "./enhanced-analysis";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { createStoredDiagnosisCase } from "./case-storage";
 
 // Configure multer for file uploads
 const uploadDir = path.join(process.cwd(), 'uploads');
@@ -164,31 +176,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create new diagnosis with file uploads
-app.post("/api/diagnoses", async (req, res) => {
-  try {
-    console.log("Incoming body:", req.body);
+  // Create new diagnosis and save to local case storage
+  app.post("/api/diagnoses", async (req, res) => {
+    try {
+      console.log("Incoming body:", req.body);
 
-    const diagnosis = {
-      id: Date.now().toString(),
-      description: req.body.description || req.body.symptoms || "",
-      vehicleInfo: req.body.vehicleInfo || "",
-      timing: req.body.timing || "",
-      vibrationData: req.body.vibrationData || null,
-      audioFile: null,
-      videoFile: null,
-      createdAt: new Date(),
-      status: "received"
-    };
+      const storedCase = createStoredDiagnosisCase({
+        description: req.body.description || req.body.symptoms || "",
+        vehicleInfo: req.body.vehicleInfo || "",
+        timing: req.body.timing || "",
+        unsupportedVehicle: !!req.body.unsupportedVehicle,
+        manualVehicleEntryUsed: !!req.body.manualVehicleEntryUsed,
+        rawVehicleSelection: req.body.rawVehicleSelection || null,
+        vibrationData: req.body.vibrationData || null
+      });
 
-    res.json(diagnosis);
-  } catch (error) {
-    console.error("Diagnosis creation error:", error);
-    res.status(500).json({
-      message: "Failed to create diagnosis"
-    });
-  }
-});
+      const webhookUrl = process.env.MECHANIC_EYE_INTAKE_WEBHOOK_URL;
+
+      if (webhookUrl) {
+        try {
+          await fetch(webhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "mechanics_eye_new_case",
+              caseId: storedCase.id,
+              createdAt: storedCase.createdAt,
+              status: storedCase.status,
+              vehicleInfo: storedCase.vehicleInfo,
+              description: storedCase.description,
+              timing: storedCase.timing,
+              unsupportedVehicle: storedCase.unsupportedVehicle,
+              manualVehicleEntryUsed: storedCase.manualVehicleEntryUsed,
+              caseFolder: storedCase.caseFolder,
+              caseJsonPath: path.join(storedCase.caseFolder, "case.json"),
+              summaryPath: path.join(storedCase.caseFolder, "summary.txt"),
+              rawVehicleSelection: storedCase.rawVehicleSelection || null
+            })
+          });
+        } catch (webhookError) {
+          console.error("Webhook delivery failed:", webhookError);
+        }
+      }
+
+      res.json({
+        id: storedCase.id,
+        status: storedCase.status,
+        createdAt: storedCase.createdAt,
+        vehicleInfo: storedCase.vehicleInfo,
+        description: storedCase.description,
+        timing: storedCase.timing,
+        caseFolder: storedCase.caseFolder,
+        message: "Diagnosis case stored successfully"
+      });
+    } catch (error) {
+      console.error("Diagnosis creation error:", error);
+      res.status(500).json({
+        message: "Failed to create diagnosis"
+      });
+    }
+  });
 
   // Create follow-up request when previous fixes didn't work
   app.post("/api/diagnoses/:id/follow-up", upload.fields([
@@ -356,3 +403,5 @@ app.post("/api/diagnoses", async (req, res) => {
   const httpServer = createServer(app);
   return httpServer;
 }
+
+
