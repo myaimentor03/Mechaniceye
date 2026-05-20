@@ -2,6 +2,7 @@
 import "./app.css";
 import { YEARS, VEHICLE_DATA, FALLBACK_MAKES, FALLBACK_MODELS, FALLBACK_ENGINES, TRANSMISSION_OPTIONS, DRIVETRAIN_OPTIONS } from "./data/vehicleData";
 
+const PUBLIC_API_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/diagnoses";
 const CATEGORIES = [
   "Engine / Performance",
   "Transmission / Drivetrain",
@@ -196,8 +197,12 @@ const [manualEngine, setManualEngine] = useState("");
       timing: timingSelections.length ? `${timingSelections.join(", ")}${otherTiming ? ` | Other: ${otherTiming}` : ""}` : otherTiming || ""
     };
 
+    const isLocalBrowser =
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1";
+
     const endpoints = [
-      "/api/diagnoses"
+      isLocalBrowser ? "/api/diagnoses" : PUBLIC_API_ENDPOINT
     ];
 
     let lastError = "";
