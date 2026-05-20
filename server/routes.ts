@@ -17,7 +17,7 @@ import { performEnhancedAnalysis } from "./enhanced-analysis";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { createStoredDiagnosisCase } from "./case-storage";
+import { createStoredDiagnosisCase, generateCaseId, type IncomingDiagnosisCase, type StoredDiagnosisCase } from "./case-storage";
 
 // Configure multer for file uploads
 const uploadDir = path.join(process.cwd(), 'uploads');
@@ -61,6 +61,98 @@ const SUBSCRIPTION_FEATURES = {
 function checkSubscriptionAccess(userTier: string, feature: string): boolean {
   const tierFeatures = SUBSCRIPTION_FEATURES[userTier as keyof typeof SUBSCRIPTION_FEATURES];
   return tierFeatures ? tierFeatures.features.includes(feature) : false;
+}
+
+type DiagnosisCaseResponse = {
+  id: string;
+  status: "received";
+  createdAt: string;
+  vehicleInfo: string;
+  description: string;
+  timing: string;
+  message: string;
+};
+
+const localOperationsRoot = "C:\\MechanicsEye_Operations";
+
+function canUseLocalCaseStorage() {
+  return process.platform === "win32" && fs.existsSync(localOperationsRoot);
+}
+
+function buildDiagnosisInput(body: any): IncomingDiagnosisCase {
+  const diagnosisBody = body || {};
+
+  return {
+    description: diagnosisBody.description || diagnosisBody.symptoms || "",
+    vehicleInfo: diagnosisBody.vehicleInfo || "",
+    timing: diagnosisBody.timing || "",
+    unsupportedVehicle: !!diagnosisBody.unsupportedVehicle,
+    manualVehicleEntryUsed: !!diagnosisBody.manualVehicleEntryUsed,
+    rawVehicleSelection: diagnosisBody.rawVehicleSelection || null,
+    vibrationData: diagnosisBody.vibrationData || null
+  };
+}
+
+function buildDiagnosisResponse(
+  diagnosisCase: Pick<StoredDiagnosisCase, "id" | "status" | "createdAt" | "vehicleInfo" | "description" | "timing">
+): DiagnosisCaseResponse {
+  return {
+    id: diagnosisCase.id,
+    status: "received",
+    createdAt: diagnosisCase.createdAt,
+    vehicleInfo: diagnosisCase.vehicleInfo,
+    description: diagnosisCase.description,
+    timing: diagnosisCase.timing || "",
+    message: "Diagnosis case received successfully"
+  };
+}
+
+function createPublicDiagnosisCase(input: IncomingDiagnosisCase): DiagnosisCaseResponse {
+  const publicCase = {
+    ...input,
+    id: generateCaseId(),
+    status: "received" as const,
+    createdAt: new Date().toISOString()
+  };
+
+  console.log("Public diagnosis case received:", publicCase);
+  return buildDiagnosisResponse(publicCase);
+}
+
+async function deliverDiagnosisWebhook(
+  diagnosisCase: DiagnosisCaseResponse,
+  input: IncomingDiagnosisCase,
+  storedCase?: StoredDiagnosisCase
+) {
+  const webhookUrl = process.env.MECHANIC_EYE_INTAKE_WEBHOOK_URL;
+
+  if (!webhookUrl) {
+    return;
+  }
+
+  try {
+    await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "mechanics_eye_new_case",
+        caseId: diagnosisCase.id,
+        createdAt: diagnosisCase.createdAt,
+        status: diagnosisCase.status,
+        vehicleInfo: diagnosisCase.vehicleInfo,
+        description: diagnosisCase.description,
+        timing: diagnosisCase.timing,
+        unsupportedVehicle: input.unsupportedVehicle,
+        manualVehicleEntryUsed: input.manualVehicleEntryUsed,
+        caseFolder: storedCase?.caseFolder || null,
+        caseJsonPath: storedCase ? path.join(storedCase.caseFolder, "case.json") : null,
+        summaryPath: storedCase ? path.join(storedCase.caseFolder, "summary.txt") : null,
+        rawVehicleSelection: input.rawVehicleSelection || null
+      })
+    });
+  } catch (webhookError) {
+    console.error("Webhook delivery failed:", webhookError);
+  }
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -178,62 +270,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Create new diagnosis and save to local case storage
   app.post("/api/diagnoses", async (req, res) => {
+    const input = buildDiagnosisInput(req.body);
+    let responseBody: DiagnosisCaseResponse;
+    let storedCase: StoredDiagnosisCase | undefined;
+
     try {
       console.log("Incoming body:", req.body);
 
-      const storedCase = createStoredDiagnosisCase({
-        description: req.body.description || req.body.symptoms || "",
-        vehicleInfo: req.body.vehicleInfo || "",
-        timing: req.body.timing || "",
-        unsupportedVehicle: !!req.body.unsupportedVehicle,
-        manualVehicleEntryUsed: !!req.body.manualVehicleEntryUsed,
-        rawVehicleSelection: req.body.rawVehicleSelection || null,
-        vibrationData: req.body.vibrationData || null
-      });
-
-      const webhookUrl = process.env.MECHANIC_EYE_INTAKE_WEBHOOK_URL;
-
-      if (webhookUrl) {
+      if (canUseLocalCaseStorage()) {
         try {
-          await fetch(webhookUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              type: "mechanics_eye_new_case",
-              caseId: storedCase.id,
-              createdAt: storedCase.createdAt,
-              status: storedCase.status,
-              vehicleInfo: storedCase.vehicleInfo,
-              description: storedCase.description,
-              timing: storedCase.timing,
-              unsupportedVehicle: storedCase.unsupportedVehicle,
-              manualVehicleEntryUsed: storedCase.manualVehicleEntryUsed,
-              caseFolder: storedCase.caseFolder,
-              caseJsonPath: path.join(storedCase.caseFolder, "case.json"),
-              summaryPath: path.join(storedCase.caseFolder, "summary.txt"),
-              rawVehicleSelection: storedCase.rawVehicleSelection || null
-            })
-          });
-        } catch (webhookError) {
-          console.error("Webhook delivery failed:", webhookError);
+          storedCase = createStoredDiagnosisCase(input);
+          responseBody = buildDiagnosisResponse(storedCase);
+        } catch (storageError) {
+          console.error("Local case storage failed; using public fallback:", storageError);
+          responseBody = createPublicDiagnosisCase(input);
         }
+      } else {
+        responseBody = createPublicDiagnosisCase(input);
       }
 
-      res.json({
-        id: storedCase.id,
-        status: storedCase.status,
-        createdAt: storedCase.createdAt,
-        vehicleInfo: storedCase.vehicleInfo,
-        description: storedCase.description,
-        timing: storedCase.timing,
-        caseFolder: storedCase.caseFolder,
-        message: "Diagnosis case stored successfully"
-      });
+      await deliverDiagnosisWebhook(responseBody, input, storedCase);
+      return res.json(responseBody);
     } catch (error) {
       console.error("Diagnosis creation error:", error);
-      res.status(500).json({
-        message: "Failed to create diagnosis"
-      });
+      responseBody = createPublicDiagnosisCase(input);
+      await deliverDiagnosisWebhook(responseBody, input);
+      return res.json(responseBody);
     }
   });
 
