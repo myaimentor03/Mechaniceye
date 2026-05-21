@@ -3,6 +3,7 @@ import "./app.css";
 import { YEARS, VEHICLE_DATA, FALLBACK_MAKES, FALLBACK_MODELS, FALLBACK_ENGINES, TRANSMISSION_OPTIONS, DRIVETRAIN_OPTIONS } from "./data/vehicleData";
 
 const PUBLIC_API_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/diagnoses";
+const SUBMISSION_TIMEOUT_MS = 20000;
 const CATEGORIES = [
   "Engine / Performance",
   "Transmission / Drivetrain",
@@ -209,11 +210,15 @@ const [manualEngine, setManualEngine] = useState("");
 
     try {
       for (const endpoint of endpoints) {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), SUBMISSION_TIMEOUT_MS);
+
         try {
           const res = await fetch(endpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(payload),
+            signal: controller.signal
           });
 
           if (!res.ok) {
@@ -235,7 +240,14 @@ const [manualEngine, setManualEngine] = useState("");
           window.scrollTo({ top: 0, behavior: "smooth" });
           return;
         } catch (err: any) {
-          lastError = `${endpoint} failed: ${err.message || String(err)}`;
+          const message =
+            err?.name === "AbortError"
+              ? `Request timed out after ${SUBMISSION_TIMEOUT_MS / 1000} seconds. Please try again.`
+              : err.message || String(err);
+
+          lastError = `${endpoint} failed: ${message}`;
+        } finally {
+          window.clearTimeout(timeoutId);
         }
       }
 
