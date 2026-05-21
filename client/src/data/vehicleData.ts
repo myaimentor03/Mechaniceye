@@ -25,7 +25,7 @@ const COMMON_MAKES = [
 ];
 
 const COMMON_MODELS_BY_MAKE: Record<string, string[]> = {
-  Ford: ["F-150", "Escape", "Explorer", "Fusion", "Focus", "Edge"],
+  Ford: ["F-150", "Escape", "Explorer", "Fusion", "Focus", "Edge", "Mustang"],
   Chevrolet: ["Silverado", "Equinox", "Malibu", "Cruze", "Tahoe"],
   GMC: ["Sierra", "Terrain", "Yukon"],
   Dodge: ["Charger", "Challenger", "Durango", "Grand Caravan"],
@@ -55,6 +55,7 @@ const ENGINE_OPTIONS_BY_MAKE_MODEL: Record<string, string[]> = {
   "Ford|Fusion": ["2.5L I4", "1.5L Turbo", "2.0L Turbo", "Hybrid", "I Don't Know"],
   "Ford|Focus": ["2.0L I4", "2.3L Turbo", "I Don't Know"],
   "Ford|Edge": ["2.0L I4 Turbo", "2.7L V6 Turbo", "3.5L V6", "I Don't Know"],
+  "Ford|Mustang": ["2.3L EcoBoost", "3.7L V6", "4.0L V6", "4.6L V8", "5.0L V8", "5.2L V8", "I Don't Know"],
 
   "Chevrolet|Silverado": ["4.3L V6", "5.3L V8", "6.2L V8", "2.7L Turbo", "3.0L Duramax", "I Don't Know"],
   "Chevrolet|Equinox": ["2.4L I4", "1.5L Turbo", "2.0L Turbo", "1.6L Diesel", "I Don't Know"],
@@ -188,3 +189,4 @@ export const DRIVETRAIN_OPTIONS = [
   "Four-Wheel Drive (4WD)",
   "I Don't Know",
 ];
+
