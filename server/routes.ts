@@ -73,13 +73,29 @@ type DiagnosisCaseResponse = {
   message: string;
 };
 
+type PublicCasePacket = {
+  id: string;
+  status: "received";
+  createdAt: string;
+  vehicleInfo: string;
+  description: string;
+  timing: string;
+  customerEmail?: string;
+  rawVehicleSelection?: unknown;
+  source: "public-render";
+};
+
+type DiagnosisInput = IncomingDiagnosisCase & {
+  customerEmail?: string;
+};
+
 const localOperationsRoot = "C:\\MechanicsEye_Operations";
 
 function canUseLocalCaseStorage() {
   return process.platform === "win32" && fs.existsSync(localOperationsRoot);
 }
 
-function buildDiagnosisInput(body: any): IncomingDiagnosisCase {
+function buildDiagnosisInput(body: any): DiagnosisInput {
   const diagnosisBody = body || {};
 
   return {
@@ -89,8 +105,20 @@ function buildDiagnosisInput(body: any): IncomingDiagnosisCase {
     unsupportedVehicle: !!diagnosisBody.unsupportedVehicle,
     manualVehicleEntryUsed: !!diagnosisBody.manualVehicleEntryUsed,
     rawVehicleSelection: diagnosisBody.rawVehicleSelection || null,
-    vibrationData: diagnosisBody.vibrationData || null
+    vibrationData: diagnosisBody.vibrationData || null,
+    customerEmail: diagnosisBody.customerEmail || ""
   };
+}
+
+function extractCustomerEmail(description: string) {
+  const match = description.match(/^Customer Email:\s*(.+)$/im);
+  const email = match?.[1]?.trim();
+
+  if (!email || email === "Not provided") {
+    return "";
+  }
+
+  return email;
 }
 
 function buildDiagnosisResponse(
@@ -115,8 +143,57 @@ function createPublicDiagnosisCase(input: IncomingDiagnosisCase): DiagnosisCaseR
     createdAt: new Date().toISOString()
   };
 
-  console.log("Public diagnosis case received:", publicCase);
   return buildDiagnosisResponse(publicCase);
+}
+
+function buildPublicCasePacket(
+  diagnosisCase: DiagnosisCaseResponse,
+  input: DiagnosisInput
+): PublicCasePacket {
+  const customerEmail = input.customerEmail || extractCustomerEmail(input.description);
+  const packet: PublicCasePacket = {
+    id: diagnosisCase.id,
+    status: diagnosisCase.status,
+    createdAt: diagnosisCase.createdAt,
+    vehicleInfo: diagnosisCase.vehicleInfo,
+    description: diagnosisCase.description,
+    timing: diagnosisCase.timing,
+    source: "public-render"
+  };
+
+  if (customerEmail) {
+    packet.customerEmail = customerEmail;
+  }
+
+  if (input.rawVehicleSelection) {
+    packet.rawVehicleSelection = input.rawVehicleSelection;
+  }
+
+  return packet;
+}
+
+async function deliverPublicCaseNotification(
+  diagnosisCase: DiagnosisCaseResponse,
+  input: DiagnosisInput
+) {
+  const packet = buildPublicCasePacket(diagnosisCase, input);
+  console.log("PUBLIC_RENDER_CASE_PACKET", JSON.stringify(packet, null, 2));
+
+  const webhookUrl = process.env.PUBLIC_CASE_WEBHOOK_URL;
+
+  if (!webhookUrl) {
+    return;
+  }
+
+  try {
+    await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(packet)
+    });
+  } catch (webhookError) {
+    console.error("Public case webhook delivery failed:", webhookError);
+  }
 }
 
 async function deliverDiagnosisWebhook(
@@ -273,6 +350,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const input = buildDiagnosisInput(req.body);
     let responseBody: DiagnosisCaseResponse;
     let storedCase: StoredDiagnosisCase | undefined;
+    let usedPublicFallback = false;
 
     try {
       console.log("Incoming body:", req.body);
@@ -284,9 +362,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } catch (storageError) {
           console.error("Local case storage failed; using public fallback:", storageError);
           responseBody = createPublicDiagnosisCase(input);
+          usedPublicFallback = true;
         }
       } else {
         responseBody = createPublicDiagnosisCase(input);
+        usedPublicFallback = true;
+      }
+
+      if (usedPublicFallback) {
+        void deliverPublicCaseNotification(responseBody, input);
+        void deliverDiagnosisWebhook(responseBody, input, storedCase);
+        return res.json(responseBody);
       }
 
       await deliverDiagnosisWebhook(responseBody, input, storedCase);
@@ -294,7 +380,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Diagnosis creation error:", error);
       responseBody = createPublicDiagnosisCase(input);
-      await deliverDiagnosisWebhook(responseBody, input);
+      void deliverPublicCaseNotification(responseBody, input);
+      void deliverDiagnosisWebhook(responseBody, input);
       return res.json(responseBody);
     }
   });
