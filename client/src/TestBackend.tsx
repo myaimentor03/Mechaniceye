@@ -181,6 +181,11 @@ const [manualEngine, setManualEngine] = useState("");
     setError("");
     setResult(null);
 
+    const photoFileNames = photoFiles.map((file) => file.name);
+    const audioFileNames = audioFiles.map((file) => file.name);
+    const videoFileNames = videoFiles.map((file) => file.name);
+    const vibrationFileNames = vibrationFiles.map((file) => file.name);
+
     const payload = {
       description: buildDescriptionBlock(),
       vehicleInfo: `${year} ${resolvedMake} ${resolvedModel} | Engine: ${resolvedEngine || "N/A"} | Mileage: ${mileage || "N/A"} | Transmission: ${transmission || "N/A"} | Drivetrain: ${drivetrain || "N/A"}`,
@@ -195,6 +200,14 @@ const [manualEngine, setManualEngine] = useState("");
         manualModel,
         manualEngine,
       },
+      photoEvidenceStatus: photoFileNames.length ? "Provided" : "None",
+      audioEvidenceStatus: audioFileNames.length ? "Provided" : "None",
+      videoEvidenceStatus: videoFileNames.length ? "Provided" : "None",
+      vibrationEvidenceStatus: vibrationFileNames.length ? "Provided" : "None",
+      photoFileNames,
+      audioFileNames,
+      videoFileNames,
+      vibrationFileNames,
       timing: timingSelections.length ? `${timingSelections.join(", ")}${otherTiming ? ` | Other: ${otherTiming}` : ""}` : otherTiming || ""
     };
 

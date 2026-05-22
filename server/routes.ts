@@ -82,11 +82,27 @@ type PublicCasePacket = {
   timing: string;
   customerEmail?: string;
   rawVehicleSelection?: unknown;
+  photoEvidenceStatus?: string;
+  audioEvidenceStatus?: string;
+  videoEvidenceStatus?: string;
+  vibrationEvidenceStatus?: string;
+  photoFileNames?: string[];
+  audioFileNames?: string[];
+  videoFileNames?: string[];
+  vibrationFileNames?: string[];
   source: "public-render";
 };
 
 type DiagnosisInput = IncomingDiagnosisCase & {
   customerEmail?: string;
+  photoEvidenceStatus?: string;
+  audioEvidenceStatus?: string;
+  videoEvidenceStatus?: string;
+  vibrationEvidenceStatus?: string;
+  photoFileNames?: string[];
+  audioFileNames?: string[];
+  videoFileNames?: string[];
+  vibrationFileNames?: string[];
 };
 
 const localOperationsRoot = "C:\\MechanicsEye_Operations";
@@ -97,6 +113,10 @@ function canUseLocalCaseStorage() {
 
 function buildDiagnosisInput(body: any): DiagnosisInput {
   const diagnosisBody = body || {};
+  const pickStringArray = (value: unknown) =>
+    Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string")
+      : [];
 
   return {
     description: diagnosisBody.description || diagnosisBody.symptoms || "",
@@ -106,7 +126,15 @@ function buildDiagnosisInput(body: any): DiagnosisInput {
     manualVehicleEntryUsed: !!diagnosisBody.manualVehicleEntryUsed,
     rawVehicleSelection: diagnosisBody.rawVehicleSelection || null,
     vibrationData: diagnosisBody.vibrationData || null,
-    customerEmail: diagnosisBody.customerEmail || ""
+    customerEmail: diagnosisBody.customerEmail || "",
+    photoEvidenceStatus: diagnosisBody.photoEvidenceStatus || "",
+    audioEvidenceStatus: diagnosisBody.audioEvidenceStatus || "",
+    videoEvidenceStatus: diagnosisBody.videoEvidenceStatus || "",
+    vibrationEvidenceStatus: diagnosisBody.vibrationEvidenceStatus || "",
+    photoFileNames: pickStringArray(diagnosisBody.photoFileNames),
+    audioFileNames: pickStringArray(diagnosisBody.audioFileNames),
+    videoFileNames: pickStringArray(diagnosisBody.videoFileNames),
+    vibrationFileNames: pickStringArray(diagnosisBody.vibrationFileNames)
   };
 }
 
@@ -167,6 +195,38 @@ function buildPublicCasePacket(
 
   if (input.rawVehicleSelection) {
     packet.rawVehicleSelection = input.rawVehicleSelection;
+  }
+
+  if (input.photoEvidenceStatus) {
+    packet.photoEvidenceStatus = input.photoEvidenceStatus;
+  }
+
+  if (input.audioEvidenceStatus) {
+    packet.audioEvidenceStatus = input.audioEvidenceStatus;
+  }
+
+  if (input.videoEvidenceStatus) {
+    packet.videoEvidenceStatus = input.videoEvidenceStatus;
+  }
+
+  if (input.vibrationEvidenceStatus) {
+    packet.vibrationEvidenceStatus = input.vibrationEvidenceStatus;
+  }
+
+  if (input.photoFileNames?.length) {
+    packet.photoFileNames = input.photoFileNames;
+  }
+
+  if (input.audioFileNames?.length) {
+    packet.audioFileNames = input.audioFileNames;
+  }
+
+  if (input.videoFileNames?.length) {
+    packet.videoFileNames = input.videoFileNames;
+  }
+
+  if (input.vibrationFileNames?.length) {
+    packet.vibrationFileNames = input.vibrationFileNames;
   }
 
   return packet;
