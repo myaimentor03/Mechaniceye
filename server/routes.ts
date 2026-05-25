@@ -18,6 +18,8 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { createStoredDiagnosisCase, generateCaseId, type IncomingDiagnosisCase, type StoredDiagnosisCase } from "./case-storage";
+import { checkDatabaseConnection } from "./db";
+import { insertPublicDiagnosisCaseToDb } from "./public-case-db";
 
 // Configure multer for file uploads
 const uploadDir = path.join(process.cwd(), 'uploads');
@@ -293,6 +295,11 @@ async function deliverDiagnosisWebhook(
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  app.get("/api/health/db", async (req, res) => {
+    const result = await checkDatabaseConnection();
+    res.status(result.ok ? 200 : 503).json(result);
+  });
+
   
   // Get recent diagnoses
   app.get("/api/diagnoses/recent", async (req, res) => {
@@ -430,16 +437,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (usedPublicFallback) {
+        await insertPublicDiagnosisCaseToDb(responseBody, input, storedCase);
         void deliverPublicCaseNotification(responseBody, input);
         void deliverDiagnosisWebhook(responseBody, input, storedCase);
         return res.json(responseBody);
       }
 
+      await insertPublicDiagnosisCaseToDb(responseBody, input, storedCase);
       await deliverDiagnosisWebhook(responseBody, input, storedCase);
       return res.json(responseBody);
     } catch (error) {
       console.error("Diagnosis creation error:", error);
       responseBody = createPublicDiagnosisCase(input);
+      await insertPublicDiagnosisCaseToDb(responseBody, input);
       void deliverPublicCaseNotification(responseBody, input);
       void deliverDiagnosisWebhook(responseBody, input);
       return res.json(responseBody);
