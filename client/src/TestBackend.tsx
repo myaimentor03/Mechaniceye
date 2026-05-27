@@ -46,6 +46,33 @@ function FileNames({ files }: { files: File[] }) {
   );
 }
 
+function EvidenceBadge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "recommended" | "best" }) {
+  return <span className={`evidence-badge ${tone}`}>{children}</span>;
+}
+
+function EvidenceCard({
+  title,
+  helper,
+  children,
+  badges
+}: {
+  title: string;
+  helper: string;
+  children: React.ReactNode;
+  badges: React.ReactNode;
+}) {
+  return (
+    <div className="upload-card evidence-card">
+      <div className="evidence-card-header">
+        <h4>{title}</h4>
+        <div className="evidence-badges">{badges}</div>
+      </div>
+      <p>{helper}</p>
+      {children}
+    </div>
+  );
+}
+
 function LegalSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="legal-block">
@@ -103,6 +130,18 @@ const [manualEngine, setManualEngine] = useState("");
   if (!year || !make || !model || make === "I Don't Know" || model === "I Don't Know" || make === "Other Make" || model === "Other Model") return FALLBACK_ENGINES;
   return VEHICLE_DATA[year]?.[make]?.models[model] || FALLBACK_ENGINES;
 }, [year, make, model]);
+
+  const bestEvidence = useMemo(() => {
+    const value = category.toLowerCase();
+
+    return {
+      photos: value.includes("leak") || value.includes("smell") || value.includes("smoke") || value.includes("warning") || value.includes("electrical"),
+      video: value.includes("engine") || value.includes("brake") || value.includes("steering") || value.includes("suspension") || value.includes("leak") || value.includes("smoke"),
+      audio: value.includes("noise") || value.includes("vibration") || value.includes("engine") || value.includes("brake") || value.includes("starting"),
+      vibration: value.includes("vibration") || value.includes("brake") || value.includes("steering") || value.includes("suspension") || value.includes("transmission"),
+      written: Boolean(category)
+    };
+  }, [category]);
 
   function toggleValue(value: string, values: string[], setValues: (v: string[]) => void) {
     setValues(values.includes(value) ? values.filter((v) => v !== value) : [...values, value]);
@@ -467,16 +506,6 @@ const [manualEngine, setManualEngine] = useState("");
                   </div>
 
                   <div className="section-block">
-                    <h3>Describe the Problem</h3>
-                    <textarea
-                      rows={7}
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Describe what the vehicle is doing, when it started, whether it is getting worse, what it sounds or feels like, and any recent work that was done."
-                    />
-                  </div>
-
-                  <div className="section-block">
                     <h3>When Does It Happen?</h3>
                     <div className="pill-grid">
                       {TIMING_OPTIONS.map((item) => (
@@ -509,36 +538,94 @@ const [manualEngine, setManualEngine] = useState("");
                     </div>
                   </div>
 
-                  <div className="section-block">
-                    <h3>Evidence Uploads</h3>
+                  <div className="section-block evidence-section">
+                    <div className="section-heading-row">
+                      <div>
+                        <h3>Diagnostic Evidence</h3>
+                        <p className="section-intro">
+                          Upload the same kind of evidence a mechanic would ask for: photos, video, sound, vibration/motion context, and a clear symptom description.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="notice-strip evidence-reassurance">
+                      You do not need every evidence type. Send what you safely can. More evidence usually improves the review.
+                    </div>
+
                     <div className="upload-grid">
-                      <div className="upload-card">
-                        <h4>Photos</h4>
-                        <p>Warning lights, leaks, damage, visible issues.</p>
+                      <EvidenceCard
+                        title="Written Symptoms"
+                        helper="Tell us what happens, when it happens, what changed recently, warning lights, smells, leaks, smoke, and what you already checked."
+                        badges={
+                          <>
+                            <EvidenceBadge tone="recommended">Recommended</EvidenceBadge>
+                            {bestEvidence.written && <EvidenceBadge tone="best">Best evidence for this symptom</EvidenceBadge>}
+                          </>
+                        }
+                      >
+                        <textarea
+                          rows={7}
+                          value={description}
+                          onChange={(e) => setDescription(e.target.value)}
+                          placeholder="Describe what the vehicle is doing, when it started, whether it is getting worse, what it sounds or feels like, and any recent work that was done."
+                        />
+                      </EvidenceCard>
+
+                      <EvidenceCard
+                        title="Photos"
+                        helper="Upload warning lights, leaks, damaged parts, dashboard messages, fluid color, or visible movement."
+                        badges={
+                          <>
+                            <EvidenceBadge>Optional</EvidenceBadge>
+                            {bestEvidence.photos && <EvidenceBadge tone="best">Best evidence for this symptom</EvidenceBadge>}
+                          </>
+                        }
+                      >
                         <input type="file" multiple accept="image/*" onChange={(e) => setPhotoFiles(Array.from(e.target.files || []))} />
                         <FileNames files={photoFiles} />
-                      </div>
+                      </EvidenceCard>
 
-                      <div className="upload-card">
-                        <h4>Audio</h4>
-                        <p>Knocking, squealing, grinding, rattling, hissing.</p>
-                        <input type="file" multiple accept="audio/*" onChange={(e) => setAudioFiles(Array.from(e.target.files || []))} />
-                        <FileNames files={audioFiles} />
-                      </div>
-
-                      <div className="upload-card">
-                        <h4>Video</h4>
-                        <p>Startup, idle, smoke, wobble, visible symptoms.</p>
+                      <EvidenceCard
+                        title="Video"
+                        helper="Best for cold starts, idle problems, smoke, exhaust behavior, shaking, belt/pulley movement, and driving symptoms. MP4 preferred, under 45 seconds."
+                        badges={
+                          <>
+                            <EvidenceBadge>Optional</EvidenceBadge>
+                            {bestEvidence.video && <EvidenceBadge tone="best">Best evidence for this symptom</EvidenceBadge>}
+                          </>
+                        }
+                      >
                         <input type="file" multiple accept="video/*" onChange={(e) => setVideoFiles(Array.from(e.target.files || []))} />
                         <FileNames files={videoFiles} />
-                      </div>
+                      </EvidenceCard>
 
-                      <div className="upload-card">
-                        <h4>Vibration / Motion</h4>
-                        <p>Shaking, pulsing, steering wheel or seat vibration.</p>
-                        <input type="file" multiple onChange={(e) => setVibrationFiles(Array.from(e.target.files || []))} />
+                      <EvidenceCard
+                        title="Sound / Audio"
+                        helper="Best for knocks, ticks, squeals, grinding, rattles, misfires, and start-up noises. Record with radio/fans off when safe."
+                        badges={
+                          <>
+                            <EvidenceBadge>Optional</EvidenceBadge>
+                            {bestEvidence.audio && <EvidenceBadge tone="best">Best evidence for this symptom</EvidenceBadge>}
+                          </>
+                        }
+                      >
+                        <input type="file" multiple accept="audio/*" onChange={(e) => setAudioFiles(Array.from(e.target.files || []))} />
+                        <FileNames files={audioFiles} />
+                      </EvidenceCard>
+
+                      <EvidenceCard
+                        title="Vibration / Motion"
+                        helper="Use video/audio plus context. Tell us where you feel it, when it happens, speed/RPM, braking/turning/accelerating, and severity."
+                        badges={
+                          <>
+                            <EvidenceBadge>Optional</EvidenceBadge>
+                            {bestEvidence.vibration && <EvidenceBadge tone="best">Best evidence for this symptom</EvidenceBadge>}
+                          </>
+                        }
+                      >
+                        <input type="file" multiple accept="video/*,audio/*" onChange={(e) => setVibrationFiles(Array.from(e.target.files || []))} />
                         <FileNames files={vibrationFiles} />
-                      </div>
+                      </EvidenceCard>
                     </div>
                   </div>
 

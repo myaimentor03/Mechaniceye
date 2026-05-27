@@ -411,6 +411,25 @@ textarea:focus {
   font-size: 1.2rem;
 }
 
+.section-heading-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.section-intro {
+  margin: 8px 0 0 0;
+  max-width: 760px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.evidence-section {
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding-top: 24px;
+}
+
 .pill-grid {
   display: flex;
   flex-wrap: wrap;
@@ -444,18 +463,78 @@ textarea:focus {
 
 .upload-card {
   border: 1px solid var(--border);
-  background: rgba(8, 17, 30, 0.96);
+  background:
+    linear-gradient(180deg, rgba(13, 28, 47, 0.96), rgba(8, 17, 30, 0.96));
   border-radius: 20px;
   padding: 20px;
 }
 
+.evidence-card {
+  display: grid;
+  gap: 14px;
+  min-height: 100%;
+}
+
+.evidence-card:first-child {
+  grid-column: 1 / -1;
+}
+
+.evidence-card-header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
 .upload-card h4 {
-  margin: 0 0 8px 0;
+  margin: 0;
+  color: #ffffff;
 }
 
 .upload-card p {
-  margin: 0 0 14px 0;
+  margin: 0;
   line-height: 1.5;
+}
+
+.evidence-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.evidence-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 6px 9px;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.05);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.evidence-badge.recommended {
+  border-color: rgba(154, 240, 197, 0.28);
+  background: rgba(154, 240, 197, 0.08);
+  color: #bff7d9;
+}
+
+.evidence-badge.best {
+  border-color: rgba(59, 214, 255, 0.42);
+  background: rgba(59, 214, 255, 0.12);
+  color: var(--accent);
+}
+
+.evidence-reassurance {
+  margin-top: 0;
+  border-color: rgba(154, 240, 197, 0.22);
+  background: rgba(154, 240, 197, 0.06);
+  color: #d7f8e7;
 }
 
 .file-list {
@@ -546,6 +625,7 @@ textarea:focus {
   }
 
   .step-header,
+  .section-heading-row,
   .topbar {
     flex-direction: column;
     align-items: stretch;
@@ -583,6 +663,18 @@ textarea:focus {
   .step-actions {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .evidence-card-header {
+    flex-direction: column;
+  }
+
+  .evidence-badges {
+    justify-content: flex-start;
+  }
+
+  .evidence-badge {
+    white-space: normal;
   }
 
   .hero-brand {
