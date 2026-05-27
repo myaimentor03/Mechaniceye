@@ -8,6 +8,13 @@ neonConfig.webSocketConstructor = ws;
 
 let pool: Pool | undefined;
 
+type DatabaseHealthResult =
+  | { ok: true }
+  | {
+      ok: false;
+      error: string;
+    };
+
 function createDb() {
   const databaseUrl = process.env.DATABASE_URL;
 
@@ -39,11 +46,50 @@ export const db = new Proxy({} as ReturnType<typeof createDb>, {
   }
 });
 
-export async function checkDatabaseConnection() {
+function redactDatabaseError(error: unknown) {
+  let message = error instanceof Error ? error.message : "Unknown database error";
+  const databaseUrl = process.env.DATABASE_URL;
+
+  if (!databaseUrl) {
+    return message;
+  }
+
+  message = message.replaceAll(databaseUrl, "[redacted]");
+
+  try {
+    const parsedUrl = new URL(databaseUrl);
+    const sensitiveValues = [
+      parsedUrl.username,
+      parsedUrl.password,
+      parsedUrl.host,
+      parsedUrl.hostname,
+      parsedUrl.pathname.replace(/^\//, "")
+    ].filter(Boolean);
+
+    for (const value of sensitiveValues) {
+      message = message.replaceAll(value, "[redacted]");
+
+      try {
+        message = message.replaceAll(decodeURIComponent(value), "[redacted]");
+      } catch {
+        // Keep the encoded replacement above even if decoding is not possible.
+      }
+    }
+  } catch {
+    // The full env value was already redacted above.
+  }
+
+  return message.replace(
+    /postgres(?:ql)?:\/\/[^\s:@/]+:[^\s@/]+@[^\s)'"<>]+/gi,
+    "postgresql://[redacted]"
+  );
+}
+
+export async function checkDatabaseConnection(): Promise<DatabaseHealthResult> {
   try {
     await getDb().execute(sql`select 1`);
     return { ok: true };
-  } catch {
-    return { ok: false };
+  } catch (error) {
+    return { ok: false, error: redactDatabaseError(error) };
   }
 }
