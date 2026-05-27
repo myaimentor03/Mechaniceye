@@ -1,10 +1,9 @@
 import { sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/neon-serverless";
-import { Pool, neonConfig } from "@neondatabase/serverless";
-import ws from "ws";
+import { drizzle } from "drizzle-orm/node-postgres";
+import pg from "pg";
 import * as schema from "./shared/shared/schema";
 
-neonConfig.webSocketConstructor = ws;
+const { Pool } = pg;
 
 let pool: Pool | undefined;
 
