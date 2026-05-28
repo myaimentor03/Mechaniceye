@@ -411,6 +411,21 @@ textarea:focus {
   font-size: 1.2rem;
 }
 
+.required-marker {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 8px;
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 210, 125, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 210, 125, 0.08);
+  color: #ffe1a3;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
 .section-heading-row {
   display: flex;
   gap: 16px;

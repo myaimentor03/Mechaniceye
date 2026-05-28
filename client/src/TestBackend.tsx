@@ -5,17 +5,17 @@ import { YEARS, VEHICLE_DATA, FALLBACK_MAKES, FALLBACK_MODELS, FALLBACK_ENGINES,
 const PUBLIC_API_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/diagnoses";
 const SUBMISSION_TIMEOUT_MS = 20000;
 const CATEGORIES = [
-  "Engine / Performance",
-  "Transmission / Drivetrain",
-  "Brakes",
-  "Steering / Suspension",
-  "Electrical",
-  "Heating / AC",
-  "Starting / Charging",
-  "Noise / Vibration",
-  "Leak / Smell / Smoke",
-  "Warning Lights / Codes",
-  "Other"
+  "No start / hard start",
+  "Engine running rough",
+  "Noise / rattle / knock / squeal",
+  "Warning light / code",
+  "Leak / smell / smoke",
+  "Overheating",
+  "Transmission / shifting",
+  "Brakes / steering / suspension",
+  "Electrical / battery / charging",
+  "Vibration / shaking",
+  "Other / not sure"
 ];
 
 const TIMING_OPTIONS = [
@@ -98,7 +98,7 @@ const [manualEngine, setManualEngine] = useState("");
   const [drivetrain, setDrivetrain] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
 
-  const [category, setCategory] = useState("");
+  const [problemCategory, setProblemCategory] = useState("");
   const [description, setDescription] = useState("");
   const [recentRepairs, setRecentRepairs] = useState("");
   const [otherTiming, setOtherTiming] = useState("");
@@ -132,16 +132,16 @@ const [manualEngine, setManualEngine] = useState("");
 }, [year, make, model]);
 
   const bestEvidence = useMemo(() => {
-    const value = category.toLowerCase();
+    const value = problemCategory.toLowerCase();
 
     return {
       photos: value.includes("leak") || value.includes("smell") || value.includes("smoke") || value.includes("warning") || value.includes("electrical"),
-      video: value.includes("engine") || value.includes("brake") || value.includes("steering") || value.includes("suspension") || value.includes("leak") || value.includes("smoke"),
-      audio: value.includes("noise") || value.includes("vibration") || value.includes("engine") || value.includes("brake") || value.includes("starting"),
+      video: value.includes("engine") || value.includes("brake") || value.includes("steering") || value.includes("suspension") || value.includes("leak") || value.includes("smoke") || value.includes("overheating"),
+      audio: value.includes("noise") || value.includes("rattle") || value.includes("knock") || value.includes("squeal") || value.includes("vibration") || value.includes("engine") || value.includes("brake") || value.includes("start"),
       vibration: value.includes("vibration") || value.includes("brake") || value.includes("steering") || value.includes("suspension") || value.includes("transmission"),
-      written: Boolean(category)
+      written: Boolean(problemCategory)
     };
-  }, [category]);
+  }, [problemCategory]);
 
   function toggleValue(value: string, values: string[], setValues: (v: string[]) => void) {
     setValues(values.includes(value) ? values.filter((v) => v !== value) : [...values, value]);
@@ -158,7 +158,7 @@ const [manualEngine, setManualEngine] = useState("");
 
   function buildDescriptionBlock() {
     return [
-      `Problem Category: ${category || "Not provided"}`,
+      `Problem Category: ${problemCategory || "Not provided"}`,
       `Vehicle: ${year} ${make === "Other Make" ? manualMake : make} ${model === "Other Model" ? manualModel : model}`,
       `Engine: ${(engine === "Other Engine" || engine === "Unknown Engine") ? (manualEngine || engine) : (engine || "Not provided")}`,
       `Mileage: ${mileage || "Not provided"}`,
@@ -187,7 +187,7 @@ const [manualEngine, setManualEngine] = useState("");
     e.preventDefault();
 
 
-    if (!category || !description || !urgency) {
+    if (!problemCategory || !description || !urgency) {
       setError("Please complete the problem category, description, and urgency.");
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
@@ -226,6 +226,7 @@ const [manualEngine, setManualEngine] = useState("");
     const vibrationFileNames = vibrationFiles.map((file) => file.name);
 
     const payload = {
+      problemCategory,
       description: buildDescriptionBlock(),
       vehicleInfo: `${year} ${resolvedMake} ${resolvedModel} | Engine: ${resolvedEngine || "N/A"} | Mileage: ${mileage || "N/A"} | Transmission: ${transmission || "N/A"} | Drivetrain: ${drivetrain || "N/A"}`,
       unsupportedVehicle,
@@ -495,10 +496,10 @@ const [manualEngine, setManualEngine] = useState("");
               {step === 2 && (
                 <>
                   <div className="section-block">
-                    <h3>Problem Category</h3>
+                    <h3>Problem Category <span className="required-marker">Required</span></h3>
                     <div className="pill-grid">
                       {CATEGORIES.map((item) => (
-                        <button key={item} type="button" className={`pill ${category === item ? "selected" : ""}`} onClick={() => setCategory(item)}>
+                        <button key={item} type="button" className={`pill ${problemCategory === item ? "selected" : ""}`} onClick={() => setProblemCategory(item)}>
                           {item}
                         </button>
                       ))}
