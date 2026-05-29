@@ -48,7 +48,19 @@ app.use(express.urlencoded({ extended: false }));
   if (fs.existsSync(distPath)) {
     app.use(express.static(distPath));
 
-    app.get("*", (req, res) => {
+    app.use((req, res, next) => {
+      const acceptsHtml = req.accepts("html");
+      const isFrontendNavigation =
+        (req.method === "GET" || req.method === "HEAD") &&
+        acceptsHtml &&
+        !req.path.startsWith("/api") &&
+        !path.extname(req.path);
+
+      if (!isFrontendNavigation) {
+        next();
+        return;
+      }
+
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
