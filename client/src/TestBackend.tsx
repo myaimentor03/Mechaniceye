@@ -1,5 +1,6 @@
 ﻿import { useMemo, useState } from "react";
 import "./app.css";
+import Marketplace from "./marketplace/Marketplace";
 import { YEARS, VEHICLE_DATA, FALLBACK_MAKES, FALLBACK_MODELS, FALLBACK_ENGINES, TRANSMISSION_OPTIONS, DRIVETRAIN_OPTIONS } from "./data/vehicleData";
 
 const PUBLIC_API_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/diagnoses";
@@ -83,6 +84,10 @@ function LegalSection({ title, children }: { title: string; children: React.Reac
 }
 
 export default function TestBackend() {
+  if (window.location.pathname.startsWith("/marketplace")) {
+    return <Marketplace />;
+  }
+
   const [page, setPage] = useState<"home" | "intake" | "sell" | "help" | "disclaimer" | "terms" | "privacy">("home");
   const [step, setStep] = useState<1 | 2>(1);
 
@@ -340,7 +345,7 @@ const [manualEngine, setManualEngine] = useState("");
               <div className="offer-action">Start My Diagnosis</div>
             </button>
 
-            <button className="offer-card offer-card-primary" onClick={() => setPage("sell")}>
+            <button className="offer-card offer-card-primary" onClick={() => { window.location.href = "/marketplace/sell"; }}>
               <div className="offer-topline">Sell-As-Is Option</div>
               <div className="offer-title">Don&apos;t Want to Fix It?</div>
               <div className="offer-copy">See whether your vehicle may be a fit for an as-is sale instead of pouring more time and money into it.</div>
@@ -377,7 +382,7 @@ const [manualEngine, setManualEngine] = useState("");
             </p>
             <div className="hero-actions">
               <button className="primary-btn" type="button" onClick={() => setStep(1)}>Start Diagnosis Intake</button>
-              <button className="secondary-btn" type="button" onClick={() => setPage("sell")}>Sell Your Vehicle As-Is</button>
+              <button className="secondary-btn" type="button" onClick={() => { window.location.href = "/marketplace/sell"; }}>Sell Your Vehicle</button>
             </div>
           </div>
 
@@ -660,7 +665,7 @@ const [manualEngine, setManualEngine] = useState("");
             <div className="eyebrow">Other paths</div>
             <h3>Not worth fixing?</h3>
             <p>You may be able to sell the vehicle as-is instead of sinking more money into it.</p>
-            <button className="primary-btn full-btn" type="button" onClick={() => setPage("sell")}>Explore Sell-As-Is</button>
+            <button className="primary-btn full-btn" type="button" onClick={() => { window.location.href = "/marketplace/sell"; }}>Explore Marketplace</button>
           </div>
 
           <div className="warning-box">
@@ -916,7 +921,7 @@ const [manualEngine, setManualEngine] = useState("");
         <div className="nav">
           <button onClick={() => setPage("home")}>Home</button>
           <button onClick={() => setPage("intake")}>Diagnosis</button>
-          <button onClick={() => setPage("sell")}>Sell As-Is</button>
+          <button onClick={() => { window.location.href = "/marketplace/sell"; }}>Sell Your Vehicle</button>
           <button onClick={() => setPage("help")}>Help</button>
           <button onClick={() => setPage("disclaimer")}>Disclaimer</button>
           <button onClick={() => setPage("terms")}>Terms</button>
