@@ -1,4 +1,6 @@
-import { FormEvent } from "react";
+import { FormEvent, useState } from "react";
+
+const MARKETPLACE_SELLER_INTAKE_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/marketplace/seller-intake";
 
 type HeroProps = {
   eyebrow?: string;
@@ -77,6 +79,14 @@ const packages = [
     features: ["Timed offer window", "Seller chooses next step", "Best offer language", "No sale guarantee"],
   },
 ];
+
+function getMarketplaceSellerIntakeEndpoint() {
+  const isLocalBrowser =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1";
+
+  return isLocalBrowser ? "/api/marketplace/seller-intake" : MARKETPLACE_SELLER_INTAKE_ENDPOINT;
+}
 
 function Hero({ eyebrow = "Mechanic's Eye Marketplace", title, body, primaryLabel, primaryHref, secondaryLabel, secondaryHref }: HeroProps) {
   return (
@@ -247,14 +257,76 @@ function SellPage() {
 }
 
 function SellerIntakePage() {
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
+
     if (!form.checkValidity()) {
       form.reportValidity();
       return;
     }
-    window.location.href = "/marketplace/sell/submitted";
+
+    const formData = new FormData(form);
+    const value = (name: string) => String(formData.get(name) || "").trim();
+    const payload = {
+      sellerName: value("sellerName"),
+      sellerEmail: value("sellerEmail"),
+      sellerPhone: value("sellerPhone"),
+      city: value("city"),
+      state: value("state"),
+      zip: value("zip"),
+      vehicleYear: value("vehicleYear"),
+      make: value("make"),
+      model: value("model"),
+      trim: value("trim"),
+      mileage: value("mileage"),
+      askingPrice: value("askingPrice"),
+      titleStatus: value("titleStatus"),
+      runsAndDrives: value("runsAndDrives"),
+      knownIssues: value("knownIssues"),
+      recentRepairs: value("recentRepairs"),
+      vin: value("vin"),
+      exteriorColor: value("exteriorColor"),
+      transmission: value("transmission"),
+      fuelType: value("fuelType"),
+      hasKeys: value("hasKeys"),
+      lienStatus: value("lienStatus"),
+      bestContactMethod: value("bestContactMethod"),
+      buyerTestDriveAllowed: value("buyerTestDriveAllowed"),
+      buyerMechanicAllowed: value("buyerMechanicAllowed"),
+      sellerNotes: value("sellerNotes"),
+      listingType: value("listingType"),
+      acknowledgments: {
+        ownerAuthorized: formData.get("ackOwnerAuthorized") === "on",
+        platformOnly: formData.get("ackPlatformOnly") === "on",
+        sellerResponsibilities: formData.get("ackSellerResponsibilities") === "on",
+        noGuarantee: formData.get("ackNoGuarantee") === "on",
+      },
+    };
+
+    setIsSubmitting(true);
+    setSubmitError("");
+
+    try {
+      const response = await fetch(getMarketplaceSellerIntakeEndpoint(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json().catch(() => ({ ok: false, error: "Seller intake failed." }));
+
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || "Seller intake failed. Please check the form and try again.");
+      }
+
+      window.location.href = "/marketplace/sell/submitted";
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Seller intake failed. Please try again.");
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -262,10 +334,11 @@ function SellerIntakePage() {
       <section className="mp-page-heading"><div className="mp-eyebrow">Seller intake</div><h1>Start a marketplace listing request</h1><p>This frontend form captures the first version of the seller workflow. Backend submission, payments, dashboards, and admin review can be connected later.</p></section>
       <form className="mp-intake-form" onSubmit={submit}>
         <fieldset><legend>Seller information</legend><div className="mp-form-grid"><label>Seller name<input name="sellerName" required /></label><label>Seller email<input name="sellerEmail" type="email" required /></label><label>Seller phone<input name="sellerPhone" type="tel" required /></label><label>City<input name="city" required /></label><label>State<input name="state" maxLength={2} required /></label><label>ZIP<input name="zip" inputMode="numeric" required /></label></div></fieldset>
-        <fieldset><legend>Vehicle information</legend><div className="mp-form-grid"><label>Vehicle year<input name="year" inputMode="numeric" required /></label><label>Make<input name="make" required /></label><label>Model<input name="model" required /></label><label>Trim<input name="trim" /></label><label>Mileage<input name="mileage" inputMode="numeric" required /></label><label>Asking price<input name="askingPrice" inputMode="decimal" required /></label><label>Title status<select name="titleStatus" required><option value="">Choose one</option><option>Clean title</option><option>Salvage title</option><option>Rebuilt title</option><option>Lienholder involved</option><option>Other or unsure</option></select></label><label>Runs and drives<select name="runsDrives" required><option value="">Choose one</option><option>Runs and drives</option><option>Runs but needs work</option><option>Does not currently run</option><option>Unknown</option></select></label></div><label>Known issues<textarea name="knownIssues" rows={5} required /></label><label>Recent repairs<textarea name="recentRepairs" rows={4} /></label><label>Upload photos<input name="photos" type="file" accept="image/*" multiple /></label></fieldset>
+        <fieldset><legend>Vehicle information</legend><div className="mp-form-grid"><label>Vehicle year<input name="vehicleYear" inputMode="numeric" required /></label><label>Make<input name="make" required /></label><label>Model<input name="model" required /></label><label>Trim<input name="trim" /></label><label>VIN<input name="vin" /></label><label>Exterior color<input name="exteriorColor" /></label><label>Mileage<input name="mileage" inputMode="numeric" required /></label><label>Asking price<input name="askingPrice" inputMode="decimal" required /></label><label>Title status<select name="titleStatus" required><option value="">Choose one</option><option>Clean title</option><option>Salvage title</option><option>Rebuilt title</option><option>Lienholder involved</option><option>Other or unsure</option></select></label><label>Runs and drives<select name="runsAndDrives" required><option value="">Choose one</option><option>Runs and drives</option><option>Runs but needs work</option><option>Does not currently run</option><option>Unknown</option></select></label><label>Transmission<select name="transmission"><option value="">Choose one</option><option>Automatic</option><option>Manual</option><option>CVT</option><option>Other or unsure</option></select></label><label>Fuel type<select name="fuelType"><option value="">Choose one</option><option>Gas</option><option>Diesel</option><option>Hybrid</option><option>Electric</option><option>Other or unsure</option></select></label><label>Has keys?<select name="hasKeys"><option value="">Choose one</option><option>Yes</option><option>No</option><option>One key only</option></select></label><label>Lien status<select name="lienStatus"><option value="">Choose one</option><option>No lien</option><option>Lienholder involved</option><option>Unsure</option></select></label><label>Best contact method<select name="bestContactMethod"><option value="">Choose one</option><option>Phone</option><option>Email</option><option>Text</option></select></label><label>Buyer test drive allowed?<select name="buyerTestDriveAllowed"><option value="">Choose one</option><option>Yes</option><option>No</option><option>Case by case</option></select></label><label>Buyer mechanic allowed?<select name="buyerMechanicAllowed"><option value="">Choose one</option><option>Yes</option><option>No</option><option>Case by case</option></select></label></div><label>Known issues<textarea name="knownIssues" rows={5} required /></label><label>Recent repairs<textarea name="recentRepairs" rows={4} /></label><label>Seller notes<textarea name="sellerNotes" rows={4} /></label><label>Upload photos<input name="photos" type="file" accept="image/*" multiple /></label></fieldset>
         <fieldset><legend>Listing type</legend><div className="mp-radio-grid">{["Standard Listing", "Best Offer Listing", "Weekend Offer Event"].map((type) => <label key={type}><input name="listingType" type="radio" value={type} required /><span>{type}</span></label>)}</div></fieldset>
-        <fieldset><legend>Seller acknowledgments</legend><div className="mp-ack-list">{["I am the owner or authorized to list this vehicle.", "I understand Mechanic's Eye is only a listing platform.", "I am responsible for title transfer, payment, shipping/pickup, taxes, and legal requirements.", "I understand Mechanic's Eye does not guarantee buyer payment or vehicle condition."].map((ack) => <label key={ack}><input type="checkbox" required /><span>{ack}</span></label>)}</div></fieldset>
-        <button className="mp-btn mp-btn-primary" type="submit">Submit Listing Request</button>
+        <fieldset><legend>Seller acknowledgments</legend><div className="mp-ack-list"><label><input name="ackOwnerAuthorized" type="checkbox" required /><span>I am the owner or authorized to list this vehicle.</span></label><label><input name="ackPlatformOnly" type="checkbox" required /><span>I understand Mechanic's Eye is only a listing platform.</span></label><label><input name="ackSellerResponsibilities" type="checkbox" required /><span>I am responsible for title transfer, payment, shipping/pickup, taxes, and legal requirements.</span></label><label><input name="ackNoGuarantee" type="checkbox" required /><span>I understand Mechanic's Eye does not guarantee buyer payment or vehicle condition.</span></label></div></fieldset>
+        {submitError && <div className="mp-form-error" role="alert">{submitError}</div>}
+        <button className="mp-btn mp-btn-primary" type="submit" disabled={isSubmitting}>{isSubmitting ? "Submitting..." : "Submit Listing Request"}</button>
       </form>
       <Disclaimer compact />
     </MarketplaceLayout>

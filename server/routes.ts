@@ -294,10 +294,203 @@ async function deliverDiagnosisWebhook(
   }
 }
 
+type MarketplaceAcknowledgments = {
+  ownerAuthorized?: boolean;
+  platformOnly?: boolean;
+  sellerResponsibilities?: boolean;
+  noGuarantee?: boolean;
+};
+
+type MarketplaceSellerIntake = {
+  sellerName: string;
+  sellerEmail: string;
+  sellerPhone: string;
+  city: string;
+  state: string;
+  zip: string;
+  vehicleYear: string;
+  make: string;
+  model: string;
+  mileage: string;
+  askingPrice: string;
+  titleStatus: string;
+  runsAndDrives: string;
+  knownIssues: string;
+  listingType: string;
+  acknowledgments: MarketplaceAcknowledgments;
+  trim?: string;
+  recentRepairs?: string;
+  vin?: string;
+  exteriorColor?: string;
+  transmission?: string;
+  fuelType?: string;
+  hasKeys?: string;
+  lienStatus?: string;
+  bestContactMethod?: string;
+  buyerTestDriveAllowed?: string;
+  buyerMechanicAllowed?: string;
+  sellerNotes?: string;
+};
+
+const marketplaceRequiredFields: Array<keyof Omit<MarketplaceSellerIntake, "acknowledgments">> = [
+  "sellerName",
+  "sellerEmail",
+  "sellerPhone",
+  "city",
+  "state",
+  "zip",
+  "vehicleYear",
+  "make",
+  "model",
+  "mileage",
+  "askingPrice",
+  "titleStatus",
+  "runsAndDrives",
+  "knownIssues",
+  "listingType"
+];
+
+const marketplaceRequiredAcknowledgments: Array<keyof MarketplaceAcknowledgments> = [
+  "ownerAuthorized",
+  "platformOnly",
+  "sellerResponsibilities",
+  "noGuarantee"
+];
+
+function pickMarketplaceString(body: any, key: keyof MarketplaceSellerIntake) {
+  const value = body?.[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function buildMarketplaceSellerIntake(body: any): MarketplaceSellerIntake {
+  return {
+    sellerName: pickMarketplaceString(body, "sellerName"),
+    sellerEmail: pickMarketplaceString(body, "sellerEmail"),
+    sellerPhone: pickMarketplaceString(body, "sellerPhone"),
+    city: pickMarketplaceString(body, "city"),
+    state: pickMarketplaceString(body, "state"),
+    zip: pickMarketplaceString(body, "zip"),
+    vehicleYear: pickMarketplaceString(body, "vehicleYear"),
+    make: pickMarketplaceString(body, "make"),
+    model: pickMarketplaceString(body, "model"),
+    mileage: pickMarketplaceString(body, "mileage"),
+    askingPrice: pickMarketplaceString(body, "askingPrice"),
+    titleStatus: pickMarketplaceString(body, "titleStatus"),
+    runsAndDrives: pickMarketplaceString(body, "runsAndDrives"),
+    knownIssues: pickMarketplaceString(body, "knownIssues"),
+    listingType: pickMarketplaceString(body, "listingType"),
+    trim: pickMarketplaceString(body, "trim"),
+    recentRepairs: pickMarketplaceString(body, "recentRepairs"),
+    vin: pickMarketplaceString(body, "vin"),
+    exteriorColor: pickMarketplaceString(body, "exteriorColor"),
+    transmission: pickMarketplaceString(body, "transmission"),
+    fuelType: pickMarketplaceString(body, "fuelType"),
+    hasKeys: pickMarketplaceString(body, "hasKeys"),
+    lienStatus: pickMarketplaceString(body, "lienStatus"),
+    bestContactMethod: pickMarketplaceString(body, "bestContactMethod"),
+    buyerTestDriveAllowed: pickMarketplaceString(body, "buyerTestDriveAllowed"),
+    buyerMechanicAllowed: pickMarketplaceString(body, "buyerMechanicAllowed"),
+    sellerNotes: pickMarketplaceString(body, "sellerNotes"),
+    acknowledgments: {
+      ownerAuthorized: !!body?.acknowledgments?.ownerAuthorized,
+      platformOnly: !!body?.acknowledgments?.platformOnly,
+      sellerResponsibilities: !!body?.acknowledgments?.sellerResponsibilities,
+      noGuarantee: !!body?.acknowledgments?.noGuarantee
+    }
+  };
+}
+
+function validateMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
+  const missingFields = marketplaceRequiredFields.filter((field) => !intake[field]);
+  const missingAcknowledgments = marketplaceRequiredAcknowledgments.filter((field) => !intake.acknowledgments[field]);
+
+  return {
+    ok: missingFields.length === 0 && missingAcknowledgments.length === 0,
+    missingFields,
+    missingAcknowledgments
+  };
+}
+
+async function deliverMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
+  const receivedAt = new Date().toISOString();
+  const packet = {
+    type: "mechanics_eye_marketplace_seller_intake",
+    submissionType: "marketplace_seller_intake",
+    sourceApp: "MechanicEye",
+    sourceBrand: "Drivable",
+    payloadVersion: "v1",
+    receivedAt,
+    source: "marketplace-seller-intake",
+    data: intake
+  };
+
+  console.log("MARKETPLACE_SELLER_INTAKE_RECEIVED", JSON.stringify({
+    receivedAt,
+    sellerName: intake.sellerName,
+    sellerEmail: intake.sellerEmail,
+    sellerPhone: intake.sellerPhone,
+    city: intake.city,
+    state: intake.state,
+    zip: intake.zip,
+    vehicle: {
+      year: intake.vehicleYear,
+      make: intake.make,
+      model: intake.model,
+      mileage: intake.mileage,
+      askingPrice: intake.askingPrice,
+      titleStatus: intake.titleStatus,
+      runsAndDrives: intake.runsAndDrives
+    },
+    listingType: intake.listingType
+  }));
+
+  const webhookUrl =
+    process.env.MASTER_INTAKE_WEBHOOK_URL ||
+    process.env.MARKETPLACE_SELLER_INTAKE_WEBHOOK_URL;
+
+  if (!webhookUrl) {
+    console.warn("MASTER_INTAKE_WEBHOOK_URL and MARKETPLACE_SELLER_INTAKE_WEBHOOK_URL are not set; seller intake accepted without webhook forwarding.");
+    return;
+  }
+
+  const response = await fetch(webhookUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(packet)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Marketplace seller intake webhook returned ${response.status}`);
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/health/db", async (req, res) => {
     const result = await checkDatabaseConnection();
     res.status(result.ok ? 200 : 503).json(result);
+  });
+
+  app.post("/api/marketplace/seller-intake", async (req, res) => {
+    try {
+      const intake = buildMarketplaceSellerIntake(req.body || {});
+      const validation = validateMarketplaceSellerIntake(intake);
+
+      if (!validation.ok) {
+        const missing = [
+          ...validation.missingFields,
+          ...validation.missingAcknowledgments.map((field) => `acknowledgments.${field}`)
+        ];
+
+        res.status(400).json({ ok: false, error: `Missing required fields: ${missing.join(", ")}` });
+        return;
+      }
+
+      await deliverMarketplaceSellerIntake(intake);
+      res.json({ ok: true, received: true });
+    } catch (error) {
+      console.error("Marketplace seller intake failed:", error);
+      res.status(502).json({ ok: false, error: "Seller intake could not be forwarded. Please try again." });
+    }
   });
 
   
