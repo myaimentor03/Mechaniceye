@@ -1,0 +1,6 @@
+SettingKey,SettingValue,Description,UpdatedAt,UpdatedBy
+marketplace_status,active,Controls whether marketplace intake is open.,,
+seller_intake_webhook_version,v1,Version of current seller intake webhook payload.,,
+legal_acknowledgment_version,v1,Version of legal acknowledgment language.,,
+default_listing_duration_days,30,Default public listing duration.,,
+weekend_offer_event_label,Weekend Offer Event,Approved public wording. Do not use prohibited event wording.,,

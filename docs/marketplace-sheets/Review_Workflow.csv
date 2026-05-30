@@ -1,0 +1,1 @@
+WorkflowID,IntakeID,ListingID,CurrentStage,Priority,AssignedTo,NeedsSellerFollowUp,MissingInfo,MissingPhotos,MissingVIN,MissingTitleInfo,NeedsPayment,NeedsMechanicReview,NeedsLegalReview,ApprovedForPublishing,RejectedReason,NextAction,LastContactedAt,FollowUpDueAt,CompletedAt,InternalNotes

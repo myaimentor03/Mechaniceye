@@ -1,0 +1,5 @@
+PackageID,PackageName,PackageStatus,Price,BillingType,DurationDays,IncludesBasicListing,IncludesFeaturedPlacement,IncludesPricingHelp,IncludesMechanicReview,IncludesInspectionReferral,IncludesPaperworkChecklist,IncludesWeekendOfferEvent,IncludesDiagnosticEvidencePackage,MaxPhotos,MaxVideos,Description,PublicSalesCopy,InternalNotes,PaymentLink,CreatedAt,UpdatedAt
+PKG_BASIC,Basic Listing,Active,TBD,Flat,30,Yes,No,No,No,No,Yes,No,No,TBD,TBD,,,,,,
+PKG_FEATURED,Featured Listing,Active,TBD,Flat,30,Yes,Yes,No,No,No,Yes,No,No,TBD,TBD,,,,,,
+PKG_MECHANIC_REVIEWED,Mechanic-Reviewed Listing,Active,TBD,Flat,30,Yes,Optional,Yes,Yes,Optional,Yes,Optional,Yes,TBD,TBD,,,,,,
+PKG_WEEKEND_EVENT,Weekend Offer Event Entry,Active,TBD,Flat,7,Yes,Optional,Optional,Optional,Optional,Yes,Yes,Optional,TBD,TBD,,,,,,

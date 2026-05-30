@@ -1,0 +1,26 @@
+Category,Value,Description
+SubmissionStatus,New,New raw seller intake
+SubmissionStatus,Needs Follow-Up,Missing information
+SubmissionStatus,Ready For Review,Intake complete
+SubmissionStatus,Converted To Listing,Public listing created
+SubmissionStatus,Rejected,Not accepted or invalid
+SubmissionStatus,Duplicate,Duplicate submission
+ListingStatus,Draft,Not public yet
+ListingStatus,Pending Payment,Waiting on seller payment
+ListingStatus,Pending Review,Waiting internal review
+ListingStatus,Active,Public listing live
+ListingStatus,Paused,Temporarily hidden
+ListingStatus,Expired,Listing duration ended
+ListingStatus,Removed,Removed by admin or seller
+ListingStatus,Sold/Closed,Seller says vehicle is no longer available
+PaymentStatus,Not Started,No payment started
+PaymentStatus,Pending,Payment pending
+PaymentStatus,Paid,Payment completed
+PaymentStatus,Failed,Payment failed
+PaymentStatus,Refunded,Payment refunded
+PaymentStatus,Waived,Admin waived fee
+ReviewStatus,Not Requested,No mechanic review requested
+ReviewStatus,Requested,Seller requested review
+ReviewStatus,In Review,Review underway
+ReviewStatus,Complete,Review complete
+ReviewStatus,Needs More Info,More seller info required
