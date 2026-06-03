@@ -412,20 +412,49 @@ function validateMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
 }
 
 async function deliverMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
-  const receivedAt = new Date().toISOString();
+  const submittedAt = new Date().toISOString();
   const packet = {
-    type: "mechanics_eye_marketplace_seller_intake",
-    submissionType: "marketplace_seller_intake",
-    sourceApp: "MechanicEye",
-    sourceBrand: "Drivable",
+    intakeType: "marketplace-seller",
+    source: "drivable-marketplace-seller-intake",
+    submittedAt,
+    appBrand: "Drivable by Mechanic’s Eye",
+    marketplaceBrand: "Drivable Marketplace",
     payloadVersion: "v1",
-    receivedAt,
-    source: "marketplace-seller-intake",
-    data: intake
+    sellerName: intake.sellerName,
+    sellerEmail: intake.sellerEmail,
+    sellerPhone: intake.sellerPhone,
+    city: intake.city,
+    state: intake.state,
+    zip: intake.zip,
+    vehicleYear: intake.vehicleYear,
+    make: intake.make,
+    model: intake.model,
+    trim: intake.trim,
+    mileage: intake.mileage,
+    askingPrice: intake.askingPrice,
+    titleStatus: intake.titleStatus,
+    runsAndDrives: intake.runsAndDrives,
+    knownIssues: intake.knownIssues,
+    recentRepairs: intake.recentRepairs,
+    listingType: intake.listingType,
+    acknowledgments: intake.acknowledgments,
+    optionalDetails: {
+      vin: intake.vin,
+      exteriorColor: intake.exteriorColor,
+      transmission: intake.transmission,
+      fuelType: intake.fuelType,
+      hasKeys: intake.hasKeys,
+      lienStatus: intake.lienStatus,
+      bestContactMethod: intake.bestContactMethod,
+      buyerTestDriveAllowed: intake.buyerTestDriveAllowed,
+      buyerMechanicAllowed: intake.buyerMechanicAllowed,
+      sellerNotes: intake.sellerNotes
+    },
+    type: "mechanics_eye_marketplace_seller_intake"
   };
 
   console.log("MARKETPLACE_SELLER_INTAKE_RECEIVED", JSON.stringify({
-    receivedAt,
+    submittedAt,
     sellerName: intake.sellerName,
     sellerEmail: intake.sellerEmail,
     sellerPhone: intake.sellerPhone,
@@ -444,23 +473,32 @@ async function deliverMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
     listingType: intake.listingType
   }));
 
-  const webhookUrl =
-    process.env.MASTER_INTAKE_WEBHOOK_URL ||
-    process.env.MARKETPLACE_SELLER_INTAKE_WEBHOOK_URL;
+  const webhookUrl = process.env.MASTER_INTAKE_WEBHOOK_URL;
 
   if (!webhookUrl) {
-    console.warn("MASTER_INTAKE_WEBHOOK_URL and MARKETPLACE_SELLER_INTAKE_WEBHOOK_URL are not set; seller intake accepted without webhook forwarding.");
-    return;
+    throw new Error("MASTER_INTAKE_WEBHOOK_URL is not configured.");
   }
 
-  const response = await fetch(webhookUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(packet)
-  });
+  try {
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(packet)
+    });
 
-  if (!response.ok) {
-    throw new Error(`Marketplace seller intake webhook returned ${response.status}`);
+    if (!response.ok) {
+      console.error("MASTER_INTAKE_WEBHOOK_FAILED", `Marketplace seller intake webhook returned ${response.status}`);
+      throw new Error(`Marketplace seller intake webhook returned ${response.status}`);
+    }
+
+    console.log("MASTER_INTAKE_WEBHOOK_SENT", JSON.stringify({
+      intakeType: packet.intakeType,
+      source: packet.source,
+      submittedAt
+    }));
+  } catch (error) {
+    console.error("MASTER_INTAKE_WEBHOOK_FAILED", error);
+    throw error;
   }
 }
 
