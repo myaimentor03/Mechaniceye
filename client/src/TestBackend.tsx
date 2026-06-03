@@ -321,7 +321,7 @@ const [manualEngine, setManualEngine] = useState("");
     return (
       <div className="home-wrap">
         <div className="home-hero">
-          <div className="hero-brand">Mechanic&apos;s Eye</div>
+          <div className="hero-brand">Drivable by Mechanic&apos;s Eye</div>
           <h1 className="hero-title">Know what to do before you spend money on repairs.</h1>
           <p className="hero-subtitle">
             A sharper way to understand vehicle problems, decide whether to fix them, and choose your next move without walking in blind.
@@ -339,16 +339,16 @@ const [manualEngine, setManualEngine] = useState("");
 
           <div className="offer-grid">
             <button className="offer-card offer-card-primary" onClick={() => setPage("intake")}>
-              <div className="offer-topline">Vehicle Diagnosis</div>
+              <div className="offer-topline">Drivable Check</div>
               <div className="offer-title">Find Out What&apos;s Wrong</div>
               <div className="offer-copy">Capture symptoms, timing, sounds, photos, video, and more before spending money on guesswork.</div>
-              <div className="offer-action">Start My Diagnosis</div>
+              <div className="offer-action">Start Drivable Check</div>
             </button>
 
             <button className="offer-card offer-card-primary" onClick={() => { window.location.href = "/marketplace/sell"; }}>
-              <div className="offer-topline">Sell-As-Is Option</div>
+              <div className="offer-topline">ClearSale</div>
               <div className="offer-title">Don&apos;t Want to Fix It?</div>
-              <div className="offer-copy">See whether your vehicle may be a fit for an as-is sale instead of pouring more time and money into it.</div>
+              <div className="offer-copy">See whether your vehicle may be a fit to sell as-is instead of pouring more time and money into it.</div>
               <div className="offer-action">See My Options</div>
             </button>
           </div>
@@ -375,14 +375,14 @@ const [manualEngine, setManualEngine] = useState("");
       <div className="page-grid">
         <div className="main-column">
           <div className="hero-card">
-            <div className="eyebrow">Mechanic&apos;s Eye</div>
+            <div className="eyebrow">Drivable Check</div>
             <h1>Organize the problem before you pay for the guess.</h1>
             <p>
               A sharper intake flow for vehicle issues. Capture symptoms, timing, evidence, and vehicle details in a way that actually helps.
             </p>
             <div className="hero-actions">
-              <button className="primary-btn" type="button" onClick={() => setStep(1)}>Start Diagnosis Intake</button>
-              <button className="secondary-btn" type="button" onClick={() => { window.location.href = "/marketplace/sell"; }}>Sell Your Vehicle</button>
+              <button className="primary-btn" type="button" onClick={() => setStep(1)}>Start Drivable Check</button>
+              <button className="secondary-btn" type="button" onClick={() => { window.location.href = "/marketplace/sell"; }}>Start ClearSale</button>
             </div>
           </div>
 
@@ -641,7 +641,7 @@ const [manualEngine, setManualEngine] = useState("");
 
                   <div className="step-actions">
                     <button type="button" className="secondary-btn" onClick={() => setStep(1)}>Back to Vehicle</button>
-                    <button type="submit" className="primary-btn" disabled={loading}>{loading ? "Submitting..." : "Submit for Diagnosis"}</button>
+                    <button type="submit" className="primary-btn" disabled={loading}>{loading ? "Submitting..." : "Submit Drivable Check"}</button>
                   </div>
                 </>
               )}
@@ -665,7 +665,7 @@ const [manualEngine, setManualEngine] = useState("");
             <div className="eyebrow">Other paths</div>
             <h3>Not worth fixing?</h3>
             <p>You may be able to sell the vehicle as-is instead of sinking more money into it.</p>
-            <button className="primary-btn full-btn" type="button" onClick={() => { window.location.href = "/marketplace/sell"; }}>Explore Marketplace</button>
+            <button className="primary-btn full-btn" type="button" onClick={() => { window.location.href = "/marketplace/sell"; }}>Explore ClearSale</button>
           </div>
 
           <div className="warning-box">
@@ -680,7 +680,7 @@ const [manualEngine, setManualEngine] = useState("");
     return (
       <div className="simple-page">
         <div className="hero-card">
-          <div className="eyebrow">Sell Your Vehicle As-Is</div>
+          <div className="eyebrow">ClearSale</div>
           <h1>Don&apos;t want the hassle of fixing it, diagnosing it, or dealing with flaky buyers?</h1>
           <p>
             If your vehicle is no longer worth repairing, or you simply do not want to deal with the time,
@@ -690,7 +690,7 @@ const [manualEngine, setManualEngine] = useState("");
         </div>
 
         <div className="step-card">
-          <h2>Vehicle Review Request</h2>
+          <h2>ClearSale Review Request</h2>
           <p className="helper-text">
             Submitting your vehicle does not guarantee a purchase offer. It helps us review whether there may
             be a fit with buyers in your area.
@@ -792,7 +792,7 @@ const [manualEngine, setManualEngine] = useState("");
         <div className="hero-card">
           <div className="eyebrow">Help / FAQ</div>
           <h1>Use what you know. Skip what you don&apos;t.</h1>
-          <p>Mechanic&apos;s Eye is supposed to reduce confusion, not add more of it.</p>
+          <p>Drivable by Mechanic&apos;s Eye is supposed to reduce confusion, not add more of it.</p>
         </div>
         <div className="faq-grid">
           <div className="faq-card"><h3>What if I don’t know my engine?</h3><p>Use the I Don&apos;t Know option where available and keep going.</p></div>
@@ -835,17 +835,17 @@ const [manualEngine, setManualEngine] = useState("");
       <div className="simple-page">
         <div className="hero-card">
           <div className="eyebrow">Terms & Conditions</div>
-          <h1>Rules for using the Mechanic&apos;s Eye platform.</h1>
+          <h1>Rules for using Drivable by Mechanic&apos;s Eye.</h1>
           <p>Plain-English protection, because pretending people read mystery legal sludge has never improved civilization.</p>
         </div>
 
         <div className="legal-card">
           <LegalSection title="Acceptance of Terms">
-            <p>By using this website, submitting information, or interacting with Mechanic&apos;s Eye services, you agree to these terms.</p>
+            <p>By using this website, submitting information, or interacting with Drivable by Mechanic&apos;s Eye services, you agree to these terms.</p>
           </LegalSection>
 
           <LegalSection title="Informational Use Only">
-            <p>Mechanic&apos;s Eye is intended to provide informational vehicle guidance and intake support. It is not a licensed inspection station, emergency service, or guarantee of repair accuracy.</p>
+            <p>Drivable by Mechanic&apos;s Eye is intended to provide informational vehicle guidance and intake support, backed by Mechanic&apos;s Eye as the diagnostic authority. It is not a licensed inspection station, emergency service, or guarantee of repair accuracy.</p>
           </LegalSection>
 
           <LegalSection title="User-Submitted Information">
@@ -861,7 +861,7 @@ const [manualEngine, setManualEngine] = useState("");
           </LegalSection>
 
           <LegalSection title="Vehicle Sale Leads">
-            <p>Submitting a vehicle for as-is review does not create an obligation to buy, make an offer, or connect you with a buyer. Any possible interest depends on condition, location, marketability, and lawful ownership.</p>
+            <p>Submitting a vehicle through ClearSale to sell your vehicle as-is does not create an obligation to buy, make an offer, or connect you with a buyer. Any possible interest depends on condition, location, marketability, and lawful ownership.</p>
           </LegalSection>
 
           <LegalSection title="Limitation of Liability">
@@ -891,7 +891,7 @@ const [manualEngine, setManualEngine] = useState("");
           </LegalSection>
 
           <LegalSection title="How Information May Be Used">
-            <p>Submitted information may be used to review vehicle issues, organize intake requests, evaluate sell-as-is leads, improve the service workflow, communicate with you, and support future platform operations.</p>
+            <p>Submitted information may be used to review vehicle issues, organize intake requests, evaluate ClearSale leads, improve the service workflow, communicate with you, and support future platform operations.</p>
           </LegalSection>
 
           <LegalSection title="Third-Party Services">
@@ -917,11 +917,14 @@ const [manualEngine, setManualEngine] = useState("");
   return (
     <div className="app-shell">
       <div className="topbar">
-        <div className="brand">Mechanic&apos;s Eye</div>
+        <div className="brand">Drivable by Mechanic&apos;s Eye</div>
         <div className="nav">
           <button onClick={() => setPage("home")}>Home</button>
-          <button onClick={() => setPage("intake")}>Diagnosis</button>
-          <button onClick={() => { window.location.href = "/marketplace/sell"; }}>Sell Your Vehicle</button>
+          <button onClick={() => setPage("intake")}>Drivable Check</button>
+          <button onClick={() => { window.location.href = "/marketplace/sell"; }}>ClearSale</button>
+          <button onClick={() => { window.location.href = "/marketplace/browse"; }}>Buyer Check</button>
+          <button onClick={() => setPage("help")}>Mechanic Match</button>
+          <button onClick={() => setPage("disclaimer")}>Mechanic&apos;s Eye Review</button>
           <button onClick={() => setPage("help")}>Help</button>
           <button onClick={() => setPage("disclaimer")}>Disclaimer</button>
           <button onClick={() => setPage("terms")}>Terms</button>

@@ -67,9 +67,9 @@ const packages = [
     highlighted: true,
   },
   {
-    title: "Mechanic-Reviewed Listing",
+    title: "Mechanic's Eye Review",
     price: "Diagnostic/evidence package",
-    body: "Mechanic's Eye can help organize diagnostic evidence without guaranteeing condition.",
+    body: "Mechanic's Eye can help organize diagnostic evidence for ClearSale without guaranteeing condition.",
     features: ["Evidence review", "Repair history structure", "Symptom notes", "No certification claim"],
   },
   {
@@ -88,7 +88,7 @@ function getMarketplaceSellerIntakeEndpoint() {
   return isLocalBrowser ? "/api/marketplace/seller-intake" : MARKETPLACE_SELLER_INTAKE_ENDPOINT;
 }
 
-function Hero({ eyebrow = "Mechanic's Eye Marketplace", title, body, primaryLabel, primaryHref, secondaryLabel, secondaryHref }: HeroProps) {
+function Hero({ eyebrow = "ClearSale", title, body, primaryLabel, primaryHref, secondaryLabel, secondaryHref }: HeroProps) {
   return (
     <section className="mp-hero">
       <div>
@@ -105,7 +105,7 @@ function Hero({ eyebrow = "Mechanic's Eye Marketplace", title, body, primaryLabe
       <div className="mp-hero-panel">
         <div><strong>Seller-controlled listings</strong><span>You set the price, notes, timing, and terms.</span></div>
         <div><strong>Evidence helps buyers</strong><span>Photos, symptoms, repair history, and optional diagnostic context.</span></div>
-        <div><strong>Peer-to-peer transaction</strong><span>Mechanic's Eye gives you tools. You handle the transaction.</span></div>
+        <div><strong>Peer-to-peer transaction</strong><span>Drivable by Mechanic's Eye gives you tools. You handle the transaction.</span></div>
       </div>
     </section>
   );
@@ -114,9 +114,9 @@ function Hero({ eyebrow = "Mechanic's Eye Marketplace", title, body, primaryLabe
 function Disclaimer({ compact = false }: { compact?: boolean }) {
   return (
     <section className={compact ? "mp-disclaimer mp-disclaimer-compact" : "mp-disclaimer"}>
-      <h2>Marketplace disclaimer</h2>
+      <h2>ClearSale disclaimer</h2>
       <p>
-        Mechanic's Eye Marketplace is a peer-to-peer vehicle listing and software platform only.
+        ClearSale is a peer-to-peer vehicle listing and software platform from Drivable by Mechanic's Eye.
         Mechanic's Eye does not own, sell, buy, title, transport, finance, inspect, certify, or
         guarantee vehicles. Sellers list their own vehicles. Buyers and sellers are responsible for
         title transfer, payment, pickup or shipping, taxes, registration, inspections, and legal requirements.
@@ -157,7 +157,7 @@ function PackageCard({ pkg }: { pkg: (typeof packages)[number] }) {
       <strong>{pkg.price}</strong>
       <p>{pkg.body}</p>
       <ul>{pkg.features.map((feature) => <li key={feature}>{feature}</li>)}</ul>
-      <a className="mp-btn mp-btn-secondary" href="/marketplace/sell/intake">Start Seller Intake</a>
+      <a className="mp-btn mp-btn-secondary" href="/marketplace/sell/intake">Start ClearSale Intake</a>
     </article>
   );
 }
@@ -166,12 +166,14 @@ function MarketplaceLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="mp-shell">
       <div className="mp-topbar">
-        <a className="mp-brand" href="/marketplace">Mechanic's Eye <span>Marketplace</span></a>
-        <nav className="mp-nav" aria-label="Marketplace navigation">
-          <a href="/">Diagnosis Home</a>
-          <a href="/marketplace">Marketplace</a>
-          <a href="/marketplace/browse">Browse</a>
-          <a href="/marketplace/sell">Sell Your Vehicle</a>
+        <a className="mp-brand" href="/marketplace">Drivable <span>ClearSale</span></a>
+        <nav className="mp-nav" aria-label="ClearSale navigation">
+          <a href="/">Drivable Check</a>
+          <a href="/marketplace">ClearSale</a>
+          <a href="/marketplace/browse">Buyer Check</a>
+          <a href="/marketplace/sell">Start ClearSale</a>
+          <a href="/">Mechanic Match</a>
+          <a href="/marketplace/terms">Mechanic's Eye Review</a>
           <a href="/marketplace/offer-event">Weekend Offer Event</a>
           <a href="/marketplace/terms">Terms</a>
         </nav>
@@ -184,10 +186,10 @@ function MarketplaceLayout({ children }: { children: React.ReactNode }) {
 function HomePage() {
   return (
     <MarketplaceLayout>
-      <Hero title="Sell your vehicle with better information." body="Mechanic's Eye Marketplace helps sellers present vehicles with photos, symptoms, repair history, and clear condition notes so buyers can make better decisions." primaryLabel="Sell Your Vehicle" primaryHref="/marketplace/sell" secondaryLabel="Browse Vehicles" secondaryHref="/marketplace/browse" />
+      <Hero title="Sell your vehicle with better information." body="ClearSale helps sellers present vehicles with photos, symptoms, repair history, and clear condition notes so buyers can make better decisions. Mechanic's Eye remains the trust layer behind diagnostic review." primaryLabel="Start ClearSale" primaryHref="/marketplace/sell" secondaryLabel="Buyer Check" secondaryHref="/marketplace/browse" />
       <section className="mp-option-grid">
-        <a className="mp-option-card" href="/marketplace/browse"><span>Browse Vehicles</span><p>View seller-controlled listings with title status, mileage, location, and evidence notes.</p></a>
-        <a className="mp-option-card" href="/marketplace/sell"><span>Sell Your Vehicle</span><p>Create a listing request and choose the package that fits your sale.</p></a>
+        <a className="mp-option-card" href="/marketplace/browse"><span>Buyer Check</span><p>View seller-controlled listings with title status, mileage, location, and evidence notes.</p></a>
+        <a className="mp-option-card" href="/marketplace/sell"><span>ClearSale</span><p>Create a flat-fee listing request to sell your vehicle as-is while you stay in control of the sale.</p></a>
         <a className="mp-option-card" href="/marketplace/offer-event"><span>Join Weekend Offer Event</span><p>Collect buyer interest during a timed weekend window while you stay in control.</p></a>
       </section>
       <section className="mp-card">
@@ -196,8 +198,8 @@ function HomePage() {
         <div className="mp-trust-grid"><div>Clear known-issue notes</div><div>Repair history prompts</div><div>Evidence badges</div><div>Buyer safety reminders</div></div>
       </section>
       <section className="mp-cta">
-        <div><h2>You stay in control of the sale.</h2><p>Mechanic's Eye gives you the tools. You handle the transaction.</p></div>
-        <div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace/sell/intake">Start Seller Intake</a><a className="mp-btn mp-btn-secondary" href="/marketplace/terms">Read Marketplace Terms</a></div>
+        <div><h2>You stay in control of the sale.</h2><p>ClearSale gives you the listing tools. Mechanic's Eye supports the evidence layer. You handle the transaction.</p></div>
+        <div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace/sell/intake">Start ClearSale Intake</a><a className="mp-btn mp-btn-secondary" href="/marketplace/terms">Read ClearSale Terms</a></div>
       </section>
       <Disclaimer />
     </MarketplaceLayout>
@@ -207,7 +209,7 @@ function HomePage() {
 function BrowsePage() {
   return (
     <MarketplaceLayout>
-      <section className="mp-page-heading"><div className="mp-eyebrow">Browse vehicles</div><h1>Seller-controlled vehicle listings</h1><p>Demo listings are shown for the MVP shell. Real listings can connect here later without changing the public marketplace flow.</p></section>
+      <section className="mp-page-heading"><div className="mp-eyebrow">Buyer Check</div><h1>Seller-controlled vehicle listings</h1><p>Demo listings are shown for the MVP shell. Real listings can connect here later without changing the public ClearSale flow.</p></section>
       <section className="mp-browse-layout">
         <aside className="mp-filters">
           <h2>Filters</h2>
@@ -227,10 +229,10 @@ function SampleListingPage() {
       <section className="mp-detail">
         <div className="mp-gallery"><div className="mp-gallery-main">Main vehicle photo</div><div className="mp-gallery-thumbs"><span>Engine bay</span><span>Dash</span><span>Tires</span></div></div>
         <div className="mp-summary">
-          <div className="mp-eyebrow">Sample public listing</div><h1>2012 Ford F-150 XLT</h1><strong className="mp-price">$8,900 asking</strong>
+          <div className="mp-eyebrow">Sample ClearSale listing</div><h1>2012 Ford F-150 XLT</h1><strong className="mp-price">$8,900 asking</strong>
           <EvidenceBadge label="Evidence score" score="72/100" />
           <dl className="mp-spec-grid"><div><dt>Mileage</dt><dd>168,400 mi</dd></div><div><dt>Location</dt><dd>Bakersfield, CA</dd></div><div><dt>Title</dt><dd>Clean title</dd></div><div><dt>Runs/Drives</dt><dd>Runs and drives</dd></div></dl>
-          <div className="mp-actions"><button className="mp-btn mp-btn-primary" type="button">Submit Buyer Interest</button><button className="mp-btn mp-btn-secondary" type="button">Ask Seller a Question</button></div>
+          <div className="mp-actions"><button className="mp-btn mp-btn-primary" type="button">Start Buyer Check</button><button className="mp-btn mp-btn-secondary" type="button">Ask Seller a Question</button></div>
           <button className="mp-link-btn" type="button">Download buyer checklist</button>
         </div>
       </section>
@@ -248,9 +250,9 @@ function SampleListingPage() {
 function SellPage() {
   return (
     <MarketplaceLayout>
-      <Hero eyebrow="Sell Your Vehicle" title="Give buyers more confidence before they call." body="Add photos, symptoms, repair history, known issues, and Mechanic's Eye evidence options. You stay in control of price, communication, and final sale decisions." primaryLabel="Start Seller Intake" primaryHref="/marketplace/sell/intake" secondaryLabel="Weekend Offer Event" secondaryHref="/marketplace/offer-event" />
+      <Hero eyebrow="ClearSale" title="Give buyers more confidence before they call." body="Add photos, symptoms, repair history, known issues, and Mechanic's Eye evidence options. ClearSale is a flat-fee listing path to sell your vehicle as-is while you stay in control of price, communication, and final sale decisions." primaryLabel="Start ClearSale Intake" primaryHref="/marketplace/sell/intake" secondaryLabel="Weekend Offer Event" secondaryHref="/marketplace/offer-event" />
       <section className="mp-package-grid">{packages.map((pkg) => <PackageCard key={pkg.title} pkg={pkg} />)}</section>
-      <section className="mp-cta"><div><h2>Mechanic's Eye gives you the tools.</h2><p>Sellers are responsible for transaction details, title transfer, payment, pickup or shipping, taxes, disclosures, and state requirements.</p></div><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace/sell/intake">Start Seller Intake</a><a className="mp-btn mp-btn-secondary" href="/marketplace/terms">Read Marketplace Terms</a></div></section>
+      <section className="mp-cta"><div><h2>ClearSale gives you the listing tools.</h2><p>Sellers are responsible for transaction details, title transfer, payment, pickup or shipping, taxes, disclosures, and state requirements.</p></div><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace/sell/intake">Start ClearSale Intake</a><a className="mp-btn mp-btn-secondary" href="/marketplace/terms">Read ClearSale Terms</a></div></section>
       <Disclaimer />
     </MarketplaceLayout>
   );
@@ -336,12 +338,12 @@ function SellerIntakePage() {
 
   return (
     <MarketplaceLayout>
-      <section className="mp-page-heading"><div className="mp-eyebrow">Seller intake</div><h1>Start a marketplace listing request</h1><p>Submit your seller and vehicle details for Drivable Marketplace review. Mechanic's Eye uses this information to prepare the listing request handoff.</p></section>
+      <section className="mp-page-heading"><div className="mp-eyebrow">ClearSale intake</div><h1>Start a ClearSale listing request</h1><p>Submit your seller and vehicle details for ClearSale review. Mechanic's Eye uses this information to prepare the listing request handoff.</p></section>
       <form className="mp-intake-form" onSubmit={submit}>
         <fieldset><legend>Seller information</legend><div className="mp-form-grid"><label>Seller name<input name="sellerName" required /></label><label>Seller email<input name="sellerEmail" type="email" required /></label><label>Seller phone<input name="sellerPhone" type="tel" required /></label><label>City<input name="city" required /></label><label>State<input name="state" maxLength={2} required /></label><label>ZIP<input name="zip" inputMode="numeric" required /></label></div></fieldset>
         <fieldset><legend>Vehicle information</legend><div className="mp-form-grid"><label>Vehicle year<input name="vehicleYear" inputMode="numeric" required /></label><label>Make<input name="make" required /></label><label>Model<input name="model" required /></label><label>Trim<input name="trim" /></label><label>VIN<input name="vin" /></label><label>Exterior color<input name="exteriorColor" /></label><label>Mileage<input name="mileage" inputMode="numeric" required /></label><label>Asking price<input name="askingPrice" inputMode="decimal" required /></label><label>Title status<select name="titleStatus" required><option value="">Choose one</option><option>Clean title</option><option>Salvage title</option><option>Rebuilt title</option><option>Lienholder involved</option><option>Other or unsure</option></select></label><label>Runs and drives<select name="runsAndDrives" required><option value="">Choose one</option><option>Runs and drives</option><option>Runs but needs work</option><option>Does not currently run</option><option>Unknown</option></select></label><label>Transmission<select name="transmission"><option value="">Choose one</option><option>Automatic</option><option>Manual</option><option>CVT</option><option>Other or unsure</option></select></label><label>Fuel type<select name="fuelType"><option value="">Choose one</option><option>Gas</option><option>Diesel</option><option>Hybrid</option><option>Electric</option><option>Other or unsure</option></select></label><label>Has keys?<select name="hasKeys"><option value="">Choose one</option><option>Yes</option><option>No</option><option>One key only</option></select></label><label>Lien status<select name="lienStatus"><option value="">Choose one</option><option>No lien</option><option>Lienholder involved</option><option>Unsure</option></select></label><label>Best contact method<select name="bestContactMethod"><option value="">Choose one</option><option>Phone</option><option>Email</option><option>Text</option></select></label><label>Buyer test drive allowed?<select name="buyerTestDriveAllowed"><option value="">Choose one</option><option>Yes</option><option>No</option><option>Case by case</option></select></label><label>Buyer mechanic allowed?<select name="buyerMechanicAllowed"><option value="">Choose one</option><option>Yes</option><option>No</option><option>Case by case</option></select></label></div><label>Known issues<textarea name="knownIssues" rows={5} required /></label><label>Recent repairs<textarea name="recentRepairs" rows={4} /></label><label>Seller notes<textarea name="sellerNotes" rows={4} /></label><label>Upload photos<input name="photos" type="file" accept="image/*" multiple /></label></fieldset>
         <fieldset><legend>Listing type</legend><div className="mp-radio-grid">{["Standard Listing", "Best Offer Listing", "Weekend Offer Event"].map((type) => <label key={type}><input name="listingType" type="radio" value={type} required /><span>{type}</span></label>)}</div></fieldset>
-        <fieldset><legend>Seller acknowledgments</legend><div className="mp-ack-list"><label><input name="ackOwnerAuthorized" type="checkbox" required /><span>I am the owner or otherwise have authority to list this vehicle.</span></label><label><input name="ackPlatformOnly" type="checkbox" required /><span>I understand Drivable Marketplace is a platform only and is not the buyer, seller, dealer, broker, title agent, transporter, or legal advisor.</span></label><label><input name="ackSellerResponsibilities" type="checkbox" required /><span>I understand buyers and sellers remain responsible for payment, vehicle inspection, title transfer, pickup or transport, taxes, registration, disclosures, and legal requirements.</span></label><label><input name="ackNoGuarantee" type="checkbox" required /><span>I understand Drivable Marketplace does not guarantee a sale, buyer interest, vehicle condition, title status, transfer completion, or legal outcome.</span></label></div></fieldset>
+        <fieldset><legend>Seller acknowledgments</legend><div className="mp-ack-list"><label><input name="ackOwnerAuthorized" type="checkbox" required /><span>I am the owner or otherwise have authority to list this vehicle.</span></label><label><input name="ackPlatformOnly" type="checkbox" required /><span>I understand ClearSale is a platform only and is not the buyer, seller, dealer, broker, title agent, transporter, or legal advisor.</span></label><label><input name="ackSellerResponsibilities" type="checkbox" required /><span>I understand buyers and sellers remain responsible for payment, vehicle inspection, title transfer, pickup or transport, taxes, registration, disclosures, and legal requirements.</span></label><label><input name="ackNoGuarantee" type="checkbox" required /><span>I understand ClearSale does not guarantee a sale, buyer interest, vehicle condition, title status, transfer completion, or legal outcome.</span></label></div></fieldset>
         {submitError && <div className="mp-form-error" role="alert">{submitError}</div>}
         <button className="mp-btn mp-btn-primary" type="submit" disabled={isSubmitting}>{isSubmitting ? "Submitting..." : "Submit Listing Request"}</button>
       </form>
@@ -353,7 +355,7 @@ function SellerIntakePage() {
 function SubmittedPage() {
   return (
     <MarketplaceLayout>
-      <section className="mp-submitted"><div className="mp-eyebrow">Listing request received</div><h1>Your request has been received for review.</h1><p>Your listing request is not automatically approved and is not guaranteed to sell. Drivable Marketplace does not handle title, payment, transport, taxes, registration, or legal compliance.</p><div className="mp-next-steps"><h2>Next steps</h2><ol><li>Mechanic's Eye reviews the submitted seller and vehicle details.</li><li>The seller remains responsible for accurate information, disclosures, and state-specific requirements.</li><li>The buyer and seller handle any transaction, title transfer, payment, pickup or shipping, taxes, registration, and legal obligations directly.</li></ol></div><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace">Return to Marketplace</a><a className="mp-btn mp-btn-secondary" href="/marketplace/sell">View Listing Packages</a></div></section>
+      <section className="mp-submitted"><div className="mp-eyebrow">ClearSale request received</div><h1>Your request has been received for review.</h1><p>Your listing request is not automatically approved and is not guaranteed to sell. ClearSale does not handle title, payment, transport, taxes, registration, or legal compliance.</p><div className="mp-next-steps"><h2>Next steps</h2><ol><li>Mechanic's Eye reviews the submitted seller and vehicle details.</li><li>The seller remains responsible for accurate information, disclosures, and state-specific requirements.</li><li>The buyer and seller handle any transaction, title transfer, payment, pickup or shipping, taxes, registration, and legal obligations directly.</li></ol></div><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace">Return to ClearSale</a><a className="mp-btn mp-btn-secondary" href="/marketplace/sell">View Listing Packages</a></div></section>
     </MarketplaceLayout>
   );
 }
@@ -361,9 +363,9 @@ function SubmittedPage() {
 function OfferEventPage() {
   return (
     <MarketplaceLayout>
-      <Hero eyebrow="Weekend Offer Event" title="A timed offer window where sellers stay in control." body="List during the week, collect buyer interest from Friday through Monday, then decide whether any offer makes sense for you." primaryLabel="List a Vehicle" primaryHref="/marketplace/sell/intake" secondaryLabel="Browse Event Vehicles" secondaryHref="/marketplace/browse" />
+      <Hero eyebrow="ClearSale Weekend Offer Event" title="A timed offer window where sellers stay in control." body="List during the week, collect buyer interest from Friday through Monday, then decide whether any offer makes sense for you." primaryLabel="List a Vehicle" primaryHref="/marketplace/sell/intake" secondaryLabel="Buyer Check" secondaryHref="/marketplace/browse" />
       <section className="mp-card"><h2>Sample event schedule</h2><div className="mp-timeline-grid"><div><strong>Monday-Thursday</strong><span>Listings open and sellers prepare vehicle details.</span></div><div><strong>Friday-Monday</strong><span>Event runs and buyers submit interest or offers.</span></div><div><strong>After event</strong><span>Sellers review buyer interest and ask follow-up questions.</span></div><div><strong>Seller decision</strong><span>Seller chooses whether to accept any offer or keep the listing active.</span></div></div></section>
-      <section className="mp-cta"><div><h2>Best offer listing, not a dealership sale</h2><p>Mechanic's Eye provides the listing tools and event structure. Seller and buyer handle payment, title transfer, pickup or shipping, taxes, and required paperwork.</p></div><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace/sell/intake">List a Vehicle</a><a className="mp-btn mp-btn-secondary" href="/marketplace/browse">Browse Event Vehicles</a></div></section>
+      <section className="mp-cta"><div><h2>Best offer listing, not a dealership sale</h2><p>ClearSale provides the listing tools and event structure. Seller and buyer handle payment, title transfer, pickup or shipping, taxes, and required paperwork.</p></div><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace/sell/intake">List a Vehicle</a><a className="mp-btn mp-btn-secondary" href="/marketplace/browse">Buyer Check</a></div></section>
       <Disclaimer />
     </MarketplaceLayout>
   );
@@ -373,7 +375,7 @@ function TermsPage() {
   const terms = ["Mechanic's Eye is a listing and software platform only.", "Mechanic's Eye is not the seller.", "Mechanic's Eye does not own, possess, title, finance, transport, or sell vehicles.", "Mechanic's Eye does not guarantee vehicle condition, buyer payment, seller ownership, title status, or transaction outcome.", "Buyers must inspect vehicles and verify title and ownership before paying.", "Sellers must follow their state laws for title transfer, disclosures, taxes, and registration.", "Mechanic's Eye does not provide legal advice.", "Marketplace features may vary by state.", "The final transaction is between buyer and seller."];
   return (
     <MarketplaceLayout>
-      <section className="mp-terms"><div className="mp-eyebrow">Marketplace terms and safety</div><h1>Plain-language marketplace disclaimer</h1><p>These terms are written for the MVP public site so buyers and sellers understand the role Mechanic's Eye plays in a private-party vehicle listing.</p><ul>{terms.map((term) => <li key={term}>{term}</li>)}</ul><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace/sell">Sell Your Vehicle</a><a className="mp-btn mp-btn-secondary" href="/marketplace/browse">Browse Vehicles</a></div></section>
+      <section className="mp-terms"><div className="mp-eyebrow">ClearSale terms and safety</div><h1>Plain-language marketplace disclaimer</h1><p>These terms are written for the MVP public site so buyers and sellers understand the role Mechanic's Eye plays in a private-party vehicle listing.</p><ul>{terms.map((term) => <li key={term}>{term}</li>)}</ul><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace/sell">Start ClearSale</a><a className="mp-btn mp-btn-secondary" href="/marketplace/browse">Buyer Check</a></div></section>
     </MarketplaceLayout>
   );
 }
