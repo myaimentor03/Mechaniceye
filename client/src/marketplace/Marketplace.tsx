@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 
 const MARKETPLACE_SELLER_INTAKE_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/marketplace/seller-intake";
+const MARKETPLACE_BUYER_INTEREST_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/marketplace/buyer-interest";
 
 type HeroProps = {
   eyebrow?: string;
@@ -80,12 +81,53 @@ const packages = [
   },
 ];
 
+const guideLinks = [
+  {
+    title: "Seller Checklist",
+    href: "/marketplace/guides/seller-checklist",
+    body: "What to gather before you ask ClearSale to help present your vehicle.",
+  },
+  {
+    title: "Buyer Checklist",
+    href: "/marketplace/guides/buyer-checklist",
+    body: "What buyers should check before contacting a seller or paying for a vehicle.",
+  },
+  {
+    title: "Title Transfer",
+    href: "/marketplace/guides/title-transfer",
+    body: "General title-transfer reminders and where to verify state rules.",
+  },
+  {
+    title: "Selling Info",
+    href: "/marketplace/guides/selling-info",
+    body: "How to prepare clear listing details, photos, and condition notes.",
+  },
+  {
+    title: "Safety",
+    href: "/marketplace/guides/safety",
+    body: "Transaction safety, payment caution, and fraud-prevention basics.",
+  },
+  {
+    title: "Legal Disclaimer",
+    href: "/marketplace/guides/legal-disclaimer",
+    body: "Plain-language limits for Drivable Marketplace, ClearSale, and Mechanic's Eye.",
+  },
+];
+
 function getMarketplaceSellerIntakeEndpoint() {
   const isLocalBrowser =
     window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1";
 
   return isLocalBrowser ? "/api/marketplace/seller-intake" : MARKETPLACE_SELLER_INTAKE_ENDPOINT;
+}
+
+function getMarketplaceBuyerInterestEndpoint() {
+  const isLocalBrowser =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1";
+
+  return isLocalBrowser ? "/api/marketplace/buyer-interest" : MARKETPLACE_BUYER_INTEREST_ENDPOINT;
 }
 
 function Hero({ eyebrow = "ClearSale", title, body, primaryLabel, primaryHref, secondaryLabel, secondaryHref }: HeroProps) {
@@ -144,6 +186,7 @@ function ListingCard({ listing }: { listing: Listing }) {
         <div className="mp-card-footer">
           <EvidenceBadge label={listing.evidence} />
           <a className="mp-btn mp-btn-small" href="/marketplace/listing/sample">View Listing</a>
+          <a className="mp-btn mp-btn-small" href="/marketplace/buyer-interest">Buyer Interest</a>
         </div>
       </div>
     </article>
@@ -174,6 +217,7 @@ function MarketplaceLayout({ children }: { children: React.ReactNode }) {
           <a href="/marketplace/sell">Start ClearSale</a>
           <a href="/">Mechanic Match</a>
           <a href="/marketplace/terms">Mechanic's Eye Review</a>
+          <a href="/marketplace/guides">Guides</a>
           <a href="/marketplace/offer-event">Weekend Offer Event</a>
           <a href="/marketplace/terms">Terms</a>
         </nav>
@@ -199,7 +243,7 @@ function HomePage() {
       </section>
       <section className="mp-cta">
         <div><h2>You stay in control of the sale.</h2><p>ClearSale gives you the listing tools. Mechanic's Eye supports the evidence layer. You handle the transaction.</p></div>
-        <div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace/sell/intake">Start ClearSale Intake</a><a className="mp-btn mp-btn-secondary" href="/marketplace/terms">Read ClearSale Terms</a></div>
+        <div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace/sell/intake">Start ClearSale Intake</a><a className="mp-btn mp-btn-secondary" href="/marketplace/guides">Read Marketplace Guides</a><a className="mp-btn mp-btn-secondary" href="/marketplace/terms">Read ClearSale Terms</a></div>
       </section>
       <Disclaimer />
     </MarketplaceLayout>
@@ -232,7 +276,7 @@ function SampleListingPage() {
           <div className="mp-eyebrow">Sample ClearSale listing</div><h1>2012 Ford F-150 XLT</h1><strong className="mp-price">$8,900 asking</strong>
           <EvidenceBadge label="Evidence score" score="72/100" />
           <dl className="mp-spec-grid"><div><dt>Mileage</dt><dd>168,400 mi</dd></div><div><dt>Location</dt><dd>Bakersfield, CA</dd></div><div><dt>Title</dt><dd>Clean title</dd></div><div><dt>Runs/Drives</dt><dd>Runs and drives</dd></div></dl>
-          <div className="mp-actions"><button className="mp-btn mp-btn-primary" type="button">Start Buyer Check</button><button className="mp-btn mp-btn-secondary" type="button">Ask Seller a Question</button></div>
+          <div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace/buyer-interest">Submit Buyer Interest</a><a className="mp-btn mp-btn-secondary" href="/marketplace/guides/buyer-checklist">Buyer Checklist</a></div>
           <button className="mp-link-btn" type="button">Download buyer checklist</button>
         </div>
       </section>
@@ -252,7 +296,7 @@ function SellPage() {
     <MarketplaceLayout>
       <Hero eyebrow="ClearSale" title="Give buyers more confidence before they call." body="Add photos, symptoms, repair history, known issues, and Mechanic's Eye evidence options. ClearSale is a flat-fee listing path to sell your vehicle as-is while you stay in control of price, communication, and final sale decisions." primaryLabel="Start ClearSale Intake" primaryHref="/marketplace/sell/intake" secondaryLabel="Weekend Offer Event" secondaryHref="/marketplace/offer-event" />
       <section className="mp-package-grid">{packages.map((pkg) => <PackageCard key={pkg.title} pkg={pkg} />)}</section>
-      <section className="mp-cta"><div><h2>ClearSale gives you the listing tools.</h2><p>Sellers are responsible for transaction details, title transfer, payment, pickup or shipping, taxes, disclosures, and state requirements.</p></div><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace/sell/intake">Start ClearSale Intake</a><a className="mp-btn mp-btn-secondary" href="/marketplace/terms">Read ClearSale Terms</a></div></section>
+      <section className="mp-cta"><div><h2>ClearSale gives you the listing tools.</h2><p>Sellers are responsible for transaction details, title transfer, payment, pickup or shipping, taxes, disclosures, and state requirements.</p></div><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace/sell/intake">Start ClearSale Intake</a><a className="mp-btn mp-btn-secondary" href="/marketplace/guides/seller-checklist">Seller Checklist</a><a className="mp-btn mp-btn-secondary" href="/marketplace/terms">Read ClearSale Terms</a></div></section>
       <Disclaimer />
     </MarketplaceLayout>
   );
@@ -339,6 +383,7 @@ function SellerIntakePage() {
   return (
     <MarketplaceLayout>
       <section className="mp-page-heading"><div className="mp-eyebrow">ClearSale intake</div><h1>Start a ClearSale listing request</h1><p>Submit your seller and vehicle details for ClearSale review. Mechanic's Eye uses this information to prepare the listing request handoff.</p></section>
+      <section className="mp-card"><h2>Before you submit</h2><p>Use the seller checklist if you need a quick gut check on title, lien, mileage, known issues, photos, and state-specific paperwork questions. ClearSale is a listing platform, not a legal or title service.</p><div className="mp-actions"><a className="mp-btn mp-btn-secondary" href="/marketplace/guides/seller-checklist">Seller Checklist</a><a className="mp-btn mp-btn-secondary" href="/marketplace/guides/selling-info">Prepare Listing Info</a></div></section>
       <form className="mp-intake-form" onSubmit={submit}>
         <fieldset><legend>Seller information</legend><div className="mp-form-grid"><label>Seller name<input name="sellerName" required /></label><label>Seller email<input name="sellerEmail" type="email" required /></label><label>Seller phone<input name="sellerPhone" type="tel" required /></label><label>City<input name="city" required /></label><label>State<input name="state" maxLength={2} required /></label><label>ZIP<input name="zip" inputMode="numeric" required /></label></div></fieldset>
         <fieldset><legend>Vehicle information</legend><div className="mp-form-grid"><label>Vehicle year<input name="vehicleYear" inputMode="numeric" required /></label><label>Make<input name="make" required /></label><label>Model<input name="model" required /></label><label>Trim<input name="trim" /></label><label>VIN<input name="vin" /></label><label>Exterior color<input name="exteriorColor" /></label><label>Mileage<input name="mileage" inputMode="numeric" required /></label><label>Asking price<input name="askingPrice" inputMode="decimal" required /></label><label>Title status<select name="titleStatus" required><option value="">Choose one</option><option>Clean title</option><option>Salvage title</option><option>Rebuilt title</option><option>Lienholder involved</option><option>Other or unsure</option></select></label><label>Runs and drives<select name="runsAndDrives" required><option value="">Choose one</option><option>Runs and drives</option><option>Runs but needs work</option><option>Does not currently run</option><option>Unknown</option></select></label><label>Transmission<select name="transmission"><option value="">Choose one</option><option>Automatic</option><option>Manual</option><option>CVT</option><option>Other or unsure</option></select></label><label>Fuel type<select name="fuelType"><option value="">Choose one</option><option>Gas</option><option>Diesel</option><option>Hybrid</option><option>Electric</option><option>Other or unsure</option></select></label><label>Has keys?<select name="hasKeys"><option value="">Choose one</option><option>Yes</option><option>No</option><option>One key only</option></select></label><label>Lien status<select name="lienStatus"><option value="">Choose one</option><option>No lien</option><option>Lienholder involved</option><option>Unsure</option></select></label><label>Best contact method<select name="bestContactMethod"><option value="">Choose one</option><option>Phone</option><option>Email</option><option>Text</option></select></label><label>Buyer test drive allowed?<select name="buyerTestDriveAllowed"><option value="">Choose one</option><option>Yes</option><option>No</option><option>Case by case</option></select></label><label>Buyer mechanic allowed?<select name="buyerMechanicAllowed"><option value="">Choose one</option><option>Yes</option><option>No</option><option>Case by case</option></select></label></div><label>Known issues<textarea name="knownIssues" rows={5} required /></label><label>Recent repairs<textarea name="recentRepairs" rows={4} /></label><label>Seller notes<textarea name="sellerNotes" rows={4} /></label><label>Upload photos<input name="photos" type="file" accept="image/*" multiple /></label></fieldset>
@@ -346,6 +391,84 @@ function SellerIntakePage() {
         <fieldset><legend>Seller acknowledgments</legend><div className="mp-ack-list"><label><input name="ackOwnerAuthorized" type="checkbox" required /><span>I am the owner or otherwise have authority to list this vehicle.</span></label><label><input name="ackPlatformOnly" type="checkbox" required /><span>I understand ClearSale is a platform only and is not the buyer, seller, dealer, broker, title agent, transporter, or legal advisor.</span></label><label><input name="ackSellerResponsibilities" type="checkbox" required /><span>I understand buyers and sellers remain responsible for payment, vehicle inspection, title transfer, pickup or transport, taxes, registration, disclosures, and legal requirements.</span></label><label><input name="ackNoGuarantee" type="checkbox" required /><span>I understand ClearSale does not guarantee a sale, buyer interest, vehicle condition, title status, transfer completion, or legal outcome.</span></label></div></fieldset>
         {submitError && <div className="mp-form-error" role="alert">{submitError}</div>}
         <button className="mp-btn mp-btn-primary" type="submit" disabled={isSubmitting}>{isSubmitting ? "Submitting..." : "Submit Listing Request"}</button>
+      </form>
+      <Disclaimer compact />
+    </MarketplaceLayout>
+  );
+}
+
+function BuyerInterestPage() {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    const formData = new FormData(form);
+    const value = (name: string) => String(formData.get(name) || "").trim();
+    const payload = {
+      intakeType: "marketplace-buyer-interest",
+      source: "drivable-marketplace-buyer-interest",
+      submittedAt: new Date().toISOString(),
+      appBrand: "Drivable by Mechanic’s Eye",
+      marketplaceBrand: "Drivable Marketplace",
+      buyerName: value("buyerName"),
+      buyerEmail: value("buyerEmail"),
+      buyerPhone: value("buyerPhone"),
+      preferredContactMethod: value("preferredContactMethod"),
+      listingTitle: value("listingTitle"),
+      listingUrl: window.location.origin + "/marketplace/listing/sample",
+      buyerLocation: value("buyerLocation"),
+      message: value("message"),
+      timeline: value("timeline"),
+      acknowledgments: {
+        platformOnly: formData.get("ackPlatformOnly") === "on",
+        buyerResponsibilities: formData.get("ackBuyerResponsibilities") === "on",
+        noGuarantee: formData.get("ackNoGuarantee") === "on",
+      },
+    };
+
+    setIsSubmitting(true);
+    setSubmitError("");
+
+    try {
+      const response = await fetch(getMarketplaceBuyerInterestEndpoint(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json().catch(() => ({ ok: false, error: "Buyer interest failed." }));
+
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || "Buyer interest failed. Please check the form and try again.");
+      }
+
+      setSubmitted(true);
+      form.reset();
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Buyer interest failed. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <MarketplaceLayout>
+      <section className="mp-page-heading"><div className="mp-eyebrow">Buyer Check</div><h1>Submit buyer interest</h1><p>Send interest in a ClearSale listing. This does not reserve the vehicle, approve a sale, verify the seller, verify title, or handle payment.</p></section>
+      {submitted && <section className="mp-card"><h2>Interest received</h2><p>Your buyer interest was received for review and handoff. ClearSale does not guarantee seller response, buyer payment, vehicle condition, title status, transfer completion, or legal outcome.</p></section>}
+      <form className="mp-intake-form" onSubmit={submit}>
+        <fieldset><legend>Buyer information</legend><div className="mp-form-grid"><label>Buyer name<input name="buyerName" required /></label><label>Buyer email<input name="buyerEmail" type="email" required /></label><label>Buyer phone<input name="buyerPhone" type="tel" required /></label><label>Preferred contact method<select name="preferredContactMethod" required><option value="">Choose one</option><option>Phone</option><option>Email</option><option>Text</option></select></label><label>Buyer location<input name="buyerLocation" placeholder="City, state" /></label><label>Timeline<select name="timeline"><option value="">Choose one</option><option>Today or tomorrow</option><option>This week</option><option>Still researching</option></select></label></div></fieldset>
+        <fieldset><legend>Listing interest</legend><div className="mp-form-grid"><label>Listing<input name="listingTitle" defaultValue="2012 Ford F-150 XLT" required /></label></div><label>Message to seller or admin<textarea name="message" rows={5} placeholder="Questions, viewing availability, inspection plans, or other notes." required /></label></fieldset>
+        <fieldset><legend>Buyer acknowledgments</legend><div className="mp-ack-list"><label><input name="ackPlatformOnly" type="checkbox" required /><span>I understand ClearSale is a listing platform only and is not the buyer, seller, dealer, broker, title agent, transporter, payment processor, or legal advisor.</span></label><label><input name="ackBuyerResponsibilities" type="checkbox" required /><span>I remain responsible for inspecting the vehicle, verifying VIN/title/seller authority, payment safety, taxes, registration, title transfer, and state-specific requirements.</span></label><label><input name="ackNoGuarantee" type="checkbox" required /><span>I understand ClearSale does not guarantee seller response, buyer payment, vehicle condition, title status, transfer completion, or legal outcome.</span></label></div></fieldset>
+        {submitError && <div className="mp-form-error" role="alert">{submitError}</div>}
+        <button className="mp-btn mp-btn-primary" type="submit" disabled={isSubmitting}>{isSubmitting ? "Submitting..." : "Submit Buyer Interest"}</button>
       </form>
       <Disclaimer compact />
     </MarketplaceLayout>
@@ -375,7 +498,165 @@ function TermsPage() {
   const terms = ["Mechanic's Eye is a listing and software platform only.", "Mechanic's Eye is not the seller.", "Mechanic's Eye does not own, possess, title, finance, transport, or sell vehicles.", "Mechanic's Eye does not guarantee vehicle condition, buyer payment, seller ownership, title status, or transaction outcome.", "Buyers must inspect vehicles and verify title and ownership before paying.", "Sellers must follow their state laws for title transfer, disclosures, taxes, and registration.", "Mechanic's Eye does not provide legal advice.", "Marketplace features may vary by state.", "The final transaction is between buyer and seller."];
   return (
     <MarketplaceLayout>
-      <section className="mp-terms"><div className="mp-eyebrow">ClearSale terms and safety</div><h1>Plain-language marketplace disclaimer</h1><p>These terms are written for the MVP public site so buyers and sellers understand the role Mechanic's Eye plays in a private-party vehicle listing.</p><ul>{terms.map((term) => <li key={term}>{term}</li>)}</ul><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace/sell">Start ClearSale</a><a className="mp-btn mp-btn-secondary" href="/marketplace/browse">Buyer Check</a></div></section>
+      <section className="mp-terms"><div className="mp-eyebrow">ClearSale terms and safety</div><h1>Plain-language marketplace disclaimer</h1><p>These terms are written for the MVP public site so buyers and sellers understand the role Mechanic's Eye plays in a private-party vehicle listing.</p><ul>{terms.map((term) => <li key={term}>{term}</li>)}</ul><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace/sell">Start ClearSale</a><a className="mp-btn mp-btn-secondary" href="/marketplace/browse">Buyer Check</a><a className="mp-btn mp-btn-secondary" href="/marketplace/guides">Marketplace Guides</a></div></section>
+    </MarketplaceLayout>
+  );
+}
+
+function GuideCard({ title, href, body }: { title: string; href: string; body: string }) {
+  return (
+    <a className="mp-option-card" href={href}>
+      <span>{title}</span>
+      <p>{body}</p>
+    </a>
+  );
+}
+
+function GuidePage({
+  eyebrow,
+  title,
+  intro,
+  items,
+  note,
+}: {
+  eyebrow: string;
+  title: string;
+  intro: string;
+  items: string[];
+  note?: string;
+}) {
+  return (
+    <MarketplaceLayout>
+      <section className="mp-page-heading"><div className="mp-eyebrow">{eyebrow}</div><h1>{title}</h1><p>{intro}</p></section>
+      <section className="mp-detail-grid">
+        <article>
+          <h2>Checklist</h2>
+          <ul>{items.map((item) => <li key={item}>{item}</li>)}</ul>
+        </article>
+        <article>
+          <h2>Platform reminder</h2>
+          <p>{note || "This guide is practical information only. Drivable Marketplace, ClearSale, and Mechanic's Eye do not provide legal advice, verify ownership or title, handle state paperwork, or guarantee sale results."}</p>
+        </article>
+      </section>
+      <section className="mp-cta"><div><h2>Keep moving carefully.</h2><p>Use official state sources, inspect the vehicle, and make your own transaction decisions before money or title changes hands.</p></div><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace/guides">All Guides</a><a className="mp-btn mp-btn-secondary" href="/marketplace/terms">Read Terms</a></div></section>
+      <Disclaimer compact />
+    </MarketplaceLayout>
+  );
+}
+
+function GuidesHomePage() {
+  return (
+    <MarketplaceLayout>
+      <section className="mp-page-heading"><div className="mp-eyebrow">Drivable Marketplace guides</div><h1>ClearSale and Buyer Check guidance</h1><p>Practical checklists for private-party vehicle listings. These pages help you get organized, but they are not legal advice and they do not replace official state motor vehicle guidance.</p></section>
+      <section className="mp-option-grid">{guideLinks.map((guide) => <GuideCard key={guide.href} {...guide} />)}</section>
+      <section className="mp-card"><h2>What Drivable does and does not do</h2><p>Drivable by Mechanic's Eye provides listing software, ClearSale seller intake, Buyer Check support, and Mechanic's Eye Review organization. It does not verify ownership or title, handle state paperwork, process the vehicle transaction, guarantee buyer payment, guarantee vehicle condition, or guarantee any legal outcome.</p></section>
+      <Disclaimer compact />
+    </MarketplaceLayout>
+  );
+}
+
+function SellerChecklistPage() {
+  return (
+    <GuidePage
+      eyebrow="ClearSale seller checklist"
+      title="Before you list your vehicle"
+      intro="A seller-ready list for getting your vehicle information in order before submitting a flat-fee ClearSale listing request."
+      items={[
+        "Confirm that you own the vehicle or have clear authority to list it.",
+        "Locate the physical or electronic title before you make promises to a buyer.",
+        "Check lien or lender status and understand whether a payoff or lender release is involved.",
+        "Gather mileage and odometer information as accurately as you can.",
+        "Photograph the vehicle honestly, including damage, wear, tires, interior, dashboard, and warning lights.",
+        "Document known issues in plain language, including intermittent problems.",
+        "Collect repair history, receipts, recent parts, and maintenance notes where available.",
+        "Decide an asking price and be ready to explain your reasoning.",
+        "Prepare a bill of sale if your state requires it or if it is recommended for your records.",
+        "Follow state-specific title, release-of-interest, report-of-sale, tax, and registration rules using official sources.",
+      ]}
+    />
+  );
+}
+
+function BuyerChecklistPage() {
+  return (
+    <GuidePage
+      eyebrow="Buyer Check"
+      title="Before you buy from a private seller"
+      intro="Use this as a working checklist before you inspect, pay, or agree to take a vehicle home."
+      items={[
+        "Inspect the vehicle in person when possible, including lights, tires, interior, underbody, engine bay, and test-drive behavior.",
+        "Verify the VIN on the vehicle and compare it against title, listing, and any history report you choose to use.",
+        "Verify title status and watch for salvage, rebuilt, lienholder, missing-title, or owner-name mismatch concerns.",
+        "Check the seller's identity and authority to sell without assuming Drivable or ClearSale has verified it.",
+        "Review known issues, warning lights, repairs, leaks, smells, noises, and condition notes.",
+        "Consider an independent mechanic inspection before payment.",
+        "Confirm payment method carefully and understand whether funds are reversible, counterfeit-prone, or delayed.",
+        "Avoid unsafe transaction locations and avoid going alone when a meeting feels questionable.",
+        "Understand taxes, registration, title, insurance, emissions, and state requirements before you buy.",
+      ]}
+    />
+  );
+}
+
+function TitleTransferGuidePage() {
+  return (
+    <MarketplaceLayout>
+      <section className="mp-page-heading"><div className="mp-eyebrow">Title transfer guidance</div><h1>Check the official state rules before title changes hands</h1><p>Title, odometer, lien, release-of-interest, report-of-sale, tax, registration, and plate rules vary by state. This page is general information only, not legal advice.</p></section>
+      <section className="mp-detail-grid">
+        <article><h2>General reminders</h2><ul><li>Seller and buyer must verify requirements with the official DMV, DOL, or motor vehicle agency for their state.</li><li>Do not rely only on a listing page, text message, social post, or verbal promise.</li><li>Check for lienholder involvement before payment or transfer.</li><li>Understand whether your state expects a bill of sale, odometer disclosure, release of interest, emissions step, report of sale, or registration action.</li><li>Keep copies of documents allowed by your state and avoid sharing sensitive personal information beyond what the official process requires.</li></ul></article>
+        <article><h2>Washington sample starting point</h2><p>For a Washington private-party sale, start with the Washington State Department of Licensing as the official source for vehicle title transfer and seller report-of-sale information. Rules and forms can change, so sellers and buyers should verify directly with the DOL before acting.</p><p>ClearSale does not file Washington paperwork, verify ownership, release liens, collect taxes, register vehicles, or complete title transfer for either party.</p></article>
+      </section>
+      <section className="mp-cta"><div><h2>Use official sources first.</h2><p>If the official state guidance and a marketplace guide disagree, trust the official state source or ask a qualified professional.</p></div><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace/guides">All Guides</a><a className="mp-btn mp-btn-secondary" href="/marketplace/guides/legal-disclaimer">Legal Disclaimer</a></div></section>
+      <Disclaimer compact />
+    </MarketplaceLayout>
+  );
+}
+
+function SellingInfoGuidePage() {
+  return (
+    <GuidePage
+      eyebrow="ClearSale listing info"
+      title="Prepare the information buyers actually need"
+      intro="Clear, honest listing information helps buyers decide whether to contact you and helps Mechanic's Eye Review organize the condition story."
+      items={[
+        "Vehicle basics: year, make, model, trim, engine, drivetrain, and transmission where known.",
+        "Mileage or odometer reading, plus any uncertainty about accuracy.",
+        "Title status, including clean, rebuilt, salvage, lienholder involved, missing, or unsure.",
+        "Runs and drives status, including no-start, rough running, overheating, slipping, brake, steering, or electrical concerns.",
+        "Known problems, intermittent issues, leaks, smells, noises, damage, and warning lights.",
+        "Recent repairs, maintenance, parts replaced, shop notes, and receipts if available.",
+        "Photos, video, and sound evidence that show the real condition instead of hiding it.",
+        "Price reasoning, including recent repairs, known issues, mileage, comparable listings, and urgency.",
+        "Seller notes about contact preference, viewing availability, included parts, keys, and anything a buyer should know upfront.",
+      ]}
+    />
+  );
+}
+
+function SafetyGuidePage() {
+  return (
+    <GuidePage
+      eyebrow="Transaction safety"
+      title="Keep the sale boring, public, and careful"
+      intro="Private vehicle sales involve strangers, money, paperwork, and moving vehicles. Slow down when anything feels rushed or strange."
+      items={[
+        "Meet in safe, public places when possible and consider locations designed for safe exchanges.",
+        "Verify funds carefully before signing title, releasing keys, or letting the vehicle leave.",
+        "Avoid shipping, overpayment, fake escrow, fake cashier check, payment app, and remote pickup scams.",
+        "Avoid pressure tactics, rushed deposits, sob stories, threats, and buyers or sellers who dodge basic questions.",
+        "Do not overshare sensitive personal information, account details, document photos, or address information beyond what the official process requires.",
+        "Use official state guidance for title, registration, taxes, plates, and report-of-sale steps.",
+        "Consider bringing another adult, telling someone where you are going, and avoiding isolated test drives.",
+      ]}
+    />
+  );
+}
+
+function LegalDisclaimerGuidePage() {
+  return (
+    <MarketplaceLayout>
+      <section className="mp-page-heading"><div className="mp-eyebrow">Plain-language disclaimer</div><h1>Drivable Marketplace and ClearSale are listing software only</h1><p>This page explains the boundaries in normal language. It is not legal advice.</p></section>
+      <section className="mp-terms"><ul><li>Drivable Marketplace, ClearSale, Buyer Check, Mechanic Match, and Mechanic's Eye Review provide software, listing organization, informational guidance, and review support only.</li><li>Mechanic's Eye is not the seller, buyer, dealer, broker, title agent, transporter, financing company, insurer, tax advisor, or legal advisor.</li><li>We do not verify ownership, seller authority, title status, liens, mileage, vehicle condition, buyer funds, or legal compliance.</li><li>We do not handle payment, title transfer, state paperwork, registration, taxes, plates, transport, pickup, inspections, or disputes.</li><li>We do not guarantee a sale, buyer interest, buyer payment, vehicle condition, title transfer, registration approval, tax outcome, dispute outcome, or legal outcome.</li><li>Sellers and buyers remain responsible for accurate information, physical inspection, official state requirements, payment decisions, and transaction safety.</li><li>Guides are general educational information. For state-specific requirements, use official DMV, DOL, or motor vehicle agency sources or consult a qualified professional.</li></ul><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace/guides">All Guides</a><a className="mp-btn mp-btn-secondary" href="/marketplace/terms">Marketplace Terms</a></div></section>
     </MarketplaceLayout>
   );
 }
@@ -385,11 +666,19 @@ export default function Marketplace() {
 
   if (path === "/marketplace/browse") return <BrowsePage />;
   if (path === "/marketplace/listing/sample") return <SampleListingPage />;
+  if (path === "/marketplace/buyer-interest") return <BuyerInterestPage />;
   if (path === "/marketplace/sell") return <SellPage />;
   if (path === "/marketplace/sell/intake") return <SellerIntakePage />;
   if (path === "/marketplace/sell/submitted") return <SubmittedPage />;
   if (path === "/marketplace/offer-event") return <OfferEventPage />;
   if (path === "/marketplace/terms") return <TermsPage />;
+  if (path === "/marketplace/guides") return <GuidesHomePage />;
+  if (path === "/marketplace/guides/seller-checklist") return <SellerChecklistPage />;
+  if (path === "/marketplace/guides/buyer-checklist") return <BuyerChecklistPage />;
+  if (path === "/marketplace/guides/title-transfer") return <TitleTransferGuidePage />;
+  if (path === "/marketplace/guides/selling-info") return <SellingInfoGuidePage />;
+  if (path === "/marketplace/guides/safety") return <SafetyGuidePage />;
+  if (path === "/marketplace/guides/legal-disclaimer") return <LegalDisclaimerGuidePage />;
 
   return <HomePage />;
 }
