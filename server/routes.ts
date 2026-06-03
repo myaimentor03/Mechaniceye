@@ -332,6 +332,25 @@ type MarketplaceSellerIntake = {
   sellerNotes?: string;
 };
 
+type MarketplaceBuyerInterestAcknowledgments = {
+  platformOnly?: boolean;
+  buyerResponsibilities?: boolean;
+  noGuarantee?: boolean;
+};
+
+type MarketplaceBuyerInterest = {
+  buyerName: string;
+  buyerEmail: string;
+  buyerPhone: string;
+  preferredContactMethod: string;
+  listingTitle: string;
+  message: string;
+  acknowledgments: MarketplaceBuyerInterestAcknowledgments;
+  listingUrl?: string;
+  buyerLocation?: string;
+  timeline?: string;
+};
+
 const marketplaceRequiredFields: Array<keyof Omit<MarketplaceSellerIntake, "acknowledgments">> = [
   "sellerName",
   "sellerEmail",
@@ -357,7 +376,27 @@ const marketplaceRequiredAcknowledgments: Array<keyof MarketplaceAcknowledgments
   "noGuarantee"
 ];
 
+const marketplaceBuyerInterestRequiredFields: Array<keyof Omit<MarketplaceBuyerInterest, "acknowledgments">> = [
+  "buyerName",
+  "buyerEmail",
+  "buyerPhone",
+  "preferredContactMethod",
+  "listingTitle",
+  "message"
+];
+
+const marketplaceBuyerInterestRequiredAcknowledgments: Array<keyof MarketplaceBuyerInterestAcknowledgments> = [
+  "platformOnly",
+  "buyerResponsibilities",
+  "noGuarantee"
+];
+
 function pickMarketplaceString(body: any, key: keyof MarketplaceSellerIntake) {
+  const value = body?.[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function pickBuyerInterestString(body: any, key: keyof MarketplaceBuyerInterest) {
   const value = body?.[key];
   return typeof value === "string" ? value.trim() : "";
 }
@@ -403,6 +442,36 @@ function buildMarketplaceSellerIntake(body: any): MarketplaceSellerIntake {
 function validateMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
   const missingFields = marketplaceRequiredFields.filter((field) => !intake[field]);
   const missingAcknowledgments = marketplaceRequiredAcknowledgments.filter((field) => !intake.acknowledgments[field]);
+
+  return {
+    ok: missingFields.length === 0 && missingAcknowledgments.length === 0,
+    missingFields,
+    missingAcknowledgments
+  };
+}
+
+function buildMarketplaceBuyerInterest(body: any): MarketplaceBuyerInterest {
+  return {
+    buyerName: pickBuyerInterestString(body, "buyerName"),
+    buyerEmail: pickBuyerInterestString(body, "buyerEmail"),
+    buyerPhone: pickBuyerInterestString(body, "buyerPhone"),
+    preferredContactMethod: pickBuyerInterestString(body, "preferredContactMethod"),
+    listingTitle: pickBuyerInterestString(body, "listingTitle"),
+    listingUrl: pickBuyerInterestString(body, "listingUrl"),
+    buyerLocation: pickBuyerInterestString(body, "buyerLocation"),
+    message: pickBuyerInterestString(body, "message"),
+    timeline: pickBuyerInterestString(body, "timeline"),
+    acknowledgments: {
+      platformOnly: !!body?.acknowledgments?.platformOnly,
+      buyerResponsibilities: !!body?.acknowledgments?.buyerResponsibilities,
+      noGuarantee: !!body?.acknowledgments?.noGuarantee
+    }
+  };
+}
+
+function validateMarketplaceBuyerInterest(intake: MarketplaceBuyerInterest) {
+  const missingFields = marketplaceBuyerInterestRequiredFields.filter((field) => !intake[field]);
+  const missingAcknowledgments = marketplaceBuyerInterestRequiredAcknowledgments.filter((field) => !intake.acknowledgments[field]);
 
   return {
     ok: missingFields.length === 0 && missingAcknowledgments.length === 0,
@@ -502,6 +571,66 @@ async function deliverMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
   }
 }
 
+async function deliverMarketplaceBuyerInterest(intake: MarketplaceBuyerInterest) {
+  const submittedAt = new Date().toISOString();
+  const packet = {
+    intakeType: "marketplace-buyer-interest",
+    source: "drivable-marketplace-buyer-interest",
+    submittedAt,
+    appBrand: "Drivable by Mechanic's Eye",
+    marketplaceBrand: "Drivable Marketplace",
+    payloadVersion: "v1",
+    buyerName: intake.buyerName,
+    buyerEmail: intake.buyerEmail,
+    buyerPhone: intake.buyerPhone,
+    preferredContactMethod: intake.preferredContactMethod,
+    listingTitle: intake.listingTitle,
+    listingUrl: intake.listingUrl,
+    buyerLocation: intake.buyerLocation,
+    message: intake.message,
+    timeline: intake.timeline,
+    acknowledgments: intake.acknowledgments,
+    type: "mechanics_eye_marketplace_buyer_interest"
+  };
+
+  console.log("MARKETPLACE_BUYER_INTEREST_RECEIVED", JSON.stringify({
+    submittedAt,
+    buyerName: intake.buyerName,
+    buyerEmail: intake.buyerEmail,
+    buyerPhone: intake.buyerPhone,
+    preferredContactMethod: intake.preferredContactMethod,
+    listingTitle: intake.listingTitle
+  }));
+
+  const webhookUrl = process.env.MASTER_INTAKE_WEBHOOK_URL;
+
+  if (!webhookUrl) {
+    throw new Error("MASTER_INTAKE_WEBHOOK_URL is not configured.");
+  }
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(packet)
+    });
+
+    if (!response.ok) {
+      console.error("MASTER_INTAKE_WEBHOOK_FAILED", `Marketplace buyer interest webhook returned ${response.status}`);
+      throw new Error(`Marketplace buyer interest webhook returned ${response.status}`);
+    }
+
+    console.log("MASTER_INTAKE_WEBHOOK_SENT", JSON.stringify({
+      intakeType: packet.intakeType,
+      source: packet.source,
+      submittedAt
+    }));
+  } catch (error) {
+    console.error("MASTER_INTAKE_WEBHOOK_FAILED", error);
+    throw error;
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/health/db", async (req, res) => {
     const result = await checkDatabaseConnection();
@@ -528,6 +657,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Marketplace seller intake failed:", error);
       res.status(502).json({ ok: false, error: "Seller intake could not be forwarded. Please try again." });
+    }
+  });
+
+  app.post("/api/marketplace/buyer-interest", async (req, res) => {
+    try {
+      const intake = buildMarketplaceBuyerInterest(req.body || {});
+      const validation = validateMarketplaceBuyerInterest(intake);
+
+      if (!validation.ok) {
+        const missing = [
+          ...validation.missingFields,
+          ...validation.missingAcknowledgments.map((field) => `acknowledgments.${field}`)
+        ];
+
+        res.status(400).json({ ok: false, error: `Missing required fields: ${missing.join(", ")}` });
+        return;
+      }
+
+      await deliverMarketplaceBuyerInterest(intake);
+      res.json({ ok: true, received: true });
+    } catch (error) {
+      console.error("Marketplace buyer interest failed:", error);
+      res.status(502).json({ ok: false, error: "Buyer interest could not be forwarded. Please try again." });
     }
   });
 
