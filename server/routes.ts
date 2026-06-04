@@ -351,6 +351,22 @@ type MarketplaceBuyerInterest = {
   timeline?: string;
 };
 
+type InternalReviewInput = {
+  caseId: string;
+  customerName: string;
+  customerEmail: string;
+  vehicleYear: string;
+  make: string;
+  model: string;
+  symptomsSummary: string;
+  responseType: string;
+  confidenceScore: string;
+  confidenceBand: string;
+  messageBody: string;
+  followUpNeeded: string;
+  adminNotes: string;
+};
+
 const marketplaceRequiredFields: Array<keyof Omit<MarketplaceSellerIntake, "acknowledgments">> = [
   "sellerName",
   "sellerEmail",
@@ -397,6 +413,11 @@ function pickMarketplaceString(body: any, key: keyof MarketplaceSellerIntake) {
 }
 
 function pickBuyerInterestString(body: any, key: keyof MarketplaceBuyerInterest) {
+  const value = body?.[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function pickInternalReviewString(body: any, key: keyof InternalReviewInput) {
   const value = body?.[key];
   return typeof value === "string" ? value.trim() : "";
 }
@@ -477,6 +498,39 @@ function validateMarketplaceBuyerInterest(intake: MarketplaceBuyerInterest) {
     ok: missingFields.length === 0 && missingAcknowledgments.length === 0,
     missingFields,
     missingAcknowledgments
+  };
+}
+
+function buildInternalReviewInput(body: any): InternalReviewInput {
+  return {
+    caseId: pickInternalReviewString(body, "caseId"),
+    customerName: pickInternalReviewString(body, "customerName"),
+    customerEmail: pickInternalReviewString(body, "customerEmail"),
+    vehicleYear: pickInternalReviewString(body, "vehicleYear"),
+    make: pickInternalReviewString(body, "make"),
+    model: pickInternalReviewString(body, "model"),
+    symptomsSummary: pickInternalReviewString(body, "symptomsSummary"),
+    responseType: pickInternalReviewString(body, "responseType"),
+    confidenceScore: pickInternalReviewString(body, "confidenceScore"),
+    confidenceBand: pickInternalReviewString(body, "confidenceBand"),
+    messageBody: pickInternalReviewString(body, "messageBody"),
+    followUpNeeded: pickInternalReviewString(body, "followUpNeeded"),
+    adminNotes: pickInternalReviewString(body, "adminNotes")
+  };
+}
+
+function validateInternalReviewInput(input: InternalReviewInput) {
+  const requiredFields: Array<keyof InternalReviewInput> = [
+    "caseId",
+    "customerEmail",
+    "responseType",
+    "messageBody"
+  ];
+  const missingFields = requiredFields.filter((field) => !input[field]);
+
+  return {
+    ok: missingFields.length === 0,
+    missingFields
   };
 }
 
@@ -631,6 +685,57 @@ async function deliverMarketplaceBuyerInterest(intake: MarketplaceBuyerInterest)
   }
 }
 
+async function deliverInternalReview(input: InternalReviewInput) {
+  const submittedAt = new Date().toISOString();
+  const packet = {
+    intakeType: "internal-diagnosis-response",
+    source: "drivable-internal-review",
+    submittedAt,
+    caseId: input.caseId,
+    customerName: input.customerName,
+    customerEmail: input.customerEmail,
+    vehicleYear: input.vehicleYear,
+    make: input.make,
+    model: input.model,
+    symptomsSummary: input.symptomsSummary,
+    responseType: input.responseType,
+    confidenceScore: input.confidenceScore,
+    confidenceBand: input.confidenceBand,
+    messageBody: input.messageBody,
+    followUpNeeded: input.followUpNeeded,
+    adminNotes: input.adminNotes
+  };
+
+  const webhookUrl = process.env.MASTER_INTAKE_WEBHOOK_URL;
+
+  if (!webhookUrl) {
+    throw new Error("MASTER_INTAKE_WEBHOOK_URL is not configured.");
+  }
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(packet)
+    });
+
+    if (!response.ok) {
+      console.error("MASTER_INTAKE_WEBHOOK_FAILED", `Internal review webhook returned ${response.status}`);
+      throw new Error(`Internal review webhook returned ${response.status}`);
+    }
+
+    console.log("MASTER_INTAKE_WEBHOOK_SENT", JSON.stringify({
+      intakeType: packet.intakeType,
+      source: packet.source,
+      submittedAt,
+      caseId: packet.caseId
+    }));
+  } catch (error) {
+    console.error("MASTER_INTAKE_WEBHOOK_FAILED", error);
+    throw error;
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/health/db", async (req, res) => {
     const result = await checkDatabaseConnection();
@@ -680,6 +785,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Marketplace buyer interest failed:", error);
       res.status(502).json({ ok: false, error: "Buyer interest could not be forwarded. Please try again." });
+    }
+  });
+
+  app.post("/api/internal-review", async (req, res) => {
+    try {
+      const input = buildInternalReviewInput(req.body || {});
+      const validation = validateInternalReviewInput(input);
+
+      if (!validation.ok) {
+        res.status(400).json({ ok: false, error: `Missing required fields: ${validation.missingFields.join(", ")}` });
+        return;
+      }
+
+      await deliverInternalReview(input);
+      res.json({ ok: true, received: true });
+    } catch (error) {
+      console.error("Internal review failed:", error);
+      res.status(502).json({ ok: false, error: "Internal review could not be forwarded. Please check Make/Gmail before retrying." });
     }
   });
 

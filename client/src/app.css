@@ -349,14 +349,29 @@ button, input, select, textarea {
 }
 
 .progress-dot {
-  width: 64px;
-  height: 10px;
+  min-width: 108px;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
   border-radius: 999px;
   background: #1d314c;
+  color: #9cb0c8;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .progress-dot.active {
   background: linear-gradient(90deg, #21c7f5, #67e8ff);
+  color: #06101d;
+}
+
+.guided-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+  gap: 20px;
 }
 
 .field-grid {
@@ -552,6 +567,12 @@ textarea:focus {
   color: #d7f8e7;
 }
 
+.capacity-notice {
+  border-color: rgba(255, 210, 125, 0.25);
+  background: rgba(255, 210, 125, 0.07);
+  color: #ffe8b8;
+}
+
 .file-list {
   display: flex;
   flex-wrap: wrap;
@@ -635,7 +656,8 @@ textarea:focus {
   .faq-grid,
   .upload-grid,
   .field-grid,
-  .offer-grid {
+  .offer-grid,
+  .guided-grid {
     grid-template-columns: 1fr;
   }
 

@@ -83,9 +83,176 @@ function LegalSection({ title, children }: { title: string; children: React.Reac
   );
 }
 
+function InternalReviewDesk() {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+
+  async function submitInternalReview(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    const formData = new FormData(form);
+    const value = (name: string) => String(formData.get(name) || "").trim();
+    const payload = {
+      caseId: value("caseId"),
+      customerName: value("customerName"),
+      customerEmail: value("customerEmail"),
+      vehicleYear: value("vehicleYear"),
+      make: value("make"),
+      model: value("model"),
+      symptomsSummary: value("symptomsSummary"),
+      responseType: value("responseType"),
+      confidenceScore: value("confidenceScore"),
+      confidenceBand: value("confidenceBand"),
+      messageBody: value("messageBody"),
+      followUpNeeded: value("followUpNeeded"),
+      adminNotes: value("adminNotes")
+    };
+
+    setIsSubmitting(true);
+    setSubmitError("");
+    setSubmitSuccess(false);
+
+    try {
+      const response = await fetch("/api/internal-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json().catch(() => ({ ok: false, error: "Internal review failed." }));
+
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || "Internal review failed.");
+      }
+
+      setSubmitSuccess(true);
+      form.reset();
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Internal review failed.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="app-shell">
+      <div className="topbar">
+        <div className="brand">Drivable Internal Review</div>
+        <div className="nav">
+          <button onClick={() => { window.location.href = "/"; }}>Public App</button>
+          <button onClick={() => { window.location.href = "/marketplace"; }}>ClearSale</button>
+        </div>
+      </div>
+
+      <div className="content-shell">
+        <div className="simple-page">
+          <div className="hero-card">
+            <div className="eyebrow">Glenn / Admin</div>
+            <h1>Internal Review Desk</h1>
+            <p>
+              Draft a diagnosis response, question, safety warning, or decline/refund review for Make/Gmail handling.
+              This V1 desk does not auto-send customer diagnosis messages.
+            </p>
+          </div>
+
+          {submitSuccess && (
+            <div className="alert-card success">
+              <h3>Internal review submitted.</h3>
+              <p>Check Make/Gmail draft before sending.</p>
+            </div>
+          )}
+
+          {submitError && <div className="alert-card warning">{submitError}</div>}
+
+          <form className="step-card" onSubmit={submitInternalReview}>
+            <div className="step-header">
+              <div>
+                <div className="eyebrow">Review Packet</div>
+                <h2>Case response details</h2>
+                <p>Keep the response clear, cautious, and ready for a human final check before it goes to the customer.</p>
+              </div>
+            </div>
+
+            <div className="field-grid">
+              <div className="field"><label>Case ID</label><input name="caseId" required /></div>
+              <div className="field"><label>Customer Name</label><input name="customerName" /></div>
+              <div className="field"><label>Customer Email</label><input name="customerEmail" type="email" required /></div>
+              <div className="field"><label>Vehicle Year</label><input name="vehicleYear" inputMode="numeric" /></div>
+              <div className="field"><label>Make</label><input name="make" /></div>
+              <div className="field"><label>Model</label><input name="model" /></div>
+              <div className="field">
+                <label>Response Type</label>
+                <select name="responseType" required>
+                  <option value="">Choose response type</option>
+                  <option value="QUESTION">QUESTION</option>
+                  <option value="DIAGNOSIS">DIAGNOSIS</option>
+                  <option value="SAFETY_WARNING">SAFETY_WARNING</option>
+                  <option value="DECLINE_OR_REFUND_REVIEW">DECLINE_OR_REFUND_REVIEW</option>
+                </select>
+              </div>
+              <div className="field"><label>Confidence Score</label><input name="confidenceScore" inputMode="decimal" placeholder="Example: 72" /></div>
+              <div className="field">
+                <label>Confidence Band</label>
+                <select name="confidenceBand">
+                  <option value="">Choose band</option>
+                  <option value="LOW">LOW</option>
+                  <option value="MEDIUM">MEDIUM</option>
+                  <option value="HIGH">HIGH</option>
+                  <option value="UNKNOWN">UNKNOWN</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Follow Up Needed</label>
+                <select name="followUpNeeded">
+                  <option value="No">No</option>
+                  <option value="Yes">Yes</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="section-block">
+              <h3>Symptoms Summary</h3>
+              <textarea name="symptomsSummary" rows={4} placeholder="Short summary of what the customer submitted." />
+            </div>
+
+            <div className="section-block">
+              <h3>Diagnosis / Message Body <span className="required-marker">Required</span></h3>
+              <textarea name="messageBody" rows={9} required placeholder="Draft the customer-facing message for Make/Gmail review. Do not guarantee safety, accuracy, repair outcome, or legal result." />
+            </div>
+
+            <div className="section-block">
+              <h3>Admin Notes</h3>
+              <textarea name="adminNotes" rows={5} placeholder="Internal notes for Glenn/admin only." />
+            </div>
+
+            <div className="notice-strip">
+              V1 creates the internal review handoff only. Check the Make route and Gmail draft before sending anything to the customer.
+            </div>
+
+            <div className="step-actions">
+              <button className="secondary-btn" type="button" onClick={() => { window.location.href = "/"; }}>Back to App</button>
+              <button className="primary-btn" type="submit" disabled={isSubmitting}>{isSubmitting ? "Submitting..." : "Submit Internal Review"}</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TestBackend() {
   if (window.location.pathname.startsWith("/marketplace")) {
     return <Marketplace />;
+  }
+
+  if (window.location.pathname.replace(/\/$/, "") === "/internal-review") {
+    return <InternalReviewDesk />;
   }
 
   const [page, setPage] = useState<"home" | "intake" | "sell" | "help" | "disclaimer" | "terms" | "privacy">("home");
@@ -378,11 +545,32 @@ const [manualEngine, setManualEngine] = useState("");
             <div className="eyebrow">Drivable Check</div>
             <h1>Organize the problem before you pay for the guess.</h1>
             <p>
-              A sharper intake flow for vehicle issues. Capture symptoms, timing, evidence, and vehicle details in a way that actually helps.
+              Guided First Check helps you submit the basics first: vehicle details, what is happening, when it happens, urgency, and any safe evidence you can capture.
+              It helps Mechanic&apos;s Eye review the case without promising safety, diagnosis accuracy, repair outcome, or replacing an in-person mechanic.
             </p>
             <div className="hero-actions">
               <button className="primary-btn" type="button" onClick={() => setStep(1)}>Start Drivable Check</button>
               <button className="secondary-btn" type="button" onClick={() => { window.location.href = "/marketplace/sell"; }}>Start ClearSale</button>
+            </div>
+          </div>
+
+          <div className="guided-grid">
+            <div className="info-card">
+              <div className="eyebrow">Guided First Check</div>
+              <h3>What makes a good submission?</h3>
+              <ul>
+                <li>Year, make, and model.</li>
+                <li>Warning lights, dashboard messages, or codes.</li>
+                <li>When it happens: startup, idle, braking, turning, highway speed, or after rain.</li>
+                <li>Sound, video, or photos if safe to collect.</li>
+                <li>What changed recently: repairs, parts, weather, fluids, jump start, or accident.</li>
+                <li>What has already been checked.</li>
+              </ul>
+            </div>
+
+            <div className="warning-box">
+              Safety first: do not drive, record, crawl under, open hot parts, or test anything if the vehicle feels unsafe.
+              If there is smoke, fire risk, fuel leak, low oil pressure, overheating, brake failure, severe steering issue, or major knocking, stop and get in-person help.
             </div>
           </div>
 
@@ -401,13 +589,13 @@ const [manualEngine, setManualEngine] = useState("");
             <div className="step-card">
               <div className="step-header">
                 <div>
-                  <div className="eyebrow">Step {step} of 2</div>
+                  <div className="eyebrow">Guided First Check - Step {step} of 2</div>
                   <h2>{step === 1 ? "Select Your Vehicle" : "Describe the Issue"}</h2>
-                  <p>{step === 1 ? "Use I Don’t Know where needed. We’re building clarity, not punishing people for not being mechanics." : "Capture the issue, the timing, the urgency, and the evidence."}</p>
+                  <p>{step === 1 ? "Start with year, make, model, mileage, and follow-up email. Use I Don’t Know where needed." : "Capture symptoms, timing, urgency, warning lights, recent changes, and safe evidence."}</p>
                 </div>
                 <div className="progress-wrap">
-                  <div className={`progress-dot ${step >= 1 ? "active" : ""}`}></div>
-                  <div className={`progress-dot ${step >= 2 ? "active" : ""}`}></div>
+                  <div className={`progress-dot ${step >= 1 ? "active" : ""}`}>Vehicle</div>
+                  <div className={`progress-dot ${step >= 2 ? "active" : ""}`}>Symptoms</div>
                 </div>
               </div>
 
@@ -492,7 +680,7 @@ const [manualEngine, setManualEngine] = useState("");
                   </div>
 
                   <div className="step-actions">
-                    <div className="helper-text">Don’t know every detail? Fill in what you can and keep moving.</div>
+                    <div className="helper-text">Missing key details may delay your review. Fill in what you know and use the next step for timing, warning lights, and evidence.</div>
                     <button type="button" className="primary-btn" onClick={() => setStep(2)}>Continue to Symptoms</button>
                   </div>
                 </>
@@ -502,6 +690,7 @@ const [manualEngine, setManualEngine] = useState("");
                 <>
                   <div className="section-block">
                     <h3>Problem Category <span className="required-marker">Required</span></h3>
+                    <p className="section-intro">Pick the closest category. This helps route the review and decide what evidence matters most.</p>
                     <div className="pill-grid">
                       {CATEGORIES.map((item) => (
                         <button key={item} type="button" className={`pill ${problemCategory === item ? "selected" : ""}`} onClick={() => setProblemCategory(item)}>
@@ -513,6 +702,7 @@ const [manualEngine, setManualEngine] = useState("");
 
                   <div className="section-block">
                     <h3>When Does It Happen?</h3>
+                    <p className="section-intro">Timing is often the difference between a useful review and more follow-up questions.</p>
                     <div className="pill-grid">
                       {TIMING_OPTIONS.map((item) => (
                         <button key={item} type="button" className={`pill ${timingSelections.includes(item) ? "selected" : ""}`} onClick={() => toggleValue(item, timingSelections, setTimingSelections)}>
@@ -535,6 +725,7 @@ const [manualEngine, setManualEngine] = useState("");
 
                   <div className="section-block">
                     <h3>Urgency / Driveability</h3>
+                    <p className="section-intro">This does not determine whether the vehicle is safe. Use your own judgment and get in-person help if anything feels dangerous.</p>
                     <div className="pill-grid">
                       {URGENCY_OPTIONS.map((item) => (
                         <button key={item} type="button" className={`pill ${urgency === item ? "selected" : ""}`} onClick={() => setUrgency(item)}>
@@ -637,6 +828,10 @@ const [manualEngine, setManualEngine] = useState("");
 
                   <div className="notice-strip">
                     By submitting, you understand that Mechanic&apos;s Eye provides informational guidance only and is not a substitute for hands-on inspection, emergency advice, or in-person safety judgment.
+                  </div>
+
+                  <div className="notice-strip capacity-notice">
+                    Missing key details may delay your review. Reviews are handled in the order received. Priority options may be reviewed sooner. If review volume is high, some cases may require more time or more information before review.
                   </div>
 
                   <div className="step-actions">
