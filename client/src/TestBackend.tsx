@@ -1,6 +1,7 @@
 ﻿import { useMemo, useState } from "react";
 import "./app.css";
 import Marketplace from "./marketplace/Marketplace";
+import { NeedHelpPanel } from "./components/NeedHelpPanel";
 import { YEARS, VEHICLE_DATA, FALLBACK_MAKES, FALLBACK_MODELS, FALLBACK_ENGINES, TRANSMISSION_OPTIONS, DRIVETRAIN_OPTIONS } from "./data/vehicleData";
 
 const PUBLIC_API_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/diagnoses";
@@ -246,6 +247,536 @@ function InternalReviewDesk() {
   );
 }
 
+const GUIDE_OPTIONS = [
+  { name: "Nora", topic: "I'm lost, guide me", role: "General concierge" },
+  { name: "Mara", topic: "Help listing a vehicle", role: "ClearSale listing guide" },
+  { name: "Rex", topic: "Help understanding a car issue", role: "Drivable Check diagnostic guide" },
+  { name: "Miles", topic: "Help buying a listed vehicle", role: "Buyer guide" },
+  { name: "June", topic: "Help with title / paperwork guidance", role: "Title and safety guide" },
+  { name: "Otto", topic: "Help finding a mechanic", role: "Mechanic Match guide" },
+  { name: "Nora", topic: "Report a problem with the app", role: "App support concierge" }
+];
+
+function ConciergeHelpPage() {
+  const initialTopic = new URLSearchParams(window.location.search).get("topic") || "";
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  async function submitConciergeRequest(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    const formData = new FormData(form);
+    const value = (name: string) => String(formData.get(name) || "").trim();
+    const helpTopic = value("helpTopic");
+    const guide = GUIDE_OPTIONS.find((option) => option.topic === helpTopic)?.name || value("guideRequested") || "Nora";
+    const payload = {
+      guideRequested: guide,
+      helpTopic,
+      customerName: value("customerName"),
+      customerEmail: value("customerEmail"),
+      customerPhone: value("customerPhone"),
+      relatedCaseId: value("relatedCaseId"),
+      relatedListingId: value("relatedListingId"),
+      currentPage: value("currentPage") || window.location.pathname,
+      urgency: value("urgency"),
+      preferredContactMethod: value("preferredContactMethod"),
+      message: value("message"),
+      stuckStep: value("stuckStep"),
+      wantsHumanReview: value("wantsHumanReview"),
+      acknowledgments: {
+        aiAssistedGuide: formData.get("ackAiAssisted") === "on",
+        finalVerification: formData.get("ackFinalVerification") === "on"
+      }
+    };
+
+    setIsSubmitting(true);
+    setSubmitError("");
+    setSubmitted(false);
+
+    try {
+      const response = await fetch("/api/support/concierge-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json().catch(() => ({ ok: false, error: "Support request failed." }));
+
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || "Support request failed.");
+      }
+
+      setSubmitted(true);
+      form.reset();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Support request failed. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="app-shell">
+      <div className="topbar">
+        <div className="brand">Drivable Guides</div>
+        <div className="nav">
+          <button onClick={() => { window.location.href = "/"; }}>Drivable Check</button>
+          <button onClick={() => { window.location.href = "/marketplace/sell"; }}>ClearSale</button>
+          <button onClick={() => { window.location.href = "/marketplace/browse"; }}>Buyer Check</button>
+          <button onClick={() => { window.location.href = "/mechanic-match"; }}>Mechanic Match</button>
+        </div>
+      </div>
+
+      <div className="content-shell">
+        <div className="simple-page">
+          <div className="hero-card large">
+            <div className="eyebrow">Drivable Concierge</div>
+            <h1>You do not have to figure this out alone.</h1>
+            <p>Tell us where you are stuck and a Drivable Guide will help route you. Some guidance is AI-assisted and reviewed or escalated when needed.</p>
+          </div>
+
+          <div className="guide-grid">
+            {GUIDE_OPTIONS.slice(0, 6).map((guide) => (
+              <article className="guide-card" key={`${guide.name}-${guide.topic}`}>
+                <strong>{guide.name}</strong>
+                <span>{guide.role}</span>
+                <p>{guide.topic}</p>
+              </article>
+            ))}
+          </div>
+
+          {submitted && (
+            <div className="alert-card success">
+              <h3>Help request received.</h3>
+              <p>A Drivable Guide will help route the request. Requests needing additional review may take more time.</p>
+            </div>
+          )}
+          {submitError && <div className="alert-card warning">{submitError}</div>}
+
+          <form className="step-card" onSubmit={submitConciergeRequest}>
+            <div className="step-header">
+              <div>
+                <div className="eyebrow">Tell us where you are stuck</div>
+                <h2>Request guided help</h2>
+                <p>Keep it simple. A short explanation is enough to get the request routed.</p>
+              </div>
+            </div>
+
+            <div className="field-grid">
+              <div className="field">
+                <label>Help Topic</label>
+                <select name="helpTopic" defaultValue={initialTopic} required>
+                  <option value="">Choose a help topic</option>
+                  {GUIDE_OPTIONS.map((option) => <option key={option.topic} value={option.topic}>{option.topic}</option>)}
+                </select>
+              </div>
+              <div className="field">
+                <label>Guide Requested</label>
+                <select name="guideRequested" defaultValue="">
+                  <option value="">Let Drivable choose</option>
+                  {["Nora", "Mara", "Rex", "Miles", "June", "Otto"].map((name) => <option key={name}>{name}</option>)}
+                </select>
+              </div>
+              <div className="field"><label>Customer Name</label><input name="customerName" required /></div>
+              <div className="field"><label>Customer Email</label><input name="customerEmail" type="email" required /></div>
+              <div className="field"><label>Customer Phone</label><input name="customerPhone" type="tel" /></div>
+              <div className="field">
+                <label>Preferred Contact Method</label>
+                <select name="preferredContactMethod" required>
+                  <option value="">Choose one</option>
+                  <option>Email</option>
+                  <option>Phone</option>
+                  <option>Text</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Urgency</label>
+                <select name="urgency" required>
+                  <option value="">Choose urgency</option>
+                  <option>Normal</option>
+                  <option>Today if possible</option>
+                  <option>Vehicle or transaction feels unsafe</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Human Review Requested?</label>
+                <select name="wantsHumanReview" required>
+                  <option value="">Choose one</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>Only if needed</option>
+                </select>
+              </div>
+              <div className="field"><label>Related Case ID</label><input name="relatedCaseId" placeholder="Optional" /></div>
+              <div className="field"><label>Related Listing ID</label><input name="relatedListingId" placeholder="Optional" /></div>
+              <div className="field"><label>Current Page</label><input name="currentPage" defaultValue={document.referrer || window.location.pathname} /></div>
+              <div className="field"><label>Where did you get stuck?</label><input name="stuckStep" placeholder="Example: vehicle selection or title status" /></div>
+            </div>
+
+            <div className="section-block">
+              <h3>What do you need help with?</h3>
+              <textarea name="message" rows={6} required placeholder="Tell the Drivable Guide what you were trying to do and what stopped you." />
+            </div>
+
+            <div className="ack-list">
+              <label><input name="ackAiAssisted" type="checkbox" required /><span>I understand Drivable Guides are AI-assisted guides, not human employees, and requests may be reviewed or escalated when needed.</span></label>
+              <label><input name="ackFinalVerification" type="checkbox" required /><span>I understand I remain responsible for final verification of legal, title, payment, provider, and mechanical safety decisions.</span></label>
+            </div>
+
+            <div className="step-actions">
+              <button className="secondary-btn" type="button" onClick={() => { window.location.href = "/"; }}>Back to Main App</button>
+              <button className="primary-btn" type="submit" disabled={isSubmitting}>{isSubmitting ? "Sending..." : "Ask a Drivable Guide"}</button>
+            </div>
+          </form>
+
+          <section className="faq-grid">
+            {[
+              ["How Drivable Check works", "Submit vehicle details, symptoms, timing, urgency, and safe evidence for structured review."],
+              ["How ClearSale listings work", "Sellers submit a listing request for review and remain responsible for the private-party transaction."],
+              ["What Drivable does not do", "Drivable does not guarantee diagnosis, safety, repair outcome, title, payment, provider quality, or legal compliance."],
+              ["Why listings are reviewed", "Review helps catch missing information and keeps seller-provided details organized before publication."],
+              ["What to do if I am stuck", "Choose a help topic above and explain the step that stopped you."],
+              ["How buyer interest works", "A buyer interest request is routed for review; it does not reserve a vehicle or guarantee seller response."],
+              ["How Mechanic Match works", "Mechanic Match captures the vehicle problem and preferred help type for admin-reviewed provider routing."]
+            ].map(([title, body]) => <article className="faq-card" key={title}><h3>{title}</h3><p>{body}</p></article>)}
+          </section>
+
+          <div className="notice-strip">
+            For legal, title, payment, or mechanical safety decisions, users remain responsible for final verification.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MechanicMatchFlow() {
+  const path = window.location.pathname.replace(/\/$/, "") || "/mechanic-match";
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
+  async function submitMechanicMatchRequest(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    const formData = new FormData(form);
+    const value = (name: string) => String(formData.get(name) || "").trim();
+    const payload = {
+      customerName: value("customerName"),
+      customerEmail: value("customerEmail"),
+      customerPhone: value("customerPhone"),
+      city: value("city"),
+      state: value("state"),
+      zip: value("zip"),
+      vehicleYear: value("vehicleYear"),
+      make: value("make"),
+      model: value("model"),
+      mileage: value("mileage"),
+      problemCategory: value("problemCategory"),
+      symptoms: value("symptoms"),
+      canDrive: value("canDrive"),
+      urgency: value("urgency"),
+      preferredHelpType: value("preferredHelpType"),
+      budgetRange: value("budgetRange"),
+      photosOrVideoAvailable: value("photosOrVideoAvailable"),
+      existingDiagnosisCaseId: value("existingDiagnosisCaseId"),
+      drivableCheckUsed: value("drivableCheckUsed"),
+      permissionToShareCase: value("permissionToShareCase"),
+      acknowledgments: {
+        platformOnly: formData.get("ackPlatformOnly") === "on",
+        noGuarantee: formData.get("ackNoGuarantee") === "on",
+        customerResponsible: formData.get("ackCustomerResponsible") === "on"
+      }
+    };
+
+    setIsSubmitting(true);
+    setSubmitError("");
+
+    try {
+      const response = await fetch("/api/mechanic-match/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json().catch(() => ({ ok: false, error: "Mechanic Match request failed." }));
+
+      if (!response.ok || !result.ok) {
+        throw new Error(result.error || "Mechanic Match request failed.");
+      }
+
+      window.location.href = "/mechanic-match/submitted";
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Mechanic Match request failed. Please try again.");
+      setIsSubmitting(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
+  function Shell({ children }: { children: React.ReactNode }) {
+    return (
+      <div className="app-shell">
+        <div className="topbar">
+          <div className="brand">Drivable by Mechanic&apos;s Eye</div>
+          <div className="nav">
+            <button onClick={() => { window.location.href = "/"; }}>Drivable Check</button>
+            <button onClick={() => { window.location.href = "/marketplace"; }}>ClearSale</button>
+            <button onClick={() => { window.location.href = "/mechanic-match"; }}>Mechanic Match</button>
+            <button onClick={() => { window.location.href = "/help"; }}>Need Help?</button>
+          </div>
+        </div>
+        <div className="content-shell">{children}</div>
+      </div>
+    );
+  }
+
+  if (path === "/mechanic-match" || path === "/mechanic-match/request") {
+    return (
+      <Shell>
+        <div className="page-grid">
+          <div className="main-column">
+            <div className="hero-card">
+              <div className="eyebrow">Mechanic Match</div>
+              <h1>Request help finding the right kind of vehicle help.</h1>
+              <p>
+                Tell us the vehicle, problem, location, urgency, and the kind of help you prefer.
+                Mechanic Match is a request/referral-support tool, not live booking or emergency dispatch.
+              </p>
+            </div>
+            <NeedHelpPanel topic="Help finding a mechanic" compact />
+
+            {submitError && <div className="alert-card warning">{submitError}</div>}
+
+            <form className="step-card" onSubmit={submitMechanicMatchRequest}>
+              <div className="step-header">
+                <div>
+                  <div className="eyebrow">Request Capture</div>
+                  <h2>Mechanic Match request</h2>
+                  <p>More detail helps route the request toward the right type of shop, mobile mechanic, diagnostic specialist, or inspector.</p>
+                </div>
+              </div>
+
+              <fieldset className="form-fieldset">
+                <legend>Contact and location</legend>
+                <div className="field-grid">
+                  <div className="field"><label>Customer Name</label><input name="customerName" required /></div>
+                  <div className="field"><label>Customer Email</label><input name="customerEmail" type="email" required /></div>
+                  <div className="field"><label>Customer Phone</label><input name="customerPhone" type="tel" required /></div>
+                  <div className="field"><label>City</label><input name="city" required /></div>
+                  <div className="field"><label>State</label><input name="state" maxLength={2} required /></div>
+                  <div className="field"><label>ZIP</label><input name="zip" inputMode="numeric" required /></div>
+                </div>
+              </fieldset>
+
+              <fieldset className="form-fieldset">
+                <legend>Vehicle</legend>
+                <div className="field-grid">
+                  <div className="field"><label>Vehicle Year</label><input name="vehicleYear" inputMode="numeric" required /></div>
+                  <div className="field"><label>Make</label><input name="make" required /></div>
+                  <div className="field"><label>Model</label><input name="model" required /></div>
+                  <div className="field"><label>Mileage</label><input name="mileage" inputMode="numeric" /></div>
+                  <div className="field">
+                    <label>Drivable Check Used?</label>
+                    <select name="drivableCheckUsed">
+                      <option value="">Choose one</option>
+                      <option>Yes</option>
+                      <option>No</option>
+                      <option>Not sure</option>
+                    </select>
+                  </div>
+                  <div className="field"><label>Existing Diagnosis Case ID</label><input name="existingDiagnosisCaseId" placeholder="Optional" /></div>
+                </div>
+              </fieldset>
+
+              <fieldset className="form-fieldset">
+                <legend>Problem and help needed</legend>
+                <div className="field-grid">
+                  <div className="field">
+                    <label>Problem Category</label>
+                    <select name="problemCategory" required>
+                      <option value="">Choose category</option>
+                      {CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label>Can Drive</label>
+                    <select name="canDrive" required>
+                      <option value="">Choose one</option>
+                      <option>Yes</option>
+                      <option>Short distance only</option>
+                      <option>No</option>
+                      <option>Not sure</option>
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label>Urgency</label>
+                    <select name="urgency" required>
+                      <option value="">Choose urgency</option>
+                      <option>Same day if possible</option>
+                      <option>This week</option>
+                      <option>Planning ahead</option>
+                      <option>Vehicle feels unsafe</option>
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label>Preferred Help Type</label>
+                    <select name="preferredHelpType" required>
+                      <option value="">Choose help type</option>
+                      <option>Repair shop</option>
+                      <option>Mobile mechanic</option>
+                      <option>Diagnostic specialist</option>
+                      <option>Pre-purchase inspector</option>
+                      <option>Seller inspection</option>
+                      <option>Not sure</option>
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label>Budget Range</label>
+                    <select name="budgetRange">
+                      <option value="">Choose range</option>
+                      <option>Under $150</option>
+                      <option>$150-$300</option>
+                      <option>$300-$750</option>
+                      <option>$750+</option>
+                      <option>Need estimate first</option>
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label>Photos Or Video Available</label>
+                    <select name="photosOrVideoAvailable">
+                      <option value="">Choose one</option>
+                      <option>Yes</option>
+                      <option>No</option>
+                      <option>Can provide if requested</option>
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label>Permission To Share Case</label>
+                    <select name="permissionToShareCase" required>
+                      <option value="">Choose one</option>
+                      <option>Yes</option>
+                      <option>No</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="section-block">
+                  <h3>Symptoms</h3>
+                  <textarea name="symptoms" rows={7} required placeholder="Describe what is happening, when it happens, warning lights/codes, noises, leaks, recent repairs, and what has already been checked." />
+                </div>
+              </fieldset>
+
+              <fieldset className="form-fieldset">
+                <legend>Required acknowledgments</legend>
+                <div className="ack-list">
+                  <label><input name="ackPlatformOnly" type="checkbox" required /><span>I understand Mechanic Match is a request/referral-support tool only.</span></label>
+                  <label><input name="ackNoGuarantee" type="checkbox" required /><span>I understand Drivable by Mechanic&apos;s Eye does not employ, supervise, certify, guarantee, or control independent providers.</span></label>
+                  <label><input name="ackCustomerResponsible" type="checkbox" required /><span>I remain responsible for choosing providers, approving work, payment, transportation, and safety decisions.</span></label>
+                </div>
+              </fieldset>
+
+              <div className="notice-strip">
+                Mechanic Match does not guarantee mechanic quality, provider availability, repair outcome, price, vehicle safety, or legal compliance. It is not emergency dispatch.
+              </div>
+
+              <div className="step-actions">
+                <button className="secondary-btn" type="button" onClick={() => { window.location.href = "/"; }}>Back</button>
+                <button className="primary-btn" type="submit" disabled={isSubmitting}>{isSubmitting ? "Submitting..." : "Submit Mechanic Match Request"}</button>
+              </div>
+            </form>
+          </div>
+
+          <div className="side-column">
+            <div className="info-card">
+              <div className="eyebrow">How routing works</div>
+              <h3>Problem first, not just ZIP code</h3>
+              <ul>
+                <li>No-start and electrical cases may need diagnostic help.</li>
+                <li>Drivable vehicles may fit shops or mobile mechanics.</li>
+                <li>Buyer and seller situations may need inspection-focused providers.</li>
+                <li>Unsafe vehicles may need towing or in-person help before anything else.</li>
+              </ul>
+            </div>
+            <div className="warning-box">
+              If the vehicle feels unsafe, do not drive it for a match request. Seek qualified in-person help or emergency services where appropriate.
+            </div>
+          </div>
+        </div>
+      </Shell>
+    );
+  }
+
+  if (path === "/mechanic-match/submitted") {
+    return (
+      <Shell>
+        <div className="simple-page">
+          <div className="hero-card">
+            <div className="eyebrow">Mechanic Match</div>
+            <h1>Request received.</h1>
+            <p>
+              Requests are reviewed in the order received. Availability may vary by area, provider type, and issue complexity.
+            </p>
+            <div className="notice-strip">
+              This is not a guarantee of provider availability, repair outcome, diagnosis accuracy, safety, price, or service quality. Drivable by Mechanic&apos;s Eye does not perform repairs or control third-party providers.
+            </div>
+            <div className="hero-actions">
+              <button className="primary-btn" type="button" onClick={() => { window.location.href = "/"; }}>Return to Drivable</button>
+              <button className="secondary-btn" type="button" onClick={() => { window.location.href = "/mechanic-match"; }}>Mechanic Match Home</button>
+            </div>
+          </div>
+        </div>
+      </Shell>
+    );
+  }
+
+  return (
+    <Shell>
+      <div className="simple-page">
+        <div className="hero-card large">
+          <div className="eyebrow">Mechanic Match</div>
+          <h1>Find the right kind of help for the problem.</h1>
+          <p>
+            Mechanic Match from Drivable by Mechanic&apos;s Eye helps route your vehicle issue toward the right kind of shop, mobile mechanic,
+            diagnostic specialist, or inspector. It starts with the vehicle problem, not just your location.
+          </p>
+          <div className="hero-actions">
+            <button className="primary-btn" type="button" onClick={() => { window.location.href = "/mechanic-match/request"; }}>Start Mechanic Match Request</button>
+            <button className="secondary-btn" type="button" onClick={() => { window.location.href = "/"; }}>Use Drivable Check First</button>
+          </div>
+        </div>
+
+        <div className="feature-grid">
+          <div className="feature-card"><h3>Right help type</h3><p>Repair shop, mobile mechanic, diagnostic specialist, or inspector routing based on symptoms and situation.</p></div>
+          <div className="feature-card"><h3>Admin-reviewed request</h3><p>V1 starts with lead capture and review, not automated booking or a public provider database.</p></div>
+          <div className="feature-card"><h3>Built around the issue</h3><p>Vehicle details, driveability, urgency, and symptom category help narrow the next step.</p></div>
+        </div>
+
+        <div className="legal-card">
+          <LegalSection title="Platform Limits">
+            <p>Mechanic Match is a request/referral-support tool only. Drivable by Mechanic&apos;s Eye does not employ, supervise, certify, guarantee, or control independent providers.</p>
+          </LegalSection>
+          <LegalSection title="No Guarantees">
+            <p>There is no guarantee of mechanic quality, provider availability, repair outcome, price, vehicle safety, or legal compliance.</p>
+          </LegalSection>
+          <LegalSection title="Not Emergency Dispatch">
+            <p>Mechanic Match is not emergency dispatch. If the vehicle feels unsafe, do not drive it; seek qualified in-person help or emergency services where appropriate.</p>
+          </LegalSection>
+        </div>
+      </div>
+    </Shell>
+  );
+}
+
 export default function TestBackend() {
   if (window.location.pathname.startsWith("/marketplace")) {
     return <Marketplace />;
@@ -253,6 +784,14 @@ export default function TestBackend() {
 
   if (window.location.pathname.replace(/\/$/, "") === "/internal-review") {
     return <InternalReviewDesk />;
+  }
+
+  if (window.location.pathname.replace(/\/$/, "") === "/help") {
+    return <ConciergeHelpPage />;
+  }
+
+  if (window.location.pathname.startsWith("/mechanic-match")) {
+    return <MechanicMatchFlow />;
   }
 
   const [page, setPage] = useState<"home" | "intake" | "sell" | "help" | "disclaimer" | "terms" | "privacy">("home");
@@ -553,6 +1092,7 @@ const [manualEngine, setManualEngine] = useState("");
               <button className="secondary-btn" type="button" onClick={() => { window.location.href = "/marketplace/sell"; }}>Start ClearSale</button>
             </div>
           </div>
+          <NeedHelpPanel topic="Help understanding a car issue" compact />
 
           <div className="guided-grid">
             <div className="info-card">
@@ -1118,9 +1658,9 @@ const [manualEngine, setManualEngine] = useState("");
           <button onClick={() => setPage("intake")}>Drivable Check</button>
           <button onClick={() => { window.location.href = "/marketplace/sell"; }}>ClearSale</button>
           <button onClick={() => { window.location.href = "/marketplace/browse"; }}>Buyer Check</button>
-          <button onClick={() => setPage("help")}>Mechanic Match</button>
+          <button onClick={() => { window.location.href = "/mechanic-match"; }}>Mechanic Match</button>
           <button onClick={() => setPage("disclaimer")}>Mechanic&apos;s Eye Review</button>
-          <button onClick={() => setPage("help")}>Help</button>
+          <button onClick={() => { window.location.href = "/help"; }}>Help</button>
           <button onClick={() => setPage("disclaimer")}>Disclaimer</button>
           <button onClick={() => setPage("terms")}>Terms</button>
           <button onClick={() => setPage("privacy")}>Privacy</button>

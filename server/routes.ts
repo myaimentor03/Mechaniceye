@@ -367,6 +367,58 @@ type InternalReviewInput = {
   adminNotes: string;
 };
 
+type MechanicMatchAcknowledgments = {
+  platformOnly?: boolean;
+  noGuarantee?: boolean;
+  customerResponsible?: boolean;
+};
+
+type MechanicMatchRequest = {
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  city: string;
+  state: string;
+  zip: string;
+  vehicleYear: string;
+  make: string;
+  model: string;
+  mileage: string;
+  problemCategory: string;
+  symptoms: string;
+  canDrive: string;
+  urgency: string;
+  preferredHelpType: string;
+  budgetRange: string;
+  photosOrVideoAvailable: string;
+  existingDiagnosisCaseId: string;
+  drivableCheckUsed: string;
+  permissionToShareCase: string;
+  acknowledgments: MechanicMatchAcknowledgments;
+};
+
+type ConciergeAcknowledgments = {
+  aiAssistedGuide?: boolean;
+  finalVerification?: boolean;
+};
+
+type ConciergeRequest = {
+  guideRequested: string;
+  helpTopic: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  relatedCaseId: string;
+  relatedListingId: string;
+  currentPage: string;
+  urgency: string;
+  preferredContactMethod: string;
+  message: string;
+  stuckStep: string;
+  wantsHumanReview: string;
+  acknowledgments: ConciergeAcknowledgments;
+};
+
 const marketplaceRequiredFields: Array<keyof Omit<MarketplaceSellerIntake, "acknowledgments">> = [
   "sellerName",
   "sellerEmail",
@@ -418,6 +470,16 @@ function pickBuyerInterestString(body: any, key: keyof MarketplaceBuyerInterest)
 }
 
 function pickInternalReviewString(body: any, key: keyof InternalReviewInput) {
+  const value = body?.[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function pickMechanicMatchString(body: any, key: keyof MechanicMatchRequest) {
+  const value = body?.[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function pickConciergeString(body: any, key: keyof ConciergeRequest) {
   const value = body?.[key];
   return typeof value === "string" ? value.trim() : "";
 }
@@ -531,6 +593,117 @@ function validateInternalReviewInput(input: InternalReviewInput) {
   return {
     ok: missingFields.length === 0,
     missingFields
+  };
+}
+
+function buildMechanicMatchRequest(body: any): MechanicMatchRequest {
+  return {
+    customerName: pickMechanicMatchString(body, "customerName"),
+    customerEmail: pickMechanicMatchString(body, "customerEmail"),
+    customerPhone: pickMechanicMatchString(body, "customerPhone"),
+    city: pickMechanicMatchString(body, "city"),
+    state: pickMechanicMatchString(body, "state"),
+    zip: pickMechanicMatchString(body, "zip"),
+    vehicleYear: pickMechanicMatchString(body, "vehicleYear"),
+    make: pickMechanicMatchString(body, "make"),
+    model: pickMechanicMatchString(body, "model"),
+    mileage: pickMechanicMatchString(body, "mileage"),
+    problemCategory: pickMechanicMatchString(body, "problemCategory"),
+    symptoms: pickMechanicMatchString(body, "symptoms"),
+    canDrive: pickMechanicMatchString(body, "canDrive"),
+    urgency: pickMechanicMatchString(body, "urgency"),
+    preferredHelpType: pickMechanicMatchString(body, "preferredHelpType"),
+    budgetRange: pickMechanicMatchString(body, "budgetRange"),
+    photosOrVideoAvailable: pickMechanicMatchString(body, "photosOrVideoAvailable"),
+    existingDiagnosisCaseId: pickMechanicMatchString(body, "existingDiagnosisCaseId"),
+    drivableCheckUsed: pickMechanicMatchString(body, "drivableCheckUsed"),
+    permissionToShareCase: pickMechanicMatchString(body, "permissionToShareCase"),
+    acknowledgments: {
+      platformOnly: !!body?.acknowledgments?.platformOnly,
+      noGuarantee: !!body?.acknowledgments?.noGuarantee,
+      customerResponsible: !!body?.acknowledgments?.customerResponsible
+    }
+  };
+}
+
+function validateMechanicMatchRequest(input: MechanicMatchRequest) {
+  const requiredFields: Array<keyof Omit<MechanicMatchRequest, "acknowledgments">> = [
+    "customerName",
+    "customerEmail",
+    "customerPhone",
+    "city",
+    "state",
+    "zip",
+    "vehicleYear",
+    "make",
+    "model",
+    "problemCategory",
+    "symptoms",
+    "canDrive",
+    "urgency",
+    "preferredHelpType",
+    "permissionToShareCase"
+  ];
+  const requiredAcknowledgments: Array<keyof MechanicMatchAcknowledgments> = [
+    "platformOnly",
+    "noGuarantee",
+    "customerResponsible"
+  ];
+  const missingFields = requiredFields.filter((field) => !input[field]);
+  const missingAcknowledgments = requiredAcknowledgments.filter((field) => !input.acknowledgments[field]);
+
+  return {
+    ok: missingFields.length === 0 && missingAcknowledgments.length === 0,
+    missingFields,
+    missingAcknowledgments
+  };
+}
+
+function buildConciergeRequest(body: any): ConciergeRequest {
+  return {
+    guideRequested: pickConciergeString(body, "guideRequested"),
+    helpTopic: pickConciergeString(body, "helpTopic"),
+    customerName: pickConciergeString(body, "customerName"),
+    customerEmail: pickConciergeString(body, "customerEmail"),
+    customerPhone: pickConciergeString(body, "customerPhone"),
+    relatedCaseId: pickConciergeString(body, "relatedCaseId"),
+    relatedListingId: pickConciergeString(body, "relatedListingId"),
+    currentPage: pickConciergeString(body, "currentPage"),
+    urgency: pickConciergeString(body, "urgency"),
+    preferredContactMethod: pickConciergeString(body, "preferredContactMethod"),
+    message: pickConciergeString(body, "message"),
+    stuckStep: pickConciergeString(body, "stuckStep"),
+    wantsHumanReview: pickConciergeString(body, "wantsHumanReview"),
+    acknowledgments: {
+      aiAssistedGuide: !!body?.acknowledgments?.aiAssistedGuide,
+      finalVerification: !!body?.acknowledgments?.finalVerification
+    }
+  };
+}
+
+function validateConciergeRequest(input: ConciergeRequest) {
+  const requiredFields: Array<keyof Omit<ConciergeRequest, "acknowledgments">> = [
+    "guideRequested",
+    "helpTopic",
+    "customerName",
+    "customerEmail",
+    "currentPage",
+    "urgency",
+    "preferredContactMethod",
+    "message",
+    "wantsHumanReview"
+  ];
+  const requiredAcknowledgments: Array<keyof ConciergeAcknowledgments> = [
+    "aiAssistedGuide",
+    "finalVerification"
+  ];
+  const missingFields = requiredFields.filter((field) => !input[field]);
+  const missingAcknowledgments = requiredAcknowledgments.filter((field) => !input.acknowledgments[field]);
+
+  return {
+    ok: missingFields.length === 0 && missingAcknowledgments.length === 0,
+    missingFields,
+    missingAcknowledgments
   };
 }
 
@@ -736,6 +909,117 @@ async function deliverInternalReview(input: InternalReviewInput) {
   }
 }
 
+async function deliverMechanicMatchRequest(input: MechanicMatchRequest) {
+  const submittedAt = new Date().toISOString();
+  const packet = {
+    intakeType: "mechanic-match-request",
+    source: "drivable-mechanic-match",
+    submittedAt,
+    appBrand: "Drivable by Mechanic's Eye",
+    productBrand: "Mechanic Match",
+    customerName: input.customerName,
+    customerEmail: input.customerEmail,
+    customerPhone: input.customerPhone,
+    city: input.city,
+    state: input.state,
+    zip: input.zip,
+    vehicleYear: input.vehicleYear,
+    make: input.make,
+    model: input.model,
+    mileage: input.mileage,
+    problemCategory: input.problemCategory,
+    symptoms: input.symptoms,
+    canDrive: input.canDrive,
+    urgency: input.urgency,
+    preferredHelpType: input.preferredHelpType,
+    budgetRange: input.budgetRange,
+    photosOrVideoAvailable: input.photosOrVideoAvailable,
+    existingDiagnosisCaseId: input.existingDiagnosisCaseId,
+    drivableCheckUsed: input.drivableCheckUsed,
+    permissionToShareCase: input.permissionToShareCase,
+    acknowledgments: input.acknowledgments
+  };
+
+  const webhookUrl = process.env.MASTER_INTAKE_WEBHOOK_URL;
+
+  if (!webhookUrl) {
+    throw new Error("MASTER_INTAKE_WEBHOOK_URL is not configured.");
+  }
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(packet)
+    });
+
+    if (!response.ok) {
+      console.error("MASTER_INTAKE_WEBHOOK_FAILED", `Mechanic Match webhook returned ${response.status}`);
+      throw new Error(`Mechanic Match webhook returned ${response.status}`);
+    }
+
+    console.log("MASTER_INTAKE_WEBHOOK_SENT", JSON.stringify({
+      intakeType: packet.intakeType,
+      source: packet.source,
+      submittedAt
+    }));
+  } catch (error) {
+    console.error("MASTER_INTAKE_WEBHOOK_FAILED", error);
+    throw error;
+  }
+}
+
+async function deliverConciergeRequest(input: ConciergeRequest) {
+  const submittedAt = new Date().toISOString();
+  const packet = {
+    intakeType: "support-concierge-request",
+    source: "drivable-concierge",
+    submittedAt,
+    guideRequested: input.guideRequested,
+    helpTopic: input.helpTopic,
+    customerName: input.customerName,
+    customerEmail: input.customerEmail,
+    customerPhone: input.customerPhone,
+    relatedCaseId: input.relatedCaseId,
+    relatedListingId: input.relatedListingId,
+    currentPage: input.currentPage,
+    urgency: input.urgency,
+    preferredContactMethod: input.preferredContactMethod,
+    message: input.message,
+    stuckStep: input.stuckStep,
+    wantsHumanReview: input.wantsHumanReview,
+    acknowledgments: input.acknowledgments
+  };
+
+  const webhookUrl = process.env.MASTER_INTAKE_WEBHOOK_URL;
+
+  if (!webhookUrl) {
+    throw new Error("MASTER_INTAKE_WEBHOOK_URL is not configured.");
+  }
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(packet)
+    });
+
+    if (!response.ok) {
+      console.error("MASTER_INTAKE_WEBHOOK_FAILED", `Concierge request webhook returned ${response.status}`);
+      throw new Error(`Concierge request webhook returned ${response.status}`);
+    }
+
+    console.log("MASTER_INTAKE_WEBHOOK_SENT", JSON.stringify({
+      intakeType: packet.intakeType,
+      source: packet.source,
+      submittedAt
+    }));
+  } catch (error) {
+    console.error("MASTER_INTAKE_WEBHOOK_FAILED", error);
+    throw error;
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/health/db", async (req, res) => {
     const result = await checkDatabaseConnection();
@@ -803,6 +1087,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Internal review failed:", error);
       res.status(502).json({ ok: false, error: "Internal review could not be forwarded. Please check Make/Gmail before retrying." });
+    }
+  });
+
+  app.post("/api/mechanic-match/request", async (req, res) => {
+    try {
+      const input = buildMechanicMatchRequest(req.body || {});
+      const validation = validateMechanicMatchRequest(input);
+
+      if (!validation.ok) {
+        const missing = [
+          ...validation.missingFields,
+          ...validation.missingAcknowledgments.map((field) => `acknowledgments.${field}`)
+        ];
+
+        res.status(400).json({ ok: false, error: `Missing required fields: ${missing.join(", ")}` });
+        return;
+      }
+
+      await deliverMechanicMatchRequest(input);
+      res.json({ ok: true, received: true });
+    } catch (error) {
+      console.error("Mechanic Match request failed:", error);
+      res.status(502).json({ ok: false, error: "Mechanic Match request could not be forwarded. Please try again." });
+    }
+  });
+
+  app.post("/api/support/concierge-request", async (req, res) => {
+    try {
+      const input = buildConciergeRequest(req.body || {});
+      const validation = validateConciergeRequest(input);
+
+      if (!validation.ok) {
+        const missing = [
+          ...validation.missingFields,
+          ...validation.missingAcknowledgments.map((field) => `acknowledgments.${field}`)
+        ];
+
+        res.status(400).json({ ok: false, error: `Missing required fields: ${missing.join(", ")}` });
+        return;
+      }
+
+      await deliverConciergeRequest(input);
+      res.json({ ok: true, received: true });
+    } catch (error) {
+      console.error("Concierge request failed:", error);
+      res.status(502).json({ ok: false, error: "Your help request could not be forwarded. Please try again." });
     }
   });
 

@@ -385,6 +385,19 @@ button, input, select, textarea {
   gap: 8px;
 }
 
+.form-fieldset {
+  margin: 24px 0 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.form-fieldset legend {
+  margin-bottom: 14px;
+  color: #ffffff;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
 .field label {
   font-size: 0.92rem;
   font-weight: 700;
@@ -626,6 +639,110 @@ textarea:focus {
   line-height: 1.6;
 }
 
+.ack-list {
+  display: grid;
+  gap: 12px;
+}
+
+.ack-list label {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.ack-list input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+}
+
+.support-panel {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid rgba(59, 214, 255, 0.3);
+  background: rgba(59, 214, 255, 0.07);
+  border-radius: 20px;
+  padding: 22px;
+}
+
+.support-panel-compact {
+  padding: 18px 20px;
+}
+
+.support-panel h2 {
+  margin: 4px 0 8px;
+  font-size: 1.35rem;
+}
+
+.support-panel p {
+  margin: 0;
+  max-width: 720px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.support-kicker {
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.support-link {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border: 1px solid rgba(59, 214, 255, 0.5);
+  border-radius: 14px;
+  padding: 11px 16px;
+  background: rgba(59, 214, 255, 0.12);
+  color: var(--accent);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.guide-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.guide-card {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 20px;
+  background: rgba(12, 24, 41, 0.9);
+}
+
+.guide-card strong,
+.guide-card span {
+  display: block;
+}
+
+.guide-card strong {
+  color: #ffffff;
+  font-size: 1.2rem;
+}
+
+.guide-card span {
+  margin-top: 4px;
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.guide-card p {
+  margin: 12px 0 0;
+  color: var(--muted);
+}
+
 .legal-card {
   display: grid;
   gap: 18px;
@@ -657,13 +774,15 @@ textarea:focus {
   .upload-grid,
   .field-grid,
   .offer-grid,
-  .guided-grid {
+  .guided-grid,
+  .guide-grid {
     grid-template-columns: 1fr;
   }
 
   .step-header,
   .section-heading-row,
-  .topbar {
+  .topbar,
+  .support-panel {
     flex-direction: column;
     align-items: stretch;
   }
