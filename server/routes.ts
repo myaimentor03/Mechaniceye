@@ -402,6 +402,14 @@ type ConciergeAcknowledgments = {
   finalVerification?: boolean;
 };
 
+type ConciergeSourceContext = {
+  page: string;
+  selectedScenario: string | null;
+  selectedReportType: string | null;
+  topic: string | null;
+  queryParams: Record<string, string>;
+};
+
 type ConciergeRequest = {
   guideRequested: string;
   helpTopic: string;
@@ -416,6 +424,10 @@ type ConciergeRequest = {
   message: string;
   stuckStep: string;
   wantsHumanReview: string;
+  scenario: string;
+  reportType: string;
+  topic: string;
+  sourceContext: ConciergeSourceContext;
   acknowledgments: ConciergeAcknowledgments;
 };
 
@@ -660,6 +672,16 @@ function validateMechanicMatchRequest(input: MechanicMatchRequest) {
 }
 
 function buildConciergeRequest(body: any): ConciergeRequest {
+  const sourceContextBody = body?.sourceContext;
+  const queryParamsBody = sourceContextBody?.queryParams;
+  const queryParams: Record<string, string> = {};
+
+  for (const key of ["scenario", "reportType", "report", "topic"]) {
+    if (typeof queryParamsBody?.[key] === "string" && queryParamsBody[key].trim()) {
+      queryParams[key] = queryParamsBody[key].trim();
+    }
+  }
+
   return {
     guideRequested: pickConciergeString(body, "guideRequested"),
     helpTopic: pickConciergeString(body, "helpTopic"),
@@ -674,6 +696,22 @@ function buildConciergeRequest(body: any): ConciergeRequest {
     message: pickConciergeString(body, "message"),
     stuckStep: pickConciergeString(body, "stuckStep"),
     wantsHumanReview: pickConciergeString(body, "wantsHumanReview"),
+    scenario: pickConciergeString(body, "scenario"),
+    reportType: pickConciergeString(body, "reportType"),
+    topic: pickConciergeString(body, "topic"),
+    sourceContext: {
+      page: typeof sourceContextBody?.page === "string" ? sourceContextBody.page.trim() : "",
+      selectedScenario: typeof sourceContextBody?.selectedScenario === "string" && sourceContextBody.selectedScenario.trim()
+        ? sourceContextBody.selectedScenario.trim()
+        : null,
+      selectedReportType: typeof sourceContextBody?.selectedReportType === "string" && sourceContextBody.selectedReportType.trim()
+        ? sourceContextBody.selectedReportType.trim()
+        : null,
+      topic: typeof sourceContextBody?.topic === "string" && sourceContextBody.topic.trim()
+        ? sourceContextBody.topic.trim()
+        : null,
+      queryParams
+    },
     acknowledgments: {
       aiAssistedGuide: !!body?.acknowledgments?.aiAssistedGuide,
       finalVerification: !!body?.acknowledgments?.finalVerification
@@ -988,6 +1026,10 @@ async function deliverConciergeRequest(input: ConciergeRequest) {
     message: input.message,
     stuckStep: input.stuckStep,
     wantsHumanReview: input.wantsHumanReview,
+    scenario: input.scenario,
+    reportType: input.reportType,
+    topic: input.topic,
+    sourceContext: input.sourceContext,
     acknowledgments: input.acknowledgments
   };
 

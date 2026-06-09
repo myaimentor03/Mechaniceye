@@ -295,6 +295,8 @@ function ConciergeHelpPage() {
   const reportParam = searchParams.get("reportType") || searchParams.get("report");
   const selectedScenario = isIntakeScenario(scenarioParam) ? HELP_SCENARIOS[scenarioParam] : null;
   const selectedReport = REPORT_TYPES.find((report) => report.id === reportParam) || null;
+  const selectedScenarioId = selectedScenario && scenarioParam ? scenarioParam : null;
+  const selectedReportType = selectedReport?.id || null;
   const hasSelectedContext = !!selectedScenario || !!selectedReport;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -314,6 +316,21 @@ function ConciergeHelpPage() {
     const helpTopic = value("helpTopic");
     const guide = GUIDE_OPTIONS.find((option) => option.topic === helpTopic)?.name || value("guideRequested") || "Nora";
     const payload = {
+      intakeType: "support-concierge-request",
+      scenario: selectedScenarioId,
+      reportType: selectedReportType,
+      topic: initialTopic || null,
+      sourceContext: {
+        page: "help",
+        selectedScenario: selectedScenarioId,
+        selectedReportType,
+        topic: initialTopic || null,
+        queryParams: {
+          ...(selectedScenarioId ? { scenario: selectedScenarioId } : {}),
+          ...(selectedReportType ? { reportType: selectedReportType } : {}),
+          ...(initialTopic ? { topic: initialTopic } : {})
+        }
+      },
       guideRequested: guide,
       helpTopic,
       customerName: value("customerName"),
