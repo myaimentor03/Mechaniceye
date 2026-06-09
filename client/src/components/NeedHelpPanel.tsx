@@ -60,6 +60,17 @@ const guidedInputs = [
   ["Goal", "Whether you want to fix, DIY, sell, buy, wait, or walk away."]
 ] as const;
 
+const reportOutputs = [
+  ["Possible causes", "Likely issue paths based on the information provided."],
+  ["Supporting evidence", "What symptoms, media, or codes point toward each possibility."],
+  ["Missing evidence", "What information would improve confidence before spending money."],
+  ["Confidence rating", "How strongly the available information supports the likely path."],
+  ["Urgency and safety rating", "Whether the issue looks low risk, needs attention, or may be unsafe."],
+  ["Decision paths", "Repair professionally, DIY, sell/list as-is, monitor/wait, or walk away."],
+  ["Mechanic script", "What to tell a shop and what proof to ask for."],
+  ["Buyer or seller guidance", "Red flags, disclosure help, listing support, or whether the vehicle is worth pursuing."]
+] as const;
+
 export function NeedHelpPanel({ topic, compact = false }: NeedHelpPanelProps) {
   const params = new URLSearchParams();
 
@@ -119,6 +130,20 @@ export function NeedHelpPanel({ topic, compact = false }: NeedHelpPanelProps) {
           </div>
           <p className="support-confidence-note">
             More complete inputs usually mean better confidence. Missing information should lower confidence, not create fake certainty.
+          </p>
+        </div>
+        <div className="support-output-section">
+          <h3>What your Drivable report includes</h3>
+          <div className="support-output-grid">
+            {reportOutputs.map(([label, description]) => (
+              <div className="support-output-item" key={label}>
+                <strong>{label}</strong>
+                <span>{description}</span>
+              </div>
+            ))}
+          </div>
+          <p className="support-output-note">
+            Drivable should explain uncertainty clearly. If the evidence is weak, the report should say so instead of guessing.
           </p>
         </div>
         <h3>Choose the kind of help you need</h3>
