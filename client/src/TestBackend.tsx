@@ -3,6 +3,10 @@ import "./app.css";
 import Marketplace from "./marketplace/Marketplace";
 import { NeedHelpPanel } from "./components/NeedHelpPanel";
 import { YEARS, VEHICLE_DATA, FALLBACK_MAKES, FALLBACK_MODELS, FALLBACK_ENGINES, TRANSMISSION_OPTIONS, DRIVETRAIN_OPTIONS } from "./data/vehicleData";
+import {
+  REPORT_TYPES,
+  type IntakeScenario
+} from "../../shared/drivableDecisionEngine";
 
 const PUBLIC_API_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/diagnoses";
 const SUBMISSION_TIMEOUT_MS = 20000;
@@ -257,8 +261,41 @@ const GUIDE_OPTIONS = [
   { name: "Nora", topic: "Report a problem with the app", role: "App support concierge" }
 ];
 
+const HELP_SCENARIOS: Record<IntakeScenario, { label: string; description: string }> = {
+  current_problem: {
+    label: "Current problem",
+    description: "My vehicle is acting up and I need to know what may be wrong."
+  },
+  buying_vehicle: {
+    label: "Buying a vehicle",
+    description: "I want help spotting red flags before I chase, inspect, or buy it."
+  },
+  selling_vehicle: {
+    label: "Selling a vehicle",
+    description: "I want to understand and explain the vehicle honestly before listing it."
+  },
+  ownership_health_check: {
+    label: "Ownership health check",
+    description: "I want to know whether my vehicle seems worth keeping, fixing, or watching."
+  },
+  sitting_vehicle: {
+    label: "Sitting/dead vehicle",
+    description: "I have a vehicle sitting and need to decide whether to revive, sell, or walk away."
+  }
+};
+
+function isIntakeScenario(value: string | null): value is IntakeScenario {
+  return !!value && value in HELP_SCENARIOS;
+}
+
 function ConciergeHelpPage() {
-  const initialTopic = new URLSearchParams(window.location.search).get("topic") || "";
+  const searchParams = new URLSearchParams(window.location.search);
+  const initialTopic = searchParams.get("topic") || "";
+  const scenarioParam = searchParams.get("scenario");
+  const reportParam = searchParams.get("reportType") || searchParams.get("report");
+  const selectedScenario = isIntakeScenario(scenarioParam) ? HELP_SCENARIOS[scenarioParam] : null;
+  const selectedReport = REPORT_TYPES.find((report) => report.id === reportParam) || null;
+  const hasSelectedContext = !!selectedScenario || !!selectedReport;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -341,6 +378,34 @@ function ConciergeHelpPage() {
             <h1>You do not have to figure this out alone.</h1>
             <p>Tell us where you are stuck and a Drivable Guide will help route you. Some guidance is AI-assisted and reviewed or escalated when needed.</p>
           </div>
+
+          <section className="help-context-card">
+            <div className="eyebrow">Your Drivable starting point</div>
+            <h2>Tell us what you need help deciding</h2>
+            {hasSelectedContext ? (
+              <div className="help-context-grid">
+                {selectedScenario && (
+                  <article>
+                    <span>Vehicle situation</span>
+                    <strong>{selectedScenario.label}</strong>
+                    <p>{selectedScenario.description}</p>
+                  </article>
+                )}
+                {selectedReport && (
+                  <article>
+                    <span>Report option</span>
+                    <strong>{selectedReport.label}</strong>
+                    <p>{selectedReport.description}</p>
+                  </article>
+                )}
+              </div>
+            ) : (
+              <p>Start with what you are trying to decide. Drivable will guide the questions, media, and next steps around that goal.</p>
+            )}
+            <p className="help-context-safety">
+              Drivable organizes possible causes and confidence-rated next steps based on information provided. It is not a substitute for in-person inspection when safety, title, structural condition, or major repair cost is involved.
+            </p>
+          </section>
 
           <div className="guide-grid">
             {GUIDE_OPTIONS.slice(0, 6).map((guide) => (
