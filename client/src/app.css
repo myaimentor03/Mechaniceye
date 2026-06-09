@@ -820,6 +820,34 @@ textarea:focus {
   font-size: 0.82rem;
 }
 
+.support-trust-section {
+  margin-bottom: 20px;
+  border: 1px solid rgba(255, 196, 92, 0.28);
+  border-radius: 8px;
+  padding: 14px;
+  background: rgba(94, 63, 16, 0.16);
+}
+
+.support-trust-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 18px;
+  margin: 0;
+  padding-left: 20px;
+  color: var(--text);
+}
+
+.support-trust-list li {
+  line-height: 1.45;
+}
+
+.support-panel .support-trust-note {
+  max-width: none;
+  margin-top: 12px;
+  color: #f5dca8;
+  font-size: 0.82rem;
+}
+
 .support-report-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -947,6 +975,7 @@ textarea:focus {
   .support-situation-grid,
   .support-input-grid,
   .support-output-grid,
+  .support-trust-list,
   .support-report-grid {
     grid-template-columns: 1fr;
   }

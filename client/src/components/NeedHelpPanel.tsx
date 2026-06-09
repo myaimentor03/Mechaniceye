@@ -71,6 +71,15 @@ const reportOutputs = [
   ["Buyer or seller guidance", "Red flags, disclosure help, listing support, or whether the vehicle is worth pursuing."]
 ] as const;
 
+const trustPrinciples = [
+  "We show possible causes, not fake certainty.",
+  "We explain what evidence supports each path.",
+  "We show what information is missing.",
+  "We lower confidence when the inputs are weak.",
+  "We flag safety risks that may need immediate in-person inspection.",
+  "We help you decide the next step before you spend, sell, buy, or walk away."
+] as const;
+
 export function NeedHelpPanel({ topic, compact = false }: NeedHelpPanelProps) {
   const params = new URLSearchParams();
 
@@ -144,6 +153,15 @@ export function NeedHelpPanel({ topic, compact = false }: NeedHelpPanelProps) {
           </div>
           <p className="support-output-note">
             Drivable should explain uncertainty clearly. If the evidence is weak, the report should say so instead of guessing.
+          </p>
+        </div>
+        <div className="support-trust-section">
+          <h3>How Drivable keeps the answer honest</h3>
+          <ul className="support-trust-list">
+            {trustPrinciples.map((principle) => <li key={principle}>{principle}</li>)}
+          </ul>
+          <p className="support-trust-note">
+            Drivable is informational guidance based on the information provided. It does not replace an in-person inspection for major safety, title, structural, or high-cost repair decisions.
           </p>
         </div>
         <h3>Choose the kind of help you need</h3>
