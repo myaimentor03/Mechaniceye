@@ -49,6 +49,17 @@ const vehicleSituations: readonly {
   }
 ];
 
+const guidedInputs = [
+  ["Symptoms", "What you feel, hear, smell, see, or notice while driving or starting the vehicle."],
+  ["Photos", "Dash lights, leaks, tire wear, fluids, damaged areas, engine bay, or seller-provided pictures."],
+  ["Video", "Cold start, idle, revving, driving issue, walkaround, under-hood view, or seller walkaround."],
+  ["Audio", "Knocking, ticking, grinding, squealing, humming, misfires, exhaust noise, or startup sound."],
+  ["Vibration", "When it happens, where you feel it, speed range, braking, turning, idle, or acceleration."],
+  ["Scan codes", "Any OBD-II codes, freeze-frame data, warning lights, or scanner screenshots."],
+  ["History", "Mileage, recent repairs, maintenance records, and how long the issue has been happening."],
+  ["Goal", "Whether you want to fix, DIY, sell, buy, wait, or walk away."]
+] as const;
+
 export function NeedHelpPanel({ topic, compact = false }: NeedHelpPanelProps) {
   const params = new URLSearchParams();
 
@@ -91,6 +102,23 @@ export function NeedHelpPanel({ topic, compact = false }: NeedHelpPanelProps) {
           </div>
           <p className="support-situation-note">
             Drivable starts with your situation, then guides the questions, media, and decision path around that goal.
+          </p>
+        </div>
+        <div className="support-input-section">
+          <h3>What Drivable needs from you</h3>
+          <p className="support-input-intro">
+            You do not need to know car terms. Drivable guides the information we need so the report can be more useful.
+          </p>
+          <div className="support-input-grid">
+            {guidedInputs.map(([label, description]) => (
+              <div className="support-input-item" key={label}>
+                <strong>{label}</strong>
+                <span>{description}</span>
+              </div>
+            ))}
+          </div>
+          <p className="support-confidence-note">
+            More complete inputs usually mean better confidence. Missing information should lower confidence, not create fake certainty.
           </p>
         </div>
         <h3>Choose the kind of help you need</h3>

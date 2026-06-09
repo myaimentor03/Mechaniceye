@@ -734,6 +734,51 @@ textarea:focus {
   font-size: 0.82rem;
 }
 
+.support-input-section {
+  margin-bottom: 20px;
+}
+
+.support-panel .support-input-intro,
+.support-panel .support-confidence-note {
+  max-width: none;
+  font-size: 0.82rem;
+}
+
+.support-input-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.support-input-item {
+  min-width: 0;
+  border-left: 3px solid rgba(59, 214, 255, 0.55);
+  padding: 8px 10px;
+  background: rgba(8, 17, 30, 0.38);
+}
+
+.support-input-item strong,
+.support-input-item span {
+  display: block;
+}
+
+.support-input-item strong {
+  color: #ffffff;
+  font-size: 0.88rem;
+}
+
+.support-input-item span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.support-panel .support-confidence-note {
+  margin-top: 10px;
+}
+
 .support-report-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -859,6 +904,7 @@ textarea:focus {
 
   .support-panel,
   .support-situation-grid,
+  .support-input-grid,
   .support-report-grid {
     grid-template-columns: 1fr;
   }
