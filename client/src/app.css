@@ -718,6 +718,22 @@ textarea:focus {
   font-size: 1rem;
 }
 
+.support-situation-section {
+  margin-bottom: 20px;
+}
+
+.support-situation-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.support-panel .support-situation-note {
+  max-width: none;
+  margin-top: 10px;
+  font-size: 0.82rem;
+}
+
 .support-report-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -842,6 +858,7 @@ textarea:focus {
   }
 
   .support-panel,
+  .support-situation-grid,
   .support-report-grid {
     grid-template-columns: 1fr;
   }
