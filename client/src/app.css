@@ -660,10 +660,10 @@ textarea:focus {
 }
 
 .support-panel {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(220px, 0.55fr) minmax(0, 1.45fr);
   gap: 20px;
-  align-items: center;
-  justify-content: space-between;
+  align-items: start;
   border: 1px solid rgba(59, 214, 255, 0.3);
   background: rgba(59, 214, 255, 0.07);
   border-radius: 20px;
@@ -686,6 +686,10 @@ textarea:focus {
   line-height: 1.55;
 }
 
+.support-panel-heading .support-link {
+  margin-top: 16px;
+}
+
 .support-kicker {
   color: var(--accent);
   font-size: 0.75rem;
@@ -706,6 +710,57 @@ textarea:focus {
   color: var(--accent);
   font-weight: 800;
   text-decoration: none;
+}
+
+.support-report-section h3 {
+  margin: 0 0 12px;
+  color: #ffffff;
+  font-size: 1rem;
+}
+
+.support-report-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.support-report-option {
+  display: block;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(8, 17, 30, 0.52);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.support-report-option:hover {
+  border-color: rgba(59, 214, 255, 0.45);
+  background: rgba(59, 214, 255, 0.1);
+}
+
+.support-report-option strong,
+.support-report-option span {
+  display: block;
+}
+
+.support-report-option strong {
+  color: #ffffff;
+  font-size: 0.92rem;
+}
+
+.support-report-option span {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.support-panel .support-safety-note {
+  max-width: none;
+  margin-top: 12px;
+  font-size: 0.78rem;
 }
 
 .guide-grid {
@@ -781,10 +836,14 @@ textarea:focus {
 
   .step-header,
   .section-heading-row,
-  .topbar,
-  .support-panel {
+  .topbar {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .support-panel,
+  .support-report-grid {
+    grid-template-columns: 1fr;
   }
 
   .nav {
