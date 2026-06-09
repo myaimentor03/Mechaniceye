@@ -288,6 +288,16 @@ function isIntakeScenario(value: string | null): value is IntakeScenario {
   return !!value && value in HELP_SCENARIOS;
 }
 
+type ConciergeConfirmation = {
+  scenarioLabel: string;
+  reportTypeLabel: string;
+  topic: string;
+  urgency: string;
+  relatedCaseId: string;
+  relatedListingId: string;
+  messageSummary: string;
+};
+
 function ConciergeHelpPage() {
   const searchParams = new URLSearchParams(window.location.search);
   const initialTopic = searchParams.get("topic") || "";
@@ -300,7 +310,7 @@ function ConciergeHelpPage() {
   const hasSelectedContext = !!selectedScenario || !!selectedReport;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+  const [confirmation, setConfirmation] = useState<ConciergeConfirmation | null>(null);
 
   async function submitConciergeRequest(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -314,6 +324,7 @@ function ConciergeHelpPage() {
     const formData = new FormData(form);
     const value = (name: string) => String(formData.get(name) || "").trim();
     const helpTopic = value("helpTopic");
+    const message = value("message");
     const guide = GUIDE_OPTIONS.find((option) => option.topic === helpTopic)?.name || value("guideRequested") || "Nora";
     const payload = {
       intakeType: "support-concierge-request",
@@ -341,7 +352,7 @@ function ConciergeHelpPage() {
       currentPage: value("currentPage") || window.location.pathname,
       urgency: value("urgency"),
       preferredContactMethod: value("preferredContactMethod"),
-      message: value("message"),
+      message,
       stuckStep: value("stuckStep"),
       wantsHumanReview: value("wantsHumanReview"),
       acknowledgments: {
@@ -352,7 +363,7 @@ function ConciergeHelpPage() {
 
     setIsSubmitting(true);
     setSubmitError("");
-    setSubmitted(false);
+    setConfirmation(null);
 
     try {
       const response = await fetch("/api/support/concierge-request", {
@@ -366,7 +377,15 @@ function ConciergeHelpPage() {
         throw new Error(result.error || "Support request failed.");
       }
 
-      setSubmitted(true);
+      setConfirmation({
+        scenarioLabel: selectedScenario?.label || "Not selected",
+        reportTypeLabel: selectedReport?.label || "Not selected",
+        topic: helpTopic || initialTopic || "Not selected",
+        urgency: payload.urgency,
+        relatedCaseId: payload.relatedCaseId,
+        relatedListingId: payload.relatedListingId,
+        messageSummary: message.length > 140 ? `${message.slice(0, 137)}...` : message
+      });
       form.reset();
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
@@ -434,11 +453,24 @@ function ConciergeHelpPage() {
             ))}
           </div>
 
-          {submitted && (
-            <div className="alert-card success">
-              <h3>Help request received.</h3>
-              <p>A Drivable Guide will help route the request. Requests needing additional review may take more time.</p>
-            </div>
+          {confirmation && (
+            <section className="concierge-confirmation">
+              <div className="eyebrow">Submitted successfully</div>
+              <h2>Request received</h2>
+              <p>Drivable received your request and the selected context below. We&apos;ll use this to route the request and understand what decision you&apos;re trying to make.</p>
+              <dl className="concierge-confirmation-grid">
+                <div><dt>Scenario</dt><dd>{confirmation.scenarioLabel}</dd></div>
+                <div><dt>Report type</dt><dd>{confirmation.reportTypeLabel}</dd></div>
+                <div><dt>Topic</dt><dd>{confirmation.topic}</dd></div>
+                <div><dt>Urgency</dt><dd>{confirmation.urgency}</dd></div>
+                {confirmation.relatedCaseId && <div><dt>Related case ID</dt><dd>{confirmation.relatedCaseId}</dd></div>}
+                {confirmation.relatedListingId && <div><dt>Related listing ID</dt><dd>{confirmation.relatedListingId}</dd></div>}
+                <div className="concierge-confirmation-message"><dt>Message summary</dt><dd>{confirmation.messageSummary}</dd></div>
+              </dl>
+              <p className="concierge-confirmation-safety">
+                Drivable provides information and next-step guidance based on what you provide. Major safety, title, or high-cost repair decisions may still require in-person inspection.
+              </p>
+            </section>
           )}
           {submitError && <div className="alert-card warning">{submitError}</div>}
 
