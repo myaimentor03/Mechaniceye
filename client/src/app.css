@@ -1952,3 +1952,386 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 }
+
+/* Drivable internal review preview */
+.ir-page {
+  min-height: 100vh;
+  padding: 28px 18px 56px;
+}
+
+.ir-card {
+  width: min(1160px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+}
+
+.ir-case-header,
+.ir-section,
+.ir-safety-notice {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(15, 29, 49, 0.96);
+  box-shadow: var(--shadow);
+}
+
+.ir-case-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 28px;
+  border-top: 4px solid var(--accent);
+}
+
+.ir-case-header h1,
+.ir-section h2 {
+  margin: 0;
+  color: #fff;
+}
+
+.ir-case-header h1 {
+  font-size: clamp(1.9rem, 4vw, 3rem);
+}
+
+.ir-header-copy,
+.ir-section p,
+.ir-safety-notice p {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.ir-header-copy {
+  margin: 10px 0 0;
+}
+
+.ir-eyebrow {
+  margin: 0 0 7px;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.ir-status,
+.ir-internal-chip,
+.ir-media-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  border: 1px solid rgba(255, 210, 125, 0.48);
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: rgba(255, 210, 125, 0.1);
+  color: #ffe2a8;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.ir-section {
+  padding: 22px;
+}
+
+.ir-section h2 {
+  font-size: 1.2rem;
+}
+
+.ir-section h3 {
+  margin: 0;
+  color: #fff;
+  font-size: 0.98rem;
+}
+
+.ir-two-column {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.ir-detail-list {
+  margin: 16px 0 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ir-two-column .ir-detail-list {
+  grid-template-columns: 1fr;
+}
+
+.ir-detail-list div {
+  min-width: 0;
+  border-left: 2px solid var(--border);
+  padding-left: 11px;
+}
+
+.ir-detail-list dt {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.ir-detail-list dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  color: #fff;
+  font-weight: 800;
+}
+
+.ir-goal {
+  border-left: 4px solid var(--accent);
+}
+
+.ir-goal p:last-child {
+  margin-bottom: 0;
+  color: var(--text);
+  font-size: 1.05rem;
+}
+
+.ir-symptom-grid,
+.ir-media-grid,
+.ir-risk-grid {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.ir-symptom-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ir-media-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ir-risk-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.ir-symptom-grid > div,
+.ir-media-item,
+.ir-risk-card,
+.ir-decision-option {
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(7, 17, 31, 0.56);
+  padding: 15px;
+}
+
+.ir-symptom-grid p,
+.ir-media-item p,
+.ir-risk-card p,
+.ir-decision-option p {
+  margin-bottom: 0;
+  font-size: 0.9rem;
+}
+
+.ir-media-item {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+}
+
+.ir-media-status {
+  justify-self: start;
+  min-height: 25px;
+  padding: 3px 8px;
+  font-size: 0.68rem;
+}
+
+.ir-media-received {
+  border-color: rgba(154, 240, 197, 0.4);
+  background: rgba(154, 240, 197, 0.08);
+  color: #c9f9e0;
+}
+
+.ir-ai-draft {
+  border-color: rgba(59, 214, 255, 0.42);
+  background: rgba(18, 47, 67, 0.72);
+}
+
+.ir-section-heading,
+.ir-risk-heading,
+.ir-readiness {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.ir-ai-draft > p {
+  margin-bottom: 0;
+  color: var(--text);
+}
+
+.ir-internal-chip {
+  border-color: rgba(59, 214, 255, 0.4);
+  background: rgba(59, 214, 255, 0.08);
+  color: #bcefff;
+}
+
+.ir-risk-heading {
+  align-items: center;
+}
+
+.ir-risk-heading span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.ir-risk-high,
+.ir-risk-critical {
+  border-top: 3px solid #ff8f8f;
+}
+
+.ir-risk-medium,
+.ir-risk-unknown {
+  border-top: 3px solid var(--warning);
+}
+
+.ir-risk-low {
+  border-top: 3px solid var(--success);
+}
+
+.ir-section-copy {
+  margin: 7px 0 0;
+}
+
+.ir-decision-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.ir-decision-option {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.ir-decision-marker {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border: 2px solid #6f86a3;
+  border-radius: 50%;
+}
+
+.ir-decision-selected {
+  border-color: rgba(59, 214, 255, 0.38);
+}
+
+.ir-decision-selected .ir-decision-marker {
+  border: 4px solid var(--accent);
+  background: #07111f;
+}
+
+.ir-decision-blocked {
+  border-color: rgba(255, 143, 143, 0.42);
+  background: rgba(90, 25, 30, 0.22);
+}
+
+.ir-decision-blocked .ir-decision-marker {
+  border-color: #ff8f8f;
+  border-radius: 3px;
+  background: #ff8f8f;
+}
+
+.ir-readiness {
+  align-items: center;
+  border-color: rgba(255, 210, 125, 0.42);
+}
+
+.ir-readiness-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.ir-readiness-steps span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.ir-readiness-steps span.active {
+  border-color: rgba(255, 143, 143, 0.5);
+  background: rgba(255, 143, 143, 0.1);
+  color: #ffd0d0;
+}
+
+.ir-notes {
+  margin-top: 14px;
+  min-height: 110px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(7, 17, 31, 0.56);
+  padding: 15px;
+  color: var(--text);
+  line-height: 1.65;
+}
+
+.ir-safety-notice {
+  padding: 18px 22px;
+  border-color: rgba(255, 143, 143, 0.45);
+  background: rgba(90, 25, 30, 0.25);
+}
+
+.ir-safety-notice strong {
+  color: #ffd0d0;
+}
+
+.ir-safety-notice p {
+  margin: 5px 0 0;
+  color: #ffdede;
+}
+
+@media (max-width: 980px) {
+  .ir-risk-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ir-detail-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .ir-page {
+    padding: 14px 10px 36px;
+  }
+
+  .ir-case-header,
+  .ir-section,
+  .ir-safety-notice {
+    padding: 18px;
+  }
+
+  .ir-case-header,
+  .ir-section-heading,
+  .ir-readiness {
+    flex-direction: column;
+  }
+
+  .ir-two-column,
+  .ir-detail-list,
+  .ir-symptom-grid,
+  .ir-media-grid,
+  .ir-risk-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ir-readiness-steps {
+    justify-content: flex-start;
+  }
+}

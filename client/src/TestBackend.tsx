@@ -2,6 +2,7 @@
 import "./app.css";
 import Marketplace from "./marketplace/Marketplace";
 import { DrivableReportPreview } from "./components/DrivableReportPreview";
+import { InternalReviewCard } from "./components/InternalReviewCard";
 import { NeedHelpPanel } from "./components/NeedHelpPanel";
 import { YEARS, VEHICLE_DATA, FALLBACK_MAKES, FALLBACK_MODELS, FALLBACK_ENGINES, TRANSMISSION_OPTIONS, DRIVETRAIN_OPTIONS } from "./data/vehicleData";
 import {
@@ -899,6 +900,10 @@ export default function TestBackend() {
 
   if (window.location.pathname.replace(/\/$/, "") === "/report-preview") {
     return <DrivableReportPreview />;
+  }
+
+  if (window.location.pathname.replace(/\/$/, "") === "/internal-review-preview") {
+    return <InternalReviewCard />;
   }
 
   if (window.location.pathname.replace(/\/$/, "") === "/internal-review") {
