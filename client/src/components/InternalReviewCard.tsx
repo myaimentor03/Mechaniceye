@@ -349,6 +349,9 @@ export function InternalReviewCard({ data }: InternalReviewCardProps) {
       </article>
       <NextActionStrip
         note="Review another customer path or return to the guided starting point."
+        additionalLinks={[
+          { label: "Open preview hub", href: "/preview-hub" }
+        ]}
       />
     </main>
   );

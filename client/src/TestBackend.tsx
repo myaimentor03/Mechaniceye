@@ -2,6 +2,7 @@
 import "./app.css";
 import Marketplace from "./marketplace/Marketplace";
 import { DrivableHelpChooser } from "./components/DrivableHelpChooser";
+import { DrivablePreviewHub } from "./components/DrivablePreviewHub";
 import { DrivableReportEmailPreview } from "./components/DrivableReportEmailPreview";
 import { DrivableReportPreview } from "./components/DrivableReportPreview";
 import { EvidenceChecklist } from "./components/EvidenceChecklist";
@@ -914,6 +915,10 @@ export default function TestBackend() {
 
   if (window.location.pathname.replace(/\/$/, "") === "/start") {
     return <DrivableHelpChooser />;
+  }
+
+  if (window.location.pathname.replace(/\/$/, "") === "/preview-hub") {
+    return <DrivablePreviewHub />;
   }
 
   if (window.location.pathname.replace(/\/$/, "") === "/evidence-checklist") {
