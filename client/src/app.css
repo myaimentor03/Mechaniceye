@@ -3007,3 +3007,87 @@ textarea:focus {
     grid-column: auto;
   }
 }
+
+/* Drivable next action strip */
+.nas-strip {
+  width: min(1080px, 100%);
+  margin: 22px auto 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(17, 31, 48, 0.94);
+  padding: 18px;
+}
+
+.nas-strip > p {
+  margin: 0 0 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.nas-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.nas-button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #53677f;
+  border-radius: 6px;
+  background: rgba(7, 17, 31, 0.52);
+  padding: 10px 14px;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-decoration: none;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.nas-button:hover {
+  border-color: var(--accent);
+  background: rgba(59, 214, 255, 0.09);
+  transform: translateY(-1px);
+}
+
+.nas-button:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+
+.nas-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #04131e;
+}
+
+.nas-primary:hover {
+  background: #79e9ff;
+  color: #04131e;
+}
+
+.nas-secondary {
+  border-color: rgba(154, 240, 197, 0.5);
+  color: #c9f9e0;
+}
+
+.dre-page > .nas-strip {
+  width: min(760px, 100%);
+}
+
+.ir-page > .nas-strip,
+.dr-report-page > .nas-strip {
+  width: min(1100px, 100%);
+}
+
+@media (max-width: 620px) {
+  .nas-actions {
+    flex-direction: column;
+  }
+
+  .nas-button {
+    width: 100%;
+  }
+}

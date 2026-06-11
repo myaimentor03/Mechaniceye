@@ -4,6 +4,7 @@ import {
   type ReportTypeId,
   type RiskLevel
 } from "../../../shared/drivableDecisionEngine";
+import { NextActionStrip } from "./NextActionStrip";
 
 type RiskFlag = {
   label: string;
@@ -346,6 +347,9 @@ export function InternalReviewCard({ data }: InternalReviewCardProps) {
           </p>
         </footer>
       </article>
+      <NextActionStrip
+        note="Review another customer path or return to the guided starting point."
+      />
     </main>
   );
 }

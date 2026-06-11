@@ -1,3 +1,5 @@
+import { NextActionStrip } from "./NextActionStrip";
+
 const EVIDENCE_GROUPS = [
   {
     title: "Basic vehicle info",
@@ -81,6 +83,12 @@ export function EvidenceChecklist() {
             driving just to gather evidence. Skip anything unsafe.
           </p>
         </aside>
+
+        <NextActionStrip
+          primaryLabel="Choose what you need"
+          primaryHref="/start"
+          note="Ready to continue? Pick the path that matches your vehicle decision."
+        />
       </section>
     </main>
   );

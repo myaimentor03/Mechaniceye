@@ -9,6 +9,7 @@ import {
 import {
   SAMPLE_GENERATED_DRIVABLE_REPORT
 } from "../../../shared/mockDrivableReportGenerator";
+import { NextActionStrip } from "./NextActionStrip";
 
 type DrivableReportEmailPreviewProps = {
   report?: DrivableReport;
@@ -159,6 +160,9 @@ export function DrivableReportEmailPreview({
           </footer>
         </div>
       </article>
+      <NextActionStrip
+        note="Continue with the sample report, evidence checklist, or guided help."
+      />
     </main>
   );
 }

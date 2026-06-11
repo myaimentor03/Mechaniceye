@@ -8,6 +8,7 @@ import {
 import {
   SAMPLE_GENERATED_DRIVABLE_REPORT
 } from "../../../shared/mockDrivableReportGenerator";
+import { NextActionStrip } from "./NextActionStrip";
 import { WhatHappensNext } from "./WhatHappensNext";
 
 type DrivableReportPreviewProps = {
@@ -161,6 +162,7 @@ export function DrivableReportPreview({
         </footer>
       </article>
       <WhatHappensNext />
+      <NextActionStrip />
     </main>
   );
 }
