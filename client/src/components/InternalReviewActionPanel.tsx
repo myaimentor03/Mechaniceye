@@ -1,4 +1,5 @@
 import { NextActionStrip } from "./NextActionStrip";
+import { StatusLegend } from "./StatusLegend";
 
 const REVIEW_ACTIONS = [
   {
@@ -86,6 +87,8 @@ export function InternalReviewActionPanel() {
           High-risk safety, title, structural, or high-cost repair guidance must not be sent
           automatically.
         </aside>
+
+        <StatusLegend />
 
         <section className="ira-section">
           <h2>Sample reviewer note</h2>

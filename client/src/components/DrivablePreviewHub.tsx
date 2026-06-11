@@ -1,4 +1,5 @@
 import { NextActionStrip } from "./NextActionStrip";
+import { StatusLegend } from "./StatusLegend";
 
 type PreviewLabel =
   | "Customer-facing sample"
@@ -29,6 +30,24 @@ const PREVIEW_GROUPS: readonly PreviewGroup[] = [
         href: "/start",
         description: "The ABC-easy starting point for choosing a vehicle situation.",
         labels: ["Customer-facing sample"]
+      },
+      {
+        title: "Decision path preview",
+        href: "/decision-path-preview",
+        description: "Plain-English routes from the customer's question to the next useful action.",
+        labels: ["Customer-facing sample", "Future/preview"]
+      },
+      {
+        title: "Repair vs. sell preview",
+        href: "/repair-vs-sell-preview",
+        description: "A practical comparison of repair, pause, sell, and gather-more-info paths.",
+        labels: ["Customer-facing sample", "Future/preview"]
+      },
+      {
+        title: "Buyer risk preview",
+        href: "/buyer-risk-preview",
+        description: "A sample remote review of seller claims, evidence, and walk-away risks.",
+        labels: ["Customer-facing sample", "Future/preview"]
       },
       {
         title: "Help / concierge",
@@ -70,6 +89,12 @@ const PREVIEW_GROUPS: readonly PreviewGroup[] = [
         title: "Roadside preview",
         href: "/roadside-preview",
         description: "Stop, move cautiously, tow, safe-check, and repair-path guidance.",
+        labels: ["Customer-facing sample", "Safety-critical"]
+      },
+      {
+        title: "Roadside severity guide",
+        href: "/roadside-severity-guide",
+        description: "A clear low-to-critical risk guide with stop-now warning signals.",
         labels: ["Customer-facing sample", "Safety-critical"]
       },
       {
@@ -126,8 +151,9 @@ const PREVIEW_GROUPS: readonly PreviewGroup[] = [
 
 const DEMO_PATH = [
   { label: "Start at the chooser", href: "/start" },
-  { label: "Choose roadside guidance", href: "/start" },
-  { label: "Review roadside guidance", href: "/roadside-preview" },
+  { label: "Review the customer decision paths", href: "/decision-path-preview" },
+  { label: "Choose roadside guidance", href: "/roadside-preview" },
+  { label: "Check the roadside severity guide", href: "/roadside-severity-guide" },
   { label: "Request more evidence if needed", href: "/missing-info-preview" },
   { label: "Open the customer report", href: "/report-preview" },
   { label: "Check the send safety gate", href: "/send-safety-preview" },
@@ -194,6 +220,8 @@ export function DrivablePreviewHub() {
             </section>
           ))}
         </div>
+
+        <StatusLegend />
 
         <aside className="dph-operations">
           <strong>Make / Operations</strong>

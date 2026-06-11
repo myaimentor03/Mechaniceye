@@ -4,6 +4,7 @@ import {
   type DrivableReportStatus
 } from "../../../shared/drivableReportStatus";
 import { NextActionStrip } from "./NextActionStrip";
+import { StatusLegend } from "./StatusLegend";
 
 const PREVIEW_STATUSES: readonly DrivableReportStatus[] = [
   "intake_received",
@@ -102,6 +103,8 @@ export function SendSafetyGatePreview() {
             risk signals are present.
           </p>
         </aside>
+
+        <StatusLegend />
       </div>
 
       <NextActionStrip

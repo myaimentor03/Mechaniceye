@@ -1,6 +1,8 @@
 ﻿import { useMemo, useState } from "react";
 import "./app.css";
 import Marketplace from "./marketplace/Marketplace";
+import { BuyerRiskReviewPreview } from "./components/BuyerRiskReviewPreview";
+import { CustomerDecisionPathPreview } from "./components/CustomerDecisionPathPreview";
 import { DrivableHelpChooser } from "./components/DrivableHelpChooser";
 import { DrivablePreviewHub } from "./components/DrivablePreviewHub";
 import { DrivableReportEmailPreview } from "./components/DrivableReportEmailPreview";
@@ -12,8 +14,10 @@ import { LearningLoopPreview } from "./components/LearningLoopPreview";
 import { MissingInfoRequestPreview } from "./components/MissingInfoRequestPreview";
 import { NeedHelpPanel } from "./components/NeedHelpPanel";
 import { OutcomeCapturePreview } from "./components/OutcomeCapturePreview";
+import { RepairVsSellPreview } from "./components/RepairVsSellPreview";
 import { ReportPackagePreview } from "./components/ReportPackagePreview";
 import { RoadsideGuidancePreview } from "./components/RoadsideGuidancePreview";
+import { RoadsideSeverityGuide } from "./components/RoadsideSeverityGuide";
 import { SendSafetyGatePreview } from "./components/SendSafetyGatePreview";
 import { WhatHappensNext } from "./components/WhatHappensNext";
 import { YEARS, VEHICLE_DATA, FALLBACK_MAKES, FALLBACK_MODELS, FALLBACK_ENGINES, TRANSMISSION_OPTIONS, DRIVETRAIN_OPTIONS } from "./data/vehicleData";
@@ -928,6 +932,22 @@ export default function TestBackend() {
 
   if (window.location.pathname.replace(/\/$/, "") === "/roadside-preview") {
     return <RoadsideGuidancePreview />;
+  }
+
+  if (window.location.pathname.replace(/\/$/, "") === "/decision-path-preview") {
+    return <CustomerDecisionPathPreview />;
+  }
+
+  if (window.location.pathname.replace(/\/$/, "") === "/roadside-severity-guide") {
+    return <RoadsideSeverityGuide />;
+  }
+
+  if (window.location.pathname.replace(/\/$/, "") === "/repair-vs-sell-preview") {
+    return <RepairVsSellPreview />;
+  }
+
+  if (window.location.pathname.replace(/\/$/, "") === "/buyer-risk-preview") {
+    return <BuyerRiskReviewPreview />;
   }
 
   if (window.location.pathname.replace(/\/$/, "") === "/missing-info-preview") {

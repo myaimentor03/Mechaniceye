@@ -88,6 +88,13 @@ export function DrivableHelpChooser() {
           </a>
         </div>
 
+        <nav className="dhc-quick-links" aria-label="More decision previews">
+          <span>Explore a specific decision:</span>
+          <a href="/repair-vs-sell-preview">Compare repair vs. sell</a>
+          <a href="/buyer-risk-preview">Buying a vehicle?</a>
+          <a href="/decision-path-preview">See how Drivable helps</a>
+        </nav>
+
         <WhatHappensNext />
       </section>
     </main>
