@@ -1,0 +1,272 @@
+[
+  {
+    "disclosureId": "check_engine_light",
+    "issueType": "Check Engine Light",
+    "plainEnglishDisclosurePrompt": "Describe the known check engine light in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Check Engine Light may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Dashboard photo, scan result, and estimate",
+    "listingLanguageSuggestion": "Known issue: check engine light. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "abs_light",
+    "issueType": "Abs Light",
+    "plainEnglishDisclosurePrompt": "Describe the known abs light in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Abs Light may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Condition photos, timeline, and repair records",
+    "listingLanguageSuggestion": "Known issue: abs light. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "brake_issue",
+    "issueType": "Brake Issue",
+    "plainEnglishDisclosurePrompt": "Describe the known brake issue in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Brake Issue may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Video if safely available, written symptoms, and inspection result",
+    "listingLanguageSuggestion": "Known issue: brake issue. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "overheating",
+    "issueType": "Overheating",
+    "plainEnglishDisclosurePrompt": "Describe the known overheating in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Overheating may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Dashboard photo, scan result, and estimate",
+    "listingLanguageSuggestion": "Known issue: overheating. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "no_start",
+    "issueType": "No Start",
+    "plainEnglishDisclosurePrompt": "Describe the known no start in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "No Start may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Condition photos, timeline, and repair records",
+    "listingLanguageSuggestion": "Known issue: no start. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "transmission_issue",
+    "issueType": "Transmission Issue",
+    "plainEnglishDisclosurePrompt": "Describe the known transmission issue in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Transmission Issue may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Video if safely available, written symptoms, and inspection result",
+    "listingLanguageSuggestion": "Known issue: transmission issue. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "salvage_rebuilt_title",
+    "issueType": "Salvage Rebuilt Title",
+    "plainEnglishDisclosurePrompt": "Describe the known salvage rebuilt title in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Salvage Rebuilt Title may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Dashboard photo, scan result, and estimate",
+    "listingLanguageSuggestion": "Known issue: salvage rebuilt title. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "mileage_unknown",
+    "issueType": "Mileage Unknown",
+    "plainEnglishDisclosurePrompt": "Describe the known mileage unknown in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Mileage Unknown may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Condition photos, timeline, and repair records",
+    "listingLanguageSuggestion": "Known issue: mileage unknown. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "emissions_issue",
+    "issueType": "Emissions Issue",
+    "plainEnglishDisclosurePrompt": "Describe the known emissions issue in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Emissions Issue may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Video if safely available, written symptoms, and inspection result",
+    "listingLanguageSuggestion": "Known issue: emissions issue. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "rust",
+    "issueType": "Rust",
+    "plainEnglishDisclosurePrompt": "Describe the known rust in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Rust may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Dashboard photo, scan result, and estimate",
+    "listingLanguageSuggestion": "Known issue: rust. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "body_damage",
+    "issueType": "Body Damage",
+    "plainEnglishDisclosurePrompt": "Describe the known body damage in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Body Damage may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Condition photos, timeline, and repair records",
+    "listingLanguageSuggestion": "Known issue: body damage. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "airbag_light",
+    "issueType": "Airbag Light",
+    "plainEnglishDisclosurePrompt": "Describe the known airbag light in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Airbag Light may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Video if safely available, written symptoms, and inspection result",
+    "listingLanguageSuggestion": "Known issue: airbag light. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "missing_catalytic_converter",
+    "issueType": "Missing Catalytic Converter",
+    "plainEnglishDisclosurePrompt": "Describe the known missing catalytic converter in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Missing Catalytic Converter may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Dashboard photo, scan result, and estimate",
+    "listingLanguageSuggestion": "Known issue: missing catalytic converter. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "oil_leak",
+    "issueType": "Oil Leak",
+    "plainEnglishDisclosurePrompt": "Describe the known oil leak in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Oil Leak may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Condition photos, timeline, and repair records",
+    "listingLanguageSuggestion": "Known issue: oil leak. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "coolant_leak",
+    "issueType": "Coolant Leak",
+    "plainEnglishDisclosurePrompt": "Describe the known coolant leak in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Coolant Leak may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Video if safely available, written symptoms, and inspection result",
+    "listingLanguageSuggestion": "Known issue: coolant leak. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "fuel_smell",
+    "issueType": "Fuel Smell",
+    "plainEnglishDisclosurePrompt": "Describe the known fuel smell in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Fuel Smell may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Dashboard photo, scan result, and estimate",
+    "listingLanguageSuggestion": "Known issue: fuel smell. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "dead_battery",
+    "issueType": "Dead Battery",
+    "plainEnglishDisclosurePrompt": "Describe the known dead battery in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Dead Battery may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Condition photos, timeline, and repair records",
+    "listingLanguageSuggestion": "Known issue: dead battery. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "charging_issue",
+    "issueType": "Charging Issue",
+    "plainEnglishDisclosurePrompt": "Describe the known charging issue in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Charging Issue may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Video if safely available, written symptoms, and inspection result",
+    "listingLanguageSuggestion": "Known issue: charging issue. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "tire_issue",
+    "issueType": "Tire Issue",
+    "plainEnglishDisclosurePrompt": "Describe the known tire issue in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Tire Issue may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Dashboard photo, scan result, and estimate",
+    "listingLanguageSuggestion": "Known issue: tire issue. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "suspension_noise",
+    "issueType": "Suspension Noise",
+    "plainEnglishDisclosurePrompt": "Describe the known suspension noise in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Suspension Noise may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Condition photos, timeline, and repair records",
+    "listingLanguageSuggestion": "Known issue: suspension noise. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "steering_issue",
+    "issueType": "Steering Issue",
+    "plainEnglishDisclosurePrompt": "Describe the known steering issue in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Steering Issue may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Video if safely available, written symptoms, and inspection result",
+    "listingLanguageSuggestion": "Known issue: steering issue. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "smoke",
+    "issueType": "Smoke",
+    "plainEnglishDisclosurePrompt": "Describe the known smoke in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Smoke may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Dashboard photo, scan result, and estimate",
+    "listingLanguageSuggestion": "Known issue: smoke. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "misfire",
+    "issueType": "Misfire",
+    "plainEnglishDisclosurePrompt": "Describe the known misfire in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Misfire may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Condition photos, timeline, and repair records",
+    "listingLanguageSuggestion": "Known issue: misfire. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "rough_idle",
+    "issueType": "Rough Idle",
+    "plainEnglishDisclosurePrompt": "Describe the known rough idle in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Rough Idle may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Video if safely available, written symptoms, and inspection result",
+    "listingLanguageSuggestion": "Known issue: rough idle. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "electrical_issue",
+    "issueType": "Electrical Issue",
+    "plainEnglishDisclosurePrompt": "Describe the known electrical issue in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Electrical Issue may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Dashboard photo, scan result, and estimate",
+    "listingLanguageSuggestion": "Known issue: electrical issue. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "water_flood_concern",
+    "issueType": "Water Flood Concern",
+    "plainEnglishDisclosurePrompt": "Describe the known water flood concern in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Water Flood Concern may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Condition photos, timeline, and repair records",
+    "listingLanguageSuggestion": "Known issue: water flood concern. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "parts_car",
+    "issueType": "Parts Car",
+    "plainEnglishDisclosurePrompt": "Describe the known parts car in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Parts Car may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Video if safely available, written symptoms, and inspection result",
+    "listingLanguageSuggestion": "Known issue: parts car. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "runs_drives_with_issue",
+    "issueType": "Runs Drives With Issue",
+    "plainEnglishDisclosurePrompt": "Describe the known runs drives with issue in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Runs Drives With Issue may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Dashboard photo, scan result, and estimate",
+    "listingLanguageSuggestion": "Known issue: runs drives with issue. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "tow_required",
+    "issueType": "Tow Required",
+    "plainEnglishDisclosurePrompt": "Describe the known tow required in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Tow Required may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Condition photos, timeline, and repair records",
+    "listingLanguageSuggestion": "Known issue: tow required. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  },
+  {
+    "disclosureId": "incomplete_repair",
+    "issueType": "Incomplete Repair",
+    "plainEnglishDisclosurePrompt": "Describe the known incomplete repair in your own words, including when it occurs and what has or has not been verified.",
+    "buyerConcern": "Incomplete Repair may affect safety, reliability, emissions, value, repair cost, or the buyer's ability to register and use the vehicle.",
+    "evidenceHelpful": "Video if safely available, written symptoms, and inspection result",
+    "listingLanguageSuggestion": "Known issue: incomplete repair. Seller is describing observed condition only; cause and repair cost are not confirmed unless supported by attached records.",
+    "safetyOrLegalNote": "Do not claim the vehicle is safe, certified, legal, or an easy fix without appropriate verification. Follow applicable title and disclosure requirements."
+  }
+]

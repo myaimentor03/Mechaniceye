@@ -1,0 +1,252 @@
+[
+  {
+    "factorId": "mileage",
+    "label": "Mileage",
+    "plainEnglishMeaning": "Mileage can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the condition is verified, manageable, and supports reliable use or retained value.",
+    "pushesTowardSell": "Favors selling when it adds major uncertainty, safety exposure, delay, or cost relative to value.",
+    "infoNeeded": "Current mileage information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's mileage, and how confident are you in that information?"
+  },
+  {
+    "factorId": "vehicle_age",
+    "label": "Vehicle Age",
+    "plainEnglishMeaning": "Vehicle Age can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the benefit is clear and the cost and uncertainty remain acceptable.",
+    "pushesTowardSell": "Favors selling when it conflicts with the owner's budget, time, transportation needs, or risk tolerance.",
+    "infoNeeded": "Current vehicle age information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's vehicle age, and how confident are you in that information?"
+  },
+  {
+    "factorId": "title_status",
+    "label": "Title Status",
+    "plainEnglishMeaning": "Title Status can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the condition is verified, manageable, and supports reliable use or retained value.",
+    "pushesTowardSell": "Favors selling when it adds major uncertainty, safety exposure, delay, or cost relative to value.",
+    "infoNeeded": "Current title status information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's title status, and how confident are you in that information?"
+  },
+  {
+    "factorId": "repair_estimate",
+    "label": "Repair Estimate",
+    "plainEnglishMeaning": "Repair Estimate can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the benefit is clear and the cost and uncertainty remain acceptable.",
+    "pushesTowardSell": "Favors selling when it conflicts with the owner's budget, time, transportation needs, or risk tolerance.",
+    "infoNeeded": "Current repair estimate information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's repair estimate, and how confident are you in that information?"
+  },
+  {
+    "factorId": "market_value_repaired",
+    "label": "Market Value Repaired",
+    "plainEnglishMeaning": "Market Value Repaired can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the condition is verified, manageable, and supports reliable use or retained value.",
+    "pushesTowardSell": "Favors selling when it adds major uncertainty, safety exposure, delay, or cost relative to value.",
+    "infoNeeded": "Current market value repaired information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's market value repaired, and how confident are you in that information?"
+  },
+  {
+    "factorId": "market_value_as_is",
+    "label": "Market Value As Is",
+    "plainEnglishMeaning": "Market Value As Is can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the benefit is clear and the cost and uncertainty remain acceptable.",
+    "pushesTowardSell": "Favors selling when it conflicts with the owner's budget, time, transportation needs, or risk tolerance.",
+    "infoNeeded": "Current market value as is information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's market value as is, and how confident are you in that information?"
+  },
+  {
+    "factorId": "safety_issue",
+    "label": "Safety Issue",
+    "plainEnglishMeaning": "Safety Issue can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the condition is verified, manageable, and supports reliable use or retained value.",
+    "pushesTowardSell": "Favors selling when it adds major uncertainty, safety exposure, delay, or cost relative to value.",
+    "infoNeeded": "Current safety issue information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's safety issue, and how confident are you in that information?"
+  },
+  {
+    "factorId": "repeat_failures",
+    "label": "Repeat Failures",
+    "plainEnglishMeaning": "Repeat Failures can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the benefit is clear and the cost and uncertainty remain acceptable.",
+    "pushesTowardSell": "Favors selling when it conflicts with the owner's budget, time, transportation needs, or risk tolerance.",
+    "infoNeeded": "Current repeat failures information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's repeat failures, and how confident are you in that information?"
+  },
+  {
+    "factorId": "parts_availability",
+    "label": "Parts Availability",
+    "plainEnglishMeaning": "Parts Availability can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the condition is verified, manageable, and supports reliable use or retained value.",
+    "pushesTowardSell": "Favors selling when it adds major uncertainty, safety exposure, delay, or cost relative to value.",
+    "infoNeeded": "Current parts availability information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's parts availability, and how confident are you in that information?"
+  },
+  {
+    "factorId": "labor_intensity",
+    "label": "Labor Intensity",
+    "plainEnglishMeaning": "Labor Intensity can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the benefit is clear and the cost and uncertainty remain acceptable.",
+    "pushesTowardSell": "Favors selling when it conflicts with the owner's budget, time, transportation needs, or risk tolerance.",
+    "infoNeeded": "Current labor intensity information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's labor intensity, and how confident are you in that information?"
+  },
+  {
+    "factorId": "daily_vehicle_need",
+    "label": "Daily Vehicle Need",
+    "plainEnglishMeaning": "Daily Vehicle Need can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the condition is verified, manageable, and supports reliable use or retained value.",
+    "pushesTowardSell": "Favors selling when it adds major uncertainty, safety exposure, delay, or cost relative to value.",
+    "infoNeeded": "Current daily vehicle need information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's daily vehicle need, and how confident are you in that information?"
+  },
+  {
+    "factorId": "emotional_attachment",
+    "label": "Emotional Attachment",
+    "plainEnglishMeaning": "Emotional Attachment can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the benefit is clear and the cost and uncertainty remain acceptable.",
+    "pushesTowardSell": "Favors selling when it conflicts with the owner's budget, time, transportation needs, or risk tolerance.",
+    "infoNeeded": "Current emotional attachment information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's emotional attachment, and how confident are you in that information?"
+  },
+  {
+    "factorId": "already_spent_amount",
+    "label": "Already Spent Amount",
+    "plainEnglishMeaning": "Already Spent Amount can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the condition is verified, manageable, and supports reliable use or retained value.",
+    "pushesTowardSell": "Favors selling when it adds major uncertainty, safety exposure, delay, or cost relative to value.",
+    "infoNeeded": "Current already spent amount information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's already spent amount, and how confident are you in that information?"
+  },
+  {
+    "factorId": "rust_structural_concern",
+    "label": "Rust Structural Concern",
+    "plainEnglishMeaning": "Rust Structural Concern can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the benefit is clear and the cost and uncertainty remain acceptable.",
+    "pushesTowardSell": "Favors selling when it conflicts with the owner's budget, time, transportation needs, or risk tolerance.",
+    "infoNeeded": "Current rust structural concern information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's rust structural concern, and how confident are you in that information?"
+  },
+  {
+    "factorId": "transmission_concern",
+    "label": "Transmission Concern",
+    "plainEnglishMeaning": "Transmission Concern can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the condition is verified, manageable, and supports reliable use or retained value.",
+    "pushesTowardSell": "Favors selling when it adds major uncertainty, safety exposure, delay, or cost relative to value.",
+    "infoNeeded": "Current transmission concern information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's transmission concern, and how confident are you in that information?"
+  },
+  {
+    "factorId": "engine_concern",
+    "label": "Engine Concern",
+    "plainEnglishMeaning": "Engine Concern can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the benefit is clear and the cost and uncertainty remain acceptable.",
+    "pushesTowardSell": "Favors selling when it conflicts with the owner's budget, time, transportation needs, or risk tolerance.",
+    "infoNeeded": "Current engine concern information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's engine concern, and how confident are you in that information?"
+  },
+  {
+    "factorId": "electrical_concern",
+    "label": "Electrical Concern",
+    "plainEnglishMeaning": "Electrical Concern can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the condition is verified, manageable, and supports reliable use or retained value.",
+    "pushesTowardSell": "Favors selling when it adds major uncertainty, safety exposure, delay, or cost relative to value.",
+    "infoNeeded": "Current electrical concern information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's electrical concern, and how confident are you in that information?"
+  },
+  {
+    "factorId": "failed_emissions",
+    "label": "Failed Emissions",
+    "plainEnglishMeaning": "Failed Emissions can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the benefit is clear and the cost and uncertainty remain acceptable.",
+    "pushesTowardSell": "Favors selling when it conflicts with the owner's budget, time, transportation needs, or risk tolerance.",
+    "infoNeeded": "Current failed emissions information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's failed emissions, and how confident are you in that information?"
+  },
+  {
+    "factorId": "diagnostic_uncertainty",
+    "label": "Diagnostic Uncertainty",
+    "plainEnglishMeaning": "Diagnostic Uncertainty can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the condition is verified, manageable, and supports reliable use or retained value.",
+    "pushesTowardSell": "Favors selling when it adds major uncertainty, safety exposure, delay, or cost relative to value.",
+    "infoNeeded": "Current diagnostic uncertainty information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's diagnostic uncertainty, and how confident are you in that information?"
+  },
+  {
+    "factorId": "registration_title_issue",
+    "label": "Registration Title Issue",
+    "plainEnglishMeaning": "Registration Title Issue can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the benefit is clear and the cost and uncertainty remain acceptable.",
+    "pushesTowardSell": "Favors selling when it conflicts with the owner's budget, time, transportation needs, or risk tolerance.",
+    "infoNeeded": "Current registration title issue information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's registration title issue, and how confident are you in that information?"
+  },
+  {
+    "factorId": "buyer_demand",
+    "label": "Buyer Demand",
+    "plainEnglishMeaning": "Buyer Demand can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the condition is verified, manageable, and supports reliable use or retained value.",
+    "pushesTowardSell": "Favors selling when it adds major uncertainty, safety exposure, delay, or cost relative to value.",
+    "infoNeeded": "Current buyer demand information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's buyer demand, and how confident are you in that information?"
+  },
+  {
+    "factorId": "diy_ability",
+    "label": "Diy Ability",
+    "plainEnglishMeaning": "Diy Ability can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the benefit is clear and the cost and uncertainty remain acceptable.",
+    "pushesTowardSell": "Favors selling when it conflicts with the owner's budget, time, transportation needs, or risk tolerance.",
+    "infoNeeded": "Current diy ability information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's diy ability, and how confident are you in that information?"
+  },
+  {
+    "factorId": "tool_availability",
+    "label": "Tool Availability",
+    "plainEnglishMeaning": "Tool Availability can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the condition is verified, manageable, and supports reliable use or retained value.",
+    "pushesTowardSell": "Favors selling when it adds major uncertainty, safety exposure, delay, or cost relative to value.",
+    "infoNeeded": "Current tool availability information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's tool availability, and how confident are you in that information?"
+  },
+  {
+    "factorId": "time_available",
+    "label": "Time Available",
+    "plainEnglishMeaning": "Time Available can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the benefit is clear and the cost and uncertainty remain acceptable.",
+    "pushesTowardSell": "Favors selling when it conflicts with the owner's budget, time, transportation needs, or risk tolerance.",
+    "infoNeeded": "Current time available information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's time available, and how confident are you in that information?"
+  },
+  {
+    "factorId": "tow_storage_cost",
+    "label": "Tow Storage Cost",
+    "plainEnglishMeaning": "Tow Storage Cost can change the practical cost, risk, timing, or value of keeping the vehicle.",
+    "pushesTowardRepair": "Favors repair when the condition is verified, manageable, and supports reliable use or retained value.",
+    "pushesTowardSell": "Favors selling when it adds major uncertainty, safety exposure, delay, or cost relative to value.",
+    "infoNeeded": "Current tow storage cost information, source, date, and confidence.",
+    "riskNote": "Do not use one factor alone; safety, title, structural condition, and verified costs may require human or in-person review.",
+    "customerQuestion": "What do you know about the vehicle's tow storage cost, and how confident are you in that information?"
+  }
+]

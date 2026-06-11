@@ -1,0 +1,352 @@
+[
+  {
+    "flagId": "just_a_sensor",
+    "label": "Seller says it is just a sensor",
+    "sellerPhraseExamples": "just a sensor; cheap code fix",
+    "whyItMatters": "Seller says it is just a sensor may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "VIN, title status, seller identity, and official records",
+    "riskLevel": "critical",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "title_not_seller_name",
+    "label": "Title not in seller name",
+    "sellerPhraseExamples": "selling for a friend; title is someone else's",
+    "whyItMatters": "Title not in seller name may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Cold start, scan data, inspection access, and repair records",
+    "riskLevel": "moderate",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "refuses_cold_start",
+    "label": "Refuses cold start",
+    "sellerPhraseExamples": "already warmed it up; no cold starts",
+    "whyItMatters": "Refuses cold start may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Detailed photos, written explanation, and independent inspection",
+    "riskLevel": "moderate",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "refuses_scan_codes",
+    "label": "Refuses scan codes",
+    "sellerPhraseExamples": "scanner is unnecessary; codes were cleared",
+    "whyItMatters": "Refuses scan codes may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "VIN, title status, seller identity, and official records",
+    "riskLevel": "high",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "easy_fix_not_fixed",
+    "label": "Says easy fix but will not fix",
+    "sellerPhraseExamples": "easy repair; I do not have time",
+    "whyItMatters": "Says easy fix but will not fix may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Cold start, scan data, inspection access, and repair records",
+    "riskLevel": "moderate",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "fresh_detail_no_proof",
+    "label": "Fresh detail with no repair proof",
+    "sellerPhraseExamples": "just detailed; no receipts",
+    "whyItMatters": "Fresh detail with no repair proof may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Detailed photos, written explanation, and independent inspection",
+    "riskLevel": "moderate",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "price_too_low",
+    "label": "Price appears unusually low",
+    "sellerPhraseExamples": "need it gone today; far below similar cars",
+    "whyItMatters": "Price appears unusually low may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "VIN, title status, seller identity, and official records",
+    "riskLevel": "high",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "overheating_history",
+    "label": "Overheating history",
+    "sellerPhraseExamples": "ran hot once; new coolant",
+    "whyItMatters": "Overheating history may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Cold start, scan data, inspection access, and repair records",
+    "riskLevel": "critical",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "transmission_slipping",
+    "label": "Transmission slipping",
+    "sellerPhraseExamples": "slips only when cold; needs fluid",
+    "whyItMatters": "Transmission slipping may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Detailed photos, written explanation, and independent inspection",
+    "riskLevel": "moderate",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "rebuilt_salvage_title",
+    "label": "Rebuilt or salvage title",
+    "sellerPhraseExamples": "rebuilt title; minor insurance damage",
+    "whyItMatters": "Rebuilt or salvage title may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "VIN, title status, seller identity, and official records",
+    "riskLevel": "high",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "unknown_mileage",
+    "label": "Unknown mileage",
+    "sellerPhraseExamples": "mileage exempt; cluster was changed",
+    "whyItMatters": "Unknown mileage may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Cold start, scan data, inspection access, and repair records",
+    "riskLevel": "moderate",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "missing_catalytic_converter",
+    "label": "Missing catalytic converter",
+    "sellerPhraseExamples": "straight pipe; converter removed",
+    "whyItMatters": "Missing catalytic converter may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Detailed photos, written explanation, and independent inspection",
+    "riskLevel": "moderate",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "warning_lights_ignored",
+    "label": "Warning lights ignored",
+    "sellerPhraseExamples": "light has been on forever; drives fine",
+    "whyItMatters": "Warning lights ignored may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "VIN, title status, seller identity, and official records",
+    "riskLevel": "high",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "cannot_test_drive",
+    "label": "Cannot test drive",
+    "sellerPhraseExamples": "no test drives; blocked in",
+    "whyItMatters": "Cannot test drive may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Cold start, scan data, inspection access, and repair records",
+    "riskLevel": "moderate",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "jump_start_only",
+    "label": "Only starts with a jump",
+    "sellerPhraseExamples": "just needs a jump; battery is dead",
+    "whyItMatters": "Only starts with a jump may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Detailed photos, written explanation, and independent inspection",
+    "riskLevel": "critical",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "lien_unclear",
+    "label": "Lien status unclear",
+    "sellerPhraseExamples": "bank still has title; lien will be handled later",
+    "whyItMatters": "Lien status unclear may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "VIN, title status, seller identity, and official records",
+    "riskLevel": "high",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "pressure_today",
+    "label": "Pressure to buy today",
+    "sellerPhraseExamples": "other buyers coming; decide now",
+    "whyItMatters": "Pressure to buy today may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Cold start, scan data, inspection access, and repair records",
+    "riskLevel": "moderate",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "cash_urgency",
+    "label": "Cash-only urgency",
+    "sellerPhraseExamples": "cash today only; no time for paperwork",
+    "whyItMatters": "Cash-only urgency may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Detailed photos, written explanation, and independent inspection",
+    "riskLevel": "moderate",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "no_records",
+    "label": "No maintenance records",
+    "sellerPhraseExamples": "lost records; did all work myself",
+    "whyItMatters": "No maintenance records may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "VIN, title status, seller identity, and official records",
+    "riskLevel": "high",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "no_vin",
+    "label": "No VIN provided",
+    "sellerPhraseExamples": "VIN later; plate is enough",
+    "whyItMatters": "No VIN provided may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Cold start, scan data, inspection access, and repair records",
+    "riskLevel": "moderate",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "avoids_questions",
+    "label": "Seller avoids questions",
+    "sellerPhraseExamples": "not sure; stop asking",
+    "whyItMatters": "Seller avoids questions may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Detailed photos, written explanation, and independent inspection",
+    "riskLevel": "moderate",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "warmed_before_arrival",
+    "label": "Vehicle warmed before arrival",
+    "sellerPhraseExamples": "I warmed it up for you",
+    "whyItMatters": "Vehicle warmed before arrival may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "VIN, title status, seller identity, and official records",
+    "riskLevel": "critical",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "coolant_oil_mixing",
+    "label": "Possible coolant and oil mixing",
+    "sellerPhraseExamples": "milky residue; coolant keeps disappearing",
+    "whyItMatters": "Possible coolant and oil mixing may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Cold start, scan data, inspection access, and repair records",
+    "riskLevel": "moderate",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "smoke",
+    "label": "Visible smoke",
+    "sellerPhraseExamples": "smokes a little; normal for age",
+    "whyItMatters": "Visible smoke may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Detailed photos, written explanation, and independent inspection",
+    "riskLevel": "moderate",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "severe_rust",
+    "label": "Severe rust",
+    "sellerPhraseExamples": "surface rust only; northern car",
+    "whyItMatters": "Severe rust may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "VIN, title status, seller identity, and official records",
+    "riskLevel": "high",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "frame_damage",
+    "label": "Possible frame damage",
+    "sellerPhraseExamples": "repaired frame; tracks straight",
+    "whyItMatters": "Possible frame damage may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Cold start, scan data, inspection access, and repair records",
+    "riskLevel": "moderate",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "airbag_light",
+    "label": "Airbag light",
+    "sellerPhraseExamples": "seat sensor only; airbag light is harmless",
+    "whyItMatters": "Airbag light may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Detailed photos, written explanation, and independent inspection",
+    "riskLevel": "moderate",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "abs_brake_light",
+    "label": "ABS or brake warning",
+    "sellerPhraseExamples": "ABS sensor only; brakes work",
+    "whyItMatters": "ABS or brake warning may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "VIN, title status, seller identity, and official records",
+    "riskLevel": "high",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "emissions_failure",
+    "label": "Emissions failure",
+    "sellerPhraseExamples": "just needs to be driven; cannot pass smog",
+    "whyItMatters": "Emissions failure may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Cold start, scan data, inspection access, and repair records",
+    "riskLevel": "critical",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "misfire",
+    "label": "Misfire symptoms",
+    "sellerPhraseExamples": "needs plugs; shakes sometimes",
+    "whyItMatters": "Misfire symptoms may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Detailed photos, written explanation, and independent inspection",
+    "riskLevel": "moderate",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "stalling",
+    "label": "Stalling history",
+    "sellerPhraseExamples": "only stalls at lights; easy fix",
+    "whyItMatters": "Stalling history may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "VIN, title status, seller identity, and official records",
+    "riskLevel": "high",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "flood_concern",
+    "label": "Possible flood exposure",
+    "sellerPhraseExamples": "water line is old; came from storm area",
+    "whyItMatters": "Possible flood exposure may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Cold start, scan data, inspection access, and repair records",
+    "riskLevel": "moderate",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "odometer_story",
+    "label": "Odometer story unclear",
+    "sellerPhraseExamples": "cluster replaced; mileage is close",
+    "whyItMatters": "Odometer story unclear may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Detailed photos, written explanation, and independent inspection",
+    "riskLevel": "moderate",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "out_of_state_title",
+    "label": "Out-of-state title issue",
+    "sellerPhraseExamples": "title is from another state; transfer is easy",
+    "whyItMatters": "Out-of-state title issue may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "VIN, title status, seller identity, and official records",
+    "riskLevel": "high",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  },
+  {
+    "flagId": "multiple_flips",
+    "label": "Multiple owners or flips",
+    "sellerPhraseExamples": "just bought to resell; never registered it",
+    "whyItMatters": "Multiple owners or flips may create condition, cost, title, disclosure, or transaction uncertainty that remote claims cannot resolve.",
+    "evidenceToRequest": "Cold start, scan data, inspection access, and repair records",
+    "riskLevel": "moderate",
+    "walkAwaySignal": "Walk away when the seller blocks independent verification, documents conflict, safety risk is active, or pressure prevents reasonable review.",
+    "customerSafeAdvice": "Pause the transaction, request specific evidence, and use independent title and in-person inspection checks before paying or committing."
+  }
+]

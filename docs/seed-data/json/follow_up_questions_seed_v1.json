@@ -1,0 +1,722 @@
+[
+  {
+    "questionId": "brake_issues_01",
+    "symptomCategoryId": "brake_vibration",
+    "questionText": "What can you safely tell us about brake pedal feel?",
+    "whyItMatters": "This helps separate brake issues risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "critical",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "brake_issues_02",
+    "symptomCategoryId": "brake_vibration",
+    "questionText": "What can you safely tell us about red brake or ABS lights?",
+    "whyItMatters": "This helps separate brake issues risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "brake_issues_03",
+    "symptomCategoryId": "brake_vibration",
+    "questionText": "What can you safely tell us about fluid near a wheel?",
+    "whyItMatters": "This helps separate brake issues risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "brake_issues_04",
+    "symptomCategoryId": "brake_vibration",
+    "questionText": "What can you safely tell us about pulling or longer stopping?",
+    "whyItMatters": "This helps separate brake issues risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "brake_issues_05",
+    "symptomCategoryId": "brake_vibration",
+    "questionText": "What can you safely tell us about when braking symptoms occur?",
+    "whyItMatters": "This helps separate brake issues risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "brake_issues_06",
+    "symptomCategoryId": "brake_vibration",
+    "questionText": "What can you safely tell us about recent brake work?",
+    "whyItMatters": "This helps separate brake issues risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "low",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "overheating_01",
+    "symptomCategoryId": "overheating",
+    "questionText": "What can you safely tell us about temperature warning shown?",
+    "whyItMatters": "This helps separate overheating risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "critical",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "overheating_02",
+    "symptomCategoryId": "overheating",
+    "questionText": "What can you safely tell us about steam or coolant loss?",
+    "whyItMatters": "This helps separate overheating risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "overheating_03",
+    "symptomCategoryId": "overheating",
+    "questionText": "What can you safely tell us about how quickly temperature rose?",
+    "whyItMatters": "This helps separate overheating risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "overheating_04",
+    "symptomCategoryId": "overheating",
+    "questionText": "What can you safely tell us about heater behavior before stopping?",
+    "whyItMatters": "This helps separate overheating risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "overheating_05",
+    "symptomCategoryId": "overheating",
+    "questionText": "What can you safely tell us about recent cooling work?",
+    "whyItMatters": "This helps separate overheating risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "overheating_06",
+    "symptomCategoryId": "overheating",
+    "questionText": "What can you safely tell us about whether engine was shut off?",
+    "whyItMatters": "This helps separate overheating risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "low",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "no_start_01",
+    "symptomCategoryId": "no_start",
+    "questionText": "What can you safely tell us about what happens at key or button?",
+    "whyItMatters": "This helps separate no start risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "critical",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "no_start_02",
+    "symptomCategoryId": "no_start",
+    "questionText": "What can you safely tell us about whether lights remain bright?",
+    "whyItMatters": "This helps separate no start risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "no_start_03",
+    "symptomCategoryId": "no_start",
+    "questionText": "What can you safely tell us about clicking or cranking sound?",
+    "whyItMatters": "This helps separate no start risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "no_start_04",
+    "symptomCategoryId": "no_start",
+    "questionText": "What can you safely tell us about recent jump start or battery work?",
+    "whyItMatters": "This helps separate no start risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "no_start_05",
+    "symptomCategoryId": "no_start",
+    "questionText": "What can you safely tell us about fuel level and warning lights?",
+    "whyItMatters": "This helps separate no start risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "no_start_06",
+    "symptomCategoryId": "no_start",
+    "questionText": "What can you safely tell us about whether it started recently?",
+    "whyItMatters": "This helps separate no start risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "low",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "vibration_01",
+    "symptomCategoryId": "tire_wheel_vibration",
+    "questionText": "What can you safely tell us about where vibration is felt?",
+    "whyItMatters": "This helps separate vibration risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "critical",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "vibration_02",
+    "symptomCategoryId": "tire_wheel_vibration",
+    "questionText": "What can you safely tell us about speed or condition that triggers it?",
+    "whyItMatters": "This helps separate vibration risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "vibration_03",
+    "symptomCategoryId": "tire_wheel_vibration",
+    "questionText": "What can you safely tell us about whether braking changes it?",
+    "whyItMatters": "This helps separate vibration risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "vibration_04",
+    "symptomCategoryId": "tire_wheel_vibration",
+    "questionText": "What can you safely tell us about visible tire or wheel damage?",
+    "whyItMatters": "This helps separate vibration risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "vibration_05",
+    "symptomCategoryId": "tire_wheel_vibration",
+    "questionText": "What can you safely tell us about whether it is worsening?",
+    "whyItMatters": "This helps separate vibration risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "vibration_06",
+    "symptomCategoryId": "tire_wheel_vibration",
+    "questionText": "What can you safely tell us about recent tire or suspension work?",
+    "whyItMatters": "This helps separate vibration risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "low",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "warning_lights_01",
+    "symptomCategoryId": "check_engine_light",
+    "questionText": "What can you safely tell us about exact warning symbols?",
+    "whyItMatters": "This helps separate warning lights risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "critical",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "warning_lights_02",
+    "symptomCategoryId": "check_engine_light",
+    "questionText": "What can you safely tell us about steady or flashing state?",
+    "whyItMatters": "This helps separate warning lights risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "warning_lights_03",
+    "symptomCategoryId": "check_engine_light",
+    "questionText": "What can you safely tell us about when lights appeared?",
+    "whyItMatters": "This helps separate warning lights risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "warning_lights_04",
+    "symptomCategoryId": "check_engine_light",
+    "questionText": "What can you safely tell us about scan codes already available?",
+    "whyItMatters": "This helps separate warning lights risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "warning_lights_05",
+    "symptomCategoryId": "check_engine_light",
+    "questionText": "What can you safely tell us about changes in performance?",
+    "whyItMatters": "This helps separate warning lights risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "warning_lights_06",
+    "symptomCategoryId": "check_engine_light",
+    "questionText": "What can you safely tell us about recent repairs or battery disconnect?",
+    "whyItMatters": "This helps separate warning lights risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "low",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "transmission_01",
+    "symptomCategoryId": "transmission_slip",
+    "questionText": "What can you safely tell us about selected gear and response?",
+    "whyItMatters": "This helps separate transmission risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "critical",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "transmission_02",
+    "symptomCategoryId": "transmission_slip",
+    "questionText": "What can you safely tell us about engine speed change?",
+    "whyItMatters": "This helps separate transmission risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "transmission_03",
+    "symptomCategoryId": "transmission_slip",
+    "questionText": "What can you safely tell us about burning smell or leak?",
+    "whyItMatters": "This helps separate transmission risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "transmission_04",
+    "symptomCategoryId": "transmission_slip",
+    "questionText": "What can you safely tell us about cold versus warm behavior?",
+    "whyItMatters": "This helps separate transmission risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "transmission_05",
+    "symptomCategoryId": "transmission_slip",
+    "questionText": "What can you safely tell us about warning messages?",
+    "whyItMatters": "This helps separate transmission risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "transmission_06",
+    "symptomCategoryId": "transmission_slip",
+    "questionText": "What can you safely tell us about recent transmission work?",
+    "whyItMatters": "This helps separate transmission risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "low",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "fuel_risk_01",
+    "symptomCategoryId": "fuel_smell",
+    "questionText": "What can you safely tell us about where odor is strongest?",
+    "whyItMatters": "This helps separate fuel risk risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "critical",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "fuel_risk_02",
+    "symptomCategoryId": "fuel_smell",
+    "questionText": "What can you safely tell us about visible wet fuel?",
+    "whyItMatters": "This helps separate fuel risk risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "fuel_risk_03",
+    "symptomCategoryId": "fuel_smell",
+    "questionText": "What can you safely tell us about whether odor is indoors?",
+    "whyItMatters": "This helps separate fuel risk risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "fuel_risk_04",
+    "symptomCategoryId": "fuel_smell",
+    "questionText": "What can you safely tell us about when odor began?",
+    "whyItMatters": "This helps separate fuel risk risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "fuel_risk_05",
+    "symptomCategoryId": "fuel_smell",
+    "questionText": "What can you safely tell us about recent fueling or repair?",
+    "whyItMatters": "This helps separate fuel risk risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "fuel_risk_06",
+    "symptomCategoryId": "fuel_smell",
+    "questionText": "What can you safely tell us about smoke or electrical symptoms?",
+    "whyItMatters": "This helps separate fuel risk risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "low",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "electrical_01",
+    "symptomCategoryId": "charging_warning",
+    "questionText": "What can you safely tell us about which electrical items failed?",
+    "whyItMatters": "This helps separate electrical risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "critical",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "electrical_02",
+    "symptomCategoryId": "charging_warning",
+    "questionText": "What can you safely tell us about battery or charging warning?",
+    "whyItMatters": "This helps separate electrical risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "electrical_03",
+    "symptomCategoryId": "charging_warning",
+    "questionText": "What can you safely tell us about smoke heat or sparking?",
+    "whyItMatters": "This helps separate electrical risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "electrical_04",
+    "symptomCategoryId": "charging_warning",
+    "questionText": "What can you safely tell us about whether vehicle stalls?",
+    "whyItMatters": "This helps separate electrical risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "electrical_05",
+    "symptomCategoryId": "charging_warning",
+    "questionText": "What can you safely tell us about recent battery work?",
+    "whyItMatters": "This helps separate electrical risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "electrical_06",
+    "symptomCategoryId": "charging_warning",
+    "questionText": "What can you safely tell us about jump-start behavior?",
+    "whyItMatters": "This helps separate electrical risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "low",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "buyer_review_01",
+    "symptomCategoryId": "buyer_remote_risk",
+    "questionText": "What can you safely tell us about VIN and title status?",
+    "whyItMatters": "This helps separate buyer review risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "critical",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "buyer_review_02",
+    "symptomCategoryId": "buyer_remote_risk",
+    "questionText": "What can you safely tell us about cold-start access?",
+    "whyItMatters": "This helps separate buyer review risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "buyer_review_03",
+    "symptomCategoryId": "buyer_remote_risk",
+    "questionText": "What can you safely tell us about scan-code access?",
+    "whyItMatters": "This helps separate buyer review risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "buyer_review_04",
+    "symptomCategoryId": "buyer_remote_risk",
+    "questionText": "What can you safely tell us about inspection permission?",
+    "whyItMatters": "This helps separate buyer review risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "buyer_review_05",
+    "symptomCategoryId": "buyer_remote_risk",
+    "questionText": "What can you safely tell us about maintenance records?",
+    "whyItMatters": "This helps separate buyer review risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "buyer_review_06",
+    "symptomCategoryId": "buyer_remote_risk",
+    "questionText": "What can you safely tell us about seller explanation for known issues?",
+    "whyItMatters": "This helps separate buyer review risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "low",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "seller_disclosure_01",
+    "symptomCategoryId": "seller_as_is_disclosure",
+    "questionText": "What can you safely tell us about known warning lights?",
+    "whyItMatters": "This helps separate seller disclosure risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "critical",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "seller_disclosure_02",
+    "symptomCategoryId": "seller_as_is_disclosure",
+    "questionText": "What can you safely tell us about when issue began?",
+    "whyItMatters": "This helps separate seller disclosure risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "seller_disclosure_03",
+    "symptomCategoryId": "seller_as_is_disclosure",
+    "questionText": "What can you safely tell us about whether vehicle runs and drives?",
+    "whyItMatters": "This helps separate seller disclosure risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "seller_disclosure_04",
+    "symptomCategoryId": "seller_as_is_disclosure",
+    "questionText": "What can you safely tell us about estimates or records available?",
+    "whyItMatters": "This helps separate seller disclosure risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "seller_disclosure_05",
+    "symptomCategoryId": "seller_as_is_disclosure",
+    "questionText": "What can you safely tell us about title and mileage status?",
+    "whyItMatters": "This helps separate seller disclosure risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "seller_disclosure_06",
+    "symptomCategoryId": "seller_as_is_disclosure",
+    "questionText": "What can you safely tell us about unfinished repairs?",
+    "whyItMatters": "This helps separate seller disclosure risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "low",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "repair_vs_sell_01",
+    "symptomCategoryId": "seller_as_is_disclosure",
+    "questionText": "What can you safely tell us about written repair estimate?",
+    "whyItMatters": "This helps separate repair vs sell risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "critical",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "repair_vs_sell_02",
+    "symptomCategoryId": "seller_as_is_disclosure",
+    "questionText": "What can you safely tell us about approximate repaired value?",
+    "whyItMatters": "This helps separate repair vs sell risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "repair_vs_sell_03",
+    "symptomCategoryId": "seller_as_is_disclosure",
+    "questionText": "What can you safely tell us about as-is demand or offer?",
+    "whyItMatters": "This helps separate repair vs sell risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "repair_vs_sell_04",
+    "symptomCategoryId": "seller_as_is_disclosure",
+    "questionText": "What can you safely tell us about repeat failures?",
+    "whyItMatters": "This helps separate repair vs sell risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "repair_vs_sell_05",
+    "symptomCategoryId": "seller_as_is_disclosure",
+    "questionText": "What can you safely tell us about daily transportation need?",
+    "whyItMatters": "This helps separate repair vs sell risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "repair_vs_sell_06",
+    "symptomCategoryId": "seller_as_is_disclosure",
+    "questionText": "What can you safely tell us about title rust or structural concerns?",
+    "whyItMatters": "This helps separate repair vs sell risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "low",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "roadside_driver_01",
+    "symptomCategoryId": "loss_of_power",
+    "questionText": "What can you safely tell us about current safe location?",
+    "whyItMatters": "This helps separate roadside driver risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "critical",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "roadside_driver_02",
+    "symptomCategoryId": "loss_of_power",
+    "questionText": "What can you safely tell us about brake and steering control?",
+    "whyItMatters": "This helps separate roadside driver risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "roadside_driver_03",
+    "symptomCategoryId": "loss_of_power",
+    "questionText": "What can you safely tell us about smoke fire smell or leak?",
+    "whyItMatters": "This helps separate roadside driver risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "high",
+    "answerType": "short_text"
+  },
+  {
+    "questionId": "roadside_driver_04",
+    "symptomCategoryId": "loss_of_power",
+    "questionText": "What can you safely tell us about red warning lights?",
+    "whyItMatters": "This helps separate roadside driver risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Written description or existing photo",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "long_text"
+  },
+  {
+    "questionId": "roadside_driver_05",
+    "symptomCategoryId": "loss_of_power",
+    "questionText": "What can you safely tell us about whether occupants are safe?",
+    "whyItMatters": "This helps separate roadside driver risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Existing dashboard, record, or scan image",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "medium",
+    "answerType": "choice_with_unknown"
+  },
+  {
+    "questionId": "roadside_driver_06",
+    "symptomCategoryId": "loss_of_power",
+    "questionText": "What can you safely tell us about tow already requested?",
+    "whyItMatters": "This helps separate roadside driver risk, missing evidence, and the appropriate next decision path.",
+    "requestedEvidence": "Timeline and current status",
+    "safetyWarning": "Do not drive, recreate the symptom, touch hot parts, approach fumes, or crawl under the vehicle to answer.",
+    "priority": "low",
+    "answerType": "short_text"
+  }
+]

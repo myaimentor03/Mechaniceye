@@ -1,0 +1,178 @@
+[
+  {
+    "decisionPathId": "stop_now",
+    "label": "Stop now",
+    "plainEnglishMeaning": "End vehicle use because an immediate risk may be present.",
+    "whenToUse": "Critical control, fire, heat, leak, or warning conditions",
+    "customerFacingRecommendation": "Stop in the nearest safe place and seek qualified help.",
+    "safetyBoundaries": "Do not resume use based only on remote guidance.",
+    "humanReviewRecommended": "true",
+    "nextInfoNeeded": "Current location; active hazards; occupants safe",
+    "relatedStatuses": "needs_human_review;do_not_send"
+  },
+  {
+    "decisionPathId": "tow",
+    "label": "Arrange a tow",
+    "plainEnglishMeaning": "Move the vehicle without driving it.",
+    "whenToUse": "Driving may worsen risk or the vehicle cannot move reliably",
+    "customerFacingRecommendation": "Arrange towing to a suitable inspection or repair location.",
+    "safetyBoundaries": "Do not recommend improvised towing.",
+    "humanReviewRecommended": "true",
+    "nextInfoNeeded": "Vehicle location; destination; access constraints",
+    "relatedStatuses": "needs_human_review"
+  },
+  {
+    "decisionPathId": "limp_to_safe_place",
+    "label": "Move only to a safer place",
+    "plainEnglishMeaning": "Allow the shortest limited movement only when immediate control remains normal.",
+    "whenToUse": "A low-speed move may reduce exposure to roadside danger",
+    "customerFacingRecommendation": "Move only to the nearest safe place and stop if symptoms change.",
+    "safetyBoundaries": "Never frame this as normal driving clearance.",
+    "humanReviewRecommended": "true",
+    "nextInfoNeeded": "Brakes; steering; warning lights; distance to safety",
+    "relatedStatuses": "needs_human_review"
+  },
+  {
+    "decisionPathId": "basic_safe_check",
+    "label": "Basic safe check",
+    "plainEnglishMeaning": "Gather observations that do not require driving, heat exposure, or disassembly.",
+    "whenToUse": "A parked visual check may clarify the next step",
+    "customerFacingRecommendation": "Check only what is visible and safe; skip anything uncertain.",
+    "safetyBoundaries": "No crawling under, hot-system opening, or electrical contact.",
+    "humanReviewRecommended": "false",
+    "nextInfoNeeded": "Dashboard; visible tires; visible leak; current status",
+    "relatedStatuses": "needs_more_info"
+  },
+  {
+    "decisionPathId": "request_more_info",
+    "label": "Request more information",
+    "plainEnglishMeaning": "Pause the conclusion until specific evidence is available.",
+    "whenToUse": "Evidence is incomplete or contradictory",
+    "customerFacingRecommendation": "Send the requested details if already available or safely obtainable.",
+    "safetyBoundaries": "Missing evidence must not be treated as evidence of safety.",
+    "humanReviewRecommended": "false",
+    "nextInfoNeeded": "Targeted photos; codes; timeline; records",
+    "relatedStatuses": "needs_more_info"
+  },
+  {
+    "decisionPathId": "monitor",
+    "label": "Monitor with boundaries",
+    "plainEnglishMeaning": "Observe a lower-risk issue for defined changes.",
+    "whenToUse": "Current evidence suggests lower urgency without safety clearance",
+    "customerFacingRecommendation": "Track changes and schedule help if warning signs appear.",
+    "safetyBoundaries": "Not for control, fire, severe leak, overheating, or red-warning cases.",
+    "humanReviewRecommended": "false",
+    "nextInfoNeeded": "Baseline; warning signs; follow-up date",
+    "relatedStatuses": "customer_ready_draft"
+  },
+  {
+    "decisionPathId": "schedule_inspection",
+    "label": "Schedule inspection",
+    "plainEnglishMeaning": "Obtain a physical evaluation before relying on a remote conclusion.",
+    "whenToUse": "Physical testing is needed to narrow the cause",
+    "customerFacingRecommendation": "Schedule a qualified in-person inspection.",
+    "safetyBoundaries": "Do not imply certification before inspection.",
+    "humanReviewRecommended": "true",
+    "nextInfoNeeded": "Shop type; urgency; evidence packet",
+    "relatedStatuses": "needs_human_review"
+  },
+  {
+    "decisionPathId": "professional_repair",
+    "label": "Professional repair",
+    "plainEnglishMeaning": "Use a qualified provider for diagnosis and repair.",
+    "whenToUse": "Risk, complexity, tools, or testing exceed a basic owner check",
+    "customerFacingRecommendation": "Use the evidence packet to request verification before parts approval.",
+    "safetyBoundaries": "No guaranteed repair outcome or price.",
+    "humanReviewRecommended": "true",
+    "nextInfoNeeded": "Written estimate; verified cause; repair scope",
+    "relatedStatuses": "customer_ready_draft"
+  },
+  {
+    "decisionPathId": "diy_possible",
+    "label": "DIY may be possible",
+    "plainEnglishMeaning": "A limited owner task may be considered only within competence and safe conditions.",
+    "whenToUse": "Low-risk task with clear boundaries and no safety-system uncertainty",
+    "customerFacingRecommendation": "Consider only a basic task you already know how to perform safely.",
+    "safetyBoundaries": "No step-by-step safety-critical repair instructions.",
+    "humanReviewRecommended": "true",
+    "nextInfoNeeded": "Skill; tools; service information; risk screening",
+    "relatedStatuses": "needs_human_review"
+  },
+  {
+    "decisionPathId": "complete_repair_required",
+    "label": "Complete repair required",
+    "plainEnglishMeaning": "A temporary measure is not an adequate final resolution.",
+    "whenToUse": "Normal use should wait for verified repair",
+    "customerFacingRecommendation": "Complete and verify the necessary repair before normal use.",
+    "safetyBoundaries": "Temporary improvement is not proof of safety.",
+    "humanReviewRecommended": "true",
+    "nextInfoNeeded": "Inspection result; repair record; verification",
+    "relatedStatuses": "needs_human_review"
+  },
+  {
+    "decisionPathId": "sell_as_is",
+    "label": "Sell as-is",
+    "plainEnglishMeaning": "Disclose known issues and sell without claiming repair or certification.",
+    "whenToUse": "Repair is not preferred or economical",
+    "customerFacingRecommendation": "Use clear factual disclosures and supporting evidence.",
+    "safetyBoundaries": "Seller remains responsible for title, legal, and disclosure compliance.",
+    "humanReviewRecommended": "true",
+    "nextInfoNeeded": "Title status; known issues; evidence; local requirements",
+    "relatedStatuses": "customer_ready_draft"
+  },
+  {
+    "decisionPathId": "buyer_request_more_evidence",
+    "label": "Buyer requests more evidence",
+    "plainEnglishMeaning": "Ask the seller for missing records or condition evidence.",
+    "whenToUse": "Claims cannot be evaluated remotely",
+    "customerFacingRecommendation": "Request specific evidence before spending more time or money.",
+    "safetyBoundaries": "Seller-provided evidence remains unverified.",
+    "humanReviewRecommended": "false",
+    "nextInfoNeeded": "VIN; title; cold start; codes; records",
+    "relatedStatuses": "needs_more_info"
+  },
+  {
+    "decisionPathId": "buyer_walk_away",
+    "label": "Buyer walks away",
+    "plainEnglishMeaning": "End pursuit when risk or missing cooperation is unacceptable.",
+    "whenToUse": "Red flags, contradictions, or blocked inspection exceed tolerance",
+    "customerFacingRecommendation": "Do not proceed unless the material concern is independently resolved.",
+    "safetyBoundaries": "Avoid declaring fraud without evidence.",
+    "humanReviewRecommended": "true",
+    "nextInfoNeeded": "Reason; unresolved flags; transaction status",
+    "relatedStatuses": "needs_human_review"
+  },
+  {
+    "decisionPathId": "proceed_to_in_person_inspection",
+    "label": "Proceed to in-person inspection",
+    "plainEnglishMeaning": "Advance only to independent physical review, not purchase.",
+    "whenToUse": "Remote evidence supports further evaluation but not a buying decision",
+    "customerFacingRecommendation": "Arrange an independent inspection before commitment.",
+    "safetyBoundaries": "No purchase or safety clearance is implied.",
+    "humanReviewRecommended": "true",
+    "nextInfoNeeded": "Inspector; scope; seller permission; records",
+    "relatedStatuses": "customer_ready_draft"
+  },
+  {
+    "decisionPathId": "human_review_required",
+    "label": "Human review required",
+    "plainEnglishMeaning": "Hold customer delivery for qualified review.",
+    "whenToUse": "High-risk, title, structural, high-cost, or low-confidence case",
+    "customerFacingRecommendation": "A human reviewer must approve the next-step language.",
+    "safetyBoundaries": "Do not auto-send the draft.",
+    "humanReviewRecommended": "true",
+    "nextInfoNeeded": "Risk flags; draft; evidence; open questions",
+    "relatedStatuses": "needs_human_review"
+  },
+  {
+    "decisionPathId": "do_not_send",
+    "label": "Do not send",
+    "plainEnglishMeaning": "Block customer delivery of an unsafe or unsuitable draft.",
+    "whenToUse": "Content fails safety, quality, consent, or workflow rules",
+    "customerFacingRecommendation": "Keep the draft internal until corrected or closed.",
+    "safetyBoundaries": "Never expose internal-only speculation.",
+    "humanReviewRecommended": "true",
+    "nextInfoNeeded": "Block reason; reviewer decision; remediation",
+    "relatedStatuses": "do_not_send"
+  }
+]
