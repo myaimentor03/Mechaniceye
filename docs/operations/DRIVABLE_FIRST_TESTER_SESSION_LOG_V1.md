@@ -41,6 +41,8 @@
 - What reduced trust:
 - Tester trust rating: 1 / 2 / 3 / 4 / 5
 - Would the tester act on the next step: Yes / No / Unsure
+- Tester "What would you pay?" answer:
+- Offer or report they would choose:
 - Tester comments:
 
 ## Follow-Up Outcome
@@ -61,4 +63,5 @@
 - Issue IDs created:
 - Safe to test with another trusted person: Yes / No
 - Approved by:
+- Next fix before another tester:
 - Notes:

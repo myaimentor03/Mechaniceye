@@ -4,19 +4,31 @@
 
 Help Glenn run multiple Codex chats without overlapping edits, losing work, or allowing one lane to make operational decisions assigned to another lane.
 
+## Recommended Active Lane Count
+
+Run two or three active implementation lanes at once. A fourth lane should be read-only testing or review. More than three writing lanes makes rebasing, hot-file ownership, and result tracking harder to control.
+
 ## Recommended Lanes
 
 | Lane | May touch | Must avoid |
 |---|---|---|
-| Product/docs | `docs/product/`, product wording, report definitions | Application code, Make, environment values, payments |
-| Operations/docs | `docs/operations/`, test templates, runbooks | Frontend, backend, shared types, live automation |
-| Automation/docs | `docs/automation/`, payload and mapping documentation | Editing live Make scenarios unless explicitly assigned |
-| Frontend preview | Named components, routes, and scoped CSS in the task | Backend, shared contracts, unrelated pages |
-| Shared contracts | Named files in `shared/` | UI, server routes, database, Make |
-| Backend/API | Explicitly named server files and tests | Frontend redesign, Make, production secrets |
-| Testing/review | Read-only inspection, builds, route checks, issue reports | Source edits unless a separate fix task is approved |
+| UI lane | Explicitly named files under `client/`, scoped routes, components, and CSS | Backend, `shared/`, Make, payments, unrelated pages |
+| Shared/data lane | Explicitly named files in `shared/`, schemas, constants, mock data | UI, server routes, live database or automation |
+| Automation/Make lane | `docs/automation/`, payloads, mappings, test evidence; live Make only when Glenn explicitly operates it | Frontend, backend, secrets, unapproved production cutover |
+| Docs/marketing lane | `docs/product/`, `docs/marketing/`, approved copy and planning docs | Code, live automation, unsupported promises |
+| Operations/testing lane | `docs/operations/`, read-only builds, route checks, issue and tester logs | Product code unless a separate fix queue is approved |
 
 One chat should own one lane and one clearly stated file list.
+
+## Hot / Collision-Prone Files
+
+Treat these as one-writer-at-a-time:
+
+- `client/src/TestBackend.tsx`
+- `client/src/app.css`
+- `shared/*`
+
+Any README, route registry, shared schema, or index edited by multiple lanes should also be treated as hot.
 
 ## Start of Every Lane
 
@@ -25,6 +37,8 @@ One chat should own one lane and one clearly stated file list.
 3. Stop if rebase is blocked by changes the lane does not own.
 4. Inspect the named source files before editing.
 5. Restate the allowed and forbidden file surface in the task.
+
+Run `git pull --rebase origin main` again immediately before starting a lane that sat idle, after another lane pushes, and before the final push. If the lane already has edits, commit them first or use an isolated worktree; do not stash or overwrite another lane's work casually.
 
 ## Avoiding Merge Conflicts
 
@@ -39,12 +53,19 @@ One chat should own one lane and one clearly stated file list.
 
 ## Safe Parallel Examples
 
-- Product checklist in `docs/product/` plus a Make payload guide in `docs/automation/`.
-- Operations templates in `docs/operations/` plus a read-only frontend route audit.
-- One shared-type task plus one docs-only task.
-- One isolated frontend component task plus a spreadsheet/documentation task that touches no frontend files.
+- UI component work that does not touch `app.css` plus operations docs.
+- Shared/data types plus docs/marketing copy.
+- Automation/Make documentation plus a read-only operations/testing audit.
+- Operations templates plus a UI task in an isolated component with no hot-file edits.
 
-Unsafe examples include two route tasks editing `TestBackend.tsx`, two style tasks appending to `app.css`, or a code lane and a review lane both fixing the same component.
+## Unsafe Parallel Examples
+
+- Two UI routes both editing `TestBackend.tsx`.
+- Two styling tasks both editing `app.css`.
+- Two shared/data tasks modifying the same file in `shared/`.
+- A UI lane and shared/data lane changing the same contract at the same time.
+- An automation lane cutting over Make while a testing lane is still proving recipients and mappings.
+- Two lanes updating the same README or route index.
 
 ## Hourly Operating Rhythm
 

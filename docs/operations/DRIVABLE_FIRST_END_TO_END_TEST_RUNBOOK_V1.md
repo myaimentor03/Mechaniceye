@@ -6,6 +6,10 @@ Use this runbook when Glenn has uninterrupted time to prove the five Make Master
 
 ## Pre-Checks
 
+- [ ] Run `git pull --rebase origin main` and confirm the tested commit matches latest `origin/main`.
+- [ ] Run `git status --short` and account for every local change.
+- [ ] Confirm the latest intended commit is deployed to Render or the applicable frontend/backend host.
+- [ ] Confirm Render/frontend loads and backend status or health endpoint responds, if applicable.
 - [ ] Use only test identities and a Glenn-owned test inbox.
 - [ ] Open the master router, test payloads, field mapping, route checklist, and pass/fail log.
 - [ ] Confirm old scenarios remain available as backup.
@@ -15,6 +19,7 @@ Use this runbook when Glenn has uninterrupted time to prove the five Make Master
 - [ ] Inspect `To`, `Cc`, `Bcc`, sender, reply-to, and `[TEST]` subject lines.
 - [ ] Confirm the approved raw JSON storage location.
 - [ ] Confirm the expected sheet tabs and that duplicate test rows can be identified.
+- [ ] Confirm the Make scenario is off or in `Run once`, not freely processing production traffic.
 
 ## Make Setup
 
@@ -37,6 +42,23 @@ Use this runbook when Glenn has uninterrupted time to prove the five Make Master
 - Customer email was disabled, draft-only, or delivered only to the Glenn-owned test inbox.
 - No false success occurred after a failed write.
 - Make run ID, screenshots, row reference, and email evidence were logged.
+
+## What to Save
+
+- Screenshot of the webhook bundle and selected route.
+- Screenshot of sibling routes not firing.
+- OpenAI module input/output or safe execution evidence.
+- Google Sheets row number and screenshot with sensitive values minimized.
+- Raw JSON storage reference.
+- Admin/test email showing `To`, subject, and delivery time.
+- Customer email module state or Glenn-owned test recipient.
+- Make run ID, test timestamp, payload name, and final PASS/FAIL log.
+
+## Pass / Fail Definition
+
+`PASS` means every applicable evidence item is verified in one controlled run, no unintended branch or recipient is involved, and the expected record is complete.
+
+`FAIL` means any required check is missing or wrong, including a misrouted branch, duplicate record, missing raw JSON, wrong AI result, incomplete sheet row, uncertain recipient, unintended email, false success, or untraceable run. Do not mark a partial run as `PASS`.
 
 ## Route 1: support-concierge-request
 

@@ -7,5 +7,7 @@
 - [DRIVABLE_DAILY_BUILD_REVIEW_CHECKLIST_V1.md](DRIVABLE_DAILY_BUILD_REVIEW_CHECKLIST_V1.md): Supports daily build, route, blocker, queue, and readiness review.
 - [DRIVABLE_BLOCKER_BOARD_TEMPLATE_V1.md](DRIVABLE_BLOCKER_BOARD_TEMPLATE_V1.md): Tracks blockers across code, automation, email, data, safety, UX, revenue, and deploy.
 - [DRIVABLE_PRE_LAUNCH_GO_NO_GO_V1.md](DRIVABLE_PRE_LAUNCH_GO_NO_GO_V1.md): Defines separate go/no-go gates for first tester, paid test, and public launch.
+- [DRIVABLE_RENDER_DEPLOY_CHECKLIST_V1.md](DRIVABLE_RENDER_DEPLOY_CHECKLIST_V1.md): Verifies deployed routes, console health, backend status, and webhook readiness before tester traffic.
+- [DRIVABLE_CUSTOMER_SUPPORT_TRIAGE_V1.md](DRIVABLE_CUSTOMER_SUPPORT_TRIAGE_V1.md): Routes support and safety messages with questions, boundaries, escalation rules, logs, and statuses.
 
-Related source-of-truth documents remain in `docs/product/` and `docs/automation/`.
+Related source-of-truth documents remain in `docs/product/`, `docs/automation/`, and `docs/marketing/`.

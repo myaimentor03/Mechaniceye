@@ -33,6 +33,14 @@ Evaluate each level separately. Passing a first-tester gate does not approve pai
 - [ ] Session, issue, and follow-up logs are ready.
 - [ ] No paid traffic or broad invitation is enabled.
 
+## First Tester No-Go
+
+- The Glenn-owned end-to-end test has not passed.
+- The tester has an emergency or active high-risk condition.
+- Route, recipient, human-review availability, or follow-up ownership is uncertain.
+- Tester data could mix with another case or cannot be removed/corrected appropriately.
+- A blocker or high-severity issue affects the selected flow.
+
 ## Paid Test Go
 
 - [ ] Multiple controlled flows have passed without recipient or routing errors.
@@ -42,6 +50,14 @@ Evaluate each level separately. Passing a first-tester gate does not approve pai
 - [ ] Outcome follow-up can be linked to the paid case.
 
 No placeholder price or customer-entered payment claim is proof of paid-test readiness.
+
+## Paid Test No-Go
+
+- Pricing, deliverable, turnaround, support, correction, or refund handling is undefined.
+- Payment verification has no approved source of truth.
+- Human review capacity cannot support the promised volume.
+- The selected flow has not passed repeatedly with controlled testers.
+- Terms, privacy, consent, or outcome follow-up are not ready for the paid scope.
 
 ## Public Launch No-Go
 
@@ -81,6 +97,14 @@ Public launch remains `NO-GO` when any of the following is true:
 - Case, report, reviewer, and outcome cannot be linked.
 - Actual action, repair/result, cost, and whether advice helped have no capture plan.
 - Sensitive data access, consent, correction, deletion, or retention remains undefined for the proposed launch level.
+
+## Rollback Trigger
+
+Rollback or disable customer-facing traffic immediately after a wrong recipient, route misfire, duplicate processing, lost raw JSON, critical data mismatch, high-risk review bypass, false success email, production crash, or uncertain webhook target.
+
+## Stop Building, Start Proving Trigger
+
+Stop adding preview features and move to controlled evidence gathering when the core intake, report, safety gate, missing-information path, internal review, preview hub, and operations logs exist. At that point, the next release decision should be driven by route PASS evidence, tester confusion, fulfillment time, safety review, and real outcomes rather than another untested feature.
 
 ## Decision Record
 

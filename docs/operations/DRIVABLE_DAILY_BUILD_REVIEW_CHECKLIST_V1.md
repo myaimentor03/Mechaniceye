@@ -14,6 +14,7 @@
 - [ ] Build warnings or failures recorded.
 - [ ] New routes and changed routes opened and checked.
 - [ ] Mobile layout checked for changed customer-facing pages.
+- [ ] `/preview-hub` opened and new or changed preview links checked.
 - [ ] Browser console checked for changed routes.
 
 ## Operations
@@ -33,6 +34,9 @@
 
 ## Launch Readiness Delta
 
+- What changed since yesterday:
+- What got riskier:
+- What got closer to launch:
 - Readiness yesterday:
 - Readiness today:
 - New evidence gained:
