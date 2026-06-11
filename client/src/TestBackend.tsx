@@ -7,6 +7,7 @@ import { DrivableReportPreview } from "./components/DrivableReportPreview";
 import { EvidenceChecklist } from "./components/EvidenceChecklist";
 import { InternalReviewCard } from "./components/InternalReviewCard";
 import { InternalReviewActionPanel } from "./components/InternalReviewActionPanel";
+import { LearningLoopPreview } from "./components/LearningLoopPreview";
 import { MissingInfoRequestPreview } from "./components/MissingInfoRequestPreview";
 import { NeedHelpPanel } from "./components/NeedHelpPanel";
 import { OutcomeCapturePreview } from "./components/OutcomeCapturePreview";
@@ -933,6 +934,10 @@ export default function TestBackend() {
 
   if (window.location.pathname.replace(/\/$/, "") === "/outcome-capture-preview") {
     return <OutcomeCapturePreview />;
+  }
+
+  if (window.location.pathname.replace(/\/$/, "") === "/learning-loop-preview") {
+    return <LearningLoopPreview />;
   }
 
   if (window.location.pathname.replace(/\/$/, "") === "/report-packages") {
