@@ -12,6 +12,7 @@ import { NeedHelpPanel } from "./components/NeedHelpPanel";
 import { OutcomeCapturePreview } from "./components/OutcomeCapturePreview";
 import { ReportPackagePreview } from "./components/ReportPackagePreview";
 import { RoadsideGuidancePreview } from "./components/RoadsideGuidancePreview";
+import { SendSafetyGatePreview } from "./components/SendSafetyGatePreview";
 import { WhatHappensNext } from "./components/WhatHappensNext";
 import { YEARS, VEHICLE_DATA, FALLBACK_MAKES, FALLBACK_MODELS, FALLBACK_ENGINES, TRANSMISSION_OPTIONS, DRIVETRAIN_OPTIONS } from "./data/vehicleData";
 import {
@@ -948,6 +949,10 @@ export default function TestBackend() {
 
   if (window.location.pathname.replace(/\/$/, "") === "/internal-review-preview") {
     return <InternalReviewCard />;
+  }
+
+  if (window.location.pathname.replace(/\/$/, "") === "/send-safety-preview") {
+    return <SendSafetyGatePreview />;
   }
 
   if (window.location.pathname.replace(/\/$/, "") === "/internal-review") {
