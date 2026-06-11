@@ -3,9 +3,11 @@ import {
   REPORT_TYPES
 } from "../../../shared/drivableDecisionEngine";
 import {
-  SAMPLE_DRIVABLE_REPORT,
   type DrivableReport
 } from "../../../shared/drivableReportTypes";
+import {
+  SAMPLE_GENERATED_DRIVABLE_REPORT
+} from "../../../shared/mockDrivableReportGenerator";
 
 type DrivableReportPreviewProps = {
   report?: DrivableReport;
@@ -38,7 +40,7 @@ function ReportList({
 }
 
 export function DrivableReportPreview({
-  report = SAMPLE_DRIVABLE_REPORT
+  report = SAMPLE_GENERATED_DRIVABLE_REPORT
 }: DrivableReportPreviewProps) {
   const reportType =
     REPORT_TYPES.find((item) => item.id === report.reportType) ?? REPORT_TYPES[0];
