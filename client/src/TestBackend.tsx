@@ -1,6 +1,7 @@
 ﻿import { useMemo, useState } from "react";
 import "./app.css";
 import Marketplace from "./marketplace/Marketplace";
+import { DrivableHelpChooser } from "./components/DrivableHelpChooser";
 import { DrivableReportEmailPreview } from "./components/DrivableReportEmailPreview";
 import { DrivableReportPreview } from "./components/DrivableReportPreview";
 import { InternalReviewCard } from "./components/InternalReviewCard";
@@ -897,6 +898,10 @@ function MechanicMatchFlow() {
 export default function TestBackend() {
   if (window.location.pathname.startsWith("/marketplace")) {
     return <Marketplace />;
+  }
+
+  if (window.location.pathname.replace(/\/$/, "") === "/start") {
+    return <DrivableHelpChooser />;
   }
 
   if (window.location.pathname.replace(/\/$/, "") === "/report-preview") {

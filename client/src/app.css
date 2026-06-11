@@ -2641,3 +2641,144 @@ textarea:focus {
     flex-direction: column;
   }
 }
+
+/* Drivable guided help chooser */
+.dhc-page {
+  min-height: 100vh;
+  padding: 48px 20px 64px;
+  background: #07111f;
+}
+
+.dhc-shell {
+  width: min(1080px, 100%);
+  margin: 0 auto;
+}
+
+.dhc-header {
+  max-width: 720px;
+  margin-bottom: 28px;
+}
+
+.dhc-eyebrow {
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.dhc-header h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  letter-spacing: 0;
+  line-height: 1.08;
+}
+
+.dhc-header > p:last-child {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.65;
+}
+
+.dhc-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.dhc-card {
+  display: flex;
+  min-height: 220px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(17, 31, 48, 0.92);
+  padding: 24px;
+}
+
+.dhc-card:last-child {
+  grid-column: 1 / -1;
+}
+
+.dhc-card h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.32rem;
+  line-height: 1.25;
+}
+
+.dhc-card p {
+  margin: 9px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.dhc-action {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  padding: 11px 20px;
+  color: #04131e;
+  font-weight: 900;
+  text-decoration: none;
+  transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.dhc-action:hover {
+  background: #79e9ff;
+  transform: translateY(-1px);
+}
+
+.dhc-action:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 6px rgba(59, 214, 255, 0.35);
+}
+
+.dhc-safety {
+  margin-top: 18px;
+  border: 1px solid rgba(255, 143, 143, 0.46);
+  border-radius: 8px;
+  background: rgba(90, 25, 30, 0.28);
+  padding: 18px 20px;
+}
+
+.dhc-safety strong {
+  color: #ffd0d0;
+}
+
+.dhc-safety p {
+  margin: 6px 0 0;
+  color: #ffdede;
+  line-height: 1.6;
+}
+
+@media (max-width: 680px) {
+  .dhc-page {
+    padding: 28px 12px 44px;
+  }
+
+  .dhc-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dhc-card,
+  .dhc-card:last-child {
+    min-height: 0;
+    grid-column: auto;
+    padding: 20px;
+  }
+
+  .dhc-action {
+    width: 100%;
+  }
+}
