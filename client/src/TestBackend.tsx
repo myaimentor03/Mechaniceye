@@ -1,6 +1,7 @@
 ﻿import { useMemo, useState } from "react";
 import "./app.css";
 import Marketplace from "./marketplace/Marketplace";
+import { DrivableReportEmailPreview } from "./components/DrivableReportEmailPreview";
 import { DrivableReportPreview } from "./components/DrivableReportPreview";
 import { InternalReviewCard } from "./components/InternalReviewCard";
 import { NeedHelpPanel } from "./components/NeedHelpPanel";
@@ -900,6 +901,10 @@ export default function TestBackend() {
 
   if (window.location.pathname.replace(/\/$/, "") === "/report-preview") {
     return <DrivableReportPreview />;
+  }
+
+  if (window.location.pathname.replace(/\/$/, "") === "/report-email-preview") {
+    return <DrivableReportEmailPreview />;
   }
 
   if (window.location.pathname.replace(/\/$/, "") === "/internal-review-preview") {

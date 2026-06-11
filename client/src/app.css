@@ -2335,3 +2335,309 @@ textarea:focus {
     justify-content: flex-start;
   }
 }
+
+/* Drivable customer report email preview */
+.dre-page {
+  min-height: 100vh;
+  padding: 28px 16px 56px;
+  background: #e9eef3;
+  color: #172334;
+}
+
+.dre-preview-label {
+  width: min(760px, 100%);
+  margin: 0 auto 10px;
+  color: #52657a;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.dre-email {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid #cad4df;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 18px 50px rgba(20, 36, 55, 0.18);
+}
+
+.dre-subject-strip {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  border-bottom: 1px solid #dce3ea;
+  background: #f4f7fa;
+  padding: 13px 18px;
+}
+
+.dre-subject-strip span {
+  color: #66788b;
+  font-size: 0.75rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.dre-subject-strip strong {
+  overflow-wrap: anywhere;
+  color: #172334;
+}
+
+.dre-email-body {
+  padding: 34px;
+}
+
+.dre-email-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  border-bottom: 3px solid #0c9fc4;
+  padding-bottom: 15px;
+}
+
+.dre-email-brand span {
+  color: #071d2d;
+  font-size: 1.55rem;
+  font-weight: 900;
+}
+
+.dre-email-brand small {
+  color: #64778b;
+  font-weight: 800;
+}
+
+.dre-greeting {
+  margin: 28px 0 18px;
+  color: #172334;
+  font-size: 1.05rem;
+}
+
+.dre-summary {
+  border-left: 4px solid #0c9fc4;
+  background: #eef9fc;
+  padding: 22px;
+}
+
+.dre-kicker {
+  margin: 0 0 7px;
+  color: #087c9a;
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.dre-summary h1 {
+  margin: 0;
+  color: #10283b;
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+.dre-summary > p:last-child,
+.dre-section > p,
+.dre-cta p {
+  color: #52657a;
+  line-height: 1.65;
+}
+
+.dre-summary > p:last-child {
+  margin-bottom: 0;
+}
+
+.dre-section {
+  border-top: 1px solid #dce3ea;
+  padding: 26px 0;
+}
+
+.dre-section h2,
+.dre-cta h2 {
+  margin: 0;
+  color: #172334;
+  font-size: 1.22rem;
+}
+
+.dre-section h3 {
+  margin: 0;
+  color: #172334;
+  font-size: 0.98rem;
+}
+
+.dre-finding-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.dre-finding-summary > div {
+  border: 1px solid #d9e2ea;
+  border-radius: 8px;
+  background: #f7f9fb;
+  padding: 14px;
+}
+
+.dre-finding-summary span {
+  display: block;
+  color: #6b7d90;
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.dre-finding-summary strong {
+  display: block;
+  margin-top: 5px;
+  color: #172334;
+}
+
+.dre-cause-list,
+.dre-option-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.dre-cause-list > div,
+.dre-option-list > div {
+  border: 1px solid #dce3ea;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.dre-cause-list > div > div {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dre-cause-list span {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #e8f5f8;
+  padding: 4px 8px;
+  color: #087c9a;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.dre-cause-list p,
+.dre-option-list p {
+  margin: 7px 0 0;
+  color: #5b6d80;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.dre-next-info ul {
+  display: grid;
+  gap: 9px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dre-next-info li {
+  display: grid;
+  gap: 3px;
+  border-left: 3px solid #e3a62f;
+  background: #fff9ed;
+  padding: 11px 13px;
+}
+
+.dre-next-info li strong {
+  color: #46361b;
+}
+
+.dre-next-info li span {
+  color: #746341;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.dre-script blockquote {
+  margin: 15px 0 0;
+  border: 1px solid #bed8e0;
+  border-radius: 8px;
+  background: #f0f8fa;
+  padding: 18px;
+  color: #183748;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.92rem;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.dre-safety {
+  border: 1px solid #ead8b0;
+  border-radius: 8px;
+  background: #fffbf2;
+  padding: 20px;
+}
+
+.dre-safety h2 {
+  color: #573e10;
+}
+
+.dre-safety p {
+  margin-bottom: 0;
+  color: #705b35;
+  font-size: 0.9rem;
+}
+
+.dre-cta {
+  margin-top: 22px;
+  border-radius: 8px;
+  background: #0b344b;
+  padding: 22px;
+}
+
+.dre-cta h2,
+.dre-cta p {
+  color: #fff;
+}
+
+.dre-cta p {
+  margin-bottom: 0;
+  color: #d7e8f0;
+}
+
+.dre-footer {
+  display: grid;
+  gap: 4px;
+  margin-top: 28px;
+  border-top: 1px solid #dce3ea;
+  padding-top: 18px;
+  color: #66788b;
+  font-size: 0.82rem;
+}
+
+.dre-footer strong {
+  color: #24394d;
+}
+
+@media (max-width: 600px) {
+  .dre-page {
+    padding: 12px 8px 32px;
+  }
+
+  .dre-subject-strip {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .dre-email-body {
+    padding: 22px 16px;
+  }
+
+  .dre-finding-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .dre-cause-list > div > div {
+    flex-direction: column;
+  }
+}
