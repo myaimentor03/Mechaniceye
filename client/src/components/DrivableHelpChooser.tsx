@@ -1,3 +1,5 @@
+import { WhatHappensNext } from "./WhatHappensNext";
+
 const HELP_CHOICES = [
   {
     title: "Can I keep driving this?",
@@ -55,6 +57,8 @@ export function DrivableHelpChooser() {
             electrical issues, or a wheel/tire problem, do not keep driving just to gather evidence.
           </p>
         </aside>
+
+        <WhatHappensNext />
       </section>
     </main>
   );

@@ -2782,3 +2782,104 @@ textarea:focus {
     width: 100%;
   }
 }
+
+/* Drivable process steps */
+.whn-section {
+  width: min(1080px, 100%);
+  margin: 28px auto 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(17, 31, 48, 0.92);
+  padding: 26px;
+  color: var(--text);
+}
+
+.whn-header {
+  margin-bottom: 18px;
+}
+
+.whn-eyebrow {
+  margin: 0 0 6px;
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.whn-header h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.65rem;
+}
+
+.whn-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.whn-step {
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  background: rgba(7, 17, 31, 0.58);
+  padding: 18px;
+}
+
+.whn-number {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #04131e;
+  font-weight: 900;
+}
+
+.whn-step h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.whn-step p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.whn-note {
+  margin: 16px 0 0;
+  border-left: 3px solid var(--warning);
+  padding: 5px 0 5px 13px;
+  color: #f6dfac;
+  line-height: 1.55;
+}
+
+.dr-report-page > .whn-section {
+  width: min(1100px, 100%);
+}
+
+@media (max-width: 900px) {
+  .whn-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .whn-section {
+    padding: 20px 16px;
+  }
+
+  .whn-grid {
+    grid-template-columns: 1fr;
+  }
+}

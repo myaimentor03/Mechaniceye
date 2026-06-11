@@ -8,6 +8,7 @@ import {
 import {
   SAMPLE_GENERATED_DRIVABLE_REPORT
 } from "../../../shared/mockDrivableReportGenerator";
+import { WhatHappensNext } from "./WhatHappensNext";
 
 type DrivableReportPreviewProps = {
   report?: DrivableReport;
@@ -159,6 +160,7 @@ export function DrivableReportPreview({
           </p>
         </footer>
       </article>
+      <WhatHappensNext />
     </main>
   );
 }
