@@ -19,28 +19,28 @@ const HELP_CHOICES = [
     title: "Should I fix it or sell it?",
     subtitle: "Understand whether repair money still makes sense.",
     href: "/help?scenario=current_problem&topic=repair-vs-sell",
-    actionLabel: "Start here",
+    actionLabel: "Compare options",
     priority: false
   },
   {
     title: "I'm thinking about buying this vehicle",
     subtitle: "Get a remote risk review before chasing it.",
     href: "/report-preview?scenario=buying_vehicle&reportType=buyer_remote_risk_review",
-    actionLabel: "Start here",
+    actionLabel: "Review before buying",
     priority: false
   },
   {
     title: "I want to sell a vehicle as-is",
     subtitle: "Prepare a clearer listing with known issues explained.",
     href: "/marketplace/sell/intake",
-    actionLabel: "Start here",
+    actionLabel: "Start seller intake",
     priority: false
   },
   {
     title: "I already submitted something",
     subtitle: "Ask for help with an existing case or listing.",
     href: "/help?topic=existing-case",
-    actionLabel: "Start here",
+    actionLabel: "Get help",
     priority: false
   }
 ] as const;
@@ -67,13 +67,6 @@ export function DrivableHelpChooser() {
                 <p>{choice.subtitle}</p>
               </div>
               <a className="dhc-action" href={choice.href}>{choice.actionLabel}</a>
-              {choice.priority && (
-                <p className="dhc-priority-safety">
-                  If brakes, steering, smoke, fire smell, fuel leak, overheating, wheel/tire
-                  failure, or severe electrical issues are involved, stop driving and seek
-                  in-person help.
-                </p>
-              )}
             </article>
           ))}
         </div>
@@ -81,8 +74,8 @@ export function DrivableHelpChooser() {
         <aside className="dhc-safety">
           <strong>Stop if the vehicle may be unsafe.</strong>
           <p>
-            If you have brake failure, steering loss, overheating, smoke, fuel leak, severe
-            electrical issues, or a wheel/tire problem, do not keep driving just to gather evidence.
+            If brakes, steering, smoke, fire smell, fuel leak, overheating, wheel/tire failure, or
+            severe electrical issues are involved, stop driving and seek in-person help.
           </p>
         </aside>
 

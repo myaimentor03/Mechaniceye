@@ -8,6 +8,7 @@ import { EvidenceChecklist } from "./components/EvidenceChecklist";
 import { InternalReviewCard } from "./components/InternalReviewCard";
 import { NeedHelpPanel } from "./components/NeedHelpPanel";
 import { RoadsideGuidancePreview } from "./components/RoadsideGuidancePreview";
+import { WhatHappensNext } from "./components/WhatHappensNext";
 import { YEARS, VEHICLE_DATA, FALLBACK_MAKES, FALLBACK_MODELS, FALLBACK_ENGINES, TRANSMISSION_OPTIONS, DRIVETRAIN_OPTIONS } from "./data/vehicleData";
 import {
   REPORT_TYPES,
@@ -460,23 +461,26 @@ function ConciergeHelpPage() {
           </div>
 
           {confirmation && (
-            <section className="concierge-confirmation">
-              <div className="eyebrow">Submitted successfully</div>
-              <h2>Request received</h2>
-              <p>Drivable received your request and the selected context below. We&apos;ll use this to route the request and understand what decision you&apos;re trying to make.</p>
-              <dl className="concierge-confirmation-grid">
-                <div><dt>Scenario</dt><dd>{confirmation.scenarioLabel}</dd></div>
-                <div><dt>Report type</dt><dd>{confirmation.reportTypeLabel}</dd></div>
-                <div><dt>Topic</dt><dd>{confirmation.topic}</dd></div>
-                <div><dt>Urgency</dt><dd>{confirmation.urgency}</dd></div>
-                {confirmation.relatedCaseId && <div><dt>Related case ID</dt><dd>{confirmation.relatedCaseId}</dd></div>}
-                {confirmation.relatedListingId && <div><dt>Related listing ID</dt><dd>{confirmation.relatedListingId}</dd></div>}
-                <div className="concierge-confirmation-message"><dt>Message summary</dt><dd>{confirmation.messageSummary}</dd></div>
-              </dl>
-              <p className="concierge-confirmation-safety">
-                Drivable provides information and next-step guidance based on what you provide. Major safety, title, or high-cost repair decisions may still require in-person inspection.
-              </p>
-            </section>
+            <>
+              <section className="concierge-confirmation">
+                <div className="eyebrow">Submitted successfully</div>
+                <h2>Request received</h2>
+                <p>Drivable received your request and the selected context below. We&apos;ll use this to route the request and understand what decision you&apos;re trying to make.</p>
+                <dl className="concierge-confirmation-grid">
+                  <div><dt>Scenario</dt><dd>{confirmation.scenarioLabel}</dd></div>
+                  <div><dt>Report type</dt><dd>{confirmation.reportTypeLabel}</dd></div>
+                  <div><dt>Topic</dt><dd>{confirmation.topic}</dd></div>
+                  <div><dt>Urgency</dt><dd>{confirmation.urgency}</dd></div>
+                  {confirmation.relatedCaseId && <div><dt>Related case ID</dt><dd>{confirmation.relatedCaseId}</dd></div>}
+                  {confirmation.relatedListingId && <div><dt>Related listing ID</dt><dd>{confirmation.relatedListingId}</dd></div>}
+                  <div className="concierge-confirmation-message"><dt>Message summary</dt><dd>{confirmation.messageSummary}</dd></div>
+                </dl>
+                <p className="concierge-confirmation-safety">
+                  Drivable provides information and next-step guidance based on what you provide. Major safety, title, or high-cost repair decisions may still require in-person inspection.
+                </p>
+              </section>
+              {confirmation.urgency !== "Vehicle or transaction feels unsafe" && <WhatHappensNext />}
+            </>
           )}
           {submitError && <div className="alert-card warning">{submitError}</div>}
 
