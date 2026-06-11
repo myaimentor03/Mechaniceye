@@ -4,6 +4,7 @@ import Marketplace from "./marketplace/Marketplace";
 import { DrivableHelpChooser } from "./components/DrivableHelpChooser";
 import { DrivableReportEmailPreview } from "./components/DrivableReportEmailPreview";
 import { DrivableReportPreview } from "./components/DrivableReportPreview";
+import { EvidenceChecklist } from "./components/EvidenceChecklist";
 import { InternalReviewCard } from "./components/InternalReviewCard";
 import { NeedHelpPanel } from "./components/NeedHelpPanel";
 import { YEARS, VEHICLE_DATA, FALLBACK_MAKES, FALLBACK_MODELS, FALLBACK_ENGINES, TRANSMISSION_OPTIONS, DRIVETRAIN_OPTIONS } from "./data/vehicleData";
@@ -902,6 +903,10 @@ export default function TestBackend() {
 
   if (window.location.pathname.replace(/\/$/, "") === "/start") {
     return <DrivableHelpChooser />;
+  }
+
+  if (window.location.pathname.replace(/\/$/, "") === "/evidence-checklist") {
+    return <EvidenceChecklist />;
   }
 
   if (window.location.pathname.replace(/\/$/, "") === "/report-preview") {

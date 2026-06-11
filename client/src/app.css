@@ -2883,3 +2883,127 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 }
+
+/* Drivable evidence checklist */
+.ec-page {
+  min-height: 100vh;
+  padding: 48px 20px 64px;
+  background: #07111f;
+}
+
+.ec-shell {
+  width: min(1080px, 100%);
+  margin: 0 auto;
+}
+
+.ec-header {
+  max-width: 760px;
+  margin-bottom: 26px;
+}
+
+.ec-eyebrow {
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.ec-header h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1.1;
+}
+
+.ec-header > p:last-child {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 1.02rem;
+  line-height: 1.65;
+}
+
+.ec-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.ec-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(17, 31, 48, 0.92);
+  padding: 22px;
+}
+
+.ec-card:last-child {
+  grid-column: 1 / -1;
+}
+
+.ec-card h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.18rem;
+}
+
+.ec-card ul {
+  display: grid;
+  gap: 11px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ec-card li {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 9px;
+  align-items: start;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.ec-card li span {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(59, 214, 255, 0.12);
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.ec-safety {
+  margin-top: 18px;
+  border: 1px solid rgba(255, 143, 143, 0.48);
+  border-radius: 8px;
+  background: rgba(90, 25, 30, 0.28);
+  padding: 20px;
+}
+
+.ec-safety strong {
+  color: #ffd0d0;
+}
+
+.ec-safety p {
+  margin: 6px 0 0;
+  color: #ffdede;
+  line-height: 1.6;
+}
+
+@media (max-width: 680px) {
+  .ec-page {
+    padding: 28px 12px 44px;
+  }
+
+  .ec-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ec-card:last-child {
+    grid-column: auto;
+  }
+}
