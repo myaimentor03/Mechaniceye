@@ -3091,3 +3091,256 @@ textarea:focus {
     width: 100%;
   }
 }
+
+/* Drivable roadside guidance preview */
+.rg-page {
+  min-height: 100vh;
+  padding: 32px 16px 56px;
+  background: #07111f;
+}
+
+.rg-card {
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #0e1d2e;
+  color: var(--text);
+}
+
+.rg-header,
+.rg-section,
+.rg-recommendation,
+.rg-stop-now,
+.rg-safety-notice {
+  padding: 24px;
+}
+
+.rg-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid var(--border);
+  background: #10263a;
+}
+
+.rg-eyebrow {
+  margin: 0 0 7px;
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.rg-header h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(1.8rem, 4vw, 2.7rem);
+  line-height: 1.12;
+}
+
+.rg-vehicle {
+  margin: 10px 0 0;
+  color: var(--muted);
+}
+
+.rg-preview-badge,
+.rg-risk-grid strong {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(59, 214, 255, 0.42);
+  border-radius: 999px;
+  background: rgba(59, 214, 255, 0.1);
+  padding: 7px 11px;
+  color: #bcefff;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.rg-recommendation {
+  border-bottom: 1px solid rgba(255, 210, 125, 0.4);
+  background: #302817;
+}
+
+.rg-recommendation h2,
+.rg-stop-now h2,
+.rg-section h2,
+.rg-safety-notice h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.35rem;
+}
+
+.rg-recommendation > p:last-child,
+.rg-safety-notice p {
+  margin: 10px 0 0;
+  color: #f4e4bd;
+  line-height: 1.65;
+}
+
+.rg-risk-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.rg-risk-grid > div {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(7, 17, 31, 0.5);
+  padding: 15px;
+}
+
+.rg-risk-grid span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.rg-risk-grid strong {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.rg-risk-grid .rg-risk-high {
+  color: #ffd27d;
+}
+
+.rg-stop-now {
+  border-top: 1px solid rgba(255, 143, 143, 0.4);
+  border-bottom: 1px solid rgba(255, 143, 143, 0.4);
+  background: rgba(90, 25, 30, 0.34);
+}
+
+.rg-stop-now .rg-eyebrow {
+  color: #ffb3b3;
+}
+
+.rg-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px 18px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rg-list li {
+  position: relative;
+  padding-left: 19px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.rg-list li::before {
+  position: absolute;
+  top: 0.55em;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  content: "";
+}
+
+.rg-stop-now .rg-list li {
+  color: #ffdede;
+}
+
+.rg-stop-now .rg-list li::before {
+  background: #ff8f8f;
+}
+
+.rg-two-column {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-bottom: 1px solid var(--border);
+}
+
+.rg-two-column .rg-section + .rg-section {
+  border-left: 1px solid var(--border);
+}
+
+.rg-path-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.rg-path-grid article {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 19px;
+}
+
+.rg-path-grid h3 {
+  margin: 0;
+  color: var(--text);
+}
+
+.rg-path-grid article > p:last-child {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.rg-path-temporary {
+  background: rgba(255, 210, 125, 0.08);
+}
+
+.rg-path-complete {
+  background: rgba(59, 214, 255, 0.07);
+}
+
+.rg-script blockquote {
+  margin: 16px 0 0;
+  border: 1px solid rgba(59, 214, 255, 0.35);
+  border-radius: 8px;
+  background: rgba(7, 17, 31, 0.56);
+  padding: 18px;
+  color: #d9f5fc;
+  font-family: Consolas, "Courier New", monospace;
+  line-height: 1.65;
+}
+
+.rg-safety-notice {
+  border-top: 1px solid rgba(255, 143, 143, 0.42);
+  background: rgba(90, 25, 30, 0.28);
+}
+
+.rg-page > .nas-strip {
+  width: min(1080px, 100%);
+}
+
+@media (max-width: 720px) {
+  .rg-page {
+    padding: 14px 10px 36px;
+  }
+
+  .rg-header {
+    flex-direction: column;
+  }
+
+  .rg-risk-grid,
+  .rg-two-column,
+  .rg-path-grid,
+  .rg-list {
+    grid-template-columns: 1fr;
+  }
+
+  .rg-two-column .rg-section + .rg-section {
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+}

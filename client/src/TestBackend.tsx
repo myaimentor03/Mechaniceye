@@ -7,6 +7,7 @@ import { DrivableReportPreview } from "./components/DrivableReportPreview";
 import { EvidenceChecklist } from "./components/EvidenceChecklist";
 import { InternalReviewCard } from "./components/InternalReviewCard";
 import { NeedHelpPanel } from "./components/NeedHelpPanel";
+import { RoadsideGuidancePreview } from "./components/RoadsideGuidancePreview";
 import { YEARS, VEHICLE_DATA, FALLBACK_MAKES, FALLBACK_MODELS, FALLBACK_ENGINES, TRANSMISSION_OPTIONS, DRIVETRAIN_OPTIONS } from "./data/vehicleData";
 import {
   REPORT_TYPES,
@@ -907,6 +908,10 @@ export default function TestBackend() {
 
   if (window.location.pathname.replace(/\/$/, "") === "/evidence-checklist") {
     return <EvidenceChecklist />;
+  }
+
+  if (window.location.pathname.replace(/\/$/, "") === "/roadside-preview") {
+    return <RoadsideGuidancePreview />;
   }
 
   if (window.location.pathname.replace(/\/$/, "") === "/report-preview") {
