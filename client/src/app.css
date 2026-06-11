@@ -3377,3 +3377,502 @@ textarea:focus {
     border-left: 0;
   }
 }
+
+/* Drivable review, outcome, and package preview lane */
+.mip-page,
+.ira-page,
+.ocp-page,
+.rpp-page {
+  min-height: 100vh;
+  padding: 32px 16px 56px;
+  background: #07111f;
+  color: var(--text);
+}
+
+.mip-card,
+.ira-panel,
+.ocp-card,
+.rpp-shell {
+  width: min(1080px, 100%);
+  margin: 0 auto;
+}
+
+.mip-card,
+.ira-panel,
+.ocp-card {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #0e1d2e;
+}
+
+.mip-header,
+.ira-header,
+.ocp-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid var(--border);
+  background: #10263a;
+  padding: 24px;
+}
+
+.mip-brand,
+.ira-eyebrow,
+.ocp-eyebrow,
+.rpp-eyebrow {
+  margin: 0 0 7px;
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.mip-header h1,
+.ira-header h1,
+.ocp-header h1,
+.rpp-header h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(1.8rem, 4vw, 2.75rem);
+  line-height: 1.12;
+}
+
+.mip-header p:last-child,
+.ira-header p:last-child,
+.ocp-header p:last-child,
+.rpp-header > p:last-child {
+  margin: 10px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.mip-status,
+.ira-internal,
+.ocp-status {
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 210, 125, 0.5);
+  border-radius: 999px;
+  background: rgba(255, 210, 125, 0.1);
+  padding: 7px 11px;
+  color: #ffe1a3;
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.mip-intro,
+.mip-section,
+.mip-warning,
+.mip-limitation,
+.ira-section,
+.ira-warning,
+.ocp-explanation,
+.ocp-note {
+  padding: 24px;
+}
+
+.mip-intro {
+  background: rgba(59, 214, 255, 0.07);
+}
+
+.mip-intro h2,
+.mip-section h2,
+.ira-section h2,
+.ocp-explanation h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.3rem;
+}
+
+.mip-intro p,
+.mip-reply p,
+.ira-section > p,
+.ocp-explanation p {
+  margin: 9px 0 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.mip-reason-grid,
+.ira-summary-grid,
+.ira-action-grid,
+.ocp-fields {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.mip-reason-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.mip-reason-grid > div,
+.ira-summary-grid > div,
+.ocp-fields > div {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(7, 17, 31, 0.5);
+  padding: 15px;
+}
+
+.mip-checklist {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mip-checklist li {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 13px;
+  color: var(--muted);
+}
+
+.mip-checklist span {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(59, 214, 255, 0.12);
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.mip-warning,
+.ira-warning {
+  border-top: 1px solid rgba(255, 143, 143, 0.45);
+  border-bottom: 1px solid rgba(255, 143, 143, 0.45);
+  background: rgba(90, 25, 30, 0.3);
+  color: #ffdede;
+  line-height: 1.6;
+}
+
+.mip-warning p {
+  margin: 6px 0 0;
+}
+
+.mip-limitation,
+.ocp-note {
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.ira-page {
+  background: #090d14;
+}
+
+.ira-panel {
+  border-color: #415066;
+}
+
+.ira-header {
+  background: #151b25;
+}
+
+.ira-internal {
+  border-color: rgba(255, 143, 143, 0.5);
+  background: rgba(255, 143, 143, 0.11);
+  color: #ffd0d0;
+}
+
+.ira-summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ira-summary-grid dt,
+.ocp-fields dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.ira-summary-grid dd,
+.ocp-fields dd {
+  margin: 6px 0 0;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.ira-two-column {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.ira-two-column .ira-section + .ira-section {
+  border-left: 1px solid var(--border);
+}
+
+.ira-draft-status {
+  display: inline-flex;
+  margin-top: 14px;
+  border-radius: 999px;
+  background: rgba(255, 210, 125, 0.1);
+  padding: 6px 9px;
+  color: #ffe1a3;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.ira-flags {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding-left: 20px;
+  color: #ffd7d7;
+  line-height: 1.5;
+}
+
+.ira-section-copy {
+  margin-top: 7px;
+}
+
+.ira-action-grid article {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 12px;
+  border: 1px solid #415066;
+  border-radius: 8px;
+  background: #111923;
+  padding: 16px;
+}
+
+.ira-choice-marker {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+}
+
+.ira-action-grid h3 {
+  margin: 0;
+  color: var(--text);
+}
+
+.ira-action-grid p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.ira-note {
+  margin-top: 14px;
+  min-height: 110px;
+  border: 1px solid #415066;
+  border-radius: 8px;
+  background: #0a111a;
+  padding: 16px;
+  color: var(--text);
+  line-height: 1.65;
+}
+
+.ocp-explanation {
+  background: rgba(154, 240, 197, 0.07);
+}
+
+.ocp-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 24px;
+  margin-top: 0;
+}
+
+.ocp-fields > div:nth-child(2),
+.ocp-fields > div:nth-child(3),
+.ocp-fields > div:nth-child(4),
+.ocp-fields > div:nth-child(5),
+.ocp-fields > div:nth-child(10),
+.ocp-fields > div:nth-child(11) {
+  grid-column: 1 / -1;
+}
+
+.rpp-header {
+  max-width: 780px;
+  margin-bottom: 26px;
+}
+
+.rpp-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.rpp-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #0e1d2e;
+  padding: 22px;
+}
+
+.rpp-card:last-child {
+  grid-column: 1 / -1;
+}
+
+.rpp-featured {
+  border-top: 3px solid var(--accent);
+}
+
+.rpp-launch-label {
+  margin-bottom: 12px;
+  border-radius: 999px;
+  background: rgba(59, 214, 255, 0.1);
+  padding: 5px 9px;
+  color: #bcefff;
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.rpp-card h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.3rem;
+}
+
+.rpp-price {
+  margin: 8px 0 0;
+  color: #9af0c5;
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+.rpp-card dl {
+  display: grid;
+  gap: 13px;
+  margin: 20px 0;
+}
+
+.rpp-card dt {
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.rpp-card dd {
+  margin: 5px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.rpp-action,
+.dhc-package-link {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  padding: 10px 16px;
+  color: #04131e;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.rpp-action {
+  margin-top: auto;
+}
+
+.rpp-action:focus-visible,
+.dhc-package-link:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+
+.rpp-warning {
+  margin-top: 18px;
+  border: 1px solid rgba(255, 210, 125, 0.45);
+  border-radius: 8px;
+  background: rgba(255, 210, 125, 0.08);
+  padding: 18px;
+  color: #f6dfac;
+  line-height: 1.6;
+}
+
+.dhc-package-link {
+  margin-top: 18px;
+  background: transparent;
+  color: var(--accent);
+}
+
+.mip-page > .nas-strip,
+.ira-page > .nas-strip,
+.ocp-page > .nas-strip {
+  width: min(1080px, 100%);
+}
+
+@media (max-width: 780px) {
+  .mip-reason-grid,
+  .mip-checklist,
+  .ira-summary-grid,
+  .ira-two-column,
+  .ocp-fields,
+  .rpp-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mip-header,
+  .ira-header,
+  .ocp-header {
+    flex-direction: column;
+  }
+
+  .ira-two-column .ira-section + .ira-section {
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+
+  .ocp-fields > div,
+  .rpp-card:last-child {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .mip-page,
+  .ira-page,
+  .ocp-page,
+  .rpp-page {
+    padding: 14px 10px 36px;
+  }
+
+  .mip-header,
+  .mip-intro,
+  .mip-section,
+  .mip-warning,
+  .mip-limitation,
+  .ira-header,
+  .ira-section,
+  .ira-warning,
+  .ocp-header,
+  .ocp-explanation,
+  .ocp-fields,
+  .ocp-note {
+    padding: 18px;
+  }
+
+  .rpp-action,
+  .dhc-package-link {
+    width: 100%;
+  }
+}

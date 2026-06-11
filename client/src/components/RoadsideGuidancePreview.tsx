@@ -146,6 +146,9 @@ export function RoadsideGuidancePreview() {
         primaryLabel="Choose another path"
         primaryHref="/start"
         note="Use the evidence checklist, sample report, or guided help for the next step."
+        additionalLinks={[
+          { label: "See missing-info request", href: "/missing-info-preview" }
+        ]}
       />
     </main>
   );

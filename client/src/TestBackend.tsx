@@ -6,7 +6,11 @@ import { DrivableReportEmailPreview } from "./components/DrivableReportEmailPrev
 import { DrivableReportPreview } from "./components/DrivableReportPreview";
 import { EvidenceChecklist } from "./components/EvidenceChecklist";
 import { InternalReviewCard } from "./components/InternalReviewCard";
+import { InternalReviewActionPanel } from "./components/InternalReviewActionPanel";
+import { MissingInfoRequestPreview } from "./components/MissingInfoRequestPreview";
 import { NeedHelpPanel } from "./components/NeedHelpPanel";
+import { OutcomeCapturePreview } from "./components/OutcomeCapturePreview";
+import { ReportPackagePreview } from "./components/ReportPackagePreview";
 import { RoadsideGuidancePreview } from "./components/RoadsideGuidancePreview";
 import { WhatHappensNext } from "./components/WhatHappensNext";
 import { YEARS, VEHICLE_DATA, FALLBACK_MAKES, FALLBACK_MODELS, FALLBACK_ENGINES, TRANSMISSION_OPTIONS, DRIVETRAIN_OPTIONS } from "./data/vehicleData";
@@ -916,6 +920,22 @@ export default function TestBackend() {
 
   if (window.location.pathname.replace(/\/$/, "") === "/roadside-preview") {
     return <RoadsideGuidancePreview />;
+  }
+
+  if (window.location.pathname.replace(/\/$/, "") === "/missing-info-preview") {
+    return <MissingInfoRequestPreview />;
+  }
+
+  if (window.location.pathname.replace(/\/$/, "") === "/review-action-preview") {
+    return <InternalReviewActionPanel />;
+  }
+
+  if (window.location.pathname.replace(/\/$/, "") === "/outcome-capture-preview") {
+    return <OutcomeCapturePreview />;
+  }
+
+  if (window.location.pathname.replace(/\/$/, "") === "/report-packages") {
+    return <ReportPackagePreview />;
   }
 
   if (window.location.pathname.replace(/\/$/, "") === "/report-preview") {

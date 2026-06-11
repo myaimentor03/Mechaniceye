@@ -79,6 +79,10 @@ export function DrivableHelpChooser() {
           </p>
         </aside>
 
+        <a className="dhc-package-link" href="/report-packages">
+          Compare Drivable report options
+        </a>
+
         <WhatHappensNext />
       </section>
     </main>

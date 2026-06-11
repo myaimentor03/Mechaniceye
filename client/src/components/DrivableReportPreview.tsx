@@ -162,7 +162,12 @@ export function DrivableReportPreview({
         </footer>
       </article>
       <WhatHappensNext />
-      <NextActionStrip />
+      <NextActionStrip
+        additionalLinks={[
+          { label: "View review action", href: "/review-action-preview" },
+          { label: "Compare report packages", href: "/report-packages" }
+        ]}
+      />
     </main>
   );
 }
