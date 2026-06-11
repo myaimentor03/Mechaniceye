@@ -46,7 +46,7 @@ export type MockDrivableIntakePayload = {
 };
 
 const SAFETY_PATTERN =
-  /\b(brake|braking|steer|steering|overheat|overheating|fuel leak|smoke|fire|electrical burning|wheel loose|tire separation|unsafe|abs light)\b/i;
+  /\b(brake failure|braking loss|steering loss|overheat(?:ing)?|fuel leak|smoke|fire smell|burning smell|severe electrical|wheel failure|tire failure|loss of power|oil pressure|coolant temperature|transmission (?:will not|won't) engage|engine knock(?:ing)?|unstable|shaking violently|brake|braking|steer|steering|wheel loose|tire separation|unsafe|abs light)\b/i;
 
 function scenarioGoal(scenario: IntakeScenario): string {
   const goals: Record<IntakeScenario, string> = {
@@ -188,7 +188,7 @@ export function buildMockDrivableReportFromIntake(
     reportId: `MOCK-${intake.intakeId}`,
     reportType: intake.reportType,
     scenario: intake.scenario,
-    status: highRisk ? "needs_human_review" : "draft",
+    status: highRisk ? "needs_human_review" : "ai_draft_ready",
     submittedAt: intake.submittedAt,
     generatedAt,
     customer: {

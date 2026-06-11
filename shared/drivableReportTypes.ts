@@ -5,14 +5,9 @@ import type {
   ReportTypeId,
   RiskLevel
 } from "./drivableDecisionEngine";
+import type { DrivableReportStatus } from "./drivableReportStatus";
 
-export type DrivableReviewStatus =
-  | "sample_preview"
-  | "draft"
-  | "needs_human_review"
-  | "approved"
-  | "customer_ready"
-  | "delivered";
+export type DrivableReviewStatus = DrivableReportStatus;
 
 export type DrivableReportVehicle = {
   year: string;
@@ -95,7 +90,7 @@ export const SAMPLE_DRIVABLE_REPORT: DrivableReport = {
   reportId: "DRV-SAMPLE-2014-CAMRY",
   reportType: "first_look_report",
   scenario: "buying_vehicle",
-  status: "sample_preview",
+  status: "needs_human_review",
   submittedAt: "2026-06-10T15:30:00.000Z",
   generatedAt: "2026-06-10T15:35:00.000Z",
   customer: {
