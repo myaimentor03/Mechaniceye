@@ -2,29 +2,46 @@ import { WhatHappensNext } from "./WhatHappensNext";
 
 const HELP_CHOICES = [
   {
+    title: "I'm stuck or not sure I can keep driving",
+    subtitle: "Get a safety-first next move: stop, limp to a safer place, call a tow, or gather more info.",
+    href: "/roadside-preview?mode=roadside_now",
+    actionLabel: "Get roadside guidance",
+    priority: true
+  },
+  {
     title: "Can I keep driving this?",
     subtitle: "Something feels wrong and you need a risk check.",
-    href: "/help?scenario=current_problem&topic=drivability"
+    href: "/help?scenario=current_problem&topic=drivability",
+    actionLabel: "Start here",
+    priority: false
   },
   {
     title: "Should I fix it or sell it?",
     subtitle: "Understand whether repair money still makes sense.",
-    href: "/help?scenario=current_problem&topic=repair-vs-sell"
+    href: "/help?scenario=current_problem&topic=repair-vs-sell",
+    actionLabel: "Start here",
+    priority: false
   },
   {
     title: "I'm thinking about buying this vehicle",
     subtitle: "Get a remote risk review before chasing it.",
-    href: "/report-preview?scenario=buying_vehicle&reportType=buyer_remote_risk_review"
+    href: "/report-preview?scenario=buying_vehicle&reportType=buyer_remote_risk_review",
+    actionLabel: "Start here",
+    priority: false
   },
   {
     title: "I want to sell a vehicle as-is",
     subtitle: "Prepare a clearer listing with known issues explained.",
-    href: "/marketplace/sell/intake"
+    href: "/marketplace/sell/intake",
+    actionLabel: "Start here",
+    priority: false
   },
   {
     title: "I already submitted something",
     subtitle: "Ask for help with an existing case or listing.",
-    href: "/help?topic=existing-case"
+    href: "/help?topic=existing-case",
+    actionLabel: "Start here",
+    priority: false
   }
 ] as const;
 
@@ -40,12 +57,23 @@ export function DrivableHelpChooser() {
 
         <div className="dhc-grid">
           {HELP_CHOICES.map((choice) => (
-            <article className="dhc-card" key={choice.title}>
+            <article
+              className={`dhc-card${choice.priority ? " dhc-card-priority" : ""}`}
+              key={choice.title}
+            >
               <div>
+                {choice.priority && <span className="dhc-priority-label">Roadside / stuck driver</span>}
                 <h2>{choice.title}</h2>
                 <p>{choice.subtitle}</p>
               </div>
-              <a className="dhc-action" href={choice.href}>Start here</a>
+              <a className="dhc-action" href={choice.href}>{choice.actionLabel}</a>
+              {choice.priority && (
+                <p className="dhc-priority-safety">
+                  If brakes, steering, smoke, fire smell, fuel leak, overheating, wheel/tire
+                  failure, or severe electrical issues are involved, stop driving and seek
+                  in-person help.
+                </p>
+              )}
             </article>
           ))}
         </div>

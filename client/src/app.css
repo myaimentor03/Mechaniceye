@@ -2705,6 +2705,26 @@ textarea:focus {
   grid-column: 1 / -1;
 }
 
+.dhc-card-priority {
+  grid-column: 1 / -1;
+  min-height: 0;
+  border-color: rgba(255, 210, 125, 0.58);
+  background: #272316;
+}
+
+.dhc-priority-label {
+  display: inline-flex;
+  margin-bottom: 12px;
+  border: 1px solid rgba(255, 210, 125, 0.48);
+  border-radius: 999px;
+  background: rgba(255, 210, 125, 0.1);
+  padding: 5px 9px;
+  color: #ffe1a3;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
 .dhc-card h2 {
   margin: 0;
   color: var(--text);
@@ -2716,6 +2736,15 @@ textarea:focus {
   margin: 9px 0 0;
   color: var(--muted);
   line-height: 1.6;
+}
+
+.dhc-card .dhc-priority-safety {
+  width: 100%;
+  margin: 0;
+  border-top: 1px solid rgba(255, 210, 125, 0.28);
+  padding-top: 14px;
+  color: #f6dfac;
+  font-size: 0.9rem;
 }
 
 .dhc-action {
@@ -2776,6 +2805,10 @@ textarea:focus {
     min-height: 0;
     grid-column: auto;
     padding: 20px;
+  }
+
+  .dhc-card-priority {
+    grid-column: auto;
   }
 
   .dhc-action {
