@@ -23,6 +23,7 @@ export function NextActionStrip({
       <p>{note}</p>
       <div className="nas-actions">
         <a className="nas-button nas-primary" href={primaryHref}>{primaryLabel}</a>
+        <a className="nas-button" href="/preview-hub">Preview hub</a>
         <a className="nas-button" href="/report-preview">View sample report</a>
         <a className="nas-button" href="/evidence-checklist">See evidence checklist</a>
         {additionalLinks.map((link) => (

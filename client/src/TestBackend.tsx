@@ -418,6 +418,7 @@ function ConciergeHelpPage() {
           <button onClick={() => { window.location.href = "/marketplace/sell"; }}>ClearSale</button>
           <button onClick={() => { window.location.href = "/marketplace/browse"; }}>Buyer Check</button>
           <button onClick={() => { window.location.href = "/mechanic-match"; }}>Mechanic Match</button>
+          <button onClick={() => { window.location.href = "/preview-hub"; }}>Preview Hub</button>
         </div>
       </div>
 

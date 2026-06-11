@@ -4053,6 +4053,12 @@ textarea:focus {
   color: var(--accent);
 }
 
+.dhc-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .mip-page > .nas-strip,
 .ira-page > .nas-strip,
 .ocp-page > .nas-strip {
@@ -4111,6 +4117,10 @@ textarea:focus {
 
   .rpp-action,
   .dhc-package-link {
+    width: 100%;
+  }
+
+  .dhc-footer-links {
     width: 100%;
   }
 }
