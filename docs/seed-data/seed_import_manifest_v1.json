@@ -1,0 +1,182 @@
+[
+  {
+    "datasetName": "symptom_categories",
+    "version": "v1",
+    "jsonFile": "docs/seed-data/json/symptom_categories_seed_v1.json",
+    "csvFile": "docs/seed-data/drivable_symptom_categories_seed_v1.csv",
+    "proposedTable": "drivable_seed_symptom_categories",
+    "primaryKey": "symptomCategoryId",
+    "requiredFields": [
+      "symptomCategoryId",
+      "label",
+      "plainEnglishDescription",
+      "possibleRiskLevel",
+      "recommendedInitialPath",
+      "safetyNote"
+    ],
+    "importPriority": 1,
+    "customerVisible": false,
+    "internalOnly": true,
+    "aiContextSafe": true,
+    "importAllowedNow": false,
+    "notes": "Foundational symptom taxonomy. Human review is required before use in customer guidance."
+  },
+  {
+    "datasetName": "evidence_items",
+    "version": "v1",
+    "jsonFile": "docs/seed-data/json/evidence_items_seed_v1.json",
+    "csvFile": "docs/seed-data/drivable_evidence_items_seed_v1.csv",
+    "proposedTable": "drivable_seed_evidence_items",
+    "primaryKey": "evidenceId",
+    "requiredFields": [
+      "evidenceId",
+      "label",
+      "description",
+      "evidenceType",
+      "safeCaptureInstructions",
+      "unsafeCaptureWarning",
+      "priority"
+    ],
+    "importPriority": 2,
+    "customerVisible": false,
+    "internalOnly": true,
+    "aiContextSafe": true,
+    "importAllowedNow": false,
+    "notes": "Evidence request taxonomy with explicit safe and unsafe capture language."
+  },
+  {
+    "datasetName": "roadside_risk_triggers",
+    "version": "v1",
+    "jsonFile": "docs/seed-data/json/roadside_risk_triggers_seed_v1.json",
+    "csvFile": "docs/seed-data/drivable_roadside_risk_triggers_seed_v1.csv",
+    "proposedTable": "drivable_seed_roadside_risk_triggers",
+    "primaryKey": "triggerId",
+    "requiredFields": [
+      "triggerId",
+      "label",
+      "riskLevel",
+      "recommendedAction",
+      "stopNow",
+      "safeCustomerMessage",
+      "unsafePhrasingToAvoid"
+    ],
+    "importPriority": 3,
+    "customerVisible": false,
+    "internalOnly": true,
+    "aiContextSafe": false,
+    "importAllowedNow": false,
+    "notes": "Safety-critical rules. Never use directly in customer output without qualified human review."
+  },
+  {
+    "datasetName": "decision_paths",
+    "version": "v1",
+    "jsonFile": "docs/seed-data/json/decision_paths_seed_v1.json",
+    "csvFile": "docs/seed-data/drivable_decision_paths_seed_v1.csv",
+    "proposedTable": "drivable_seed_decision_paths",
+    "primaryKey": "decisionPathId",
+    "requiredFields": [
+      "decisionPathId",
+      "label",
+      "plainEnglishMeaning",
+      "whenToUse",
+      "safetyBoundaries",
+      "relatedStatuses"
+    ],
+    "importPriority": 4,
+    "customerVisible": false,
+    "internalOnly": true,
+    "aiContextSafe": true,
+    "importAllowedNow": false,
+    "notes": "Possible next-step paths, not diagnoses, guarantees, or driving clearance."
+  },
+  {
+    "datasetName": "follow_up_questions",
+    "version": "v1",
+    "jsonFile": "docs/seed-data/json/follow_up_questions_seed_v1.json",
+    "csvFile": "docs/seed-data/drivable_follow_up_questions_seed_v1.csv",
+    "proposedTable": "drivable_seed_follow_up_questions",
+    "primaryKey": "questionId",
+    "requiredFields": [
+      "questionId",
+      "symptomCategoryId",
+      "questionText",
+      "whyItMatters",
+      "safetyWarning",
+      "priority",
+      "answerType"
+    ],
+    "importPriority": 5,
+    "customerVisible": false,
+    "internalOnly": true,
+    "aiContextSafe": true,
+    "importAllowedNow": false,
+    "notes": "Depends on stable symptom category IDs and should be evaluated for relevance and safe wording."
+  },
+  {
+    "datasetName": "repair_vs_sell_factors",
+    "version": "v1",
+    "jsonFile": "docs/seed-data/json/repair_vs_sell_factors_seed_v1.json",
+    "csvFile": "docs/seed-data/drivable_repair_vs_sell_factors_seed_v1.csv",
+    "proposedTable": "drivable_seed_repair_vs_sell_factors",
+    "primaryKey": "factorId",
+    "requiredFields": [
+      "factorId",
+      "label",
+      "plainEnglishMeaning",
+      "pushesTowardRepair",
+      "pushesTowardSell",
+      "riskNote"
+    ],
+    "importPriority": 6,
+    "customerVisible": false,
+    "internalOnly": true,
+    "aiContextSafe": true,
+    "importAllowedNow": false,
+    "notes": "Decision-support factors only; values, costs, and outcomes require current evidence and review."
+  },
+  {
+    "datasetName": "buyer_risk_flags",
+    "version": "v1",
+    "jsonFile": "docs/seed-data/json/buyer_risk_flags_seed_v1.json",
+    "csvFile": "docs/seed-data/drivable_buyer_risk_flags_seed_v1.csv",
+    "proposedTable": "drivable_seed_buyer_risk_flags",
+    "primaryKey": "flagId",
+    "requiredFields": [
+      "flagId",
+      "label",
+      "whyItMatters",
+      "evidenceToRequest",
+      "riskLevel",
+      "walkAwaySignal",
+      "customerSafeAdvice"
+    ],
+    "importPriority": 7,
+    "customerVisible": false,
+    "internalOnly": true,
+    "aiContextSafe": true,
+    "importAllowedNow": false,
+    "notes": "Remote buyer screening prompts; seller claims and title details remain unverified."
+  },
+  {
+    "datasetName": "seller_disclosure_prompts",
+    "version": "v1",
+    "jsonFile": "docs/seed-data/json/seller_disclosure_seed_v1.json",
+    "csvFile": "docs/seed-data/drivable_seller_disclosure_seed_v1.csv",
+    "proposedTable": "drivable_seed_seller_disclosure_prompts",
+    "primaryKey": "disclosureId",
+    "requiredFields": [
+      "disclosureId",
+      "issueType",
+      "plainEnglishDisclosurePrompt",
+      "buyerConcern",
+      "listingLanguageSuggestion",
+      "safetyOrLegalNote"
+    ],
+    "importPriority": 8,
+    "customerVisible": false,
+    "internalOnly": true,
+    "aiContextSafe": false,
+    "importAllowedNow": false,
+    "notes": "Disclosure support is not legal advice and requires review for the applicable jurisdiction and facts."
+  }
+]
