@@ -10,6 +10,10 @@
 - `DRIVABLE_PROPOSED_SCHEMA_SQL_DRAFT_V1.sql` - PostgreSQL-style schema draft for documentation only; never run without review.
 - `DRIVABLE_PROPOSED_DRIZZLE_SCHEMA_DRAFT_V1.ts` - Standalone Drizzle schema draft that is not imported by the application.
 - `DRIVABLE_REAL_SEED_IMPORT_RUNBOOK_V1.md` - Approval, backup, local/staging-first, rollback, and production import controls.
+- `DRIVABLE_DRIZZLE_SCHEMA_ALIGNMENT_AUDIT_V1.md` - Exact config, schema, runtime import, migration-history, and risk audit.
+- `DRIVABLE_MIGRATION_READINESS_CHECKLIST_V1.md` - Pass/fail gates for schema alignment, environments, recovery, migration review, and seed import.
+- `DRIVABLE_DB_ENVIRONMENT_SAFETY_V1.md` - Environment identification, backup, rollback, row-count, and production stop rules.
+- `DRIVABLE_DRIZZLE_CORRECTION_PLAN_V1.md` - Recommended final layout and phased correction sequence before migrations.
 
 Related machine-readable contract:
 
@@ -28,3 +32,4 @@ These commands read and report only. They do not connect to or modify a database
 Local-only script:
 
 - `../../scripts/local-seed-import-skeleton.mjs` - Requires `--dry-run`, validates the manifest and seed rows, rejects production-like database URLs, and never opens a database connection.
+- `../../scripts/inspect-db-config.mjs` - Read-only inspection of Drizzle configs, schema candidates, package scripts, and migration directories.
