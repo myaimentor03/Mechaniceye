@@ -28,6 +28,11 @@ import {
   REPORT_TYPES,
   type IntakeScenario
 } from "../../shared/drivableDecisionEngine";
+import {
+  getFrontendRoutePath,
+  getFrontendSearchParams,
+  navigateFrontend
+} from "./frontendRouting";
 
 const PUBLIC_API_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/diagnoses";
 const SUBMISSION_TIMEOUT_MS = 20000;
@@ -171,8 +176,8 @@ function InternalReviewDesk() {
       <div className="topbar">
         <div className="brand">Drivable Internal Review</div>
         <div className="nav">
-          <button onClick={() => { window.location.href = "/"; }}>Public App</button>
-          <button onClick={() => { window.location.href = "/clearsale"; }}>ClearSale</button>
+          <button onClick={() => navigateFrontend("/")}>Public App</button>
+          <button onClick={() => navigateFrontend("/clearsale")}>ClearSale</button>
         </div>
       </div>
 
@@ -262,7 +267,7 @@ function InternalReviewDesk() {
             </div>
 
             <div className="step-actions">
-              <button className="secondary-btn" type="button" onClick={() => { window.location.href = "/"; }}>Back to App</button>
+              <button className="secondary-btn" type="button" onClick={() => navigateFrontend("/")}>Back to App</button>
               <button className="primary-btn" type="submit" disabled={isSubmitting}>{isSubmitting ? "Submitting..." : "Submit Internal Review"}</button>
             </div>
           </form>
@@ -320,7 +325,7 @@ type ConciergeConfirmation = {
 };
 
 function ConciergeHelpPage() {
-  const searchParams = new URLSearchParams(window.location.search);
+  const searchParams = getFrontendSearchParams();
   const initialTopic = searchParams.get("topic") || "";
   const scenarioParam = searchParams.get("scenario");
   const reportParam = searchParams.get("reportType") || searchParams.get("report");
@@ -370,7 +375,7 @@ function ConciergeHelpPage() {
       customerPhone: value("customerPhone"),
       relatedCaseId: value("relatedCaseId"),
       relatedListingId: value("relatedListingId"),
-      currentPage: value("currentPage") || window.location.pathname,
+      currentPage: value("currentPage") || getFrontendRoutePath(),
       urgency: value("urgency"),
       preferredContactMethod: value("preferredContactMethod"),
       message,
@@ -421,11 +426,11 @@ function ConciergeHelpPage() {
       <div className="topbar">
         <div className="brand">Drivable Guides</div>
         <div className="nav">
-          <button onClick={() => { window.location.href = "/"; }}>Drivable Check</button>
-          <button onClick={() => { window.location.href = "/clearsale"; }}>ClearSale</button>
-          <button onClick={() => { window.location.href = "/buyer-check"; }}>Buyer Check</button>
-          <button onClick={() => { window.location.href = "/mechanic-match"; }}>Mechanic Match</button>
-          <button onClick={() => { window.location.href = "/preview-hub"; }}>Preview Hub</button>
+          <button onClick={() => navigateFrontend("/")}>Drivable Check</button>
+          <button onClick={() => navigateFrontend("/clearsale")}>ClearSale</button>
+          <button onClick={() => navigateFrontend("/buyer-check")}>Buyer Check</button>
+          <button onClick={() => navigateFrontend("/mechanic-match")}>Mechanic Match</button>
+          <button onClick={() => navigateFrontend("/preview-hub")}>Preview Hub</button>
         </div>
       </div>
 
@@ -555,7 +560,7 @@ function ConciergeHelpPage() {
               </div>
               <div className="field"><label>Related Case ID</label><input name="relatedCaseId" placeholder="Optional" /></div>
               <div className="field"><label>Related Listing ID</label><input name="relatedListingId" placeholder="Optional" /></div>
-              <div className="field"><label>Current Page</label><input name="currentPage" defaultValue={document.referrer || window.location.pathname} /></div>
+              <div className="field"><label>Current Page</label><input name="currentPage" defaultValue={document.referrer || getFrontendRoutePath()} /></div>
               <div className="field"><label>Where did you get stuck?</label><input name="stuckStep" placeholder="Example: vehicle selection or title status" /></div>
             </div>
 
@@ -570,7 +575,7 @@ function ConciergeHelpPage() {
             </div>
 
             <div className="step-actions">
-              <button className="secondary-btn" type="button" onClick={() => { window.location.href = "/"; }}>Back to Main App</button>
+              <button className="secondary-btn" type="button" onClick={() => navigateFrontend("/")}>Back to Main App</button>
               <button className="primary-btn" type="submit" disabled={isSubmitting}>{isSubmitting ? "Sending..." : "Ask a Drivable Guide"}</button>
             </div>
           </form>
@@ -597,7 +602,7 @@ function ConciergeHelpPage() {
 }
 
 function MechanicMatchFlow() {
-  const path = window.location.pathname.replace(/\/$/, "") || "/mechanic-match";
+  const path = getFrontendRoutePath();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
@@ -655,7 +660,7 @@ function MechanicMatchFlow() {
         throw new Error(result.error || "Mechanic Match request failed.");
       }
 
-      window.location.href = "/mechanic-match/submitted";
+      navigateFrontend("/mechanic-match/submitted");
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Mechanic Match request failed. Please try again.");
       setIsSubmitting(false);
@@ -669,10 +674,10 @@ function MechanicMatchFlow() {
         <div className="topbar">
           <div className="brand">Drivable by Mechanic&apos;s Eye</div>
           <div className="nav">
-            <button onClick={() => { window.location.href = "/"; }}>Drivable Check</button>
-            <button onClick={() => { window.location.href = "/clearsale"; }}>ClearSale</button>
-            <button onClick={() => { window.location.href = "/mechanic-match"; }}>Mechanic Match</button>
-            <button onClick={() => { window.location.href = "/help"; }}>Need Help?</button>
+            <button onClick={() => navigateFrontend("/")}>Drivable Check</button>
+            <button onClick={() => navigateFrontend("/clearsale")}>ClearSale</button>
+            <button onClick={() => navigateFrontend("/mechanic-match")}>Mechanic Match</button>
+            <button onClick={() => navigateFrontend("/help")}>Need Help?</button>
           </div>
         </div>
         <div className="content-shell">{children}</div>
@@ -829,7 +834,7 @@ function MechanicMatchFlow() {
               </div>
 
               <div className="step-actions">
-                <button className="secondary-btn" type="button" onClick={() => { window.location.href = "/"; }}>Back</button>
+                <button className="secondary-btn" type="button" onClick={() => navigateFrontend("/")}>Back</button>
                 <button className="primary-btn" type="submit" disabled={isSubmitting}>{isSubmitting ? "Submitting..." : "Submit Mechanic Match Request"}</button>
               </div>
             </form>
@@ -869,8 +874,8 @@ function MechanicMatchFlow() {
               This is not a guarantee of provider availability, repair outcome, diagnosis accuracy, safety, price, or service quality. Drivable by Mechanic&apos;s Eye does not perform repairs or control third-party providers.
             </div>
             <div className="hero-actions">
-              <button className="primary-btn" type="button" onClick={() => { window.location.href = "/"; }}>Return to Drivable</button>
-              <button className="secondary-btn" type="button" onClick={() => { window.location.href = "/mechanic-match"; }}>Mechanic Match Home</button>
+              <button className="primary-btn" type="button" onClick={() => navigateFrontend("/")}>Return to Drivable</button>
+              <button className="secondary-btn" type="button" onClick={() => navigateFrontend("/mechanic-match")}>Mechanic Match Home</button>
             </div>
           </div>
         </div>
@@ -889,8 +894,8 @@ function MechanicMatchFlow() {
             diagnostic specialist, or inspector. It starts with the vehicle problem, not just your location.
           </p>
           <div className="hero-actions">
-            <button className="primary-btn" type="button" onClick={() => { window.location.href = "/mechanic-match/request"; }}>Start Mechanic Match Request</button>
-            <button className="secondary-btn" type="button" onClick={() => { window.location.href = "/"; }}>Use Drivable Check First</button>
+            <button className="primary-btn" type="button" onClick={() => navigateFrontend("/mechanic-match/request")}>Start Mechanic Match Request</button>
+            <button className="secondary-btn" type="button" onClick={() => navigateFrontend("/")}>Use Drivable Check First</button>
           </div>
         </div>
 
@@ -917,7 +922,7 @@ function MechanicMatchFlow() {
 }
 
 export default function TestBackend() {
-  const routePath = window.location.pathname.replace(/\/$/, "") || "/";
+  const routePath = getFrontendRoutePath();
 
   if (routePath === "/clearsale" || routePath === "/clear-sale") {
     return <ClearSalePreview />;
@@ -931,87 +936,87 @@ export default function TestBackend() {
     return <MechanicMatchPreview />;
   }
 
-  if (window.location.pathname.startsWith("/marketplace")) {
+  if (routePath.startsWith("/marketplace")) {
     return <Marketplace />;
   }
 
-  if (window.location.pathname.replace(/\/$/, "") === "/start") {
+  if (routePath === "/start") {
     return <DrivableHelpChooser />;
   }
 
-  if (window.location.pathname.replace(/\/$/, "") === "/preview-hub") {
+  if (routePath === "/preview-hub") {
     return <DrivablePreviewHub />;
   }
 
-  if (window.location.pathname.replace(/\/$/, "") === "/evidence-checklist") {
+  if (routePath === "/evidence-checklist") {
     return <EvidenceChecklist />;
   }
 
-  if (window.location.pathname.replace(/\/$/, "") === "/roadside-preview") {
+  if (routePath === "/roadside-preview") {
     return <RoadsideGuidancePreview />;
   }
 
-  if (window.location.pathname.replace(/\/$/, "") === "/decision-path-preview") {
+  if (routePath === "/decision-path-preview") {
     return <CustomerDecisionPathPreview />;
   }
 
-  if (window.location.pathname.replace(/\/$/, "") === "/roadside-severity-guide") {
+  if (routePath === "/roadside-severity-guide") {
     return <RoadsideSeverityGuide />;
   }
 
-  if (window.location.pathname.replace(/\/$/, "") === "/repair-vs-sell-preview") {
+  if (routePath === "/repair-vs-sell-preview") {
     return <RepairVsSellPreview />;
   }
 
-  if (window.location.pathname.replace(/\/$/, "") === "/buyer-risk-preview") {
+  if (routePath === "/buyer-risk-preview") {
     return <BuyerRiskReviewPreview />;
   }
 
-  if (window.location.pathname.replace(/\/$/, "") === "/missing-info-preview") {
+  if (routePath === "/missing-info-preview") {
     return <MissingInfoRequestPreview />;
   }
 
-  if (window.location.pathname.replace(/\/$/, "") === "/review-action-preview") {
+  if (routePath === "/review-action-preview") {
     return <InternalReviewActionPanel />;
   }
 
-  if (window.location.pathname.replace(/\/$/, "") === "/outcome-capture-preview") {
+  if (routePath === "/outcome-capture-preview") {
     return <OutcomeCapturePreview />;
   }
 
-  if (window.location.pathname.replace(/\/$/, "") === "/learning-loop-preview") {
+  if (routePath === "/learning-loop-preview") {
     return <LearningLoopPreview />;
   }
 
-  if (window.location.pathname.replace(/\/$/, "") === "/report-packages") {
+  if (routePath === "/report-packages") {
     return <ReportPackagePreview />;
   }
 
-  if (window.location.pathname.replace(/\/$/, "") === "/report-preview") {
+  if (routePath === "/report-preview") {
     return <DrivableReportPreview />;
   }
 
-  if (window.location.pathname.replace(/\/$/, "") === "/report-email-preview") {
+  if (routePath === "/report-email-preview") {
     return <DrivableReportEmailPreview />;
   }
 
-  if (window.location.pathname.replace(/\/$/, "") === "/internal-review-preview") {
+  if (routePath === "/internal-review-preview") {
     return <InternalReviewCard />;
   }
 
-  if (window.location.pathname.replace(/\/$/, "") === "/send-safety-preview") {
+  if (routePath === "/send-safety-preview") {
     return <SendSafetyGatePreview />;
   }
 
-  if (window.location.pathname.replace(/\/$/, "") === "/internal-review") {
+  if (routePath === "/internal-review") {
     return <InternalReviewDesk />;
   }
 
-  if (window.location.pathname.replace(/\/$/, "") === "/help") {
+  if (routePath === "/help") {
     return <ConciergeHelpPage />;
   }
 
-  if (window.location.pathname.startsWith("/mechanic-match")) {
+  if (routePath.startsWith("/mechanic-match")) {
     return <MechanicMatchFlow />;
   }
 
@@ -1272,7 +1277,7 @@ const [manualEngine, setManualEngine] = useState("");
               <div className="offer-action">Start Drivable Check</div>
             </button>
 
-            <button className="offer-card offer-card-primary" onClick={() => { window.location.href = "/clearsale"; }}>
+            <button className="offer-card offer-card-primary" onClick={() => navigateFrontend("/clearsale")}>
               <div className="offer-topline">ClearSale</div>
               <div className="offer-title">Don&apos;t Want to Fix It?</div>
               <div className="offer-copy">See whether your vehicle may be a fit to sell as-is instead of pouring more time and money into it.</div>
@@ -1310,7 +1315,7 @@ const [manualEngine, setManualEngine] = useState("");
             </p>
             <div className="hero-actions">
               <button className="primary-btn" type="button" onClick={() => setStep(1)}>Start Drivable Check</button>
-              <button className="secondary-btn" type="button" onClick={() => { window.location.href = "/clearsale"; }}>Start ClearSale</button>
+              <button className="secondary-btn" type="button" onClick={() => navigateFrontend("/clearsale")}>Start ClearSale</button>
             </div>
           </div>
           <NeedHelpPanel topic="Help understanding a car issue" compact />
@@ -1621,7 +1626,7 @@ const [manualEngine, setManualEngine] = useState("");
             <div className="eyebrow">Other paths</div>
             <h3>Not worth fixing?</h3>
             <p>You may be able to sell the vehicle as-is instead of sinking more money into it.</p>
-            <button className="primary-btn full-btn" type="button" onClick={() => { window.location.href = "/clearsale"; }}>Explore ClearSale</button>
+            <button className="primary-btn full-btn" type="button" onClick={() => navigateFrontend("/clearsale")}>Explore ClearSale</button>
           </div>
 
           <div className="warning-box">
@@ -1877,11 +1882,11 @@ const [manualEngine, setManualEngine] = useState("");
         <div className="nav">
           <button onClick={() => setPage("home")}>Home</button>
           <button onClick={() => setPage("intake")}>Drivable Check</button>
-          <button onClick={() => { window.location.href = "/clearsale"; }}>ClearSale</button>
-          <button onClick={() => { window.location.href = "/buyer-check"; }}>Buyer Check</button>
-          <button onClick={() => { window.location.href = "/mechanic-match"; }}>Mechanic Match</button>
+          <button onClick={() => navigateFrontend("/clearsale")}>ClearSale</button>
+          <button onClick={() => navigateFrontend("/buyer-check")}>Buyer Check</button>
+          <button onClick={() => navigateFrontend("/mechanic-match")}>Mechanic Match</button>
           <button onClick={() => setPage("disclaimer")}>Mechanic&apos;s Eye Review</button>
-          <button onClick={() => { window.location.href = "/help"; }}>Help</button>
+          <button onClick={() => navigateFrontend("/help")}>Help</button>
           <button onClick={() => setPage("disclaimer")}>Disclaimer</button>
           <button onClick={() => setPage("terms")}>Terms</button>
           <button onClick={() => setPage("privacy")}>Privacy</button>

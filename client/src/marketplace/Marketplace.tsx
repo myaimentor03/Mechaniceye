@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import { NeedHelpPanel } from "../components/NeedHelpPanel";
+import { getFrontendRoutePath, navigateFrontend } from "../frontendRouting";
 
 const MARKETPLACE_SELLER_INTAKE_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/marketplace/seller-intake";
 const MARKETPLACE_BUYER_INTEREST_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/marketplace/buyer-interest";
@@ -375,7 +376,7 @@ function SellerIntakePage() {
         throw new Error(result.error || "Seller intake failed. Please check the form and try again.");
       }
 
-      window.location.href = "/marketplace/sell/submitted";
+      navigateFrontend("/marketplace/sell/submitted");
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Seller intake failed. Please try again.");
       setIsSubmitting(false);
@@ -665,7 +666,7 @@ function LegalDisclaimerGuidePage() {
 }
 
 export default function Marketplace() {
-  const path = window.location.pathname.replace(/\/$/, "") || "/marketplace";
+  const path = getFrontendRoutePath();
 
   if (path === "/marketplace/browse") return <BrowsePage />;
   if (path === "/marketplace/listing/sample") return <SampleListingPage />;
