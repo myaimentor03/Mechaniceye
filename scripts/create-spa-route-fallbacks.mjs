@@ -5,6 +5,18 @@ const publishDir = path.resolve("dist/client");
 const indexFile = path.join(publishDir, "index.html");
 
 const routes = [
+  "start",
+  "preview-hub",
+  "clearsale",
+  "clear-sale",
+  "buyer-check",
+  "buyer-risk-preview",
+  "repair-vs-sell-preview",
+  "mechanic-match",
+  "mechanic-match/request",
+  "mechanic-match/submitted",
+  "help",
+  "evidence-checklist",
   "marketplace",
   "marketplace/browse",
   "marketplace/listing/sample",

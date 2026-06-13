@@ -1,7 +1,9 @@
 ﻿import { useMemo, useState } from "react";
 import "./app.css";
 import Marketplace from "./marketplace/Marketplace";
+import { BuyerCheckPreview } from "./components/BuyerCheckPreview";
 import { BuyerRiskReviewPreview } from "./components/BuyerRiskReviewPreview";
+import { ClearSalePreview } from "./components/ClearSalePreview";
 import { CustomerDecisionPathPreview } from "./components/CustomerDecisionPathPreview";
 import { DrivableHelpChooser } from "./components/DrivableHelpChooser";
 import { DrivablePreviewHub } from "./components/DrivablePreviewHub";
@@ -11,6 +13,7 @@ import { EvidenceChecklist } from "./components/EvidenceChecklist";
 import { InternalReviewCard } from "./components/InternalReviewCard";
 import { InternalReviewActionPanel } from "./components/InternalReviewActionPanel";
 import { LearningLoopPreview } from "./components/LearningLoopPreview";
+import { MechanicMatchPreview } from "./components/MechanicMatchPreview";
 import { MissingInfoRequestPreview } from "./components/MissingInfoRequestPreview";
 import { NeedHelpPanel } from "./components/NeedHelpPanel";
 import { OutcomeCapturePreview } from "./components/OutcomeCapturePreview";
@@ -169,7 +172,7 @@ function InternalReviewDesk() {
         <div className="brand">Drivable Internal Review</div>
         <div className="nav">
           <button onClick={() => { window.location.href = "/"; }}>Public App</button>
-          <button onClick={() => { window.location.href = "/marketplace"; }}>ClearSale</button>
+          <button onClick={() => { window.location.href = "/clearsale"; }}>ClearSale</button>
         </div>
       </div>
 
@@ -419,8 +422,8 @@ function ConciergeHelpPage() {
         <div className="brand">Drivable Guides</div>
         <div className="nav">
           <button onClick={() => { window.location.href = "/"; }}>Drivable Check</button>
-          <button onClick={() => { window.location.href = "/marketplace/sell"; }}>ClearSale</button>
-          <button onClick={() => { window.location.href = "/marketplace/browse"; }}>Buyer Check</button>
+          <button onClick={() => { window.location.href = "/clearsale"; }}>ClearSale</button>
+          <button onClick={() => { window.location.href = "/buyer-check"; }}>Buyer Check</button>
           <button onClick={() => { window.location.href = "/mechanic-match"; }}>Mechanic Match</button>
           <button onClick={() => { window.location.href = "/preview-hub"; }}>Preview Hub</button>
         </div>
@@ -667,7 +670,7 @@ function MechanicMatchFlow() {
           <div className="brand">Drivable by Mechanic&apos;s Eye</div>
           <div className="nav">
             <button onClick={() => { window.location.href = "/"; }}>Drivable Check</button>
-            <button onClick={() => { window.location.href = "/marketplace"; }}>ClearSale</button>
+            <button onClick={() => { window.location.href = "/clearsale"; }}>ClearSale</button>
             <button onClick={() => { window.location.href = "/mechanic-match"; }}>Mechanic Match</button>
             <button onClick={() => { window.location.href = "/help"; }}>Need Help?</button>
           </div>
@@ -914,6 +917,20 @@ function MechanicMatchFlow() {
 }
 
 export default function TestBackend() {
+  const routePath = window.location.pathname.replace(/\/$/, "") || "/";
+
+  if (routePath === "/clearsale" || routePath === "/clear-sale") {
+    return <ClearSalePreview />;
+  }
+
+  if (routePath === "/buyer-check") {
+    return <BuyerCheckPreview />;
+  }
+
+  if (routePath === "/mechanic-match") {
+    return <MechanicMatchPreview />;
+  }
+
   if (window.location.pathname.startsWith("/marketplace")) {
     return <Marketplace />;
   }
@@ -1255,7 +1272,7 @@ const [manualEngine, setManualEngine] = useState("");
               <div className="offer-action">Start Drivable Check</div>
             </button>
 
-            <button className="offer-card offer-card-primary" onClick={() => { window.location.href = "/marketplace/sell"; }}>
+            <button className="offer-card offer-card-primary" onClick={() => { window.location.href = "/clearsale"; }}>
               <div className="offer-topline">ClearSale</div>
               <div className="offer-title">Don&apos;t Want to Fix It?</div>
               <div className="offer-copy">See whether your vehicle may be a fit to sell as-is instead of pouring more time and money into it.</div>
@@ -1293,7 +1310,7 @@ const [manualEngine, setManualEngine] = useState("");
             </p>
             <div className="hero-actions">
               <button className="primary-btn" type="button" onClick={() => setStep(1)}>Start Drivable Check</button>
-              <button className="secondary-btn" type="button" onClick={() => { window.location.href = "/marketplace/sell"; }}>Start ClearSale</button>
+              <button className="secondary-btn" type="button" onClick={() => { window.location.href = "/clearsale"; }}>Start ClearSale</button>
             </div>
           </div>
           <NeedHelpPanel topic="Help understanding a car issue" compact />
@@ -1604,7 +1621,7 @@ const [manualEngine, setManualEngine] = useState("");
             <div className="eyebrow">Other paths</div>
             <h3>Not worth fixing?</h3>
             <p>You may be able to sell the vehicle as-is instead of sinking more money into it.</p>
-            <button className="primary-btn full-btn" type="button" onClick={() => { window.location.href = "/marketplace/sell"; }}>Explore ClearSale</button>
+            <button className="primary-btn full-btn" type="button" onClick={() => { window.location.href = "/clearsale"; }}>Explore ClearSale</button>
           </div>
 
           <div className="warning-box">
@@ -1860,8 +1877,8 @@ const [manualEngine, setManualEngine] = useState("");
         <div className="nav">
           <button onClick={() => setPage("home")}>Home</button>
           <button onClick={() => setPage("intake")}>Drivable Check</button>
-          <button onClick={() => { window.location.href = "/marketplace/sell"; }}>ClearSale</button>
-          <button onClick={() => { window.location.href = "/marketplace/browse"; }}>Buyer Check</button>
+          <button onClick={() => { window.location.href = "/clearsale"; }}>ClearSale</button>
+          <button onClick={() => { window.location.href = "/buyer-check"; }}>Buyer Check</button>
           <button onClick={() => { window.location.href = "/mechanic-match"; }}>Mechanic Match</button>
           <button onClick={() => setPage("disclaimer")}>Mechanic&apos;s Eye Review</button>
           <button onClick={() => { window.location.href = "/help"; }}>Help</button>

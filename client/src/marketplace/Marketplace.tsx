@@ -210,13 +210,13 @@ function MarketplaceLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="mp-shell">
       <div className="mp-topbar">
-        <a className="mp-brand" href="/marketplace">Drivable <span>ClearSale</span></a>
+        <a className="mp-brand" href="/clearsale">Drivable <span>ClearSale</span></a>
         <nav className="mp-nav" aria-label="ClearSale navigation">
           <a href="/">Drivable Check</a>
-          <a href="/marketplace">ClearSale</a>
-          <a href="/marketplace/browse">Buyer Check</a>
-          <a href="/marketplace/sell">Start ClearSale</a>
-          <a href="/">Mechanic Match</a>
+          <a href="/clearsale">ClearSale</a>
+          <a href="/buyer-check">Buyer Check</a>
+          <a href="/clearsale">Start ClearSale</a>
+          <a href="/mechanic-match">Mechanic Match</a>
           <a href="/marketplace/terms">Mechanic's Eye Review</a>
           <a href="/marketplace/guides">Guides</a>
           <a href="/help">Need Help?</a>
@@ -232,10 +232,10 @@ function MarketplaceLayout({ children }: { children: React.ReactNode }) {
 function HomePage() {
   return (
     <MarketplaceLayout>
-      <Hero title="Sell your vehicle with better information." body="ClearSale helps sellers present vehicles with photos, symptoms, repair history, and clear condition notes so buyers can make better decisions. Mechanic's Eye remains the trust layer behind diagnostic review." primaryLabel="Start ClearSale" primaryHref="/marketplace/sell" secondaryLabel="Buyer Check" secondaryHref="/marketplace/browse" />
+      <Hero title="Sell your vehicle with better information." body="ClearSale helps sellers present vehicles with photos, symptoms, repair history, and clear condition notes so buyers can make better decisions. Mechanic's Eye remains the trust layer behind diagnostic review." primaryLabel="Start ClearSale" primaryHref="/clearsale" secondaryLabel="Buyer Check" secondaryHref="/buyer-check" />
       <section className="mp-option-grid">
-        <a className="mp-option-card" href="/marketplace/browse"><span>Buyer Check</span><p>View seller-controlled listings with title status, mileage, location, and evidence notes.</p></a>
-        <a className="mp-option-card" href="/marketplace/sell"><span>ClearSale</span><p>Create a flat-fee listing request to sell your vehicle as-is while you stay in control of the sale.</p></a>
+        <a className="mp-option-card" href="/buyer-check"><span>Buyer Check</span><p>Review evidence, title concerns, seller claims, and walk-away risks.</p></a>
+        <a className="mp-option-card" href="/clearsale"><span>ClearSale</span><p>Prepare a clearer as-is listing request while you stay in control of the sale.</p></a>
         <a className="mp-option-card" href="/marketplace/offer-event"><span>Join Weekend Offer Event</span><p>Collect buyer interest during a timed weekend window while you stay in control.</p></a>
       </section>
       <section className="mp-card">
@@ -481,7 +481,7 @@ function BuyerInterestPage() {
 function SubmittedPage() {
   return (
     <MarketplaceLayout>
-      <section className="mp-submitted"><div className="mp-eyebrow">ClearSale request received</div><h1>Your request has been received for review.</h1><p>Your listing request is not automatically approved and is not guaranteed to sell. ClearSale does not handle title, payment, transport, taxes, registration, or legal compliance.</p><div className="mp-next-steps"><h2>Next steps</h2><ol><li>Mechanic's Eye reviews the submitted seller and vehicle details.</li><li>The seller remains responsible for accurate information, disclosures, and state-specific requirements.</li><li>The buyer and seller handle any transaction, title transfer, payment, pickup or shipping, taxes, registration, and legal obligations directly.</li></ol></div><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace">Return to ClearSale</a><a className="mp-btn mp-btn-secondary" href="/marketplace/sell">View Listing Packages</a></div></section>
+      <section className="mp-submitted"><div className="mp-eyebrow">ClearSale request received</div><h1>Your request has been received for review.</h1><p>Your listing request is not automatically approved and is not guaranteed to sell. ClearSale does not handle title, payment, transport, taxes, registration, or legal compliance.</p><div className="mp-next-steps"><h2>Next steps</h2><ol><li>Mechanic's Eye reviews the submitted seller and vehicle details.</li><li>The seller remains responsible for accurate information, disclosures, and state-specific requirements.</li><li>The buyer and seller handle any transaction, title transfer, payment, pickup or shipping, taxes, registration, and legal obligations directly.</li></ol></div><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/clearsale">Return to ClearSale</a><a className="mp-btn mp-btn-secondary" href="/marketplace/sell">View Listing Packages</a></div></section>
     </MarketplaceLayout>
   );
 }
@@ -489,9 +489,9 @@ function SubmittedPage() {
 function OfferEventPage() {
   return (
     <MarketplaceLayout>
-      <Hero eyebrow="ClearSale Weekend Offer Event" title="A timed offer window where sellers stay in control." body="List during the week, collect buyer interest from Friday through Monday, then decide whether any offer makes sense for you." primaryLabel="List a Vehicle" primaryHref="/marketplace/sell/intake" secondaryLabel="Buyer Check" secondaryHref="/marketplace/browse" />
+      <Hero eyebrow="ClearSale Weekend Offer Event" title="A timed offer window where sellers stay in control." body="List during the week, collect buyer interest from Friday through Monday, then decide whether any offer makes sense for you." primaryLabel="List a Vehicle" primaryHref="/marketplace/sell/intake" secondaryLabel="Buyer Check" secondaryHref="/buyer-check" />
       <section className="mp-card"><h2>Sample event schedule</h2><div className="mp-timeline-grid"><div><strong>Monday-Thursday</strong><span>Listings open and sellers prepare vehicle details.</span></div><div><strong>Friday-Monday</strong><span>Event runs and buyers submit interest or offers.</span></div><div><strong>After event</strong><span>Sellers review buyer interest and ask follow-up questions.</span></div><div><strong>Seller decision</strong><span>Seller chooses whether to accept any offer or keep the listing active.</span></div></div></section>
-      <section className="mp-cta"><div><h2>Best offer listing, not a dealership sale</h2><p>ClearSale provides the listing tools and event structure. Seller and buyer handle payment, title transfer, pickup or shipping, taxes, and required paperwork.</p></div><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace/sell/intake">List a Vehicle</a><a className="mp-btn mp-btn-secondary" href="/marketplace/browse">Buyer Check</a></div></section>
+      <section className="mp-cta"><div><h2>Best offer listing, not a dealership sale</h2><p>ClearSale provides the listing tools and event structure. Seller and buyer handle payment, title transfer, pickup or shipping, taxes, and required paperwork.</p></div><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace/sell/intake">List a Vehicle</a><a className="mp-btn mp-btn-secondary" href="/buyer-check">Buyer Check</a></div></section>
       <Disclaimer />
     </MarketplaceLayout>
   );
@@ -501,7 +501,7 @@ function TermsPage() {
   const terms = ["Mechanic's Eye is a listing and software platform only.", "Mechanic's Eye is not the seller.", "Mechanic's Eye does not own, possess, title, finance, transport, or sell vehicles.", "Mechanic's Eye does not guarantee vehicle condition, buyer payment, seller ownership, title status, or transaction outcome.", "Buyers must inspect vehicles and verify title and ownership before paying.", "Sellers must follow their state laws for title transfer, disclosures, taxes, and registration.", "Mechanic's Eye does not provide legal advice.", "Marketplace features may vary by state.", "The final transaction is between buyer and seller."];
   return (
     <MarketplaceLayout>
-      <section className="mp-terms"><div className="mp-eyebrow">ClearSale terms and safety</div><h1>Plain-language marketplace disclaimer</h1><p>These terms are written for the MVP public site so buyers and sellers understand the role Mechanic's Eye plays in a private-party vehicle listing.</p><ul>{terms.map((term) => <li key={term}>{term}</li>)}</ul><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/marketplace/sell">Start ClearSale</a><a className="mp-btn mp-btn-secondary" href="/marketplace/browse">Buyer Check</a><a className="mp-btn mp-btn-secondary" href="/marketplace/guides">Marketplace Guides</a></div></section>
+      <section className="mp-terms"><div className="mp-eyebrow">ClearSale terms and safety</div><h1>Plain-language marketplace disclaimer</h1><p>These terms are written for the MVP public site so buyers and sellers understand the role Mechanic's Eye plays in a private-party vehicle listing.</p><ul>{terms.map((term) => <li key={term}>{term}</li>)}</ul><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/clearsale">Start ClearSale</a><a className="mp-btn mp-btn-secondary" href="/buyer-check">Buyer Check</a><a className="mp-btn mp-btn-secondary" href="/marketplace/guides">Marketplace Guides</a></div></section>
     </MarketplaceLayout>
   );
 }

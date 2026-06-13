@@ -70,6 +70,42 @@ const PREVIEW_GROUPS: readonly PreviewGroup[] = [
     ]
   },
   {
+    title: "Marketplace, buyer, and mechanic support",
+    description: "Stable product landing pages and their primary action routes.",
+    links: [
+      {
+        title: "ClearSale",
+        href: "/clearsale",
+        description: "Seller-focused landing page for organizing an as-is listing and starting intake.",
+        labels: ["Customer-facing sample"]
+      },
+      {
+        title: "Buyer Check",
+        href: "/buyer-check",
+        description: "Buyer-focused landing page for evidence, risk signals, and walk-away guidance.",
+        labels: ["Customer-facing sample"]
+      },
+      {
+        title: "Mechanic Match",
+        href: "/mechanic-match",
+        description: "Hands-on help landing page with safe preparation and request options.",
+        labels: ["Customer-facing sample"]
+      },
+      {
+        title: "Seller intake",
+        href: "/marketplace/sell/intake",
+        description: "Existing ClearSale seller and vehicle intake flow.",
+        labels: ["Customer-facing sample"]
+      },
+      {
+        title: "Buyer Risk Preview",
+        href: "/buyer-risk-preview",
+        description: "Detailed sample review of seller claims, evidence, and transaction risks.",
+        labels: ["Customer-facing sample", "Future/preview"]
+      }
+    ]
+  },
+  {
     title: "Reports / Guidance",
     description: "Sample guidance and report deliverables.",
     links: [
