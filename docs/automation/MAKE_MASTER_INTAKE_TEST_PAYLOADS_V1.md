@@ -202,3 +202,232 @@ Compatibility note: this test contract uses `buyer-interest` as requested for th
 - The admin email fires.
 - Customer email is disabled or sent only to a test address during testing.
 - No old scenario is turned off until the replacement branch is proven.
+
+## Mock AI / No-Credit Testing
+
+Use these payloads only for routing, sheet, admin/test email, and template checks. Every mock payload requires human review and must remain visibly labeled as test-only data.
+
+### Mock diagnosis
+
+```json
+{
+  "intakeType": "diagnosis",
+  "submittedAt": "2026-06-13T18:15:00.000Z",
+  "source": "drivable-diagnosis",
+  "aiMode": "mock",
+  "reviewStatus": "mock_test_only",
+  "needsHumanReview": true,
+  "customerFacingWarning": "Test response only. Not a real diagnosis or safety clearance.",
+  "mockReport": {
+    "aiMode": "mock",
+    "reviewStatus": "mock_test_only",
+    "reportType": "first_look_report",
+    "scenario": "current_problem",
+    "vehicleSummary": "2014 Honda Accord EX, 142500 miles",
+    "symptomSummary": "Steering wheel vibration between 55 and 65 mph.",
+    "possibleCauses": [
+      "A possible symptom-related mechanical concern based on information provided",
+      "A possible maintenance or wear concern that needs human review"
+    ],
+    "riskLevel": "low",
+    "confidenceLevel": "low",
+    "missingInformation": [
+      "Qualified in-person inspection findings",
+      "Relevant warning lights, scan codes, photos, or video",
+      "Recent repair and maintenance history"
+    ],
+    "recommendedNextSteps": [
+      "Have a human review the intake and mock output.",
+      "Request missing evidence before making a repair or driving decision.",
+      "Use a qualified in-person inspection when condition or safety is uncertain."
+    ],
+    "safetyWarning": "This mock report cannot determine whether a vehicle is safe to drive.",
+    "customerFacingWarning": "Test response only. Not a real diagnosis or safety clearance.",
+    "internalNote": "Mock test data only. Needs human review and must not be sent as a real customer report."
+  }
+}
+```
+
+### Mock support-concierge-request
+
+```json
+{
+  "intakeType": "support-concierge-request",
+  "submittedAt": "2026-06-13T18:16:00.000Z",
+  "source": "drivable-concierge",
+  "scenario": "buying_vehicle",
+  "reportType": "buyer_remote_risk_review",
+  "customerName": "Mock Support Tester",
+  "customerEmail": "glenn-owned-test@example.com",
+  "message": "I need help deciding what evidence to request before arranging an inspection.",
+  "aiMode": "mock",
+  "reviewStatus": "mock_test_only",
+  "needsHumanReview": true,
+  "customerFacingWarning": "Test response only. Not a real diagnosis or safety clearance.",
+  "mockReport": {
+    "aiMode": "mock",
+    "reviewStatus": "mock_test_only",
+    "reportType": "buyer_remote_risk_review",
+    "scenario": "buying_vehicle",
+    "vehicleSummary": "Vehicle details not provided",
+    "symptomSummary": "Buyer needs help requesting evidence before inspection.",
+    "possibleCauses": [
+      "A possible vehicle-condition concern based on information provided",
+      "A possible evidence or seller-claim gap that needs independent review"
+    ],
+    "riskLevel": "low",
+    "confidenceLevel": "low",
+    "missingInformation": [
+      "Vehicle details and seller claims",
+      "Photos, scan codes, and maintenance history",
+      "Qualified in-person inspection findings"
+    ],
+    "recommendedNextSteps": [
+      "Have a human review the support request.",
+      "Ask for missing evidence without making a diagnosis claim.",
+      "Use an independent inspection before a purchase decision."
+    ],
+    "safetyWarning": "This mock report cannot determine whether a vehicle is safe to drive.",
+    "customerFacingWarning": "Test response only. Not a real diagnosis or safety clearance.",
+    "internalNote": "Mock test data only. Needs human review and must not be sent as a real customer report."
+  }
+}
+```
+
+### Mock marketplace-seller
+
+```json
+{
+  "intakeType": "marketplace-seller",
+  "submittedAt": "2026-06-13T18:17:00.000Z",
+  "source": "drivable-marketplace-seller-intake",
+  "sellerName": "Mock Seller",
+  "sellerEmail": "glenn-owned-test@example.com",
+  "vehicleYear": "2011",
+  "make": "Ford",
+  "model": "F-150",
+  "knownIssues": "Air conditioning is not cold.",
+  "aiMode": "mock",
+  "reviewStatus": "mock_test_only",
+  "needsHumanReview": true,
+  "customerFacingWarning": "Test response only. Not a real diagnosis or safety clearance.",
+  "mockReport": {
+    "aiMode": "mock",
+    "reviewStatus": "mock_test_only",
+    "reportType": "seller_as_is_listing_pack",
+    "scenario": "selling_vehicle",
+    "vehicleSummary": "2011 Ford F-150",
+    "symptomSummary": "Seller reports that the air conditioning is not cold.",
+    "possibleCauses": [
+      "A possible maintenance or wear concern based on information provided",
+      "A possible condition or disclosure gap that needs human review"
+    ],
+    "riskLevel": "low",
+    "confidenceLevel": "low",
+    "missingInformation": [
+      "Qualified in-person inspection findings",
+      "Repair records and supporting evidence",
+      "Complete seller disclosure details"
+    ],
+    "recommendedNextSteps": [
+      "Have a human review the seller intake.",
+      "Preserve the seller's wording and request missing evidence.",
+      "Do not make a certified-condition or repair guarantee."
+    ],
+    "safetyWarning": "This mock report cannot determine whether a vehicle is safe to drive.",
+    "customerFacingWarning": "Test response only. Not a real diagnosis or safety clearance.",
+    "internalNote": "Mock test data only. Needs human review and must not be published as a real listing assessment."
+  }
+}
+```
+
+### Mock buyer-interest
+
+```json
+{
+  "intakeType": "buyer-interest",
+  "submittedAt": "2026-06-13T18:18:00.000Z",
+  "source": "drivable-marketplace-buyer-interest",
+  "listingId": "TEST-LISTING-1001",
+  "customer": {
+    "name": "Mock Buyer",
+    "email": "glenn-owned-test@example.com"
+  },
+  "aiMode": "mock",
+  "reviewStatus": "mock_test_only",
+  "needsHumanReview": true,
+  "customerFacingWarning": "Test response only. Not a real diagnosis or safety clearance.",
+  "mockReport": {
+    "aiMode": "mock",
+    "reviewStatus": "mock_test_only",
+    "reportType": "buyer_remote_risk_review",
+    "scenario": "buying_vehicle",
+    "vehicleSummary": "TEST-LISTING-1001",
+    "symptomSummary": "Buyer wants title, inspection, and condition evidence.",
+    "possibleCauses": [
+      "A possible vehicle-condition concern based on information provided",
+      "A possible evidence or seller-claim gap that needs independent review"
+    ],
+    "riskLevel": "low",
+    "confidenceLevel": "low",
+    "missingInformation": [
+      "Title and seller-authority verification",
+      "Vehicle condition evidence",
+      "Independent inspection findings"
+    ],
+    "recommendedNextSteps": [
+      "Have a human review the buyer-interest record.",
+      "Request title and condition evidence.",
+      "Do not treat the mock output as purchase approval."
+    ],
+    "safetyWarning": "This mock report cannot determine whether a vehicle is safe to drive.",
+    "customerFacingWarning": "Test response only. Not a real diagnosis or safety clearance.",
+    "internalNote": "Mock test data only. Needs human review and must not be sent as a real buyer report."
+  }
+}
+```
+
+### Mock internal-diagnosis-response
+
+```json
+{
+  "intakeType": "internal-diagnosis-response",
+  "submittedAt": "2026-06-13T18:19:00.000Z",
+  "source": "drivable-internal-review",
+  "caseId": "TEST-CASE-1001",
+  "customerEmail": "glenn-owned-test@example.com",
+  "aiMode": "mock",
+  "reviewStatus": "mock_test_only",
+  "needsHumanReview": true,
+  "customerFacingWarning": "Test response only. Not a real diagnosis or safety clearance.",
+  "mockReport": {
+    "aiMode": "mock",
+    "reviewStatus": "mock_test_only",
+    "reportType": "full_decision_report",
+    "scenario": "current_problem",
+    "vehicleSummary": "2014 Honda Accord",
+    "symptomSummary": "Internal mock draft for workflow and template testing.",
+    "possibleCauses": [
+      "A possible symptom-related mechanical concern based on information provided",
+      "A possible maintenance or wear concern that needs human review"
+    ],
+    "riskLevel": "low",
+    "confidenceLevel": "low",
+    "missingInformation": [
+      "Qualified reviewer findings",
+      "Supporting evidence",
+      "Final approved customer wording"
+    ],
+    "recommendedNextSteps": [
+      "Keep the draft internal.",
+      "Complete human review before changing any send status.",
+      "Do not send this mock content to a real customer."
+    ],
+    "safetyWarning": "This mock report cannot determine whether a vehicle is safe to drive.",
+    "customerFacingWarning": "Test response only. Not a real diagnosis or safety clearance.",
+    "internalNote": "Mock test data only. Needs human review and must remain internal."
+  }
+}
+```
+
+For a critical-risk test, expect `mockReport` to be `null` and `mockReportBlockedReason` to explain that mock diagnosis content was withheld. A blocked mock report is a successful safety result, not a router failure.

@@ -20,6 +20,10 @@ import fs from "fs";
 import { createStoredDiagnosisCase, generateCaseId, type IncomingDiagnosisCase, type StoredDiagnosisCase } from "./case-storage";
 import { checkDatabaseConnection } from "./db";
 import { insertPublicDiagnosisCaseToDb } from "./public-case-db";
+import {
+  buildDrivableAiPayloadFields,
+  type MockAiPayloadFields
+} from "./mock-drivable-report";
 
 // Configure multer for file uploads
 const uploadDir = path.join(process.cwd(), 'uploads');
@@ -93,7 +97,7 @@ type PublicCasePacket = {
   videoFileNames?: string[];
   vibrationFileNames?: string[];
   source: "public-render";
-};
+} & Partial<MockAiPayloadFields>;
 
 type DiagnosisInput = IncomingDiagnosisCase & {
   customerEmail?: string;
@@ -188,7 +192,13 @@ function buildPublicCasePacket(
     vehicleInfo: diagnosisCase.vehicleInfo,
     description: diagnosisCase.description,
     timing: diagnosisCase.timing,
-    source: "public-render"
+    source: "public-render",
+    ...buildDrivableAiPayloadFields({
+      reportType: "first_look_report",
+      scenario: "current_problem",
+      vehicleSummary: input.vehicleInfo,
+      symptomSummary: [input.description, input.timing].filter(Boolean).join(" ")
+    })
   };
 
   if (customerEmail) {
@@ -286,7 +296,16 @@ async function deliverDiagnosisWebhook(
         caseFolder: storedCase?.caseFolder || null,
         caseJsonPath: storedCase ? path.join(storedCase.caseFolder, "case.json") : null,
         summaryPath: storedCase ? path.join(storedCase.caseFolder, "summary.txt") : null,
-        rawVehicleSelection: input.rawVehicleSelection || null
+        rawVehicleSelection: input.rawVehicleSelection || null,
+        ...buildDrivableAiPayloadFields({
+          reportType: "first_look_report",
+          scenario: "current_problem",
+          vehicleSummary: diagnosisCase.vehicleInfo,
+          symptomSummary: [
+            diagnosisCase.description,
+            diagnosisCase.timing
+          ].filter(Boolean).join(" ")
+        })
       })
     });
   } catch (webhookError) {
@@ -784,7 +803,23 @@ async function deliverMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
       buyerMechanicAllowed: intake.buyerMechanicAllowed,
       sellerNotes: intake.sellerNotes
     },
-    type: "mechanics_eye_marketplace_seller_intake"
+    type: "mechanics_eye_marketplace_seller_intake",
+    ...buildDrivableAiPayloadFields({
+      reportType: "seller_as_is_listing_pack",
+      scenario: "selling_vehicle",
+      vehicleSummary: [
+        intake.vehicleYear,
+        intake.make,
+        intake.model,
+        intake.trim,
+        intake.mileage
+      ].filter(Boolean).join(" "),
+      symptomSummary: [
+        intake.knownIssues,
+        intake.recentRepairs,
+        `Runs and drives: ${intake.runsAndDrives}`
+      ].filter(Boolean).join(" ")
+    })
   };
 
   console.log("MARKETPLACE_SELLER_INTAKE_RECEIVED", JSON.stringify({
@@ -855,7 +890,13 @@ async function deliverMarketplaceBuyerInterest(intake: MarketplaceBuyerInterest)
     message: intake.message,
     timeline: intake.timeline,
     acknowledgments: intake.acknowledgments,
-    type: "mechanics_eye_marketplace_buyer_interest"
+    type: "mechanics_eye_marketplace_buyer_interest",
+    ...buildDrivableAiPayloadFields({
+      reportType: "buyer_remote_risk_review",
+      scenario: "buying_vehicle",
+      vehicleSummary: intake.listingTitle,
+      symptomSummary: [intake.message, intake.timeline].filter(Boolean).join(" ")
+    })
   };
 
   console.log("MARKETPLACE_BUYER_INTEREST_RECEIVED", JSON.stringify({
@@ -914,7 +955,21 @@ async function deliverInternalReview(input: InternalReviewInput) {
     confidenceBand: input.confidenceBand,
     messageBody: input.messageBody,
     followUpNeeded: input.followUpNeeded,
-    adminNotes: input.adminNotes
+    adminNotes: input.adminNotes,
+    ...buildDrivableAiPayloadFields({
+      reportType: input.responseType || "full_decision_report",
+      scenario: "current_problem",
+      vehicleSummary: [
+        input.vehicleYear,
+        input.make,
+        input.model
+      ].filter(Boolean).join(" "),
+      symptomSummary: [
+        input.symptomsSummary,
+        input.messageBody,
+        input.adminNotes
+      ].filter(Boolean).join(" ")
+    })
   };
 
   const webhookUrl = process.env.MASTER_INTAKE_WEBHOOK_URL;
@@ -975,7 +1030,23 @@ async function deliverMechanicMatchRequest(input: MechanicMatchRequest) {
     existingDiagnosisCaseId: input.existingDiagnosisCaseId,
     drivableCheckUsed: input.drivableCheckUsed,
     permissionToShareCase: input.permissionToShareCase,
-    acknowledgments: input.acknowledgments
+    acknowledgments: input.acknowledgments,
+    ...buildDrivableAiPayloadFields({
+      reportType: "human_review_add_on",
+      scenario: "current_problem",
+      vehicleSummary: [
+        input.vehicleYear,
+        input.make,
+        input.model,
+        input.mileage
+      ].filter(Boolean).join(" "),
+      symptomSummary: [
+        input.problemCategory,
+        input.symptoms,
+        input.canDrive,
+        input.urgency
+      ].filter(Boolean).join(" ")
+    })
   };
 
   const webhookUrl = process.env.MASTER_INTAKE_WEBHOOK_URL;
@@ -1030,7 +1101,20 @@ async function deliverConciergeRequest(input: ConciergeRequest) {
     reportType: input.reportType,
     topic: input.topic,
     sourceContext: input.sourceContext,
-    acknowledgments: input.acknowledgments
+    acknowledgments: input.acknowledgments,
+    ...buildDrivableAiPayloadFields({
+      reportType: input.reportType || "first_look_report",
+      scenario: input.scenario || "current_problem",
+      vehicleSummary: input.relatedListingId
+        ? `Related listing ${input.relatedListingId}`
+        : "Vehicle details not provided",
+      symptomSummary: [
+        input.helpTopic,
+        input.message,
+        input.stuckStep,
+        input.urgency
+      ].filter(Boolean).join(" ")
+    })
   };
 
   const webhookUrl = process.env.MASTER_INTAKE_WEBHOOK_URL;
