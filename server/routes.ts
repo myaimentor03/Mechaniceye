@@ -79,6 +79,13 @@ type DiagnosisCaseResponse = {
   message: string;
 };
 
+type DiagnosisWebhookDebug = {
+  webhookConfigured: boolean;
+  webhookForwarded: boolean;
+};
+
+type DiagnosisApiResponse = DiagnosisCaseResponse & DiagnosisWebhookDebug;
+
 type PublicCasePacket = {
   id: string;
   status: "received";
@@ -100,7 +107,29 @@ type PublicCasePacket = {
 } & Partial<MockAiPayloadFields>;
 
 type DiagnosisInput = IncomingDiagnosisCase & {
+  source?: string;
+  submittedAt?: string;
+  submissionStatus?: string;
+  reviewStatus?: string;
+  name?: string;
+  customerName?: string;
+  email?: string;
   customerEmail?: string;
+  phone?: string;
+  customerPhone?: string;
+  vehicleYear?: string;
+  vehicleMake?: string;
+  vehicleModel?: string;
+  engine?: string;
+  mileage?: string;
+  symptomSummary?: string;
+  whenItHappens?: string;
+  canDrive?: string;
+  urgency?: string;
+  vibrationNotes?: string;
+  soundNotes?: string;
+  obdCodes?: string;
+  repairHistory?: string;
   photoEvidenceStatus?: string;
   audioEvidenceStatus?: string;
   videoEvidenceStatus?: string;
@@ -117,22 +146,133 @@ function canUseLocalCaseStorage() {
   return process.platform === "win32" && fs.existsSync(localOperationsRoot);
 }
 
+function pickString(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+
+    if (typeof value === "number" || typeof value === "boolean") {
+      return String(value);
+    }
+
+    if (Array.isArray(value)) {
+      const joined = value
+        .map((item) => (typeof item === "string" || typeof item === "number" ? String(item).trim() : ""))
+        .filter(Boolean)
+        .join(", ");
+
+      if (joined) {
+        return joined;
+      }
+    }
+  }
+
+  return "";
+}
+
+function pickVehicleSelectionString(rawVehicleSelection: unknown, key: string) {
+  if (!rawVehicleSelection || typeof rawVehicleSelection !== "object") {
+    return "";
+  }
+
+  const selection = rawVehicleSelection as Record<string, unknown>;
+  return pickString(selection[key]);
+}
+
+function normalizeVehiclePart(value: string) {
+  return /^(Other|Unknown)\s/i.test(value) ? "" : value;
+}
+
+function buildVehicleInfoFromParts(input: {
+  rawVehicleSelection?: unknown;
+  vehicleYear?: string;
+  vehicleMake?: string;
+  vehicleModel?: string;
+  engine?: string;
+}) {
+  const vehicleYear = pickString(input.vehicleYear, pickVehicleSelectionString(input.rawVehicleSelection, "year"));
+  const vehicleMake = pickString(
+    input.vehicleMake,
+    normalizeVehiclePart(pickVehicleSelectionString(input.rawVehicleSelection, "make")),
+    pickVehicleSelectionString(input.rawVehicleSelection, "manualMake")
+  );
+  const vehicleModel = pickString(
+    input.vehicleModel,
+    normalizeVehiclePart(pickVehicleSelectionString(input.rawVehicleSelection, "model")),
+    pickVehicleSelectionString(input.rawVehicleSelection, "manualModel")
+  );
+  const engine = pickString(
+    input.engine,
+    normalizeVehiclePart(pickVehicleSelectionString(input.rawVehicleSelection, "engine")),
+    pickVehicleSelectionString(input.rawVehicleSelection, "manualEngine")
+  );
+
+  return [vehicleYear, vehicleMake, vehicleModel, engine].filter(Boolean).join(" ");
+}
+
 function buildDiagnosisInput(body: any): DiagnosisInput {
   const diagnosisBody = body || {};
   const pickStringArray = (value: unknown) =>
     Array.isArray(value)
       ? value.filter((item): item is string => typeof item === "string")
       : [];
+  const rawVehicleSelection = diagnosisBody.rawVehicleSelection || null;
+  const symptomSummary = pickString(diagnosisBody.symptomSummary, diagnosisBody.symptoms);
+  const description = pickString(diagnosisBody.description, symptomSummary);
+  const whenItHappens = pickString(diagnosisBody.whenItHappens);
+  const timing = pickString(diagnosisBody.timing, whenItHappens);
+  const vehicleYear = pickString(diagnosisBody.vehicleYear, pickVehicleSelectionString(rawVehicleSelection, "year"));
+  const vehicleMake = pickString(
+    diagnosisBody.vehicleMake,
+    normalizeVehiclePart(pickVehicleSelectionString(rawVehicleSelection, "make")),
+    pickVehicleSelectionString(rawVehicleSelection, "manualMake")
+  );
+  const vehicleModel = pickString(
+    diagnosisBody.vehicleModel,
+    normalizeVehiclePart(pickVehicleSelectionString(rawVehicleSelection, "model")),
+    pickVehicleSelectionString(rawVehicleSelection, "manualModel")
+  );
+  const engine = pickString(
+    diagnosisBody.engine,
+    normalizeVehiclePart(pickVehicleSelectionString(rawVehicleSelection, "engine")),
+    pickVehicleSelectionString(rawVehicleSelection, "manualEngine")
+  );
 
   return {
-    description: diagnosisBody.description || diagnosisBody.symptoms || "",
-    vehicleInfo: diagnosisBody.vehicleInfo || "",
-    timing: diagnosisBody.timing || "",
+    source: pickString(diagnosisBody.source),
+    submittedAt: pickString(diagnosisBody.submittedAt),
+    submissionStatus: pickString(diagnosisBody.submissionStatus),
+    reviewStatus: pickString(diagnosisBody.reviewStatus),
+    name: pickString(diagnosisBody.name, diagnosisBody.customerName),
+    customerName: pickString(diagnosisBody.customerName, diagnosisBody.name),
+    email: pickString(diagnosisBody.email, diagnosisBody.customerEmail),
+    customerEmail: pickString(diagnosisBody.customerEmail, diagnosisBody.email),
+    phone: pickString(diagnosisBody.phone, diagnosisBody.customerPhone),
+    customerPhone: pickString(diagnosisBody.customerPhone, diagnosisBody.phone),
+    vehicleYear,
+    vehicleMake,
+    vehicleModel,
+    engine,
+    mileage: pickString(diagnosisBody.mileage),
+    symptomSummary,
+    description,
+    whenItHappens,
+    timing,
+    canDrive: pickString(diagnosisBody.canDrive),
+    urgency: pickString(diagnosisBody.urgency),
+    vibrationNotes: pickString(diagnosisBody.vibrationNotes),
+    soundNotes: pickString(diagnosisBody.soundNotes),
+    obdCodes: pickString(diagnosisBody.obdCodes),
+    repairHistory: pickString(diagnosisBody.repairHistory),
+    vehicleInfo: pickString(
+      diagnosisBody.vehicleInfo,
+      buildVehicleInfoFromParts({ rawVehicleSelection, vehicleYear, vehicleMake, vehicleModel, engine })
+    ),
     unsupportedVehicle: !!diagnosisBody.unsupportedVehicle,
     manualVehicleEntryUsed: !!diagnosisBody.manualVehicleEntryUsed,
-    rawVehicleSelection: diagnosisBody.rawVehicleSelection || null,
+    rawVehicleSelection,
     vibrationData: diagnosisBody.vibrationData || null,
-    customerEmail: diagnosisBody.customerEmail || "",
     photoEvidenceStatus: diagnosisBody.photoEvidenceStatus || "",
     audioEvidenceStatus: diagnosisBody.audioEvidenceStatus || "",
     videoEvidenceStatus: diagnosisBody.videoEvidenceStatus || "",
@@ -311,6 +451,132 @@ async function deliverDiagnosisWebhook(
   } catch (webhookError) {
     console.error("Webhook delivery failed:", webhookError);
   }
+}
+
+type MasterDiagnosisIntakePayload = {
+  intakeType: "diagnosis";
+  source: string;
+  caseId: string;
+  submissionStatus: string;
+  reviewStatus: string;
+  name: string;
+  email: string;
+  phone: string;
+  vehicleInfo: string;
+  vehicleYear: string;
+  vehicleMake: string;
+  vehicleModel: string;
+  engine: string;
+  mileage: string;
+  symptomSummary: string;
+  description: string;
+  timing: string;
+  whenItHappens: string;
+  canDrive: string;
+  urgency: string;
+  vibrationNotes: string;
+  soundNotes: string;
+  obdCodes: string;
+  repairHistory: string;
+  submittedAt: string;
+};
+
+function buildMasterDiagnosisIntakePayload(
+  diagnosisCase: DiagnosisCaseResponse,
+  input: DiagnosisInput
+): MasterDiagnosisIntakePayload {
+  const vehicleInfo = pickString(input.vehicleInfo, buildVehicleInfoFromParts(input));
+  const description = pickString(input.description, input.symptomSummary);
+  const timing = pickString(input.timing, input.whenItHappens);
+
+  return {
+    intakeType: "diagnosis",
+    source: pickString(input.source, "getdrivable-public-diagnosis-intake"),
+    caseId: pickString(diagnosisCase.id),
+    submissionStatus: pickString(input.submissionStatus, "NEW_DIAGNOSIS_INTAKE"),
+    reviewStatus: pickString(input.reviewStatus, "PENDING_REVIEW"),
+    name: pickString(input.name, input.customerName),
+    email: pickString(input.email, input.customerEmail, extractCustomerEmail(description)),
+    phone: pickString(input.phone, input.customerPhone),
+    vehicleInfo,
+    vehicleYear: pickString(input.vehicleYear, pickVehicleSelectionString(input.rawVehicleSelection, "year")),
+    vehicleMake: pickString(
+      input.vehicleMake,
+      normalizeVehiclePart(pickVehicleSelectionString(input.rawVehicleSelection, "make")),
+      pickVehicleSelectionString(input.rawVehicleSelection, "manualMake")
+    ),
+    vehicleModel: pickString(
+      input.vehicleModel,
+      normalizeVehiclePart(pickVehicleSelectionString(input.rawVehicleSelection, "model")),
+      pickVehicleSelectionString(input.rawVehicleSelection, "manualModel")
+    ),
+    engine: pickString(
+      input.engine,
+      normalizeVehiclePart(pickVehicleSelectionString(input.rawVehicleSelection, "engine")),
+      pickVehicleSelectionString(input.rawVehicleSelection, "manualEngine")
+    ),
+    mileage: pickString(input.mileage),
+    symptomSummary: pickString(input.symptomSummary, description),
+    description,
+    timing,
+    whenItHappens: pickString(input.whenItHappens, timing),
+    canDrive: pickString(input.canDrive),
+    urgency: pickString(input.urgency),
+    vibrationNotes: pickString(input.vibrationNotes),
+    soundNotes: pickString(input.soundNotes),
+    obdCodes: pickString(input.obdCodes),
+    repairHistory: pickString(input.repairHistory),
+    submittedAt: pickString(input.submittedAt, diagnosisCase.createdAt, new Date().toISOString())
+  };
+}
+
+async function forwardMasterDiagnosisIntakeWebhook(
+  diagnosisCase: DiagnosisCaseResponse,
+  input: DiagnosisInput
+): Promise<DiagnosisWebhookDebug> {
+  const webhookUrl = process.env.MASTER_INTAKE_WEBHOOK_URL?.trim();
+
+  if (!webhookUrl) {
+    return { webhookConfigured: false, webhookForwarded: false };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(buildMasterDiagnosisIntakePayload(diagnosisCase, input)),
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      console.error(
+        `Master intake webhook forward failed for diagnosis case ${diagnosisCase.id} with status ${response.status}`
+      );
+      return { webhookConfigured: true, webhookForwarded: false };
+    }
+
+    console.log(`Master intake webhook forward succeeded for diagnosis case ${diagnosisCase.id}`);
+    return { webhookConfigured: true, webhookForwarded: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown webhook error";
+    console.error(`Master intake webhook forward failed for diagnosis case ${diagnosisCase.id}: ${message}`);
+    return { webhookConfigured: true, webhookForwarded: false };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function buildDiagnosisApiResponse(
+  diagnosisCase: DiagnosisCaseResponse,
+  webhookDebug: DiagnosisWebhookDebug
+): DiagnosisApiResponse {
+  return {
+    ...diagnosisCase,
+    ...webhookDebug
+  };
 }
 
 type MarketplaceAcknowledgments = {
@@ -1400,21 +1666,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (usedPublicFallback) {
         await insertPublicDiagnosisCaseToDb(responseBody, input, storedCase);
+        const webhookDebug = await forwardMasterDiagnosisIntakeWebhook(responseBody, input);
         void deliverPublicCaseNotification(responseBody, input);
         void deliverDiagnosisWebhook(responseBody, input, storedCase);
-        return res.json(responseBody);
+        return res.json(buildDiagnosisApiResponse(responseBody, webhookDebug));
       }
 
       await insertPublicDiagnosisCaseToDb(responseBody, input, storedCase);
+      const webhookDebug = await forwardMasterDiagnosisIntakeWebhook(responseBody, input);
       await deliverDiagnosisWebhook(responseBody, input, storedCase);
-      return res.json(responseBody);
+      return res.json(buildDiagnosisApiResponse(responseBody, webhookDebug));
     } catch (error) {
       console.error("Diagnosis creation error:", error);
       responseBody = createPublicDiagnosisCase(input);
       await insertPublicDiagnosisCaseToDb(responseBody, input);
+      const webhookDebug = await forwardMasterDiagnosisIntakeWebhook(responseBody, input);
       void deliverPublicCaseNotification(responseBody, input);
       void deliverDiagnosisWebhook(responseBody, input);
-      return res.json(responseBody);
+      return res.json(buildDiagnosisApiResponse(responseBody, webhookDebug));
     }
   });
 
