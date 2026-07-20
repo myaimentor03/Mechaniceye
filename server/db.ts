@@ -5,7 +5,7 @@ import * as schema from "./shared/shared/schema";
 
 const { Pool } = pg;
 
-let pool: Pool | undefined;
+let pool: InstanceType<typeof Pool> | undefined;
 
 type DatabaseHealthResult =
   | { ok: true }

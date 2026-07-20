@@ -1731,7 +1731,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           timing: originalDiagnosis.timing
         },
         iterationCount,
-        previousAttempts
+        previousAttempts.filter((attempt): attempt is string => typeof attempt === "string" && attempt.length > 0)
       );
 
       // Create new diagnosis with follow-up results

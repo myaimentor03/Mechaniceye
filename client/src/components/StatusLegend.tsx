@@ -11,29 +11,42 @@ const LEGEND_STATUS_IDS: readonly DrivableReportStatus[] = [
   "do_not_send"
 ];
 
-const STATUS_MEANINGS: Record<
-  (typeof LEGEND_STATUS_IDS)[number],
-  { customer: string; internal: string }
-> = {
+const STATUS_MEANINGS: Partial<Record<string, { customer: string; internal: string }>> = {
+  intake_received: {
+    customer: "Request received.",
+    internal: "Intake has been received and is waiting for review."
+  },
   needs_more_info: {
-    customer: "Drivable needs a few more details before giving useful guidance.",
-    internal: "Keep the case open and request the missing evidence."
+    customer: "More information needed.",
+    internal: "More customer information is needed before the response can be prepared."
+  },
+  ai_draft_ready: {
+    customer: "Draft is being prepared.",
+    internal: "AI draft is ready for internal review."
   },
   needs_human_review: {
-    customer: "A person is checking the guidance and its safety limits.",
-    internal: "Do not send. A qualified reviewer must assess risk and wording."
+    customer: "Under review.",
+    internal: "Human review is required before this can be sent."
   },
   customer_ready_draft: {
-    customer: "The response is written clearly, but final approval is still pending.",
-    internal: "Customer-safe wording is ready for the final send decision."
+    customer: "Draft ready.",
+    internal: "Customer-ready draft has been prepared."
   },
   approved_to_send: {
-    customer: "The reviewed guidance is ready for delivery.",
-    internal: "The required human review is complete and sending is authorized."
+    customer: "Approved.",
+    internal: "Response has been approved to send."
+  },
+  sent_to_customer: {
+    customer: "Response sent.",
+    internal: "Response has been sent to the customer."
   },
   do_not_send: {
-    customer: "Drivable cannot safely provide this response as written.",
-    internal: "Block delivery and record the safety, quality, or consent reason."
+    customer: "Not sent.",
+    internal: "This response should not be sent."
+  },
+  archived: {
+    customer: "Archived.",
+    internal: "Case has been archived."
   }
 };
 
@@ -64,11 +77,11 @@ export function StatusLegend() {
               <dl>
                 <div>
                   <dt>Customer meaning</dt>
-                  <dd>{meaning.customer}</dd>
+                  <dd>{meaning?.customer ?? "Status update."}</dd>
                 </div>
                 <div>
                   <dt>Internal action</dt>
-                  <dd>{meaning.internal}</dd>
+                  <dd>{meaning?.internal ?? "No internal description is available for this status."}</dd>
                 </div>
               </dl>
             </article>

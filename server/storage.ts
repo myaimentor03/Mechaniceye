@@ -182,8 +182,8 @@ class LocalStorage {
   }
 
   async updateConsultation(id: string, updates: Partial<ConsultationRecord>) {
-    for (const [mechanicId, list] of this.consultations.entries()) {
-      const index = list.findIndex(item => item.id === id);
+    for (const [mechanicId, list] of Array.from(this.consultations.entries())) {
+      const index = list.findIndex((item: ConsultationRecord) => item.id === id);
       if (index >= 0) {
         list[index] = { ...list[index], ...updates };
         this.consultations.set(mechanicId, list);
