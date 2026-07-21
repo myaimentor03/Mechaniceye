@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import pg from "pg";
 import path from "node:path";
 
 const root = process.cwd();
@@ -216,4 +217,31 @@ if (!apply) {
   process.exit(0);
 }
 
-throw new Error("--apply is intentionally not implemented yet. Add a reviewed database client step only after schema push is verified.");
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL is missing. Set it before running with --apply.");
+}
+
+const { Client } = pg;
+const client = new Client({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+await client.connect();
+
+try {
+  console.log("Applying seed data to database...");
+  await client.query("BEGIN");
+
+  for (const statement of sqlStatements) {
+    await client.query(statement);
+  }
+
+  await client.query("COMMIT");
+  console.log(`Applied ${sqlStatements.length} seed upserts successfully.`);
+} catch (error) {
+  await client.query("ROLLBACK");
+  throw error;
+} finally {
+  await client.end();
+}
