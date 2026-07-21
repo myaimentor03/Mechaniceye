@@ -150,6 +150,162 @@ export const followUpRequests = pgTable("follow_up_requests", {
   index("follow_up_diagnosis_idx").on(table.originalDiagnosisId),
 ]);
 
+
+// Drivable seed knowledge tables
+// These tables power day-one guidance, buyer/seller workflows, roadside safety routing,
+// follow-up question selection, and repair-vs-sell decisions.
+// Source data lives in docs/seed-data and must be imported with a dry-run first.
+
+export const drivableSeedSymptomCategories = pgTable("drivable_seed_symptom_categories", {
+  symptomCategoryId: varchar("symptom_category_id").primaryKey(),
+  label: text("label").notNull(),
+  plainEnglishDescription: text("plain_english_description"),
+  commonCustomerPhrases: text("common_customer_phrases"),
+  commonEvidenceNeeded: text("common_evidence_needed"),
+  possibleRiskLevel: text("possible_risk_level"),
+  highRiskSignals: text("high_risk_signals"),
+  relatedRoadsideModes: text("related_roadside_modes"),
+  recommendedInitialPath: text("recommended_initial_path"),
+  humanReviewRecommended: boolean("human_review_recommended").default(false),
+  safetyNote: text("safety_note"),
+  raw: json("raw").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const drivableSeedEvidenceItems = pgTable("drivable_seed_evidence_items", {
+  evidenceId: varchar("evidence_id").primaryKey(),
+  label: text("label").notNull(),
+  description: text("description"),
+  evidenceType: text("evidence_type"),
+  usefulForSymptomCategories: text("useful_for_symptom_categories"),
+  safeCaptureInstructions: text("safe_capture_instructions"),
+  unsafeCaptureWarning: text("unsafe_capture_warning"),
+  priority: text("priority"),
+  customerPromptText: text("customer_prompt_text"),
+  raw: json("raw").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const drivableSeedRoadsideRiskTriggers = pgTable("drivable_seed_roadside_risk_triggers", {
+  triggerId: varchar("trigger_id").primaryKey(),
+  label: text("label").notNull(),
+  customerPhraseExamples: text("customer_phrase_examples"),
+  riskLevel: text("risk_level"),
+  recommendedAction: text("recommended_action"),
+  stopNow: boolean("stop_now").default(false),
+  humanReviewRequired: boolean("human_review_required").default(false),
+  towLikely: boolean("tow_likely").default(false),
+  safeCustomerMessage: text("safe_customer_message"),
+  unsafePhrasingToAvoid: text("unsafe_phrasing_to_avoid"),
+  raw: json("raw").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const drivableSeedDecisionPaths = pgTable("drivable_seed_decision_paths", {
+  decisionPathId: varchar("decision_path_id").primaryKey(),
+  label: text("label").notNull(),
+  plainEnglishMeaning: text("plain_english_meaning"),
+  whenToUse: text("when_to_use"),
+  customerFacingRecommendation: text("customer_facing_recommendation"),
+  safetyBoundaries: text("safety_boundaries"),
+  humanReviewRecommended: boolean("human_review_recommended").default(false),
+  nextInfoNeeded: text("next_info_needed"),
+  relatedStatuses: text("related_statuses"),
+  raw: json("raw").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const drivableSeedFollowUpQuestions = pgTable("drivable_seed_follow_up_questions", {
+  questionId: varchar("question_id").primaryKey(),
+  symptomCategoryId: varchar("symptom_category_id"),
+  questionText: text("question_text").notNull(),
+  whyItMatters: text("why_it_matters"),
+  requestedEvidence: text("requested_evidence"),
+  safetyWarning: text("safety_warning"),
+  priority: text("priority"),
+  answerType: text("answer_type"),
+  raw: json("raw").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("seed_follow_up_symptom_idx").on(table.symptomCategoryId),
+]);
+
+export const drivableSeedRepairVsSellFactors = pgTable("drivable_seed_repair_vs_sell_factors", {
+  factorId: varchar("factor_id").primaryKey(),
+  label: text("label").notNull(),
+  plainEnglishMeaning: text("plain_english_meaning"),
+  pushesTowardRepair: text("pushes_toward_repair"),
+  pushesTowardSell: text("pushes_toward_sell"),
+  infoNeeded: text("info_needed"),
+  riskNote: text("risk_note"),
+  customerQuestion: text("customer_question"),
+  raw: json("raw").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const drivableSeedBuyerRiskFlags = pgTable("drivable_seed_buyer_risk_flags", {
+  flagId: varchar("flag_id").primaryKey(),
+  label: text("label").notNull(),
+  sellerPhraseExamples: text("seller_phrase_examples"),
+  whyItMatters: text("why_it_matters"),
+  evidenceToRequest: text("evidence_to_request"),
+  riskLevel: text("risk_level"),
+  walkAwaySignal: text("walk_away_signal"),
+  customerSafeAdvice: text("customer_safe_advice"),
+  raw: json("raw").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const drivableSeedSellerDisclosurePrompts = pgTable("drivable_seed_seller_disclosure_prompts", {
+  disclosureId: varchar("disclosure_id").primaryKey(),
+  issueType: text("issue_type").notNull(),
+  plainEnglishDisclosurePrompt: text("plain_english_disclosure_prompt"),
+  buyerConcern: text("buyer_concern"),
+  evidenceHelpful: text("evidence_helpful"),
+  listingLanguageSuggestion: text("listing_language_suggestion"),
+  safetyOrLegalNote: text("safety_or_legal_note"),
+  raw: json("raw").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const drivableConfirmedCases = pgTable("drivable_confirmed_cases", {
+  caseId: varchar("case_id").primaryKey(),
+  vehicleYear: integer("vehicle_year"),
+  vehicleMake: text("vehicle_make"),
+  vehicleModel: text("vehicle_model"),
+  symptomSummary: text("symptom_summary").notNull(),
+  confirmedFix: text("confirmed_fix").notNull(),
+  evidencePattern: json("evidence_pattern").$type<string[]>(),
+  drivableLesson: text("drivable_lesson"),
+  confidence: text("confidence").default("high"),
+  source: text("source").default("glenn_confirmed_repair"),
+  raw: json("raw").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("confirmed_cases_vehicle_idx").on(table.vehicleYear, table.vehicleMake, table.vehicleModel),
+]);
+
+export const drivableVehicleKnowledgePacks = pgTable("drivable_vehicle_knowledge_packs", {
+  packId: varchar("pack_id").primaryKey(),
+  vehicleYear: integer("vehicle_year"),
+  vehicleMake: text("vehicle_make"),
+  vehicleModel: text("vehicle_model"),
+  source: text("source").default("drivable_seed"),
+  sourceType: text("source_type"),
+  summary: text("summary"),
+  riskTags: json("risk_tags").$type<string[]>(),
+  buyerQuestions: json("buyer_questions").$type<string[]>(),
+  sellerEvidenceRequests: json("seller_evidence_requests").$type<string[]>(),
+  inspectionPrompts: json("inspection_prompts").$type<string[]>(),
+  confidence: text("confidence").default("medium"),
+  vinRequiredForApplicability: boolean("vin_required_for_applicability").default(false),
+  raw: json("raw").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("knowledge_packs_vehicle_idx").on(table.vehicleYear, table.vehicleMake, table.vehicleModel),
+]);
+
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -208,6 +364,18 @@ export const insertChatExportLogSchema = createInsertSchema(chatExportLog).omit(
   exportedAt: true,
 });
 
+
+export const insertDrivableSeedSymptomCategorySchema = createInsertSchema(drivableSeedSymptomCategories).omit({ createdAt: true });
+export const insertDrivableSeedEvidenceItemSchema = createInsertSchema(drivableSeedEvidenceItems).omit({ createdAt: true });
+export const insertDrivableSeedRoadsideRiskTriggerSchema = createInsertSchema(drivableSeedRoadsideRiskTriggers).omit({ createdAt: true });
+export const insertDrivableSeedDecisionPathSchema = createInsertSchema(drivableSeedDecisionPaths).omit({ createdAt: true });
+export const insertDrivableSeedFollowUpQuestionSchema = createInsertSchema(drivableSeedFollowUpQuestions).omit({ createdAt: true });
+export const insertDrivableSeedRepairVsSellFactorSchema = createInsertSchema(drivableSeedRepairVsSellFactors).omit({ createdAt: true });
+export const insertDrivableSeedBuyerRiskFlagSchema = createInsertSchema(drivableSeedBuyerRiskFlags).omit({ createdAt: true });
+export const insertDrivableSeedSellerDisclosurePromptSchema = createInsertSchema(drivableSeedSellerDisclosurePrompts).omit({ createdAt: true });
+export const insertDrivableConfirmedCaseSchema = createInsertSchema(drivableConfirmedCases).omit({ createdAt: true });
+export const insertDrivableVehicleKnowledgePackSchema = createInsertSchema(drivableVehicleKnowledgePacks).omit({ createdAt: true });
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertDiagnosis = z.infer<typeof insertDiagnosisSchema>;
@@ -223,3 +391,25 @@ export type InsertFixHistoryLog = z.infer<typeof insertFixHistoryLogSchema>;
 export type FixHistoryLog = typeof fixHistoryLog.$inferSelect;
 export type InsertChatExportLog = z.infer<typeof insertChatExportLogSchema>;
 export type ChatExportLog = typeof chatExportLog.$inferSelect;
+
+
+export type InsertDrivableSeedSymptomCategory = z.infer<typeof insertDrivableSeedSymptomCategorySchema>;
+export type DrivableSeedSymptomCategory = typeof drivableSeedSymptomCategories.$inferSelect;
+export type InsertDrivableSeedEvidenceItem = z.infer<typeof insertDrivableSeedEvidenceItemSchema>;
+export type DrivableSeedEvidenceItem = typeof drivableSeedEvidenceItems.$inferSelect;
+export type InsertDrivableSeedRoadsideRiskTrigger = z.infer<typeof insertDrivableSeedRoadsideRiskTriggerSchema>;
+export type DrivableSeedRoadsideRiskTrigger = typeof drivableSeedRoadsideRiskTriggers.$inferSelect;
+export type InsertDrivableSeedDecisionPath = z.infer<typeof insertDrivableSeedDecisionPathSchema>;
+export type DrivableSeedDecisionPath = typeof drivableSeedDecisionPaths.$inferSelect;
+export type InsertDrivableSeedFollowUpQuestion = z.infer<typeof insertDrivableSeedFollowUpQuestionSchema>;
+export type DrivableSeedFollowUpQuestion = typeof drivableSeedFollowUpQuestions.$inferSelect;
+export type InsertDrivableSeedRepairVsSellFactor = z.infer<typeof insertDrivableSeedRepairVsSellFactorSchema>;
+export type DrivableSeedRepairVsSellFactor = typeof drivableSeedRepairVsSellFactors.$inferSelect;
+export type InsertDrivableSeedBuyerRiskFlag = z.infer<typeof insertDrivableSeedBuyerRiskFlagSchema>;
+export type DrivableSeedBuyerRiskFlag = typeof drivableSeedBuyerRiskFlags.$inferSelect;
+export type InsertDrivableSeedSellerDisclosurePrompt = z.infer<typeof insertDrivableSeedSellerDisclosurePromptSchema>;
+export type DrivableSeedSellerDisclosurePrompt = typeof drivableSeedSellerDisclosurePrompts.$inferSelect;
+export type InsertDrivableConfirmedCase = z.infer<typeof insertDrivableConfirmedCaseSchema>;
+export type DrivableConfirmedCase = typeof drivableConfirmedCases.$inferSelect;
+export type InsertDrivableVehicleKnowledgePack = z.infer<typeof insertDrivableVehicleKnowledgePackSchema>;
+export type DrivableVehicleKnowledgePack = typeof drivableVehicleKnowledgePacks.$inferSelect;

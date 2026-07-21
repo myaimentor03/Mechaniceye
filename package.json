@@ -12,7 +12,8 @@
     "validate:seed-data": "node scripts/validate-seed-data.mjs",
     "preview:seed-import": "node scripts/preview-seed-import.mjs",
     "local:seed-import:skeleton": "node scripts/local-seed-import-skeleton.mjs --dry-run",
-    "inspect:db-config": "node scripts/inspect-db-config.mjs"
+    "inspect:db-config": "node scripts/inspect-db-config.mjs",
+    "import:seed-data": "node scripts/import-seed-data-to-db.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -119,4 +120,3 @@
     "bufferutil": "^4.0.8"
   }
 }
-
