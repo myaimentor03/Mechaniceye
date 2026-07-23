@@ -14,7 +14,9 @@
     "local:seed-import:skeleton": "node scripts/local-seed-import-skeleton.mjs --dry-run",
     "inspect:db-config": "node scripts/inspect-db-config.mjs",
     "import:seed-data": "node scripts/import-seed-data-to-db.mjs",
-    "create:seed-tables": "node scripts/create-seed-tables-only.mjs"
+    "create:seed-tables": "node scripts/create-seed-tables-only.mjs",
+    "nhtsa:pack": "node scripts/build-nhtsa-vehicle-knowledge-pack.mjs",
+    "nhtsa:batch": "node scripts/batch-build-nhtsa-packs.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
