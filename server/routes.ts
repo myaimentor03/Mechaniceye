@@ -1,4 +1,4 @@
- import type { Express } from "express";
+﻿ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 // local fallback validation while DB/schema layer is disabled
@@ -17,8 +17,11 @@ import { performEnhancedAnalysis } from "./enhanced-analysis";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import pg from "pg";
 import { createStoredDiagnosisCase, generateCaseId, type IncomingDiagnosisCase, type StoredDiagnosisCase } from "./case-storage";
 import { checkDatabaseConnection } from "./db";
+
+const { Client } = pg;
 import { insertPublicDiagnosisCaseToDb } from "./public-case-db";
 import {
   buildDrivableAiPayloadFields,
@@ -1036,7 +1039,7 @@ async function deliverMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
     intakeType: "marketplace-seller",
     source: "drivable-marketplace-seller-intake",
     submittedAt,
-    appBrand: "Drivable by Mechanic’s Eye",
+    appBrand: "Drivable by Mechanic's Eye",
     marketplaceBrand: "Drivable Marketplace",
     payloadVersion: "v1",
     sellerName: intake.sellerName,
@@ -1627,6 +1630,169 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+
+  // Get NHTSA-backed vehicle knowledge for Buyer Risk / Buyer Check
+  app.get("/api/buyer-risk/vehicle-knowledge", async (req, res) => {
+    const vehicleYear = pickString(req.query.year, req.query.vehicleYear);
+    const make = pickString(req.query.make, req.query.vehicleMake);
+    const model = pickString(req.query.model, req.query.vehicleModel);
+
+    if (!vehicleYear || !make || !model) {
+      return res.status(400).json({
+        found: false,
+        message: "Missing required query fields: year, make, and model",
+        required: ["year", "make", "model"]
+      });
+    }
+
+    const yearNumber = Number.parseInt(vehicleYear, 10);
+
+    if (!Number.isInteger(yearNumber)) {
+      return res.status(400).json({
+        found: false,
+        message: "Vehicle year must be a valid number"
+      });
+    }
+
+    const parseJsonArray = (value: unknown): string[] => {
+      if (Array.isArray(value)) {
+        return value.filter((item): item is string => typeof item === "string");
+      }
+
+      if (typeof value === "string" && value.trim()) {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed)
+            ? parsed.filter((item): item is string => typeof item === "string")
+            : [];
+        } catch {
+          return [];
+        }
+      }
+
+      return [];
+    };
+
+    const parseRaw = (value: unknown): Record<string, unknown> => {
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        return value as Record<string, unknown>;
+      }
+
+      if (typeof value === "string" && value.trim()) {
+        try {
+          const parsed = JSON.parse(value);
+          return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+            ? parsed as Record<string, unknown>
+            : {};
+        } catch {
+          return {};
+        }
+      }
+
+      return {};
+    };
+
+    const databaseUrl = process.env.DATABASE_URL?.trim();
+
+    if (!databaseUrl) {
+      return res.status(503).json({
+        found: false,
+        message: "DATABASE_URL is not configured for this server process"
+      });
+    }
+
+    const client = new Client({
+      connectionString: databaseUrl,
+      ssl: databaseUrl.includes("localhost") || databaseUrl.includes("127.0.0.1")
+        ? false
+        : { rejectUnauthorized: false }
+    });
+
+    try {
+      await client.connect();
+
+      const result = await client.query(
+        `
+          SELECT
+            pack_id,
+            vehicle_year,
+            vehicle_make,
+            vehicle_model,
+            source,
+            source_type,
+            summary,
+            risk_tags,
+            buyer_questions,
+            seller_evidence_requests,
+            inspection_prompts,
+            confidence,
+            vin_required_for_applicability,
+            raw
+          FROM drivable_vehicle_knowledge_packs
+          WHERE vehicle_year = $1
+            AND lower(vehicle_make) = lower($2)
+            AND lower(vehicle_model) = lower($3)
+          LIMIT 1
+        `,
+        [yearNumber, make, model]
+      );
+
+      if (!result.rows.length) {
+        return res.json({
+          found: false,
+          vehicle: {
+            year: yearNumber,
+            make,
+            model
+          },
+          source: "NHTSA",
+          vinRequiredForApplicability: true,
+          message: "No Drivable vehicle knowledge pack found for this year/make/model yet.",
+          fallbackPrompts: [
+            "Ask seller for the VIN so recalls can be checked at VIN level.",
+            "Ask seller for dashboard photos, scan results, and repair records.",
+            "Use an independent inspection before buying."
+          ]
+        });
+      }
+
+      const row = result.rows[0];
+      const raw = parseRaw(row.raw);
+
+      return res.json({
+        found: true,
+        vehicle: {
+          year: row.vehicle_year,
+          make: row.vehicle_make,
+          model: row.vehicle_model
+        },
+        packId: row.pack_id,
+        source: row.source,
+        sourceType: row.source_type,
+        confidence: row.confidence,
+        summary: row.summary,
+        vinRequiredForApplicability: row.vin_required_for_applicability,
+        recallCount: typeof raw.recallCount === "number" ? raw.recallCount : null,
+        complaintCount: typeof raw.complaintCount === "number" ? raw.complaintCount : null,
+        riskTags: parseJsonArray(row.risk_tags),
+        buyerQuestions: parseJsonArray(row.buyer_questions),
+        sellerEvidenceRequests: parseJsonArray(row.seller_evidence_requests),
+        inspectionPrompts: parseJsonArray(row.inspection_prompts),
+        disclaimer: "NHTSA year/make/model data is context only. VIN-level confirmation is required before claiming a recall applies to a specific vehicle."
+      });
+    } catch (error) {
+      console.error("Buyer vehicle knowledge lookup failed:", error);
+      return res.status(500).json({
+        found: false,
+        message: "Failed to fetch vehicle knowledge pack"
+      });
+    } finally {
+      await client.end().catch((endError) => {
+        console.error("Buyer vehicle knowledge DB client close failed:", endError);
+      });
+    }
+  });
+
   // Get specific diagnosis
   app.get("/api/diagnoses/:id", async (req, res) => {
     try {
@@ -1853,5 +2019,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   return httpServer;
 }
+
 
 
