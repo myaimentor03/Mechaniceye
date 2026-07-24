@@ -5368,3 +5368,125 @@ textarea:focus {
     justify-content: center;
   }
 }
+
+
+.buyer-check-lookup-card {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.buyer-check-lookup-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.buyer-check-form-grid {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.buyer-check-form-grid label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 700;
+}
+
+.buyer-check-form-grid input {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.85rem;
+  font: inherit;
+  padding: 0.85rem 0.95rem;
+}
+
+.buyer-check-submit {
+  border: 0;
+  cursor: pointer;
+  width: fit-content;
+}
+
+.buyer-check-submit:disabled {
+  cursor: wait;
+  opacity: 0.75;
+}
+
+.buyer-check-result {
+  border-top: 1px solid rgba(148, 163, 184, 0.24);
+  display: grid;
+  gap: 1rem;
+  padding-top: 1rem;
+}
+
+.buyer-check-result-header {
+  align-items: start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.buyer-check-result-header h2 {
+  margin: 0.2rem 0 0;
+}
+
+.buyer-check-result-header span,
+.buyer-check-pill-list span {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  padding: 0.35rem 0.7rem;
+}
+
+.buyer-check-meta-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.buyer-check-meta-grid div {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 1rem;
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.85rem;
+}
+
+.buyer-check-meta-grid strong {
+  font-size: 1.25rem;
+}
+
+.buyer-check-pill-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  text-transform: capitalize;
+}
+
+.buyer-check-result-section {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.buyer-check-result-section h3,
+.buyer-check-result-section ul {
+  margin: 0;
+}
+
+.buyer-check-result-section ul {
+  padding-left: 1.2rem;
+}
+
+@media (max-width: 720px) {
+  .buyer-check-form-grid,
+  .buyer-check-meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .buyer-check-result-header {
+    display: grid;
+  }
+
+  .buyer-check-submit {
+    width: 100%;
+  }
+}
