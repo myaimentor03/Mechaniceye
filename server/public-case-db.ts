@@ -141,7 +141,8 @@ function errorMessage(error: unknown) {
 export async function insertPublicDiagnosisCaseToDb(
   responseBody: PublicDiagnosisResponse,
   input: PublicDiagnosisInput,
-  storedCase?: StoredDiagnosisCase
+  storedCase?: StoredDiagnosisCase,
+  userId?: string,
 ): Promise<PublicCaseDbInsertResult> {
   const id = firstNonEmptyString(responseBody.id, responseBody.caseId, storedCase?.id);
 
@@ -156,6 +157,7 @@ export async function insertPublicDiagnosisCaseToDb(
       .insert(diagnoses)
       .values({
         id,
+        userId: firstNonEmptyString(userId),
         vehicleInfo: firstNonEmptyString(input.vehicleInfo, storedCase?.vehicleInfo, responseBody.vehicleInfo) || "",
         description: firstNonEmptyString(input.description, storedCase?.description, responseBody.description) || "",
         timing: firstNonEmptyString(input.timing, storedCase?.timing, responseBody.timing) || "",

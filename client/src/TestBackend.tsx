@@ -13,6 +13,7 @@ import { DrivableReportPreview } from "./components/DrivableReportPreview";
 import { EvidenceChecklist } from "./components/EvidenceChecklist";
 import { InternalReviewCard } from "./components/InternalReviewCard";
 import { InternalReviewActionPanel } from "./components/InternalReviewActionPanel";
+import { CustomerAccountGate, type DrivableCustomer } from "./components/CustomerAccountGate";
 import { LearningLoopPreview } from "./components/LearningLoopPreview";
 import { MechanicMatchPreview } from "./components/MechanicMatchPreview";
 import { MissingInfoRequestPreview } from "./components/MissingInfoRequestPreview";
@@ -1123,6 +1124,30 @@ const [manualEngine, setManualEngine] = useState("");
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [customer, setCustomer] = useState<DrivableCustomer | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [photoUploadEnabled, setPhotoUploadEnabled] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/auth/me")
+      .then((response) => response.json())
+      .then((body) => {
+        if (!active) return;
+        setCustomer(body.user || null);
+        if (body.user?.email) setCustomerEmail(body.user.email);
+      })
+      .catch(() => { if (active) setCustomer(null); })
+      .finally(() => { if (active) setAuthChecked(true); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/capabilities")
+      .then((response) => response.json())
+      .then((body) => setPhotoUploadEnabled(body.photoUpload === true))
+      .catch(() => setPhotoUploadEnabled(false));
+  }, []);
 
   const availableMakes = useMemo(() => {
   if (!year || !VEHICLE_DATA[year]) return FALLBACK_MAKES;
@@ -1417,6 +1442,19 @@ const [manualEngine, setManualEngine] = useState("");
   }
 
   function IntakePage() {
+    if (!authChecked) {
+      return <div className="simple-page"><div className="step-card"><h2>Checking your account...</h2></div></div>;
+    }
+
+    if (!customer) {
+      return (
+        <div className="simple-page">
+          <CustomerAccountGate onAuthenticated={(user) => { setCustomer(user); setCustomerEmail(user.email); }} />
+          <div className="step-actions"><button className="secondary-btn" type="button" onClick={() => setPage("home")}>Back to home</button></div>
+        </div>
+      );
+    }
+
     return (
       <div className="page-grid">
         <div className="main-column">
@@ -1565,7 +1603,8 @@ const [manualEngine, setManualEngine] = useState("");
 
                     <div className="field">
                       <label>Email for Follow-Up</label>
-                      <input value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} placeholder="Optional for now" />
+                      <input type="email" value={customerEmail} readOnly required />
+                      <span className="helper-text">This verified delivery address comes from your signed-in account.</span>
                     </div>
                   </div>
 
@@ -1668,7 +1707,9 @@ const [manualEngine, setManualEngine] = useState("");
                           </>
                         }
                       >
-                        <PhotoPicker files={photoFiles} onChange={setPhotoFiles} onError={setError} />
+                        {photoUploadEnabled
+                          ? <PhotoPicker files={photoFiles} onChange={setPhotoFiles} onError={setError} />
+                          : <div className="upload-note">Photo upload is temporarily unavailable until private hosted storage and reviewer access pass launch verification.</div>}
                       </EvidenceCard>
 
                       <EvidenceCard

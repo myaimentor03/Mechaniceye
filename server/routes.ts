@@ -34,6 +34,8 @@ import {
   RuntimeFileEvidenceStore,
 } from "./evidence-storage";
 import { requireReviewer } from "./reviewer-auth";
+import { registerCustomerAuthRoutes, requireCustomer } from "./customer-auth";
+import { applyAuthenticatedCaseIdentity, authenticatedCaseOwnerId } from "./case-identity";
 
 // Configure multer for file uploads
 const uploadDir = path.join(process.cwd(), 'uploads');
@@ -460,7 +462,6 @@ async function deliverPublicCaseNotification(
   input: DiagnosisInput
 ) {
   const packet = buildPublicCasePacket(diagnosisCase, input);
-  console.log("PUBLIC_RENDER_CASE_PACKET", JSON.stringify(packet, null, 2));
 
   const webhookUrl = process.env.PUBLIC_CASE_WEBHOOK_URL;
 
@@ -1484,6 +1485,18 @@ async function deliverConciergeRequest(input: ConciergeRequest) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  registerCustomerAuthRoutes(app);
+
+  app.get("/api/capabilities", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      photoUpload: process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true",
+      audioUpload: false,
+      videoUpload: false,
+      vibrationSensorCapture: false,
+    });
+  });
+
   app.get("/api/health/db", requireReviewer, async (req, res) => {
     const result = await checkDatabaseConnection();
     res.status(result.ok ? 200 : 503).json(result);
@@ -1875,12 +1888,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create new diagnosis and save to local case storage
-  app.post("/api/diagnoses", diagnosisPhotoUploadMiddleware, async (req, res) => {
+  app.post("/api/diagnoses", requireCustomer, diagnosisPhotoUploadMiddleware, async (req, res) => {
     let input: DiagnosisInput;
     let evidenceIntake;
     try {
       const normalizedBody = normalizeDiagnosisBody(req.body);
-      input = buildDiagnosisInput(normalizedBody);
+      const authenticatedEmail = req.drivableCustomer!.email;
+      normalizedBody.email = authenticatedEmail;
+      normalizedBody.customerEmail = authenticatedEmail;
+      input = applyAuthenticatedCaseIdentity(buildDiagnosisInput(normalizedBody), authenticatedEmail);
       evidenceIntake = drivableEvidenceIntakeSchema.parse(
         parseJsonField(normalizedBody.evidenceIntake || "{}", "evidenceIntake"),
       );
@@ -1895,6 +1911,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     const photoFiles = (req.files || []) as Express.Multer.File[];
+    if (photoFiles.length && process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED !== "true") {
+      return res.status(409).json({
+        message: "Photo upload is not available in this first beta cohort. Submit written symptoms and OBD-II codes instead.",
+        persisted: false,
+      });
+    }
     let responseBody: DiagnosisCaseResponse;
     let storedCase: StoredDiagnosisCase | undefined;
     let usedPublicFallback = false;
@@ -1937,7 +1959,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (usedPublicFallback) {
-        const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, storedCase);
+        const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, storedCase, authenticatedCaseOwnerId(req.drivableCustomer?.id));
         if (!dbResult.ok) {
           if (photoFiles.length) await evidenceStore.deleteCase(responseBody.id);
           return res.status(503).json({ message: "The case was not saved to the case database. Please try again.", caseId: responseBody.id, persisted: false });
@@ -1949,7 +1971,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json(buildDiagnosisApiResponse(responseBody, webhookDebug));
       }
 
-      const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, storedCase);
+      const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, storedCase, authenticatedCaseOwnerId(req.drivableCustomer?.id));
       responseBody.casePersistence = {
         primary: "local_case_store",
         databaseMirror: dbResult.ok ? "persisted" : "unavailable",

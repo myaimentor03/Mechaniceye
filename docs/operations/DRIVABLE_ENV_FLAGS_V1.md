@@ -36,6 +36,19 @@ DRIVABLE_REVIEWER_TOKEN=...
 
 Required before internal review, case-reading, follow-up, consultation mutation, database-health, or legacy file routes can be used. Generate a long random secret in the hosting provider; never reuse a personal password or place the value in source control. The server intentionally returns `503` when this value is missing and `401` when the supplied Bearer token is wrong.
 
+```text
+DRIVABLE_SESSION_SECRET=...
+```
+
+Required for customer registration, sign-in, and authenticated case intake. Use a different random secret of at least 32 characters. Changing it signs every customer out. Customer passwords are stored as salted scrypt hashes in the existing `users.password` field; the beta must verify that the deployed `users` table matches the reviewed schema before tester registration is opened.
+
+```text
+DRIVABLE_BETA_INVITE_CODE=...
+DRIVABLE_PHOTO_UPLOAD_ENABLED=false
+```
+
+The invite code is required for new registrations and supports controlled prelaunch testing. Share it directly with approved testers and rotate it if it leaks. Keep photo upload `false` until private durable object storage, authenticated reviewer retrieval, retention/deletion behavior, malware/content safeguards, and owner-operated upload tests all pass. The customer interface reads this capability at runtime, so enabling the verified evidence system does not require removing or rebuilding the photo experience.
+
 ## Safety
 
 - Store secrets in local or hosting-provider environment settings.
@@ -43,3 +56,5 @@ Required before internal review, case-reading, follow-up, consultation mutation,
 - Mock mode does not authorize customer sending.
 - Confirm the intended environment and webhook target before every test.
 - Enter the reviewer key only into the internal review desk over HTTPS; do not send it in email, case notes, screenshots, or customer messages.
+- Never reuse the reviewer token as the customer session secret.
+- Never reuse either server secret as the tester invite code.
