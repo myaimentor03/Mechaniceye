@@ -8,6 +8,8 @@ import {
   createConsentRevokedEvent,
   decideConsentAuthorization,
   decideRetentionAndDeletion,
+  isConsentEventLog,
+  isConsentEventV1,
   type ConsentPolicyConfig,
 } from "./index.js";
 
@@ -70,6 +72,95 @@ test("accepted events are versioned and immutable, with optional learning defaul
   const log = appendConsentEvent([], event);
   assert.equal(Object.isFrozen(log), true);
   assert.equal(log.length, 1);
+});
+
+test("runtime validation accepts a valid consent event and event log", () => {
+  const event = accepted();
+
+  assert.equal(isConsentEventV1(event), true);
+  assert.equal(isConsentEventLog([event]), true);
+  assert.equal(
+    decideConsentAuthorization({
+      events: [event],
+      subject,
+      action: { kind: "persist_media", providerId: "first-party-media" },
+      config: policy(),
+    }).allowed,
+    true,
+  );
+});
+
+test("unsupported or malformed schema versions fail closed", () => {
+  for (const schemaVersion of [2, "1", undefined]) {
+    const malformed = { ...accepted(), schemaVersion };
+    const decision = decideConsentAuthorization({
+      events: [malformed],
+      subject,
+      action: { kind: "persist_media", providerId: "first-party-media" },
+      config: policy(),
+    });
+
+    assert.equal(isConsentEventV1(malformed), false);
+    assert.deepEqual(decision, {
+      allowed: false,
+      code: "invalid_consent_event",
+      requiredPurposes: [ConsentPurpose.ServiceFulfillment, ConsentPurpose.MediaProcessing],
+    });
+  }
+});
+
+test("invalid or non-ISO consent timestamps fail closed", () => {
+  for (const acceptedAt of ["not-a-date", "2026-02-30T18:00:00.000Z", "August 24, 2026"]) {
+    const malformed = { ...accepted(), acceptedAt };
+    const decision = decideConsentAuthorization({
+      events: [malformed],
+      subject,
+      action: { kind: "fulfill_service" },
+      config: policy(),
+    });
+
+    assert.equal(isConsentEventV1(malformed), false);
+    assert.equal(decision.allowed, false);
+    if (!decision.allowed) assert.equal(decision.code, "invalid_consent_event");
+  }
+});
+
+test("non-boolean choices, including the string false, fail closed", () => {
+  for (const invalidChoice of ["false", 0, null]) {
+    const valid = accepted();
+    const malformed = {
+      ...valid,
+      affirmativeChoices: {
+        ...valid.affirmativeChoices,
+        [ConsentPurpose.MediaProcessing]: invalidChoice,
+      },
+    };
+    const decision = decideConsentAuthorization({
+      events: [malformed],
+      subject,
+      action: { kind: "persist_media", providerId: "first-party-media" },
+      config: policy(),
+    });
+
+    assert.equal(isConsentEventV1(malformed), false);
+    assert.equal(decision.allowed, false);
+    if (!decision.allowed) assert.equal(decision.code, "invalid_consent_event");
+  }
+});
+
+test("retention policy is not called with a malformed consent log", () => {
+  const malformed = { ...accepted(), acceptedAt: "not-a-date" };
+
+  assert.throws(
+    () =>
+      decideRetentionAndDeletion({
+        events: [malformed],
+        subject,
+        now: "2026-08-24T20:00:00.000Z",
+        config: policy(),
+      }),
+    /acceptedAt must be an ISO date-time/,
+  );
 });
 
 test("media persistence and reviewer sharing fail closed when consent is missing", () => {

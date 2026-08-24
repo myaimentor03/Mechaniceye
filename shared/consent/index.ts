@@ -109,6 +109,7 @@ export type ConsentPolicyConfig = Readonly<{
 
 export type ConsentDenialCode =
   | "missing_consent"
+  | "invalid_consent_event"
   | "wrong_actor"
   | "wrong_account"
   | "wrong_case"
@@ -146,14 +147,14 @@ export type ConsentRevocationInput = ConsentSubject & Readonly<{
 }>;
 
 export type ConsentAuthorizationInput = Readonly<{
-  events: readonly ConsentEventV1[];
+  events: readonly unknown[];
   subject: ConsentSubject;
   action: ConsentAction;
   config: ConsentPolicyConfig;
 }>;
 
 export type RetentionDeletionInput = Readonly<{
-  events: readonly ConsentEventV1[];
+  events: readonly unknown[];
   subject: ConsentSubject;
   now: string;
   config: ConsentPolicyConfig;
@@ -261,6 +262,9 @@ export function appendConsentEvent(
   events: readonly ConsentEventV1[],
   event: ConsentEventV1,
 ): readonly ConsentEventV1[] {
+  assertConsentEventLog(events);
+  assertConsentEvent(event);
+
   if (events.some((existing) => existing.eventId === event.eventId)) {
     throw new TypeError(`Duplicate consent event ID: ${event.eventId}`);
   }
@@ -288,7 +292,12 @@ export function decideConsentAuthorization(
   input: ConsentAuthorizationInput,
 ): ConsentAuthorizationDecision {
   const requiredPurposes = requiredPurposesFor(input.action);
-  const acceptedEvents = input.events.filter(
+  if (!isConsentEventLog(input.events)) {
+    return denied("invalid_consent_event", requiredPurposes);
+  }
+
+  const events = input.events;
+  const acceptedEvents = events.filter(
     (event): event is ConsentAcceptedEventV1 => event.kind === "consent.accepted",
   );
   if (acceptedEvents.length === 0) {
@@ -320,7 +329,7 @@ export function decideConsentAuthorization(
     return denied("stale_consent", requiredPurposes);
   }
 
-  const revokedPurposes = revokedPurposesFor(input.events, accepted);
+  const revokedPurposes = revokedPurposesFor(events, accepted);
   if (requiredPurposes.some((purpose) => revokedPurposes.includes(purpose))) {
     return denied("revoked_consent", requiredPurposes);
   }
@@ -344,14 +353,16 @@ export function decideRetentionAndDeletion(
   input: RetentionDeletionInput,
 ): RetentionDeletionDecision {
   requireIsoDate(input.now, "now");
+  assertConsentEventLog(input.events);
+  const events = input.events;
   const accepted = latestAcceptance(
-    input.events.filter(
+    events.filter(
       (event): event is ConsentAcceptedEventV1 =>
         event.kind === "consent.accepted" && sameSubject(event, input.subject),
     ),
   );
   const revokedPurposes = accepted
-    ? revokedPurposesFor(input.events, accepted)
+    ? revokedPurposesFor(events, accepted)
     : Object.freeze([] as ConsentPurpose[]);
   const consentState = lifecycleState(accepted, revokedPurposes);
   const outcome = input.config.retentionDeletionPolicy.decide(
@@ -372,6 +383,36 @@ export function decideRetentionAndDeletion(
     consentState,
     revokedPurposes,
   });
+}
+
+/**
+ * Runtime guard for consent events loaded from JSON, a database, or another
+ * untyped boundary. A TypeScript type assertion is not a substitute for this
+ * check.
+ */
+export function isConsentEventV1(value: unknown): value is ConsentEventV1 {
+  try {
+    assertConsentEvent(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Validates both individual event shapes and event-log relationships. Invalid
+ * logs must not be partially trusted because doing so could turn malformed
+ * consent into an authorization.
+ */
+export function isConsentEventLog(
+  events: readonly unknown[],
+): events is readonly ConsentEventV1[] {
+  try {
+    assertConsentEventLog(events);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function requiredPurposesFor(action: ConsentAction): readonly ConsentPurpose[] {
@@ -472,6 +513,98 @@ function sameSubject(left: ConsentSubject, right: ConsentSubject): boolean {
   );
 }
 
+function assertConsentEventLog(
+  events: readonly unknown[],
+): asserts events is readonly ConsentEventV1[] {
+  if (!Array.isArray(events)) {
+    throw new TypeError("Consent events must be an array");
+  }
+
+  const eventIds = new Set<string>();
+  const acceptances = new Map<string, ConsentAcceptedEventV1>();
+  for (const value of events) {
+    assertConsentEvent(value);
+    if (eventIds.has(value.eventId)) {
+      throw new TypeError(`Duplicate consent event ID: ${value.eventId}`);
+    }
+    eventIds.add(value.eventId);
+
+    if (value.kind === "consent.accepted") {
+      acceptances.set(value.eventId, value);
+      continue;
+    }
+
+    const accepted = acceptances.get(value.acceptanceEventId);
+    if (!accepted) {
+      throw new TypeError(`Acceptance event not found: ${value.acceptanceEventId}`);
+    }
+    if (!sameSubject(accepted, value)) {
+      throw new TypeError("Revocation subject must match its acceptance event");
+    }
+    if (Date.parse(value.revokedAt) < Date.parse(accepted.acceptedAt)) {
+      throw new TypeError("revokedAt cannot precede acceptedAt");
+    }
+  }
+}
+
+function assertConsentEvent(value: unknown): asserts value is ConsentEventV1 {
+  if (!isRecord(value)) {
+    throw new TypeError("Consent event must be an object");
+  }
+  if (value.schemaVersion !== CONSENT_EVENT_SCHEMA_VERSION) {
+    throw new TypeError("Unsupported consent event schemaVersion");
+  }
+
+  requireText(value.eventId, "eventId");
+  requireText(value.actorId, "actorId");
+  requireText(value.accountId, "accountId");
+  requireText(value.caseId, "caseId");
+
+  if (value.kind === "consent.accepted") {
+    requireIsoDate(value.acceptedAt, "acceptedAt");
+    requireText(value.consentVersion, "consentVersion");
+    requireText(value.privacyNoticeVersion, "privacyNoticeVersion");
+    requireText(value.termsVersion, "termsVersion");
+    if (!isRecord(value.affirmativeChoices)) {
+      throw new TypeError("affirmativeChoices is required");
+    }
+
+    const choices = value.affirmativeChoices;
+    for (const purpose of CONSENT_PURPOSES) {
+      requireBoolean(choices[purpose], purpose);
+    }
+    if (!CONSENT_PURPOSES.some((purpose) => choices[purpose] === true)) {
+      throw new TypeError("At least one purpose must have an affirmative choice");
+    }
+    return;
+  }
+
+  if (value.kind === "consent.revoked") {
+    requireText(value.acceptanceEventId, "acceptanceEventId");
+    requireIsoDate(value.revokedAt, "revokedAt");
+    if (!Array.isArray(value.purposes) || value.purposes.length === 0) {
+      throw new TypeError("At least one revoked purpose is required");
+    }
+    const uniquePurposes = new Set<ConsentPurpose>();
+    for (const purpose of value.purposes) {
+      if (!CONSENT_PURPOSES.includes(purpose as ConsentPurpose)) {
+        throw new TypeError(`Unknown consent purpose: ${String(purpose)}`);
+      }
+      if (uniquePurposes.has(purpose as ConsentPurpose)) {
+        throw new TypeError(`Duplicate revoked purpose: ${String(purpose)}`);
+      }
+      uniquePurposes.add(purpose as ConsentPurpose);
+    }
+    return;
+  }
+
+  throw new TypeError("Unknown consent event kind");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function requireEventIdentity(input: ConsentSubject & { eventId: string }): void {
   requireText(input.eventId, "eventId");
   requireText(input.actorId, "actorId");
@@ -479,26 +612,53 @@ function requireEventIdentity(input: ConsentSubject & { eventId: string }): void
   requireText(input.caseId, "caseId");
 }
 
-function requireText(value: string, field: string): string {
+function requireText(value: unknown, field: string): string {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new TypeError(`${field} is required`);
   }
   return value;
 }
 
-function requireBoolean(value: boolean, field: string): boolean {
+function requireBoolean(value: unknown, field: string): boolean {
   if (typeof value !== "boolean") {
     throw new TypeError(`${field} must be an explicit boolean choice`);
   }
   return value;
 }
 
-function requireIsoDate(value: string, field: string): string {
-  requireText(value, field);
-  if (!Number.isFinite(Date.parse(value))) {
+function requireIsoDate(value: unknown, field: string): string {
+  const text = requireText(value, field);
+  if (!isValidIsoDateTime(text)) {
     throw new TypeError(`${field} must be an ISO date-time`);
   }
-  return value;
+  return text;
+}
+
+function isValidIsoDateTime(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/.exec(
+    value,
+  );
+  if (!match || !Number.isFinite(Date.parse(value))) return false;
+
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText, zone] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText);
+  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) return false;
+
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (day < 1 || day > daysInMonth[month - 1]) return false;
+
+  if (zone !== "Z") {
+    const offsetHour = Number(zone.slice(1, 3));
+    const offsetMinute = Number(zone.slice(4, 6));
+    if (offsetHour > 23 || offsetMinute > 59) return false;
+  }
+  return true;
 }
 
 function freezeProviderIds(ids: readonly string[], field: string): readonly string[] {

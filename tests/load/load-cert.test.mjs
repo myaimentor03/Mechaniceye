@@ -21,6 +21,14 @@ test("target guard allows loopback and exact HTTPS staging allowlists", () => {
     ["stage.mechaniceye.example"],
   );
   assert.equal(staging.targetKind, "explicitly allowlisted staging");
+  assert.equal(
+    assertSafeTarget("https://review.example.test", ["review.example.test"]).targetKind,
+    "explicitly allowlisted staging",
+  );
+  assert.equal(
+    assertSafeTarget("https://pr-123.preview-host.example", ["pr-123.preview-host.example"]).targetKind,
+    "explicitly allowlisted staging",
+  );
 });
 
 test("target guard refuses remote, insecure, wildcard, and recognizable production targets", () => {
@@ -50,6 +58,10 @@ test("target guard refuses remote, insecure, wildcard, and recognizable producti
   assert.throws(
     () => assertSafeTarget("https://api.production.example", ["api.production.example"]),
     /production/,
+  );
+  assert.throws(
+    () => assertSafeTarget("https://api.getdrivable.com", ["api.getdrivable.com"]),
+    /ambiguous|non-production marker|allowlist alone/i,
   );
 });
 
@@ -189,4 +201,30 @@ test("CLI dry-run validates without opening the network", () => {
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /no network requests sent/);
   assert.match(result.stdout, /non-persistent validation/);
+});
+
+test("CLI dry-run rejects ambiguous allowlists and accepts clear staging targets", () => {
+  const script = fileURLToPath(new URL("./load-cert.mjs", import.meta.url));
+  const ambiguous = spawnSync(process.execPath, [
+    script,
+    "--target", "https://api.getdrivable.com",
+    "--allow-staging-host", "api.getdrivable.com",
+    "--dry-run",
+    "--duration", "1",
+    "--max-requests", "1",
+  ], { encoding: "utf8" });
+  assert.equal(ambiguous.status, 2, ambiguous.stdout);
+  assert.match(`${ambiguous.stdout}\n${ambiguous.stderr}`, /ambiguous|non-production marker|allowlist alone/i);
+
+  const staging = spawnSync(process.execPath, [
+    script,
+    "--target", "https://api-staging.getdrivable.com",
+    "--allow-staging-host", "api-staging.getdrivable.com",
+    "--dry-run",
+    "--duration", "1",
+    "--max-requests", "1",
+  ], { encoding: "utf8" });
+  assert.equal(staging.status, 0, staging.stderr);
+  assert.match(staging.stdout, /explicitly allowlisted staging/);
+  assert.match(staging.stdout, /no network requests sent/);
 });

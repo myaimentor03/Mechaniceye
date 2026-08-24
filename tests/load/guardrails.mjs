@@ -52,6 +52,8 @@ const KNOWN_PRODUCTION_HOSTS = new Set([
 ]);
 
 const PRODUCTION_LABEL = /(^|[.-])(prod|production|live)([.-]|$)/i;
+const NON_PRODUCTION_LABEL = /(^|[.-])(stage|staging|stg|dev|development|test|testing|qa|uat|sandbox|preview|preprod|nonprod)([.-]|$)/i;
+const RESERVED_NON_PRODUCTION_HOST = /(^|\.)(example|example\.com|example\.net|example\.org|test|invalid)$/i;
 
 function finiteNumber(value, flag) {
   const parsed = Number(value);
@@ -232,6 +234,12 @@ export function isRecognizableProductionHostname(hostname) {
     || PRODUCTION_LABEL.test(normalized);
 }
 
+export function hasExplicitNonProductionMarker(hostname) {
+  const normalized = hostname.toLowerCase();
+  return NON_PRODUCTION_LABEL.test(normalized)
+    || RESERVED_NON_PRODUCTION_HOST.test(normalized);
+}
+
 export function assertSafeTarget(target, allowStagingHosts = []) {
   let url;
   try {
@@ -258,6 +266,11 @@ export function assertSafeTarget(target, allowStagingHosts = []) {
   if (!local && !normalizedAllowlist.includes(hostname)) {
     throw new Error(
       `Remote target ${hostname} is blocked. Pass --allow-staging-host ${hostname} only after confirming it is staging.`,
+    );
+  }
+  if (!local && !hasExplicitNonProductionMarker(hostname)) {
+    throw new Error(
+      `Remote target ${hostname} is ambiguous. Its hostname must contain an explicit non-production marker such as staging, dev, test, qa, sandbox, or preview; an allowlist alone is not staging proof.`,
     );
   }
   if (!local && url.protocol !== "https:") {

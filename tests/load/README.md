@@ -2,7 +2,7 @@
 
 This is a small, dependency-free Node.js harness for a bounded pre-launch check. It is deliberately **not** a stress-to-failure, volumetric, soak, or denial-of-service tool.
 
-It refuses every remote target unless its exact hostname is passed with `--allow-staging-host`. Remote targets must use HTTPS. Known/conventional production hostnames are denied even when allowlisted, redirects are never followed, and all pacing controls have non-overridable hard caps.
+It refuses every remote target unless its exact hostname is passed with `--allow-staging-host` **and** the hostname contains affirmative non-production evidence. Accepted evidence is a distinct marker such as `stage`, `staging`, `dev`, `test`, `qa`, `uat`, `sandbox`, or `preview`, or a reserved test/example domain. An allowlist entry alone cannot reclassify an ambiguous hostname such as `api.getdrivable.com` as staging. Remote targets must use HTTPS. Known/conventional production hostnames are denied even when allowlisted, redirects are never followed, and all pacing controls have non-overridable hard caps.
 
 ## Validate it first
 
