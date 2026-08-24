@@ -5399,6 +5399,55 @@ textarea:focus {
   padding: 0.85rem 0.95rem;
 }
 
+.buyer-check-evidence-grid {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.buyer-check-evidence-grid label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 700;
+}
+
+.buyer-check-evidence-grid input,
+.buyer-check-evidence-grid textarea {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 0.85rem;
+  font: inherit;
+  padding: 0.85rem 0.95rem;
+}
+
+.buyer-check-evidence-grid textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+.buyer-check-evidence-grid small {
+  color: #64748b;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.buyer-check-evidence-summary {
+  border: 1px solid rgba(34, 197, 94, 0.28);
+  border-radius: 1rem;
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.buyer-check-evidence-summary h3 {
+  margin: 0.2rem 0 0;
+}
+
+.buyer-check-evidence-boundary {
+  color: #475569;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
 .buyer-check-submit {
   border: 0;
   cursor: pointer;
@@ -5478,6 +5527,7 @@ textarea:focus {
 
 @media (max-width: 720px) {
   .buyer-check-form-grid,
+  .buyer-check-evidence-grid,
   .buyer-check-meta-grid {
     grid-template-columns: 1fr;
   }
