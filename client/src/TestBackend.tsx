@@ -1,4 +1,5 @@
 ﻿import { useMemo, useState } from "react";
+import { useEffect, useRef } from "react";
 import "./app.css";
 import Marketplace from "./marketplace/Marketplace";
 import { BuyerCheckPreview } from "./components/BuyerCheckPreview";
@@ -28,6 +29,7 @@ import {
   REPORT_TYPES,
   type IntakeScenario
 } from "../../shared/drivableDecisionEngine";
+import type { DrivableEvidenceIntake } from "../../shared/drivableEvidence";
 import {
   getFrontendRoutePath,
   getFrontendSearchParams,
@@ -74,6 +76,64 @@ function FileNames({ files }: { files: File[] }) {
       {files.map((file, index) => (
         <div key={`${file.name}-${index}`} className="file-pill">{file.name}</div>
       ))}
+    </div>
+  );
+}
+
+const MAX_PHOTO_COUNT = 8;
+const MAX_PHOTO_BYTES = 12 * 1024 * 1024;
+const PHOTO_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
+
+function PhotoPicker({ files, onChange, onError }: {
+  files: File[];
+  onChange: (files: File[]) => void;
+  onError: (message: string) => void;
+}) {
+  const captureRef = useRef<HTMLInputElement>(null);
+  const chooseRef = useRef<HTMLInputElement>(null);
+  const previews = useMemo(() => files.map((file) => ({ file, url: URL.createObjectURL(file) })), [files]);
+
+  useEffect(() => () => previews.forEach(({ url }) => URL.revokeObjectURL(url)), [previews]);
+
+  const addFiles = (selected: FileList | null) => {
+    const incoming = Array.from(selected || []);
+    const invalidType = incoming.find((file) => !PHOTO_MIME_TYPES.has(file.type));
+    const oversized = incoming.find((file) => file.size > MAX_PHOTO_BYTES);
+    if (invalidType) {
+      onError(`${invalidType.name} is not a supported JPEG, PNG, WebP, HEIC, or HEIF photo.`);
+      return;
+    }
+    if (oversized) {
+      onError(`${oversized.name} is larger than 12 MB.`);
+      return;
+    }
+    if (files.length + incoming.length > MAX_PHOTO_COUNT) {
+      onError(`Choose no more than ${MAX_PHOTO_COUNT} photos.`);
+      return;
+    }
+    onError("");
+    onChange([...files, ...incoming]);
+  };
+
+  return (
+    <div>
+      <div className="photo-actions">
+        <button type="button" className="secondary-btn" onClick={() => captureRef.current?.click()}>Take photo</button>
+        <button type="button" className="secondary-btn" onClick={() => chooseRef.current?.click()}>Choose photos</button>
+      </div>
+      <input ref={captureRef} hidden type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" onChange={(event) => addFiles(event.target.files)} />
+      <input ref={chooseRef} hidden type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic,image/heif" onChange={(event) => addFiles(event.target.files)} />
+      {!previews.length && <div className="upload-note">No photos selected yet.</div>}
+      <div className="photo-preview-grid">
+        {previews.map(({ file, url }, index) => (
+          <figure key={`${file.name}-${file.lastModified}-${index}`} className="photo-preview">
+            <img src={url} alt={`Preview of ${file.name}`} />
+            <figcaption>{file.name}</figcaption>
+            <button type="button" onClick={() => onChange(files.filter((_, fileIndex) => fileIndex !== index))}>Remove</button>
+          </figure>
+        ))}
+      </div>
+      <div className="upload-note">Up to 8 photos, 12 MB each. Photos upload only when you submit.</div>
     </div>
   );
 }
@@ -1031,6 +1091,8 @@ const [manualMake, setManualMake] = useState("");
 const [manualModel, setManualModel] = useState("");
 const [manualEngine, setManualEngine] = useState("");
   const [mileage, setMileage] = useState("");
+  const [vin, setVin] = useState("");
+  const [obdCodes, setObdCodes] = useState("");
   const [transmission, setTransmission] = useState("");
   const [drivetrain, setDrivetrain] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
@@ -1043,9 +1105,6 @@ const [manualEngine, setManualEngine] = useState("");
   const [urgency, setUrgency] = useState("");
 
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
-  const [audioFiles, setAudioFiles] = useState<File[]>([]);
-  const [videoFiles, setVideoFiles] = useState<File[]>([]);
-  const [vibrationFiles, setVibrationFiles] = useState<File[]>([]);
 
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState("");
@@ -1099,6 +1158,8 @@ const [manualEngine, setManualEngine] = useState("");
       `Vehicle: ${year} ${make === "Other Make" ? manualMake : make} ${model === "Other Model" ? manualModel : model}`,
       `Engine: ${(engine === "Other Engine" || engine === "Unknown Engine") ? (manualEngine || engine) : (engine || "Not provided")}`,
       `Mileage: ${mileage || "Not provided"}`,
+      `VIN: ${vin || "Not provided"}`,
+      `OBD Codes: ${obdCodes || "Not provided"}`,
       `Transmission: ${transmission || "Not provided"}`,
       `Drivetrain: ${drivetrain || "Not provided"}`,
       `Customer Email: ${customerEmail || "Not provided"}`,
@@ -1112,11 +1173,9 @@ const [manualEngine, setManualEngine] = useState("");
       "",
       "Selected evidence files:",
       `Photos: ${photoFiles.length ? photoFiles.map((f) => f.name).join(", ") : "None"}`,
-      `Audio: ${audioFiles.length ? audioFiles.map((f) => f.name).join(", ") : "None"}`,
-      `Video: ${videoFiles.length ? videoFiles.map((f) => f.name).join(", ") : "None"}`,
-      `Vibration / Motion: ${vibrationFiles.length ? vibrationFiles.map((f) => f.name).join(", ") : "None"}`,
-      "",
-      "Note: file delivery is not wired yet in this version."
+      "Audio: Not uploaded in this photo-first version",
+      "Video: Not uploaded in this photo-first version",
+      "Vibration / Motion: Context only; no sensor readings are generated"
     ].join("\n");
   }
 
@@ -1146,10 +1205,29 @@ const [manualEngine, setManualEngine] = useState("");
     const unsupportedVehicle =
       make === "Other Make" ||
       model === "Other Model";
+    const normalizedVin = vin.trim().toUpperCase();
+    const normalizedMileage = mileage.trim() ? Number(mileage.replaceAll(",", "")) : undefined;
+    const normalizedObdCodes = obdCodes
+      .split(/[\s,]+/)
+      .map((code) => code.trim().toUpperCase())
+      .filter(Boolean);
 
     if (!year || !resolvedMake || !resolvedModel) {
       setError("Please select or enter the vehicle year, make, and model.");
       window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    if (normalizedVin && !/^[A-HJ-NPR-Z0-9]{17}$/.test(normalizedVin)) {
+      setError("VIN must be 17 characters and cannot contain I, O, or Q.");
+      return;
+    }
+    if (normalizedMileage !== undefined && (!Number.isInteger(normalizedMileage) || normalizedMileage < 0)) {
+      setError("Mileage must be a whole number or left unknown.");
+      return;
+    }
+    const invalidObdCode = normalizedObdCodes.find((code) => !/^[PBCU][0-9A-F]{4}$/.test(code));
+    if (invalidObdCode) {
+      setError(`${invalidObdCode} is not a standard five-character OBD-II code.`);
       return;
     }
 
@@ -1158,10 +1236,6 @@ const [manualEngine, setManualEngine] = useState("");
     setResult(null);
 
     const photoFileNames = photoFiles.map((file) => file.name);
-    const audioFileNames = audioFiles.map((file) => file.name);
-    const videoFileNames = videoFiles.map((file) => file.name);
-    const vibrationFileNames = vibrationFiles.map((file) => file.name);
-
     const payload = {
       problemCategory,
       description: buildDescriptionBlock(),
@@ -1178,13 +1252,8 @@ const [manualEngine, setManualEngine] = useState("");
         manualEngine,
       },
       photoEvidenceStatus: photoFileNames.length ? "Provided" : "None",
-      audioEvidenceStatus: audioFileNames.length ? "Provided" : "None",
-      videoEvidenceStatus: videoFileNames.length ? "Provided" : "None",
-      vibrationEvidenceStatus: vibrationFileNames.length ? "Provided" : "None",
-      photoFileNames,
-      audioFileNames,
-      videoFileNames,
-      vibrationFileNames,
+      mileage,
+      obdCodes,
       timing: timingSelections.length ? `${timingSelections.join(", ")}${otherTiming ? ` | Other: ${otherTiming}` : ""}` : otherTiming || ""
     };
 
@@ -1204,10 +1273,41 @@ const [manualEngine, setManualEngine] = useState("");
         const timeoutId = window.setTimeout(() => controller.abort(), SUBMISSION_TIMEOUT_MS);
 
         try {
+          const requestBody = new FormData();
+          Object.entries(payload).forEach(([key, value]) => {
+            requestBody.append(key, typeof value === "string" ? value : JSON.stringify(value));
+          });
+          const evidenceIntake: DrivableEvidenceIntake = {
+            mode: "diagnose",
+            vehicle: {
+              year,
+              make: resolvedMake,
+              model: resolvedModel,
+              engine: resolvedEngine || undefined,
+              vin: normalizedVin || undefined,
+              mileage: normalizedMileage,
+              transmission: transmission || undefined,
+              drivetrain: drivetrain || undefined,
+            },
+            situation: {
+              description,
+              symptoms: problemCategory ? [problemCategory] : [],
+              timing: payload.timing || undefined,
+              urgency: urgency || undefined,
+              canDrive: urgency || undefined,
+              recentRepairs: recentRepairs || undefined,
+              buyerObservations: [],
+              sellerClaims: [],
+            },
+            obd: { codes: normalizedObdCodes, attachmentIds: [] },
+            attachments: [],
+          };
+          requestBody.append("evidenceIntake", JSON.stringify(evidenceIntake));
+          photoFiles.forEach((file) => requestBody.append("photos", file, file.name));
+
           const res = await fetch(endpoint, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
+            body: requestBody,
             signal: controller.signal
           });
 
@@ -1420,7 +1520,17 @@ const [manualEngine, setManualEngine] = useState("");
 
                     <div className="field">
                       <label>Mileage</label>
-                      <input value={mileage} onChange={(e) => setMileage(e.target.value)} placeholder="Optional" />
+                      <input inputMode="numeric" value={mileage} onChange={(e) => setMileage(e.target.value)} placeholder="Optional" />
+                    </div>
+
+                    <div className="field">
+                      <label>VIN</label>
+                      <input autoCapitalize="characters" maxLength={17} value={vin} onChange={(e) => setVin(e.target.value.toUpperCase())} placeholder="Optional, 17 characters" />
+                    </div>
+
+                    <div className="field">
+                      <label>OBD-II Codes</label>
+                      <input autoCapitalize="characters" value={obdCodes} onChange={(e) => setObdCodes(e.target.value.toUpperCase())} placeholder="Optional, e.g. P0300, P0420" />
                     </div>
 
                     <div className="field">
@@ -1544,8 +1654,7 @@ const [manualEngine, setManualEngine] = useState("");
                           </>
                         }
                       >
-                        <input type="file" multiple accept="image/*" onChange={(e) => setPhotoFiles(Array.from(e.target.files || []))} />
-                        <FileNames files={photoFiles} />
+                        <PhotoPicker files={photoFiles} onChange={setPhotoFiles} onError={setError} />
                       </EvidenceCard>
 
                       <EvidenceCard
@@ -1558,8 +1667,7 @@ const [manualEngine, setManualEngine] = useState("");
                           </>
                         }
                       >
-                        <input type="file" multiple accept="video/*" onChange={(e) => setVideoFiles(Array.from(e.target.files || []))} />
-                        <FileNames files={videoFiles} />
+                        <div className="upload-note">Video upload is not enabled in this photo-first release.</div>
                       </EvidenceCard>
 
                       <EvidenceCard
@@ -1572,8 +1680,7 @@ const [manualEngine, setManualEngine] = useState("");
                           </>
                         }
                       >
-                        <input type="file" multiple accept="audio/*" onChange={(e) => setAudioFiles(Array.from(e.target.files || []))} />
-                        <FileNames files={audioFiles} />
+                        <div className="upload-note">Audio upload is not enabled in this photo-first release.</div>
                       </EvidenceCard>
 
                       <EvidenceCard
@@ -1586,8 +1693,7 @@ const [manualEngine, setManualEngine] = useState("");
                           </>
                         }
                       >
-                        <input type="file" multiple accept="video/*,audio/*" onChange={(e) => setVibrationFiles(Array.from(e.target.files || []))} />
-                        <FileNames files={vibrationFiles} />
+                        <div className="upload-note">Describe vibration context in Written Symptoms. No readings are simulated or inferred.</div>
                       </EvidenceCard>
                     </div>
                   </div>

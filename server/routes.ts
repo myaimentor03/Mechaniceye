@@ -27,6 +27,12 @@ import {
   buildDrivableAiPayloadFields,
   type MockAiPayloadFields
 } from "./mock-drivable-report";
+import { drivableEvidenceIntakeSchema, type EvidenceAttachment } from "../shared/drivableEvidence";
+import {
+  ALLOWED_PHOTO_MEDIA_TYPES,
+  PHOTO_LIMITS,
+  RuntimeFileEvidenceStore,
+} from "./evidence-storage";
 
 // Configure multer for file uploads
 const uploadDir = path.join(process.cwd(), 'uploads');
@@ -47,6 +53,30 @@ const upload = multer({
     cb(null, allowedMimes.includes(file.mimetype));
   }
 });
+
+const diagnosisPhotoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: PHOTO_LIMITS.maxBytesEach, files: PHOTO_LIMITS.maxCount },
+  fileFilter: (_req, file, cb) => {
+    if (!ALLOWED_PHOTO_MEDIA_TYPES.has(file.mimetype)) {
+      return cb(new Error(`Unsupported photo type: ${file.mimetype || "unknown"}`));
+    }
+    cb(null, true);
+  },
+});
+const diagnosisPhotoUploadMiddleware = (req: any, res: any, next: any) => {
+  diagnosisPhotoUpload.array("photos", PHOTO_LIMITS.maxCount)(req, res, (error: unknown) => {
+    if (!error) return next();
+    const isLimitError = error instanceof multer.MulterError;
+    return res.status(isLimitError ? 413 : 415).json({
+      message: isLimitError
+        ? `Photo upload exceeds the limit of ${PHOTO_LIMITS.maxCount} files and 12 MB per file.`
+        : error instanceof Error ? error.message : "Photo upload was rejected.",
+      persisted: false,
+    });
+  });
+};
+const evidenceStore = new RuntimeFileEvidenceStore();
 
 // Subscription tier features
 const SUBSCRIPTION_FEATURES = {
@@ -80,6 +110,16 @@ type DiagnosisCaseResponse = {
   description: string;
   timing: string;
   message: string;
+  attachments?: EvidenceAttachment[];
+  evidencePersistence?: {
+    durability: "runtime_local";
+    durableStorageConfigured: false;
+    analysisStatus: "uploaded_not_analyzed";
+  };
+  casePersistence?: {
+    primary: "database" | "local_case_store";
+    databaseMirror: "persisted" | "unavailable" | "not_attempted";
+  };
 };
 
 type DiagnosisWebhookDebug = {
@@ -106,6 +146,8 @@ type PublicCasePacket = {
   audioFileNames?: string[];
   videoFileNames?: string[];
   vibrationFileNames?: string[];
+  attachments?: EvidenceAttachment[];
+  photoAnalysisStatus?: "uploaded_not_analyzed";
   source: "public-render";
 } & Partial<MockAiPayloadFields>;
 
@@ -141,6 +183,7 @@ type DiagnosisInput = IncomingDiagnosisCase & {
   audioFileNames?: string[];
   videoFileNames?: string[];
   vibrationFileNames?: string[];
+  attachments?: EvidenceAttachment[];
 };
 
 const localOperationsRoot = "C:\\MechanicsEye_Operations";
@@ -172,6 +215,25 @@ function pickString(...values: unknown[]) {
   }
 
   return "";
+}
+
+function parseJsonField(value: unknown, fieldName: string) {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    throw new Error(`${fieldName} must contain valid JSON`);
+  }
+}
+
+function normalizeDiagnosisBody(body: any) {
+  if (!body || typeof body !== "object") return {};
+  return {
+    ...body,
+    rawVehicleSelection: parseJsonField(body.rawVehicleSelection, "rawVehicleSelection"),
+    unsupportedVehicle: body.unsupportedVehicle === true || body.unsupportedVehicle === "true",
+    manualVehicleEntryUsed: body.manualVehicleEntryUsed === true || body.manualVehicleEntryUsed === "true",
+  };
 }
 
 function pickVehicleSelectionString(rawVehicleSelection: unknown, key: string) {
@@ -370,6 +432,11 @@ function buildPublicCasePacket(
 
   if (input.photoFileNames?.length) {
     packet.photoFileNames = input.photoFileNames;
+  }
+
+  if (input.attachments?.length) {
+    packet.attachments = input.attachments;
+    packet.photoAnalysisStatus = "uploaded_not_analyzed";
   }
 
   if (input.audioFileNames?.length) {
@@ -1807,15 +1874,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create new diagnosis and save to local case storage
-  app.post("/api/diagnoses", async (req, res) => {
-    const input = buildDiagnosisInput(req.body);
+  app.post("/api/diagnoses", diagnosisPhotoUploadMiddleware, async (req, res) => {
+    let input: DiagnosisInput;
+    let evidenceIntake;
+    try {
+      const normalizedBody = normalizeDiagnosisBody(req.body);
+      input = buildDiagnosisInput(normalizedBody);
+      evidenceIntake = drivableEvidenceIntakeSchema.parse(
+        parseJsonField(normalizedBody.evidenceIntake || "{}", "evidenceIntake"),
+      );
+      input.mileage = evidenceIntake.vehicle.mileage === undefined || evidenceIntake.vehicle.mileage === null
+        ? input.mileage
+        : String(evidenceIntake.vehicle.mileage);
+      input.obdCodes = evidenceIntake.obd.codes.join(", ") || input.obdCodes;
+    } catch (validationError) {
+      return res.status(400).json({
+        message: validationError instanceof Error ? validationError.message : "Invalid diagnosis evidence metadata",
+      });
+    }
+
+    const photoFiles = (req.files || []) as Express.Multer.File[];
     let responseBody: DiagnosisCaseResponse;
     let storedCase: StoredDiagnosisCase | undefined;
     let usedPublicFallback = false;
 
     try {
-      console.log("Incoming body:", req.body);
-
       if (canUseLocalCaseStorage()) {
         try {
           storedCase = createStoredDiagnosisCase(input);
@@ -1830,26 +1913,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
         usedPublicFallback = true;
       }
 
+      if (photoFiles.length) {
+        try {
+          const attachments = await evidenceStore.savePhotos(responseBody.id, photoFiles);
+          responseBody.attachments = attachments;
+          responseBody.evidencePersistence = {
+            durability: "runtime_local",
+            durableStorageConfigured: false,
+            analysisStatus: "uploaded_not_analyzed",
+          };
+          input.photoEvidenceStatus = "Persisted";
+          input.photoFileNames = attachments.map((attachment) => attachment.originalName);
+          input.attachments = attachments;
+        } catch (storageError) {
+          console.error("Photo evidence persistence failed:", storageError);
+          return res.status(507).json({
+            message: "The case could not be completed because its photo evidence was not persisted. Please try again.",
+            caseId: responseBody.id,
+            persisted: false,
+          });
+        }
+      }
+
       if (usedPublicFallback) {
-        await insertPublicDiagnosisCaseToDb(responseBody, input, storedCase);
+        const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, storedCase);
+        if (!dbResult.ok) {
+          if (photoFiles.length) await evidenceStore.deleteCase(responseBody.id);
+          return res.status(503).json({ message: "The case was not saved to the case database. Please try again.", caseId: responseBody.id, persisted: false });
+        }
+        responseBody.casePersistence = { primary: "database", databaseMirror: "persisted" };
         const webhookDebug = await forwardMasterDiagnosisIntakeWebhook(responseBody, input);
         void deliverPublicCaseNotification(responseBody, input);
         void deliverDiagnosisWebhook(responseBody, input, storedCase);
         return res.json(buildDiagnosisApiResponse(responseBody, webhookDebug));
       }
 
-      await insertPublicDiagnosisCaseToDb(responseBody, input, storedCase);
+      const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, storedCase);
+      responseBody.casePersistence = {
+        primary: "local_case_store",
+        databaseMirror: dbResult.ok ? "persisted" : "unavailable",
+      };
       const webhookDebug = await forwardMasterDiagnosisIntakeWebhook(responseBody, input);
       await deliverDiagnosisWebhook(responseBody, input, storedCase);
       return res.json(buildDiagnosisApiResponse(responseBody, webhookDebug));
     } catch (error) {
       console.error("Diagnosis creation error:", error);
-      responseBody = createPublicDiagnosisCase(input);
-      await insertPublicDiagnosisCaseToDb(responseBody, input);
-      const webhookDebug = await forwardMasterDiagnosisIntakeWebhook(responseBody, input);
-      void deliverPublicCaseNotification(responseBody, input);
-      void deliverDiagnosisWebhook(responseBody, input);
-      return res.json(buildDiagnosisApiResponse(responseBody, webhookDebug));
+      return res.status(500).json({
+        message: "The diagnosis case was not confirmed as persisted. Please try again.",
+        persisted: false,
+      });
     }
   });
 
