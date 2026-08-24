@@ -32,6 +32,9 @@ Verify deployed frontend and backend behavior before any tester traffic. This ch
 - [ ] Frontend requests target the intended backend.
 - [ ] Render services show no obvious startup or crash loop.
 - [ ] Environment variables have not been changed casually or copied into logs/docs.
+- [ ] `DRIVABLE_REVIEWER_TOKEN` is set to a unique random secret in Render and is not present in the repository or logs.
+- [ ] Internal routes reject a missing or incorrect reviewer token and accept the configured token over HTTPS.
+- [ ] Public users cannot list cases, open case details, mutate consultations, or retrieve legacy uploads.
 - [ ] `MASTER_INTAKE_WEBHOOK_URL` points to the intended controlled target before any cutover.
 - [ ] Make remains off or in the approved test state until router testing begins.
 

@@ -9,6 +9,7 @@
     "start": "node dist/server/index.js",
     "check": "tsc",
     "test:evidence": "tsx --test server/evidence-storage.test.ts",
+    "test:security": "tsx --test server/reviewer-auth.test.ts",
     "db:push": "drizzle-kit push",
     "validate:seed-data": "node scripts/validate-seed-data.mjs",
     "preview:seed-import": "node scripts/preview-seed-import.mjs",

@@ -175,6 +175,7 @@ function LegalSection({ title, children }: { title: string; children: React.Reac
 }
 
 function InternalReviewDesk() {
+  const [reviewerToken, setReviewerToken] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState(false);
@@ -213,7 +214,10 @@ function InternalReviewDesk() {
     try {
       const response = await fetch("/api/internal-review", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${reviewerToken.trim()}`,
+        },
         body: JSON.stringify(payload)
       });
       const result = await response.json().catch(() => ({ ok: false, error: "Internal review failed." }));
@@ -271,6 +275,16 @@ function InternalReviewDesk() {
             </div>
 
             <div className="field-grid">
+              <div className="field">
+                <label>Reviewer Access Key</label>
+                <input
+                  type="password"
+                  autoComplete="off"
+                  value={reviewerToken}
+                  onChange={(event) => setReviewerToken(event.target.value)}
+                  required
+                />
+              </div>
               <div className="field"><label>Case ID</label><input name="caseId" required /></div>
               <div className="field"><label>Customer Name</label><input name="customerName" /></div>
               <div className="field"><label>Customer Email</label><input name="customerEmail" type="email" required /></div>

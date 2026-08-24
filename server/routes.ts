@@ -33,6 +33,7 @@ import {
   PHOTO_LIMITS,
   RuntimeFileEvidenceStore,
 } from "./evidence-storage";
+import { requireReviewer } from "./reviewer-auth";
 
 // Configure multer for file uploads
 const uploadDir = path.join(process.cwd(), 'uploads');
@@ -1483,7 +1484,7 @@ async function deliverConciergeRequest(input: ConciergeRequest) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  app.get("/api/health/db", async (req, res) => {
+  app.get("/api/health/db", requireReviewer, async (req, res) => {
     const result = await checkDatabaseConnection();
     res.status(result.ok ? 200 : 503).json(result);
   });
@@ -1534,7 +1535,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/internal-review", async (req, res) => {
+  app.post("/api/internal-review", requireReviewer, async (req, res) => {
     try {
       const input = buildInternalReviewInput(req.body || {});
       const validation = validateInternalReviewInput(input);
@@ -1600,7 +1601,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   
   // Get recent diagnoses
-  app.get("/api/diagnoses/recent", async (req, res) => {
+  app.get("/api/diagnoses/recent", requireReviewer, async (req, res) => {
     try {
       const limit = parseInt(req.query.limit as string) || 10;
       const diagnoses = await storage.getRecentDiagnoses(limit);
@@ -1611,7 +1612,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Fix History Log endpoints
-  app.get("/api/fix-history/:diagnosisId", async (req, res) => {
+  app.get("/api/fix-history/:diagnosisId", requireReviewer, async (req, res) => {
     try {
       const { diagnosisId } = req.params;
       const history = await storage.getFixHistory(diagnosisId);
@@ -1623,7 +1624,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update step completion
-  app.post("/api/diagnoses/:diagnosisId/steps", async (req, res) => {
+  app.post("/api/diagnoses/:diagnosisId/steps", requireReviewer, async (req, res) => {
     try {
       const { diagnosisId } = req.params;
       const { suggestionIndex, stepIndex, completed, timeSpent } = req.body;
@@ -1643,7 +1644,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Mark fix as complete
-  app.post("/api/diagnoses/:diagnosisId/fix-complete", async (req, res) => {
+  app.post("/api/diagnoses/:diagnosisId/fix-complete", requireReviewer, async (req, res) => {
     try {
       const { diagnosisId } = req.params;
       const { suggestionIndex, wasSuccessful, feedback, timeSpent, stepsCompleted } = req.body;
@@ -1664,7 +1665,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Export chat for mechanic
-  app.post("/api/diagnoses/:diagnosisId/export-chat", async (req, res) => {
+  app.post("/api/diagnoses/:diagnosisId/export-chat", requireReviewer, async (req, res) => {
     try {
       const { diagnosisId } = req.params;
       const exportData = await storage.exportChatForMechanic(diagnosisId);
@@ -1676,7 +1677,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Send to mechanic
-  app.post("/api/diagnoses/:diagnosisId/send-to-mechanic", async (req, res) => {
+  app.post("/api/diagnoses/:diagnosisId/send-to-mechanic", requireReviewer, async (req, res) => {
     try {
       const { diagnosisId } = req.params;
       const result = await storage.sendToMechanic(diagnosisId);
@@ -1688,7 +1689,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all diagnoses
-  app.get("/api/diagnoses", async (req, res) => {
+  app.get("/api/diagnoses", requireReviewer, async (req, res) => {
     try {
       const diagnoses = await storage.getDiagnosesByUser();
       res.json(diagnoses);
@@ -1861,7 +1862,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get specific diagnosis
-  app.get("/api/diagnoses/:id", async (req, res) => {
+  app.get("/api/diagnoses/:id", requireReviewer, async (req, res) => {
     try {
       const diagnosis = await storage.getDiagnosis(req.params.id);
       if (!diagnosis) {
@@ -1966,7 +1967,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create follow-up request when previous fixes didn't work
-  app.post("/api/diagnoses/:id/follow-up", upload.fields([
+  app.post("/api/diagnoses/:id/follow-up", requireReviewer, upload.fields([
     { name: 'audio', maxCount: 1 },
     { name: 'video', maxCount: 1 }
   ]), async (req, res) => {
@@ -2058,7 +2059,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Start mechanic consultation
-  app.post("/api/consultations", async (req, res) => {
+  app.post("/api/consultations", requireReviewer, async (req, res) => {
     try {
       const { diagnosisId, mechanicId, userId } = req.body;
       
@@ -2078,7 +2079,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Submit consultation feedback
-  app.post("/api/consultations/:id/feedback", async (req, res) => {
+  app.post("/api/consultations/:id/feedback", requireReviewer, async (req, res) => {
     try {
       const consultationId = req.params.id;
       const feedbackData = consultationFeedbackSchema.parse(req.body);
@@ -2117,7 +2118,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Serve uploaded files
-  app.get("/api/files/:filename", (req, res) => {
+  app.get("/api/files/:filename", requireReviewer, (req, res) => {
     const filename = req.params.filename;
     const filepath = path.join(uploadDir, filename);
     

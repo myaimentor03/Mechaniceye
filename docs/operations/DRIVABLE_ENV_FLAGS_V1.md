@@ -30,9 +30,16 @@ Required for Make forwarding on the master intake routes. Use only a controlled 
 
 The legacy diagnosis path may also use `MECHANIC_EYE_INTAKE_WEBHOOK_URL` and `PUBLIC_CASE_WEBHOOK_URL`. Do not change production values as part of mock-mode testing.
 
+```text
+DRIVABLE_REVIEWER_TOKEN=...
+```
+
+Required before internal review, case-reading, follow-up, consultation mutation, database-health, or legacy file routes can be used. Generate a long random secret in the hosting provider; never reuse a personal password or place the value in source control. The server intentionally returns `503` when this value is missing and `401` when the supplied Bearer token is wrong.
+
 ## Safety
 
 - Store secrets in local or hosting-provider environment settings.
 - Do not put real keys or webhook URLs in Git, docs, screenshots, logs, or test payloads.
 - Mock mode does not authorize customer sending.
 - Confirm the intended environment and webhook target before every test.
+- Enter the reviewer key only into the internal review desk over HTTPS; do not send it in email, case notes, screenshots, or customer messages.
