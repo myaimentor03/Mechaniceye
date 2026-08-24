@@ -1,8 +1,6 @@
 import { FormEvent, useState } from "react";
-import {
-  drivableEvidenceIntakeSchema,
-  type DrivableEvidenceIntake,
-} from "../../../shared/drivableEvidence";
+import type { DrivableEvidenceIntake } from "../../../shared/drivableEvidence";
+import { buildBuyerEvidenceDraft } from "../lib/buyerEvidenceDraft";
 import { NextActionStrip } from "./NextActionStrip";
 
 const BUYER_VEHICLE_KNOWLEDGE_ENDPOINT =
@@ -46,18 +44,6 @@ function formatRiskTag(tag: string) {
   return tag.replace(/_/g, " ");
 }
 
-function splitEvidenceLines(value: string) {
-  return value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
-}
-
-function optionalNumber(value: string) {
-  return value.trim() ? Number(value) : undefined;
-}
-
-function normalizeObdCodes(value: string) {
-  return value.split(/[\s,]+/).map((code) => code.trim().toUpperCase()).filter(Boolean);
-}
-
 function ResultList({ title, items }: { title: string; items?: string[] }) {
   if (!items?.length) return null;
 
@@ -96,23 +82,17 @@ export function BuyerCheckPreview() {
     setVehicleKnowledge(null);
     setEvidenceError("");
 
-    const parsedEvidence = drivableEvidenceIntakeSchema.safeParse({
-      mode: "buy",
-      vehicle: {
-        year: vehicleYear.trim(),
-        make: vehicleMake.trim(),
-        model: vehicleModel.trim(),
-        vin: vehicleVin.trim() || undefined,
-        mileage: optionalNumber(vehicleMileage),
-      },
-      situation: {
-        buyerObservations: splitEvidenceLines(buyerObservations),
-        sellerClaims: splitEvidenceLines(sellerClaims),
-        askingPrice: optionalNumber(askingPrice),
-        listingUrl: listingUrl.trim() || undefined,
-      },
-      obd: { codes: normalizeObdCodes(obdCodes), attachmentIds: [] },
-      attachments: [],
+    const parsedEvidence = buildBuyerEvidenceDraft({
+      year: vehicleYear,
+      make: vehicleMake,
+      model: vehicleModel,
+      vin: vehicleVin,
+      mileage: vehicleMileage,
+      askingPrice,
+      listingUrl,
+      sellerClaims,
+      buyerObservations,
+      obdCodes,
     });
 
     if (!parsedEvidence.success) {
