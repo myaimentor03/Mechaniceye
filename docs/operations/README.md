@@ -7,6 +7,7 @@
 - [DRIVABLE_DAILY_BUILD_REVIEW_CHECKLIST_V1.md](DRIVABLE_DAILY_BUILD_REVIEW_CHECKLIST_V1.md): Supports daily build, route, blocker, queue, and readiness review.
 - [DRIVABLE_BLOCKER_BOARD_TEMPLATE_V1.md](DRIVABLE_BLOCKER_BOARD_TEMPLATE_V1.md): Tracks blockers across code, automation, email, data, safety, UX, revenue, and deploy.
 - [DRIVABLE_PRE_LAUNCH_GO_NO_GO_V1.md](DRIVABLE_PRE_LAUNCH_GO_NO_GO_V1.md): Defines separate go/no-go gates for first tester, paid test, and public launch.
+- [DRIVABLE_CONTROLLED_PAID_BETA_PROGRAM_V1.md](DRIVABLE_CONTROLLED_PAID_BETA_PROGRAM_V1.md): Runs the owner-operated, trusted-tester, and first paid cohorts with a narrow offer, review controls, evidence gates, 30-day calendar, and daily owner checklist.
 - [DRIVABLE_RENDER_DEPLOY_CHECKLIST_V1.md](DRIVABLE_RENDER_DEPLOY_CHECKLIST_V1.md): Verifies deployed routes, console health, backend status, and webhook readiness before tester traffic.
 - [DRIVABLE_CUSTOMER_SUPPORT_TRIAGE_V1.md](DRIVABLE_CUSTOMER_SUPPORT_TRIAGE_V1.md): Routes support and safety messages with questions, boundaries, escalation rules, logs, and statuses.
 - [DRIVABLE_NO_CREDIT_TEST_MODE_RUNBOOK_V1.md](DRIVABLE_NO_CREDIT_TEST_MODE_RUNBOOK_V1.md): Runs Make, sheet, email, and template tests with clearly labeled mock AI data and no OpenAI credits.
