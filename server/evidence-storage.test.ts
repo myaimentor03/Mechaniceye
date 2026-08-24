@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { drivableEvidenceIntakeSchema } from "../shared/drivableEvidence.js";
-import { RuntimeFileEvidenceStore } from "./evidence-storage.js";
+import { RuntimeFileEvidenceStore, S3PrivateEvidenceStore } from "./evidence-storage.js";
 
 function upload(buffer: Buffer, originalname = "dash.jpg", mimetype = "image/jpeg") {
   return { buffer, originalname, mimetype, size: buffer.length } as Express.Multer.File;
@@ -74,4 +74,65 @@ test("case cleanup removes its attachment manifest and bytes", async () => {
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("private object storage persists, retrieves, and deletes evidence without public URLs", async () => {
+  const objects = new Map<string, Buffer>();
+  const client = {
+    async send(command: any) {
+      const name = command.constructor.name;
+      const key = command.input.Key as string;
+      if (name === "PutObjectCommand") {
+        objects.set(key, Buffer.from(command.input.Body));
+        return {};
+      }
+      if (name === "GetObjectCommand") {
+        const value = objects.get(key);
+        if (!value) throw Object.assign(new Error("missing"), { name: "NoSuchKey" });
+        return { Body: { transformToByteArray: async () => value } };
+      }
+      if (name === "DeleteObjectCommand") {
+        objects.delete(key);
+        return {};
+      }
+      throw new Error(`Unexpected command ${name}`);
+    },
+  };
+  const store = new S3PrivateEvidenceStore({ bucket: "private-test", region: "test-1" }, client);
+  const bytes = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+  const [attachment] = await store.savePhotos("CASE-S3", [upload(bytes)]);
+  assert.equal(store.durability, "private_object_storage");
+  assert.equal(objects.has("evidence/CASE-S3/attachments.json"), true);
+  assert.equal(attachment.storageKey.startsWith("evidence/CASE-S3/"), true);
+  const retrieved = await store.getAttachment("CASE-S3", attachment.id);
+  assert.deepEqual(retrieved?.bytes, bytes);
+  assert.equal(await store.getAttachment("CASE-S3", "not-present"), null);
+  await store.deleteCase("CASE-S3");
+  assert.equal(objects.size, 0);
+});
+
+test("private object storage rolls back objects after a partial upload failure", async () => {
+  const written = new Set<string>();
+  let puts = 0;
+  const client = {
+    async send(command: any) {
+      const name = command.constructor.name;
+      const key = command.input.Key as string;
+      if (name === "PutObjectCommand") {
+        puts += 1;
+        if (puts === 2) throw new Error("object store unavailable");
+        written.add(key);
+        return {};
+      }
+      if (name === "DeleteObjectCommand") {
+        written.delete(key);
+        return {};
+      }
+      throw new Error(`Unexpected command ${name}`);
+    },
+  };
+  const store = new S3PrivateEvidenceStore({ bucket: "private-test", region: "test-1" }, client);
+  const jpg = upload(Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+  await assert.rejects(() => store.savePhotos("CASE-ROLLBACK", [jpg, jpg]), /unavailable/);
+  assert.equal(written.size, 0);
 });

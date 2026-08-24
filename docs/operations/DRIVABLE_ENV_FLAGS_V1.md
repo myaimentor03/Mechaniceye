@@ -49,6 +49,19 @@ DRIVABLE_PHOTO_UPLOAD_ENABLED=false
 
 The invite code is required for new registrations and supports controlled prelaunch testing. Share it directly with approved testers and rotate it if it leaks. Keep photo upload `false` until private durable object storage, authenticated reviewer retrieval, retention/deletion behavior, malware/content safeguards, and owner-operated upload tests all pass. The customer interface reads this capability at runtime, so enabling the verified evidence system does not require removing or rebuilding the photo experience.
 
+## Private Evidence Object Storage
+
+```text
+DRIVABLE_EVIDENCE_S3_BUCKET=...
+DRIVABLE_EVIDENCE_S3_REGION=...
+DRIVABLE_EVIDENCE_S3_ENDPOINT=...
+DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID=...
+DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY=...
+DRIVABLE_EVIDENCE_S3_FORCE_PATH_STYLE=false
+```
+
+The endpoint and explicit credentials are optional when the host supplies standard AWS-compatible credentials; S3-compatible providers normally require them. The bucket must be private, must block anonymous/public access, and must have lifecycle/retention rules approved before customer uploads. Photo capability remains off unless both `DRIVABLE_PHOTO_UPLOAD_ENABLED=true` and the bucket/region configuration are present. Never expose the storage credentials or direct object URLs to customers; reviewer retrieval passes through the authenticated backend route.
+
 ## Safety
 
 - Store secrets in local or hosting-provider environment settings.

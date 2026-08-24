@@ -31,7 +31,7 @@ import { drivableEvidenceIntakeSchema, type EvidenceAttachment } from "../shared
 import {
   ALLOWED_PHOTO_MEDIA_TYPES,
   PHOTO_LIMITS,
-  RuntimeFileEvidenceStore,
+  createEvidenceStoreFromEnvironment,
 } from "./evidence-storage";
 import { requireReviewer } from "./reviewer-auth";
 import { registerCustomerAuthRoutes, requireCustomer } from "./customer-auth";
@@ -79,7 +79,7 @@ const diagnosisPhotoUploadMiddleware = (req: any, res: any, next: any) => {
     });
   });
 };
-const evidenceStore = new RuntimeFileEvidenceStore();
+const evidenceStore = createEvidenceStoreFromEnvironment();
 
 // Subscription tier features
 const SUBSCRIPTION_FEATURES = {
@@ -115,8 +115,8 @@ type DiagnosisCaseResponse = {
   message: string;
   attachments?: EvidenceAttachment[];
   evidencePersistence?: {
-    durability: "runtime_local";
-    durableStorageConfigured: false;
+    durability: "runtime_local" | "private_object_storage";
+    durableStorageConfigured: boolean;
     analysisStatus: "uploaded_not_analyzed";
   };
   casePersistence?: {
@@ -1490,7 +1490,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/capabilities", (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
     res.json({
-      photoUpload: process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true",
+      photoUpload: process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && evidenceStore.durability === "private_object_storage",
       audioUpload: false,
       videoUpload: false,
       vibrationSensorCapture: false,
@@ -1887,6 +1887,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/internal/evidence/:caseId/:attachmentId", requireReviewer, async (req, res) => {
+    try {
+      const result = await evidenceStore.getAttachment(req.params.caseId, req.params.attachmentId);
+      if (!result) return res.status(404).json({ ok: false, error: "Evidence attachment not found." });
+      res.setHeader("Content-Type", result.attachment.mimeType);
+      res.setHeader("Content-Length", String(result.bytes.length));
+      res.setHeader("Content-Disposition", `inline; filename="${result.attachment.id}"`);
+      res.setHeader("Cache-Control", "private, no-store");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      return res.send(result.bytes);
+    } catch (error) {
+      console.error("Reviewer evidence retrieval failed:", error instanceof Error ? error.message : "unknown error");
+      return res.status(502).json({ ok: false, error: "Evidence could not be retrieved." });
+    }
+  });
+
   // Create new diagnosis and save to local case storage
   app.post("/api/diagnoses", requireCustomer, diagnosisPhotoUploadMiddleware, async (req, res) => {
     let input: DiagnosisInput;
@@ -1911,9 +1927,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     const photoFiles = (req.files || []) as Express.Multer.File[];
-    if (photoFiles.length && process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED !== "true") {
+    if (photoFiles.length && (process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED !== "true" || evidenceStore.durability !== "private_object_storage")) {
       return res.status(409).json({
-        message: "Photo upload is not available in this first beta cohort. Submit written symptoms and OBD-II codes instead.",
+        message: "Photo upload is not available until private evidence storage passes launch verification. You can continue with written symptoms and OBD-II codes.",
         persisted: false,
       });
     }
@@ -1941,8 +1957,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const attachments = await evidenceStore.savePhotos(responseBody.id, photoFiles);
           responseBody.attachments = attachments;
           responseBody.evidencePersistence = {
-            durability: "runtime_local",
-            durableStorageConfigured: false,
+            durability: evidenceStore.durability,
+            durableStorageConfigured: evidenceStore.durability === "private_object_storage",
             analysisStatus: "uploaded_not_analyzed",
           };
           input.photoEvidenceStatus = "Persisted";

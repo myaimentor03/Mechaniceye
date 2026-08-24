@@ -36,6 +36,10 @@ Verify deployed frontend and backend behavior before any tester traffic. This ch
 - [ ] `DRIVABLE_SESSION_SECRET` is set to a different random value of at least 32 characters.
 - [ ] `DRIVABLE_BETA_INVITE_CODE` is set and registration rejects a missing or incorrect invite.
 - [ ] `DRIVABLE_PHOTO_UPLOAD_ENABLED=false` until durable private object storage and authenticated reviewer retrieval pass; set it `true` only for the verified launch environment.
+- [ ] The evidence bucket blocks all public access and uses least-privilege application credentials scoped to the intended bucket/prefix.
+- [ ] S3-compatible bucket, region, endpoint, and credential variables are configured without appearing in logs or repository files.
+- [ ] Upload, reviewer-only retrieval, partial-upload rollback, and case deletion pass against a disposable staging case.
+- [ ] Missing/invalid storage configuration keeps the public photo capability off.
 - [ ] The deployed database has the reviewed `users` table and stores only `scrypt$...` password hashes for new beta accounts.
 - [ ] Registration, sign-in, refresh, sign-out, and wrong-password behavior pass using disposable owner test accounts.
 - [ ] An unauthenticated visitor cannot submit a Drivable case.
