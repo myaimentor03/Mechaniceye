@@ -1116,7 +1116,7 @@ const [manualEngine, setManualEngine] = useState("");
       `Video: ${videoFiles.length ? videoFiles.map((f) => f.name).join(", ") : "None"}`,
       `Vibration / Motion: ${vibrationFiles.length ? vibrationFiles.map((f) => f.name).join(", ") : "None"}`,
       "",
-      "Note: file delivery is not wired yet in this version."
+      "Note: uploaded media is received for human review and is not analyzed by AI."
     ].join("\n");
   }
 
@@ -1188,6 +1188,21 @@ const [manualEngine, setManualEngine] = useState("");
       timing: timingSelections.length ? `${timingSelections.join(", ")}${otherTiming ? ` | Other: ${otherTiming}` : ""}` : otherTiming || ""
     };
 
+    const formData = new FormData();
+    Object.entries(payload).forEach(([key, value]) => {
+      if (key === "rawVehicleSelection") {
+        formData.append(key, JSON.stringify(value));
+      } else if (Array.isArray(value)) {
+        value.forEach((item) => formData.append(key, String(item)));
+      } else if (value !== undefined && value !== null) {
+        formData.append(key, String(value));
+      }
+    });
+    photoFiles.forEach((file) => formData.append("photos", file));
+    audioFiles.forEach((file) => formData.append("audio", file));
+    videoFiles.forEach((file) => formData.append("video", file));
+    vibrationFiles.forEach((file) => formData.append("vibration", file));
+
     const isLocalBrowser =
       window.location.hostname === "localhost" ||
       window.location.hostname === "127.0.0.1";
@@ -1206,8 +1221,7 @@ const [manualEngine, setManualEngine] = useState("");
         try {
           const res = await fetch(endpoint, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
+            body: formData,
             signal: controller.signal
           });
 
@@ -1544,7 +1558,7 @@ const [manualEngine, setManualEngine] = useState("");
                           </>
                         }
                       >
-                        <input type="file" multiple accept="image/*" onChange={(e) => setPhotoFiles(Array.from(e.target.files || []))} />
+                        <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" onChange={(e) => setPhotoFiles(Array.from(e.target.files || []))} />
                         <FileNames files={photoFiles} />
                       </EvidenceCard>
 
@@ -1558,7 +1572,7 @@ const [manualEngine, setManualEngine] = useState("");
                           </>
                         }
                       >
-                        <input type="file" multiple accept="video/*" onChange={(e) => setVideoFiles(Array.from(e.target.files || []))} />
+                        <input type="file" multiple accept="video/*" capture="environment" onChange={(e) => setVideoFiles(Array.from(e.target.files || []))} />
                         <FileNames files={videoFiles} />
                       </EvidenceCard>
 
@@ -1572,7 +1586,7 @@ const [manualEngine, setManualEngine] = useState("");
                           </>
                         }
                       >
-                        <input type="file" multiple accept="audio/*" onChange={(e) => setAudioFiles(Array.from(e.target.files || []))} />
+                        <input type="file" multiple accept="audio/*" capture="user" onChange={(e) => setAudioFiles(Array.from(e.target.files || []))} />
                         <FileNames files={audioFiles} />
                       </EvidenceCard>
 

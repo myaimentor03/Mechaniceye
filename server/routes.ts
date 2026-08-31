@@ -41,6 +41,7 @@ const upload = multer({
   },
   fileFilter: (req, file, cb) => {
     const allowedMimes = [
+      'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
       'audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/x-m4a',
       'video/mp4', 'video/quicktime', 'video/x-msvideo'
     ];
@@ -220,7 +221,14 @@ function buildDiagnosisInput(body: any): DiagnosisInput {
     Array.isArray(value)
       ? value.filter((item): item is string => typeof item === "string")
       : [];
-  const rawVehicleSelection = diagnosisBody.rawVehicleSelection || null;
+  let rawVehicleSelection = diagnosisBody.rawVehicleSelection || null;
+  if (typeof rawVehicleSelection === "string") {
+    try {
+      rawVehicleSelection = JSON.parse(rawVehicleSelection);
+    } catch {
+      rawVehicleSelection = null;
+    }
+  }
   const symptomSummary = pickString(diagnosisBody.symptomSummary, diagnosisBody.symptoms);
   const description = pickString(diagnosisBody.description, symptomSummary);
   const whenItHappens = pickString(diagnosisBody.whenItHappens);
@@ -1807,14 +1815,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create new diagnosis and save to local case storage
-  app.post("/api/diagnoses", async (req, res) => {
-    const input = buildDiagnosisInput(req.body);
+  app.post("/api/diagnoses", upload.fields([
+    { name: "photos", maxCount: 8 },
+    { name: "audio", maxCount: 4 },
+    { name: "video", maxCount: 4 },
+    { name: "vibration", maxCount: 4 }
+  ]), async (req, res) => {
+    const uploadedFiles = (req.files || {}) as Record<string, Express.Multer.File[]>;
+    const oversizedPhoto = (uploadedFiles.photos || []).find((file) => file.size > 12 * 1024 * 1024);
+    if (oversizedPhoto) {
+      for (const file of Object.values(uploadedFiles).flat()) {
+        fs.rm(file.path, () => undefined);
+      }
+      return res.status(413).json({ message: "Each photo must be 12 MB or smaller." });
+    }
+    const body = {
+      ...req.body,
+      photoFileNames: (uploadedFiles.photos || []).map((file) => file.filename),
+      audioFileNames: (uploadedFiles.audio || []).map((file) => file.filename),
+      videoFileNames: (uploadedFiles.video || []).map((file) => file.filename),
+      vibrationFileNames: (uploadedFiles.vibration || []).map((file) => file.filename),
+      photoEvidenceStatus: uploadedFiles.photos?.length ? "Uploaded" : req.body.photoEvidenceStatus,
+      audioEvidenceStatus: uploadedFiles.audio?.length ? "Uploaded" : req.body.audioEvidenceStatus,
+      videoEvidenceStatus: uploadedFiles.video?.length ? "Uploaded" : req.body.videoEvidenceStatus,
+      vibrationEvidenceStatus: uploadedFiles.vibration?.length ? "Uploaded" : req.body.vibrationEvidenceStatus
+    };
+    const input = buildDiagnosisInput(body);
     let responseBody: DiagnosisCaseResponse;
     let storedCase: StoredDiagnosisCase | undefined;
     let usedPublicFallback = false;
 
     try {
-      console.log("Incoming body:", req.body);
+      console.log("Incoming diagnosis intake", {
+        hasVehicleInfo: Boolean(input.vehicleInfo),
+        hasDescription: Boolean(input.description),
+        photoCount: input.photoFileNames?.length || 0,
+        audioCount: input.audioFileNames?.length || 0,
+        videoCount: input.videoFileNames?.length || 0,
+        vibrationCount: input.vibrationFileNames?.length || 0
+      });
 
       if (canUseLocalCaseStorage()) {
         try {
@@ -2006,8 +2045,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Serve uploaded files
   app.get("/api/files/:filename", (req, res) => {
-    const filename = req.params.filename;
-    const filepath = path.join(uploadDir, filename);
+    const filename = path.basename(req.params.filename);
+    const filepath = path.resolve(uploadDir, filename);
+    const resolvedUploadDir = path.resolve(uploadDir);
+
+    if (!filepath.startsWith(`${resolvedUploadDir}${path.sep}`)) {
+      return res.status(400).json({ message: "Invalid file name" });
+    }
     
     if (fs.existsSync(filepath)) {
       res.sendFile(filepath);
