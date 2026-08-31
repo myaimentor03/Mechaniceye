@@ -444,6 +444,29 @@ button, input, select, textarea {
   font-weight: 900;
   letter-spacing: 0.01em;
   color: #ffffff;
+  text-decoration: none;
+}
+
+.public-header-identity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex: 0 0 auto;
+}
+
+.public-menu-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  padding: 10px 16px;
+  background: rgba(15, 29, 49, 0.9);
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 800;
 }
 
 .nav {
@@ -453,8 +476,14 @@ button, input, select, textarea {
 }
 
 .nav button,
+.nav a,
 .primary-btn,
 .secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  box-sizing: border-box;
   border-radius: 14px;
   border: 1px solid var(--border);
   padding: 12px 16px;
@@ -463,12 +492,19 @@ button, input, select, textarea {
 }
 
 .nav button,
+.nav a,
 .secondary-btn {
   background: rgba(15, 29, 49, 0.9);
   color: var(--text);
 }
 
+.nav a {
+  text-decoration: none;
+}
+
 .nav button:hover,
+.nav a:hover,
+.public-menu-toggle:hover,
 .secondary-btn:hover {
   border-color: #4d6f95;
 }
@@ -1492,6 +1528,30 @@ textarea:focus {
   }
 
   .nav {
+    justify-content: flex-start;
+  }
+
+  .public-header-identity {
+    width: 100%;
+  }
+
+  .public-menu-toggle {
+    display: inline-flex;
+  }
+
+  .public-nav {
+    display: none;
+    width: 100%;
+  }
+
+  .public-nav.is-open {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .public-nav a,
+  .public-nav button {
+    width: 100%;
     justify-content: flex-start;
   }
 

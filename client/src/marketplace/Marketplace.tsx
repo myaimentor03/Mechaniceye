@@ -1,9 +1,27 @@
 import { FormEvent, useState } from "react";
 import { NeedHelpPanel } from "../components/NeedHelpPanel";
+import {
+  PUBLIC_REVIEW_PATH,
+  PublicHeaderNavigation,
+  type PublicNavigationItem,
+} from "../components/PublicHeaderNavigation";
 import { getFrontendRoutePath, navigateFrontend } from "../frontendRouting";
 
 const MARKETPLACE_SELLER_INTAKE_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/marketplace/seller-intake";
 const MARKETPLACE_BUYER_INTEREST_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/marketplace/buyer-interest";
+
+const MARKETPLACE_PUBLIC_NAVIGATION: readonly PublicNavigationItem[] = Object.freeze([
+  { label: "Drivable Check", href: "/drivable-check" },
+  { label: "ClearSale", href: "/clearsale" },
+  { label: "Buyer Check", href: "/buyer-check" },
+  { label: "Start ClearSale", href: "/clearsale" },
+  { label: "Mechanic Match", href: "/mechanic-match" },
+  { label: "Mechanic's Eye Review", href: PUBLIC_REVIEW_PATH },
+  { label: "Guides", href: "/marketplace/guides" },
+  { label: "Need Help?", href: "/help" },
+  { label: "Weekend Offer Event", href: "/marketplace/offer-event" },
+  { label: "Terms", href: "/marketplace/terms" },
+]);
 
 type HeroProps = {
   eyebrow?: string;
@@ -210,21 +228,15 @@ function PackageCard({ pkg }: { pkg: (typeof packages)[number] }) {
 function MarketplaceLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="mp-shell">
-      <div className="mp-topbar">
-        <a className="mp-brand" href="/clearsale">Drivable <span>ClearSale</span></a>
-        <nav className="mp-nav" aria-label="ClearSale navigation">
-          <a href="/">Drivable Check</a>
-          <a href="/clearsale">ClearSale</a>
-          <a href="/buyer-check">Buyer Check</a>
-          <a href="/clearsale">Start ClearSale</a>
-          <a href="/mechanic-match">Mechanic Match</a>
-          <a href="/marketplace/terms">Mechanic's Eye Review</a>
-          <a href="/marketplace/guides">Guides</a>
-          <a href="/help">Need Help?</a>
-          <a href="/marketplace/offer-event">Weekend Offer Event</a>
-          <a href="/marketplace/terms">Terms</a>
-        </nav>
-      </div>
+      <header className="mp-topbar">
+        <PublicHeaderNavigation
+          ariaLabel="ClearSale navigation"
+          brand={<a className="mp-brand" href="/clearsale">Drivable <span>ClearSale</span></a>}
+          items={MARKETPLACE_PUBLIC_NAVIGATION}
+          menuId="clearsale-public-navigation"
+          navClassName="mp-nav"
+        />
+      </header>
       {children}
     </div>
   );

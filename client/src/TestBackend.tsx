@@ -15,6 +15,7 @@ import { InternalReviewCard } from "./components/InternalReviewCard";
 import { InternalReviewActionPanel } from "./components/InternalReviewActionPanel";
 import { LearningLoopPreview } from "./components/LearningLoopPreview";
 import { MechanicMatchPreview } from "./components/MechanicMatchPreview";
+import { MechanicsEyeReviewPage } from "./components/MechanicsEyeReviewPage";
 import { MissingInfoRequestPreview } from "./components/MissingInfoRequestPreview";
 import { NeedHelpPanel } from "./components/NeedHelpPanel";
 import { OutcomeCapturePreview } from "./components/OutcomeCapturePreview";
@@ -24,6 +25,7 @@ import { RoadsideGuidancePreview } from "./components/RoadsideGuidancePreview";
 import { RoadsideSeverityGuide } from "./components/RoadsideSeverityGuide";
 import { SendSafetyGatePreview } from "./components/SendSafetyGatePreview";
 import { WhatHappensNext } from "./components/WhatHappensNext";
+import { DrivablePublicHeader } from "./components/PublicHeaderNavigation";
 import { YEARS, VEHICLE_DATA, FALLBACK_MAKES, FALLBACK_MODELS, FALLBACK_ENGINES, TRANSMISSION_OPTIONS, DRIVETRAIN_OPTIONS } from "./data/vehicleData";
 import {
   REPORT_TYPES,
@@ -996,6 +998,10 @@ export default function TestBackend() {
     return <MechanicMatchPreview />;
   }
 
+  if (routePath === "/mechanics-eye-review") {
+    return <MechanicsEyeReviewPage />;
+  }
+
   if (routePath.startsWith("/marketplace")) {
     return <Marketplace />;
   }
@@ -1080,7 +1086,17 @@ export default function TestBackend() {
     return <MechanicMatchFlow />;
   }
 
-  const [page, setPage] = useState<"home" | "intake" | "sell" | "help" | "disclaimer" | "terms" | "privacy">("home");
+  type PublicPage = "home" | "intake" | "sell" | "help" | "disclaimer" | "terms" | "privacy";
+  const initialPage: PublicPage = routePath === "/drivable-check"
+    ? "intake"
+    : routePath === "/disclaimer"
+      ? "disclaimer"
+      : routePath === "/terms"
+        ? "terms"
+        : routePath === "/privacy"
+          ? "privacy"
+          : "home";
+  const [page, setPage] = useState<PublicPage>(initialPage);
   const [step, setStep] = useState<1 | 2>(1);
 
   const [year, setYear] = useState("");
@@ -1132,9 +1148,6 @@ const [manualEngine, setManualEngine] = useState("");
 
     return {
       photos: value.includes("leak") || value.includes("smell") || value.includes("smoke") || value.includes("warning") || value.includes("electrical"),
-      video: value.includes("engine") || value.includes("brake") || value.includes("steering") || value.includes("suspension") || value.includes("leak") || value.includes("smoke") || value.includes("overheating"),
-      audio: value.includes("noise") || value.includes("rattle") || value.includes("knock") || value.includes("squeal") || value.includes("vibration") || value.includes("engine") || value.includes("brake") || value.includes("start"),
-      vibration: value.includes("vibration") || value.includes("brake") || value.includes("steering") || value.includes("suspension") || value.includes("transmission"),
       written: Boolean(problemCategory)
     };
   }, [problemCategory]);
@@ -1373,7 +1386,7 @@ const [manualEngine, setManualEngine] = useState("");
             <button className="offer-card offer-card-primary" onClick={() => setPage("intake")}>
               <div className="offer-topline">Drivable Check</div>
               <div className="offer-title">Find Out What&apos;s Wrong</div>
-              <div className="offer-copy">Capture symptoms, timing, sounds, photos, video, and more before spending money on guesswork.</div>
+              <div className="offer-copy">Capture written symptoms, timing, photos, and manual OBD codes before spending money on guesswork.</div>
               <div className="offer-action">Start Drivable Check</div>
             </button>
 
@@ -1388,7 +1401,7 @@ const [manualEngine, setManualEngine] = useState("");
 
         <div className="feature-grid">
           <div className="feature-card"><h3>Structured Intake</h3><p>Year, make, model, timing, urgency, and symptom story gathered in a useful format.</p></div>
-          <div className="feature-card"><h3>Evidence Support</h3><p>Photos, audio, video, and vibration inputs that make the platform feel ahead of the curve.</p></div>
+          <div className="feature-card"><h3>Evidence Support</h3><p>Written symptoms, manual OBD codes, vibration context, and photo attachments organized with the case. Current photos are not visually analyzed.</p></div>
           <div className="feature-card"><h3>Practical Direction</h3><p>Designed to help you understand likely causes and prepare for the next real-world step.</p></div>
         </div>
 
@@ -1616,13 +1629,13 @@ const [manualEngine, setManualEngine] = useState("");
                       <div>
                         <h3>Diagnostic Evidence</h3>
                         <p className="section-intro">
-                          Upload the same kind of evidence a mechanic would ask for: photos, video, sound, vibration/motion context, and a clear symptom description.
+                          Add a clear written symptom description, manual OBD codes, vibration context, and relevant photos. Audio and video upload are not enabled in this photo-first release.
                         </p>
                       </div>
                     </div>
 
                     <div className="notice-strip evidence-reassurance">
-                      You do not need every evidence type. Send what you safely can. More evidence usually improves the review.
+                      Send only what you can collect safely. Photos are stored as case evidence when persistence succeeds; the current AI path does not visually analyze them.
                     </div>
 
                     <div className="upload-grid">
@@ -1659,11 +1672,10 @@ const [manualEngine, setManualEngine] = useState("");
 
                       <EvidenceCard
                         title="Video"
-                        helper="Best for cold starts, idle problems, smoke, exhaust behavior, shaking, belt/pulley movement, and driving symptoms. MP4 preferred, under 45 seconds."
+                        helper="Video upload is not available in this photo-first release. Do not record while driving."
                         badges={
                           <>
-                            <EvidenceBadge>Optional</EvidenceBadge>
-                            {bestEvidence.video && <EvidenceBadge tone="best">Best evidence for this symptom</EvidenceBadge>}
+                            <EvidenceBadge>Not available</EvidenceBadge>
                           </>
                         }
                       >
@@ -1672,11 +1684,10 @@ const [manualEngine, setManualEngine] = useState("");
 
                       <EvidenceCard
                         title="Sound / Audio"
-                        helper="Best for knocks, ticks, squeals, grinding, rattles, misfires, and start-up noises. Record with radio/fans off when safe."
+                        helper="Audio upload is not available in this photo-first release. Describe the sound in Written Symptoms."
                         badges={
                           <>
-                            <EvidenceBadge>Optional</EvidenceBadge>
-                            {bestEvidence.audio && <EvidenceBadge tone="best">Best evidence for this symptom</EvidenceBadge>}
+                            <EvidenceBadge>Not available</EvidenceBadge>
                           </>
                         }
                       >
@@ -1685,11 +1696,10 @@ const [manualEngine, setManualEngine] = useState("");
 
                       <EvidenceCard
                         title="Vibration / Motion"
-                        helper="Use video/audio plus context. Tell us where you feel it, when it happens, speed/RPM, braking/turning/accelerating, and severity."
+                        helper="Describe where you feel it, when it happens, speed/RPM, braking/turning/accelerating, and severity. No device reading is requested."
                         badges={
                           <>
                             <EvidenceBadge>Optional</EvidenceBadge>
-                            {bestEvidence.vibration && <EvidenceBadge tone="best">Best evidence for this symptom</EvidenceBadge>}
                           </>
                         }
                       >
@@ -1863,7 +1873,7 @@ const [manualEngine, setManualEngine] = useState("");
         </div>
         <div className="faq-grid">
           <div className="faq-card"><h3>What if I don’t know my engine?</h3><p>Use the I Don&apos;t Know option where available and keep going.</p></div>
-          <div className="faq-card"><h3>What uploads help most?</h3><p>Photos, sounds, videos, and vibration clues all help paint a better diagnostic picture.</p></div>
+          <div className="faq-card"><h3>What information helps most?</h3><p>Clear written symptoms, timing, manual OBD codes, vibration context, and relevant photos help organize the case. Current photos are not visually analyzed, and audio/video upload is unavailable.</p></div>
           <div className="faq-card"><h3>Can this replace a hands-on inspection?</h3><p>No. It improves clarity and direction, but some problems still require real testing.</p></div>
         </div>
       </div>
@@ -1916,7 +1926,7 @@ const [manualEngine, setManualEngine] = useState("");
           </LegalSection>
 
           <LegalSection title="User-Submitted Information">
-            <p>You are responsible for the accuracy of the information, files, photos, videos, and descriptions you submit. Inaccurate or incomplete information may affect the usefulness of any response or review.</p>
+            <p>You are responsible for the accuracy of the information, photos, and descriptions you submit. Inaccurate or incomplete information may affect the usefulness of any response or review.</p>
           </LegalSection>
 
           <LegalSection title="Acceptable Use">
@@ -1954,7 +1964,7 @@ const [manualEngine, setManualEngine] = useState("");
 
         <div className="legal-card">
           <LegalSection title="Information You May Submit">
-            <p>This may include your name, email, phone number, location, vehicle details, symptom descriptions, and media such as photos, audio, video, or other evidence.</p>
+            <p>This may include your name, email, phone number, location, vehicle details, symptom descriptions, manual OBD codes, and photos selected for the case.</p>
           </LegalSection>
 
           <LegalSection title="How Information May Be Used">
@@ -1970,7 +1980,7 @@ const [manualEngine, setManualEngine] = useState("");
           </LegalSection>
 
           <LegalSection title="Media and Uploads">
-            <p>Do not upload sensitive personal documents or unrelated material unless specifically requested. Uploaded media may be reviewed to support diagnosis, lead routing, or platform operations.</p>
+            <p>Do not upload sensitive personal documents or unrelated material. Current photo uploads may be stored with the case and viewed by authorized human reviewers for case operations; the current AI path does not visually analyze them.</p>
           </LegalSection>
 
           <LegalSection title="Data Retention and Protection">
@@ -1983,21 +1993,9 @@ const [manualEngine, setManualEngine] = useState("");
 
   return (
     <div className="app-shell">
-      <div className="topbar">
-        <div className="brand">Drivable by Mechanic&apos;s Eye</div>
-        <div className="nav">
-          <button onClick={() => setPage("home")}>Home</button>
-          <button onClick={() => setPage("intake")}>Drivable Check</button>
-          <button onClick={() => navigateFrontend("/clearsale")}>ClearSale</button>
-          <button onClick={() => navigateFrontend("/buyer-check")}>Buyer Check</button>
-          <button onClick={() => navigateFrontend("/mechanic-match")}>Mechanic Match</button>
-          <button onClick={() => setPage("disclaimer")}>Mechanic&apos;s Eye Review</button>
-          <button onClick={() => navigateFrontend("/help")}>Help</button>
-          <button onClick={() => setPage("disclaimer")}>Disclaimer</button>
-          <button onClick={() => setPage("terms")}>Terms</button>
-          <button onClick={() => setPage("privacy")}>Privacy</button>
-        </div>
-      </div>
+      <header className="topbar">
+        <DrivablePublicHeader />
+      </header>
 
       <div className="content-shell">
         {page === "home" && HomePage()}
