@@ -5,20 +5,46 @@ import fs from "fs";
 
 const app = express();
 
-const allowedCorsOrigins = new Set([
+const defaultAllowedOrigins = [
   "https://mechaniceye.onrender.com",
+  "https://getdrivable.com",
+  "https://drivable.onrender.com",
   "http://127.0.0.1:5173",
-  "http://localhost:5173"
-]);
+  "http://localhost:5173",
+  "http://127.0.0.1:5000",
+  "http://localhost:5000"
+];
+
+const envAllowedOrigins = (process.env.ALLOWED_ORIGINS || process.env.CORS_ORIGIN || "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+const allowedCorsOrigins = new Set([...defaultAllowedOrigins, ...envAllowedOrigins]);
+
+function isAllowedOrigin(origin: string | undefined): boolean {
+  if (!origin) return false;
+  if (allowedCorsOrigins.has(origin)) return true;
+  if (process.env.NODE_ENV !== "production") return true;
+  try {
+    const url = new URL(origin);
+    if (url.hostname.endsWith(".onrender.com") || url.hostname.endsWith(".getdrivable.com")) {
+      return true;
+    }
+  } catch {
+    // Malformed origin URL
+  }
+  return false;
+}
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
 
-  if (origin && allowedCorsOrigins.has(origin)) {
+  if (origin && isAllowedOrigin(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
   }
 
   if (req.method === "OPTIONS") {
@@ -29,16 +55,25 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 
 (async () => {
   const server = await registerRoutes(app);
 
-  // Error handler
+  // Error handler with secret redaction
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    let message = err.message || "Internal Server Error";
+
+    if (process.env.DATABASE_URL) {
+      message = message.replaceAll(process.env.DATABASE_URL, "[redacted]");
+    }
+    message = message.replace(
+      /postgres(?:ql)?:\/\/[^\s:@/]+:[^\s@/]+@[^\s)'"<>]+/gi,
+      "postgresql://[redacted]"
+    );
+
     res.status(status).json({ message });
   });
 

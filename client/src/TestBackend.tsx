@@ -34,7 +34,7 @@ import {
   navigateFrontend
 } from "./frontendRouting";
 
-const PUBLIC_API_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/diagnoses";
+const PUBLIC_API_ENDPOINT = "/api/diagnoses";
 const SUBMISSION_TIMEOUT_MS = 20000;
 const CATEGORIES = [
   "No start / hard start",
@@ -1020,8 +1020,21 @@ export default function TestBackend() {
     return <MechanicMatchFlow />;
   }
 
-  const [page, setPage] = useState<"home" | "intake" | "sell" | "help" | "disclaimer" | "terms" | "privacy">("home");
+  const [page, setPage] = useState<"home" | "intake" | "help" | "disclaimer" | "terms" | "privacy">("home");
   const [step, setStep] = useState<1 | 2>(1);
+
+  const [clientRequestId] = useState(() => {
+    const storageKey = "drivable-client-request-id";
+    const existing = window.sessionStorage.getItem(storageKey);
+
+    if (existing) {
+      return existing;
+    }
+
+    const generated = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    window.sessionStorage.setItem(storageKey, generated);
+    return generated;
+  });
 
   const [year, setYear] = useState("");
   const [make, setMake] = useState("");
@@ -1163,6 +1176,7 @@ const [manualEngine, setManualEngine] = useState("");
     const vibrationFileNames = vibrationFiles.map((file) => file.name);
 
     const payload = {
+      clientRequestId,
       problemCategory,
       description: buildDescriptionBlock(),
       vehicleInfo: `${year} ${resolvedMake} ${resolvedModel} | Engine: ${resolvedEngine || "N/A"} | Mileage: ${mileage || "N/A"} | Transmission: ${transmission || "N/A"} | Drivetrain: ${drivetrain || "N/A"}`,
@@ -1188,13 +1202,7 @@ const [manualEngine, setManualEngine] = useState("");
       timing: timingSelections.length ? `${timingSelections.join(", ")}${otherTiming ? ` | Other: ${otherTiming}` : ""}` : otherTiming || ""
     };
 
-    const isLocalBrowser =
-      window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1";
-
-    const endpoints = [
-      isLocalBrowser ? "/api/diagnoses" : PUBLIC_API_ENDPOINT
-    ];
+    const endpoints = [PUBLIC_API_ENDPOINT];
 
     let lastError = "";
 
@@ -1212,18 +1220,23 @@ const [manualEngine, setManualEngine] = useState("");
           });
 
           if (!res.ok) {
-            const text = await res.text();
-            lastError = `${endpoint} returned HTTP ${res.status}: ${text}`;
+            lastError = `We couldn't record your request (HTTP ${res.status}). Please try again.`;
             continue;
           }
 
-          const responseText = await res.text();
+          let data: any;
+          try {
+            const responseText = await res.text();
 
-          if (!responseText.trim()) {
-            throw new Error(`${endpoint} returned an empty response.`);
+            if (!responseText.trim()) {
+              throw new Error("empty");
+            }
+
+            data = JSON.parse(responseText);
+          } catch {
+            lastError = "We received a response we couldn't read. Please try again.";
+            continue;
           }
-
-          const data = JSON.parse(responseText);
 
           setResult(data);
           setError("");
@@ -1235,7 +1248,7 @@ const [manualEngine, setManualEngine] = useState("");
               ? `Request timed out after ${SUBMISSION_TIMEOUT_MS / 1000} seconds. Please try again.`
               : err.message || String(err);
 
-          lastError = `${endpoint} failed: ${message}`;
+          lastError = `Submission failed: ${message}`;
         } finally {
           window.clearTimeout(timeoutId);
         }
@@ -1344,10 +1357,15 @@ const [manualEngine, setManualEngine] = useState("");
 
           {result && (
             <div className="alert-card success">
-              <h3>Submission Received</h3>
+              <h3>Case Received</h3>
               <p><strong>Status:</strong> {result.status}</p>
-              <p><strong>Request ID:</strong> {result.id}</p>
-              <p>This request reached the live backend. Next step is wiring email and file delivery.</p>
+              <p><strong>Case ID:</strong> {result.id}</p>
+              <p>
+                Your case was recorded and sent to review. Save your Case ID in case you want
+                to reference this submission later. Keep an eye on your inbox if you provided
+                a follow-up email.
+              </p>
+              <WhatHappensNext />
             </div>
           )}
 
@@ -1637,116 +1655,6 @@ const [manualEngine, setManualEngine] = useState("");
     );
   }
 
-  function SellPage() {
-    return (
-      <div className="simple-page">
-        <div className="hero-card">
-          <div className="eyebrow">ClearSale</div>
-          <h1>Don&apos;t want the hassle of fixing it, diagnosing it, or dealing with flaky buyers?</h1>
-          <p>
-            If your vehicle is no longer worth repairing, or you simply do not want to deal with the time,
-            cost, and uncertainty, submit the details below. If it looks like a fit, we may be able to
-            connect it with interested buyers in your area.
-          </p>
-        </div>
-
-        <div className="step-card">
-          <h2>ClearSale Review Request</h2>
-          <p className="helper-text">
-            Submitting your vehicle does not guarantee a purchase offer. It helps us review whether there may
-            be a fit with buyers in your area.
-          </p>
-
-          <div className="field-grid">
-            <div className="field">
-              <label>Year</label>
-              <input placeholder="Vehicle year" />
-            </div>
-
-            <div className="field">
-              <label>Make</label>
-              <input placeholder="Vehicle make" />
-            </div>
-
-            <div className="field">
-              <label>Model</label>
-              <input placeholder="Vehicle model" />
-            </div>
-
-            <div className="field">
-              <label>Approximate Mileage</label>
-              <input placeholder="Approximate mileage" />
-            </div>
-
-            <div className="field">
-              <label>Current Condition</label>
-              <input placeholder="Runs / does not run / rough / damaged" />
-            </div>
-
-            <div className="field">
-              <label>Does It Run?</label>
-              <input placeholder="Yes / No / Sometimes" />
-            </div>
-
-            <div className="field">
-              <label>Title Status</label>
-              <input placeholder="Clean / rebuilt / lost / not sure" />
-            </div>
-
-            <div className="field">
-              <label>Main Problem or Reason for Selling</label>
-              <input placeholder="What is wrong with it or why are you selling it?" />
-            </div>
-
-            <div className="field">
-              <label>City</label>
-              <input placeholder="City" />
-            </div>
-
-            <div className="field">
-              <label>State</label>
-              <input placeholder="State" />
-            </div>
-
-            <div className="field">
-              <label>ZIP Code</label>
-              <input placeholder="ZIP Code" />
-            </div>
-
-            <div className="field">
-              <label>Best Contact Name</label>
-              <input placeholder="Your name" />
-            </div>
-
-            <div className="field">
-              <label>Best Contact Email</label>
-              <input placeholder="Your email" />
-            </div>
-
-            <div className="field">
-              <label>Best Contact Phone</label>
-              <input placeholder="Your phone number" />
-            </div>
-
-            <div className="field">
-              <label>Upload Photos</label>
-              <input type="file" multiple accept="image/*" />
-            </div>
-          </div>
-
-          <div className="notice-strip">
-            Submission does not guarantee an offer or purchase. Vehicle review depends on condition, marketability, location, and whether the seller has the legal right to sell the vehicle.
-          </div>
-
-          <div className="step-actions">
-            <button className="secondary-btn" type="button" onClick={() => setPage("home")}>Back</button>
-            <button className="primary-btn" type="button">Submit Vehicle for Review</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   function HelpPage() {
     return (
       <div className="simple-page">
@@ -1896,7 +1804,6 @@ const [manualEngine, setManualEngine] = useState("");
       <div className="content-shell">
         {page === "home" && HomePage()}
         {page === "intake" && IntakePage()}
-        {page === "sell" && SellPage()}
         {page === "help" && HelpPage()}
         {page === "disclaimer" && DisclaimerPage()}
         {page === "terms" && TermsPage()}

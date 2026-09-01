@@ -247,17 +247,25 @@ function buildTrackerRow(
   };
 }
 
-export function generateCaseId() {
+export function generateCaseId(seed?: string) {
+  if (seed && typeof seed === "string") {
+    const normalized = seed.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 48);
+
+    if (normalized.length >= 8) {
+      return `CASE-${normalized}`;
+    }
+  }
+
   const now = new Date();
   const stamp = now.toISOString().replace(/[-:.TZ]/g, "").slice(0, 17);
   const rand = Math.floor(Math.random() * 1000).toString().padStart(3, "0");
   return `CASE-${stamp}-${rand}`;
 }
 
-export function createStoredDiagnosisCase(input: IncomingDiagnosisCase): StoredDiagnosisCase {
+export function createStoredDiagnosisCase(input: IncomingDiagnosisCase, clientRequestId?: string): StoredDiagnosisCase {
   ensureDir(casesRoot);
 
-  const id = generateCaseId();
+  const id = generateCaseId(clientRequestId);
   const caseFolder = path.join(casesRoot, safeFileName(id));
   ensureDir(caseFolder);
 

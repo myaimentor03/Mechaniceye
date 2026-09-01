@@ -1,4 +1,4 @@
-import { diagnoses } from "./shared/shared/schema";
+import { diagnoses } from "../shared/schema";
 import { getDb } from "./db";
 import type { IncomingDiagnosisCase, StoredDiagnosisCase } from "./case-storage";
 
@@ -127,15 +127,32 @@ function errorMessage(error: unknown) {
 
     try {
       const parsedUrl = new URL(databaseUrl);
-      if (parsedUrl.password) {
-        message = message.replaceAll(parsedUrl.password, "[redacted]");
+      const sensitiveValues = [
+        parsedUrl.username,
+        parsedUrl.password,
+        parsedUrl.host,
+        parsedUrl.hostname,
+        parsedUrl.pathname.replace(/^\//, "")
+      ].filter(Boolean);
+
+      for (const value of sensitiveValues) {
+        message = message.replaceAll(value, "[redacted]");
+
+        try {
+          message = message.replaceAll(decodeURIComponent(value), "[redacted]");
+        } catch {
+          // Keep the encoded replacement above.
+        }
       }
     } catch {
       // Ignore malformed env values; the direct string replacement above still applies.
     }
   }
 
-  return message;
+  return message.replace(
+    /postgres(?:ql)?:\/\/[^\s:@/]+:[^\s@/]+@[^\s)'"<>]+/gi,
+    "postgresql://[redacted]"
+  );
 }
 
 export async function insertPublicDiagnosisCaseToDb(

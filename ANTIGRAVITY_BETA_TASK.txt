@@ -1,0 +1,224 @@
+You are the LEAD AUTONOMOUS ENGINEERING AGENT responsible for driving Mechanic's Eye / Drivable as close to production beta completion as possible.
+
+PROJECT:
+Mechanic's Eye / Drivable
+
+CURRENT WORKTREE:
+C:\Users\Hall7\agy-worktrees\beta-audit
+
+PRIMARY GOAL:
+FINISH THE APPLICATION FOR BETA.
+
+Do not merely audit the application and hand me recommendations. Inspect it, make safe implementation decisions, write the code, run the tests, repair failures, and continue until you have completed everything you reasonably can without owner credentials, external account access, or destructive production actions.
+
+IMPORTANT PARALLEL-WORK RULE:
+Other Codex agents are currently performing large builds in separate worktrees.
+
+DO NOT touch, reset, clean, modify, merge, delete, or enter any .codex worktree.
+DO NOT interfere with branches beginning with codex/.
+
+Known active Codex work includes major mobile evidence upload / Cloudflare R2 work. Treat that as an active external lane. You may inspect the existing main-branch implementation for context, but DO NOT duplicate or replace that active R2/mobile-storage implementation unless necessary for compilation of your own work.
+
+You are encouraged to use Antigravity SUBAGENTS.
+Spawn multiple subagents where useful. For coding subagents, prefer ISOLATED BRANCH WORKTREES so agents do not overwrite one another.
+
+Act as the lead engineer:
+- decompose the beta completion effort
+- delegate independent lanes
+- monitor the subagents
+- review their work
+- integrate compatible work into your branch
+- resolve conflicts inside YOUR Antigravity work only
+- run final validation
+
+Suggested parallel lanes, but improve this decomposition if repo inspection shows a better division:
+
+SUBAGENT 1 — BUYER CHECK
+Inspect and complete Buyer Check end-to-end.
+Verify vehicle intake, NHTSA context, risk processing, results, errors, persistence, API wiring, and mobile responsiveness.
+Implement missing beta-critical functionality.
+Do not modify active Codex mobile/R2 work.
+
+SUBAGENT 2 — DRIVABLE BETA HARDENING
+Inspect Drivable Check end-to-end excluding the active R2/mobile evidence implementation.
+Complete beta-critical flow gaps, validation, error handling, report/result handling, unsupported vehicle behavior, retry states, duplicate submission protection where safe, and user-facing failures.
+Do not overwrite active Codex work.
+
+SUBAGENT 3 — CLEARSALE / SHARED PRODUCT FLOW
+Inspect the existing ClearSale functionality and shared architecture.
+Finish only functionality clearly intended for the current beta.
+Do not invent a large new product.
+Reuse existing shared vehicle/evidence/case concepts where appropriate.
+Identify anything that should intentionally remain post-beta.
+
+SUBAGENT 4 — RELEASE / QA / SECURITY
+Audit and harden:
+- production startup
+- Render deployment assumptions
+- environment-variable handling
+- secrets exposure
+- CORS
+- unsafe public file access
+- logging of private customer data
+- API validation
+- production error behavior
+- stale mock behavior
+- dead routes
+- broken navigation
+- mobile layout failures
+- beta smoke testing
+- health/readiness checks
+
+Use additional subagents if genuinely useful, but do not create agents merely to create activity.
+
+BETA DEFINITION:
+A beta candidate should allow a real user to:
+1. Reach the application from a phone or desktop.
+2. Navigate the core application without broken routes.
+3. Complete vehicle selection.
+4. Complete Drivable Check.
+5. Submit available evidence.
+6. Receive or create the intended case/report/result.
+7. Use Buyer Check end-to-end.
+8. Handle unsupported or incomplete vehicle information gracefully.
+9. Receive understandable errors instead of raw server failures.
+10. Avoid losing the entire flow because of one optional field or unavailable integration.
+11. Operate without exposing secrets or sensitive internal paths.
+12. Build and start successfully using the documented production commands.
+
+STRICT RULES:
+- Do NOT run destructive database commands.
+- Do NOT run db:push.
+- Do NOT run migrations against production.
+- Do NOT import seed data into production.
+- Do NOT delete production data.
+- Do NOT expose secrets.
+- Do NOT commit credentials.
+- Do NOT modify external Cloudflare/Render/GitHub account settings.
+- Do NOT push or merge to main.
+- Do NOT touch Codex worktrees.
+- Do NOT redesign the product just because you prefer another design.
+- Do NOT add unnecessary dependencies.
+- Do NOT spend the session polishing insignificant UI while beta blockers remain.
+
+You MAY:
+- inspect the entire repository
+- edit files in your Antigravity worktree
+- create isolated subagent worktrees/branches
+- run npm install/npm ci when appropriate
+- run TypeScript checks
+- run production builds
+- run safe local servers
+- create safe automated tests
+- repair source code
+- refactor when required to fix a real beta issue
+- commit completed work to Antigravity branches
+- integrate reviewed subagent work into your Antigravity beta branch
+
+SOURCE OF TRUTH:
+The repository is the source of truth.
+Do not assume documentation is accurate when code proves otherwise.
+Do not assume something works because UI exists.
+Trace actual frontend → API → storage/database → response behavior.
+
+WORK ORDER:
+FIRST:
+Inspect the repository, package scripts, current architecture, existing docs, recent git history, and current branch.
+
+SECOND:
+Create a concise internal beta completion plan and immediately begin execution. Do not stop to ask me routine planning questions.
+
+THIRD:
+Spawn useful subagents and run independent lanes in parallel.
+
+FOURTH:
+Implement and integrate beta-critical fixes.
+
+FIFTH:
+Continuously run:
+npm run check
+npm run build
+
+Use additional safe tests where available.
+
+If a test fails:
+diagnose it, repair it, rerun it, and continue.
+
+SIXTH:
+Perform a final end-to-end release audit after the subagent work is integrated.
+
+PRIORITY ORDER:
+P0 — Application cannot build/start or core flow is broken.
+P1 — Real customer cannot complete Drivable Check or Buyer Check.
+P2 — Data/evidence/case/result can be lost, mislinked, exposed, or silently fail.
+P3 — Mobile usability or important error states block ordinary use.
+P4 — Beta-quality improvements.
+P5 — Post-beta enhancements.
+
+Do P0/P1/P2 before cosmetics.
+
+ACTIVE CODEX LANE:
+Mobile evidence delivery and Cloudflare R2 durable storage are being worked on separately.
+
+If your work depends on that unfinished lane:
+- define the interface/assumption cleanly
+- implement everything around it that does not conflict
+- record the exact integration point
+- continue with other work
+
+Do NOT stop the entire beta effort because R2 is unfinished.
+
+DOCUMENTATION:
+Maintain a new file:
+docs/beta/ANTIGRAVITY_BETA_COMPLETION.md
+
+Record:
+- completed items
+- commits
+- remaining blockers
+- owner-required actions
+- Codex integration points
+- verification commands
+
+Keep it current as work progresses.
+
+BE AGGRESSIVE ABOUT PROGRESS BUT CONSERVATIVE ABOUT DESTRUCTION.
+
+The goal is not to produce a giant report explaining why the beta is unfinished.
+The goal is to FINISH AS MUCH OF THE BETA AS THE REPOSITORY AND AVAILABLE TOOLS ALLOW.
+
+When one task is blocked, move immediately to the next independent task.
+
+Do not stop after the first fix.
+Do not stop after the first successful build.
+Do not stop merely because subagents finish.
+Continue until remaining work genuinely requires:
+- owner credentials,
+- external service configuration,
+- real-device testing,
+- active Codex work,
+- or a business decision.
+
+At final completion, report EXACTLY:
+1. Parent branch name
+2. Parent final commit SHA
+3. Subagents created and their assignments
+4. Subagent branches/commits
+5. Work integrated
+6. npm run check result
+7. npm run build result
+8. Automated test/smoke results
+9. Drivable Check beta status
+10. Buyer Check beta status
+11. ClearSale beta status
+12. Mobile status
+13. Production/deployment status
+14. Remaining P0 blockers
+15. Remaining P1 blockers
+16. Remaining P2 blockers
+17. Items waiting on active Codex work
+18. Items requiring owner action
+19. Exact next engineering action after this session
+20. Estimated beta readiness percentage based only on verified implementation
+
+Begin now. Inspect first, then execute autonomously.
