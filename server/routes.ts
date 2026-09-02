@@ -36,6 +36,12 @@ import {
 import { requireReviewer } from "./reviewer-auth";
 import { registerCustomerAuthRoutes, requireCustomer } from "./customer-auth";
 import { applyAuthenticatedCaseIdentity, authenticatedCaseOwnerId } from "./case-identity";
+import { createRateLimit } from "./rate-limit";
+import { evaluateLaunchReadiness } from "./launch-readiness";
+import { buildFollowUpEvidenceBoundary } from "./follow-up-evidence-boundary";
+import { registerDurableReviewRoutes } from "./review/review-routes";
+import { requireVerifiedLaunchControlRuntime } from "./review/launch-control-runtime";
+import { IntakeConsentError, persistAndAuthorizeIntakeConsent } from "./consent/intake-consent";
 
 // Configure multer for file uploads
 const uploadDir = path.join(process.cwd(), 'uploads');
@@ -1486,6 +1492,37 @@ async function deliverConciergeRequest(input: ConciergeRequest) {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   registerCustomerAuthRoutes(app);
+  registerDurableReviewRoutes(app);
+  const publicFormLimit = createRateLimit({ scope: "public-form", windowMs: 10 * 60_000, max: 15 });
+  const customerIntakeLimit = createRateLimit({
+    scope: "customer-intake",
+    windowMs: 60 * 60_000,
+    max: 20,
+    key: (req) => req.drivableCustomer?.id || req.ip || "unknown",
+  });
+
+  app.get("/api/health/live", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true });
+  });
+
+  app.get("/api/health/readiness", requireReviewer, async (_req, res) => {
+    let durableHumanReview = false;
+    try {
+      await requireVerifiedLaunchControlRuntime();
+      durableHumanReview = true;
+    } catch {
+      // A missing flag, database, table, or trigger is a red readiness gate.
+    }
+    const report = evaluateLaunchReadiness(process.env, {
+      durableEvidence: evidenceStore.durability === "private_object_storage",
+      durableConsent: false,
+      durableHumanReview,
+      verifiedPaymentEntitlement: false,
+      verifiedEmailDelivery: false,
+    });
+    res.status(report.ready ? 200 : 503).json(report);
+  });
 
   app.get("/api/capabilities", (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -1502,7 +1539,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(result.ok ? 200 : 503).json(result);
   });
 
-  app.post("/api/marketplace/seller-intake", async (req, res) => {
+  app.post("/api/marketplace/seller-intake", publicFormLimit, async (req, res) => {
     try {
       const intake = buildMarketplaceSellerIntake(req.body || {});
       const validation = validateMarketplaceSellerIntake(intake);
@@ -1525,7 +1562,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/marketplace/buyer-interest", async (req, res) => {
+  app.post("/api/marketplace/buyer-interest", publicFormLimit, async (req, res) => {
     try {
       const intake = buildMarketplaceBuyerInterest(req.body || {});
       const validation = validateMarketplaceBuyerInterest(intake);
@@ -1566,7 +1603,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/mechanic-match/request", async (req, res) => {
+  app.post("/api/mechanic-match/request", publicFormLimit, async (req, res) => {
     try {
       const input = buildMechanicMatchRequest(req.body || {});
       const validation = validateMechanicMatchRequest(input);
@@ -1589,7 +1626,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/support/concierge-request", async (req, res) => {
+  app.post("/api/support/concierge-request", publicFormLimit, async (req, res) => {
     try {
       const input = buildConciergeRequest(req.body || {});
       const validation = validateConciergeRequest(input);
@@ -1904,9 +1941,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create new diagnosis and save to local case storage
-  app.post("/api/diagnoses", requireCustomer, diagnosisPhotoUploadMiddleware, async (req, res) => {
+  app.post("/api/diagnoses", requireCustomer, customerIntakeLimit, diagnosisPhotoUploadMiddleware, async (req, res) => {
     let input: DiagnosisInput;
     let evidenceIntake;
+    let consentChoices: unknown;
     try {
       const normalizedBody = normalizeDiagnosisBody(req.body);
       const authenticatedEmail = req.drivableCustomer!.email;
@@ -1916,6 +1954,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       evidenceIntake = drivableEvidenceIntakeSchema.parse(
         parseJsonField(normalizedBody.evidenceIntake || "{}", "evidenceIntake"),
       );
+      consentChoices = parseJsonField(normalizedBody.consent || "{}", "consent");
       input.mileage = evidenceIntake.vehicle.mileage === undefined || evidenceIntake.vehicle.mileage === null
         ? input.mileage
         : String(evidenceIntake.vehicle.mileage);
@@ -1938,7 +1977,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     let usedPublicFallback = false;
 
     try {
-      if (canUseLocalCaseStorage()) {
+      const launchControlsEnabled = process.env.DRIVABLE_LAUNCH_CONTROLS_ENABLED === "true";
+      if (launchControlsEnabled) {
+        // Launch-controlled cases avoid runtime-local case files. Consent is
+        // durably recorded before any private media is persisted.
+        responseBody = createPublicDiagnosisCase(input);
+        usedPublicFallback = true;
+        try {
+          const runtime = await requireVerifiedLaunchControlRuntime();
+          await persistAndAuthorizeIntakeConsent(runtime.consent, {
+            actorId: req.drivableCustomer!.id,
+            accountId: req.drivableCustomer!.id,
+            caseId: responseBody.id,
+            choices: consentChoices,
+            hasMedia: photoFiles.length > 0,
+          });
+        } catch (consentError) {
+          const status = consentError instanceof IntakeConsentError && consentError.code === "CONSENT_REQUIRED" ? 400 : 503;
+          return res.status(status).json({
+            message: consentError instanceof IntakeConsentError ? consentError.message : "Consent controls are not ready.",
+            code: consentError instanceof IntakeConsentError ? consentError.code : "CONSENT_CONTROLS_UNAVAILABLE",
+            persisted: false,
+          });
+        }
+      } else if (canUseLocalCaseStorage()) {
         try {
           storedCase = createStoredDiagnosisCase(input);
           responseBody = buildDiagnosisResponse(storedCase);
@@ -2012,6 +2074,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const diagnosisId = req.params.id;
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+
+      if (req.body.vibrationData) {
+        const uploadedPaths = Object.values(files || {}).flat().map((file) => file.path).filter(Boolean);
+        await Promise.all(uploadedPaths.map((filePath) => fs.promises.unlink(filePath).catch(() => undefined)));
+        return res.status(422).json({
+          message: "Vibration capture is not available yet. No vibration readings were stored or analyzed.",
+          code: "VIBRATION_CAPTURE_UNAVAILABLE",
+        });
+      }
       
       // Get original diagnosis
       const originalDiagnosis = await storage.getDiagnosis(diagnosisId);
@@ -2026,7 +2097,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         additionalInfo: req.body.additionalInfo,
         newAudioFile: files?.audio?.[0]?.filename || null,
         newVideoFile: files?.video?.[0]?.filename || null,
-        newVibrationData: req.body.vibrationData ? JSON.parse(req.body.vibrationData) : null,
+        newVibrationData: null,
       };
 
       const followUp = await storage.createFollowUp(followUpData);
@@ -2052,6 +2123,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
 
       // Create new diagnosis with follow-up results
+      const evidenceBoundary = buildFollowUpEvidenceBoundary({
+        audioStored: Boolean(followUpData.newAudioFile),
+        videoStored: Boolean(followUpData.newVideoFile),
+      });
       const newDiagnosis = await storage.createDiagnosis({
         userId: originalDiagnosis.userId,
         vehicleInfo: originalDiagnosis.vehicleInfo!,
@@ -2063,16 +2138,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         confidenceScore: analysisResults.primaryDiagnosis?.confidence || 0,
         confidenceLevel: analysisResults.primaryDiagnosis?.confidence >= 80 ? "high" : 
                        analysisResults.primaryDiagnosis?.confidence >= 60 ? "medium" : "low",
-        inputTypes: [
-          "description",
-          followUpData.newAudioFile ? "audio" : null,
-          followUpData.newVideoFile ? "video" : null,
-          followUpData.newVibrationData ? "vibration" : null
-        ].filter(Boolean) as string[],
+        // Only text reaches performEnhancedAnalysis. Media remains reviewer evidence
+        // and must never be labeled as an analyzed model input.
+        inputTypes: [...evidenceBoundary.analyzedInputTypes],
         iterationCount,
       });
 
-      res.json(newDiagnosis);
+      res.json({
+        ...newDiagnosis,
+        evidenceProcessing: evidenceBoundary.evidenceProcessing,
+        analysisBoundary: evidenceBoundary.analysisBoundary,
+      });
     } catch (error: any) {
       console.error('Follow-up creation error:', error);
       res.status(400).json({ 

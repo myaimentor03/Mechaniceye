@@ -1120,6 +1120,10 @@ const [manualEngine, setManualEngine] = useState("");
   const [urgency, setUrgency] = useState("");
 
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [serviceConsent, setServiceConsent] = useState(false);
+  const [mediaConsent, setMediaConsent] = useState(false);
+  const [humanReviewConsent, setHumanReviewConsent] = useState(false);
+  const [learningConsent, setLearningConsent] = useState(false);
 
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState("");
@@ -1256,6 +1260,11 @@ const [manualEngine, setManualEngine] = useState("");
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
+    if (!serviceConsent || !humanReviewConsent || (photoFiles.length > 0 && !mediaConsent)) {
+      setError("Please accept service fulfillment and human review. Photo submissions also require media processing consent.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     if (normalizedVin && !/^[A-HJ-NPR-Z0-9]{17}$/.test(normalizedVin)) {
       setError("VIN must be 17 characters and cannot contain I, O, or Q.");
       return;
@@ -1342,6 +1351,12 @@ const [manualEngine, setManualEngine] = useState("");
             attachments: [],
           };
           requestBody.append("evidenceIntake", JSON.stringify(evidenceIntake));
+          requestBody.append("consent", JSON.stringify({
+            service_fulfillment: serviceConsent,
+            media_processing: mediaConsent,
+            human_review_sharing: humanReviewConsent,
+            optional_product_learning: learningConsent,
+          }));
           photoFiles.forEach((file) => requestBody.append("photos", file, file.name));
 
           const res = await fetch(endpoint, {
@@ -1756,6 +1771,16 @@ const [manualEngine, setManualEngine] = useState("");
                   <div className="notice-strip">
                     By submitting, you understand that Mechanic&apos;s Eye provides informational guidance only and is not a substitute for hands-on inspection, emergency advice, or in-person safety judgment.
                   </div>
+
+                  <fieldset className="section-block" aria-describedby="consent-help">
+                    <legend><strong>Consent and review permissions</strong></legend>
+                    <p id="consent-help" className="section-intro">Required permissions are recorded with the current Terms, Privacy Notice, your account, and this case. Product-learning permission is optional and defaults off.</p>
+                    <label className="checkbox-row"><input type="checkbox" checked={serviceConsent} onChange={(e) => setServiceConsent(e.target.checked)} /> I agree to use my submission to provide this Drivable service. <span className="required-marker">Required</span></label>
+                    <label className="checkbox-row"><input type="checkbox" checked={humanReviewConsent} onChange={(e) => setHumanReviewConsent(e.target.checked)} /> I agree that an authorized human reviewer may review my case evidence. <span className="required-marker">Required</span></label>
+                    <label className="checkbox-row"><input type="checkbox" checked={mediaConsent} onChange={(e) => setMediaConsent(e.target.checked)} /> I agree to private processing and storage of photos I choose to submit. {photoFiles.length > 0 && <span className="required-marker">Required for photos</span>}</label>
+                    <label className="checkbox-row"><input type="checkbox" checked={learningConsent} onChange={(e) => setLearningConsent(e.target.checked)} /> Optional: allow de-identified case evidence to support future product improvement. This is not required for service.</label>
+                    <div className="helper-text">Review the <button type="button" onClick={() => setPage("terms")}>Terms</button> and <button type="button" onClick={() => setPage("privacy")}>Privacy Notice</button> before submitting.</div>
+                  </fieldset>
 
                   <div className="notice-strip capacity-notice">
                     Missing key details may delay your review. Reviews are handled in the order received. Priority options may be reviewed sooner. If review volume is high, some cases may require more time or more information before review.

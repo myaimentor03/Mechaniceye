@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "./db";
 import { users } from "./shared/shared/schema";
+import { createRateLimit, requestIp } from "./rate-limit";
 
 const scrypt = promisify(scryptCallback);
 const COOKIE_NAME = "drivable_session";
@@ -130,7 +131,16 @@ export const requireCustomer: RequestHandler = (req, res, next) => {
 };
 
 export function registerCustomerAuthRoutes(app: Express) {
-  app.post("/api/auth/register", async (req, res) => {
+  const registrationLimit = createRateLimit({ scope: "auth-register", windowMs: 15 * 60_000, max: 8 });
+  const loginIpLimit = createRateLimit({ scope: "auth-login-ip", windowMs: 15 * 60_000, max: 20 });
+  const loginAccountLimit = createRateLimit({
+    scope: "auth-login-account",
+    windowMs: 15 * 60_000,
+    max: 10,
+    key: (req) => `${requestIp(req)}:${String(req.body?.email || "").trim().toLowerCase()}`,
+  });
+
+  app.post("/api/auth/register", registrationLimit, async (req, res) => {
     const parsed = registrationSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ ok: false, error: "Use the beta invite code, a valid email, and a password of at least 12 characters." });
     if (!configuredSecret()) return res.status(503).json({ ok: false, error: "Customer accounts are not configured." });
@@ -148,7 +158,7 @@ export function registerCustomerAuthRoutes(app: Express) {
     }
   });
 
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/auth/login", loginIpLimit, loginAccountLimit, async (req, res) => {
     const parsed = credentialsSchema.safeParse(req.body);
     if (!parsed.success || !configuredSecret()) return res.status(401).json({ ok: false, error: "Invalid email or password." });
     try {

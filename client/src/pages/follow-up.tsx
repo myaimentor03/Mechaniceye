@@ -45,8 +45,8 @@ export default function FollowUp() {
       queryClient.invalidateQueries({ queryKey: ["/api/diagnoses"] });
       setLocation(`/results/${newDiagnosis.id}`);
       toast({
-        title: "Follow-up Analysis Complete",
-        description: "I've analyzed your additional information and found new solutions!",
+        title: "Follow-up Submitted",
+        description: "Your written details were processed. Any audio or video is evidence for human review and was not analyzed automatically.",
       });
     },
     onError: (error: any) => {
@@ -87,9 +87,6 @@ export default function FollowUp() {
       formDataToSend.append("vibrationData", JSON.stringify(formData.vibrationData));
     }
 
-    // Simulate analysis delay for better UX
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
     followUpMutation.mutate(formDataToSend);
   };
 
@@ -205,10 +202,10 @@ export default function FollowUp() {
             {/* Optional: Additional Files */}
             <div className="border-t border-gray-200 pt-6 mb-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Optional: Additional Audio, Video, or Vibration Data
+                Optional: Audio or Video Evidence
               </h3>
               <p className="text-gray-600 text-sm mb-4">
-                If you have new sounds, videos, or noticed different vibrations, please upload them.
+                Audio and video can be saved for a human reviewer. Automated audio, video, and vibration analysis is not available yet.
               </p>
               <UploadTabs formData={formData} setFormData={setFormData} />
             </div>
@@ -221,7 +218,7 @@ export default function FollowUp() {
                 className="w-full bg-automotive-orange hover:bg-orange-600 text-white py-4 px-6 rounded-xl font-semibold text-lg"
               >
                 <RefreshCw className="w-5 h-5 mr-2" />
-                Get New Diagnosis Based on Additional Info
+                Submit Follow-up for Review
               </Button>
             </div>
           </CardContent>

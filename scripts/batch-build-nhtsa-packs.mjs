@@ -1,4 +1,4 @@
-﻿import fs from "node:fs";
+import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 
 function parseCsv(text) {
@@ -48,9 +48,7 @@ for (let i = 0; i < selectedRows.length; i++) {
   console.log(`=== ${i + 1}/${selectedRows.length}: ${row.year} ${row.make} ${row.model} ===`);
 
   const args = [
-    "run",
-    "nhtsa:pack",
-    "--",
+    "scripts/build-nhtsa-vehicle-knowledge-pack.mjs",
     "--year",
     row.year,
     "--make",
@@ -61,9 +59,8 @@ for (let i = 0; i < selectedRows.length; i++) {
 
   if (apply) args.push("--apply");
 
-  const result = spawnSync("npm", args, {
+  const result = spawnSync(process.execPath, args, {
     stdio: "inherit",
-    shell: true,
     env: process.env
   });
 
@@ -90,3 +87,4 @@ if (failures.length) {
   console.log("Failures:");
   console.table(failures);
 }
+

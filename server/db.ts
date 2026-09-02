@@ -39,6 +39,12 @@ export function getDb() {
   return cachedDb;
 }
 
+export function getPool() {
+  getDb();
+  if (!pool) throw new Error("Database pool is unavailable");
+  return pool;
+}
+
 export const db = new Proxy({} as ReturnType<typeof createDb>, {
   get(_target, prop) {
     return getDb()[prop as keyof ReturnType<typeof createDb>];

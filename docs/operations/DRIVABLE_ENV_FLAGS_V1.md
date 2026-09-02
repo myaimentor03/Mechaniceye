@@ -34,7 +34,7 @@ The legacy diagnosis path may also use `MECHANIC_EYE_INTAKE_WEBHOOK_URL` and `PU
 DRIVABLE_REVIEWER_TOKEN=...
 ```
 
-Required before internal review, case-reading, follow-up, consultation mutation, database-health, or legacy file routes can be used. Generate a long random secret in the hosting provider; never reuse a personal password or place the value in source control. The server intentionally returns `503` when this value is missing and `401` when the supplied Bearer token is wrong.
+Required before internal review, case-reading, follow-up, consultation mutation, database-health, readiness, or legacy file routes can be used. Generate a unique random value of at least 32 characters in the hosting provider; never reuse a personal password or place the value in source control. The server intentionally returns `503` when this value is missing or too short and `401` when the supplied Bearer token is wrong.
 
 ```text
 DRIVABLE_SESSION_SECRET=...
@@ -48,6 +48,24 @@ DRIVABLE_PHOTO_UPLOAD_ENABLED=false
 ```
 
 The invite code is required for new registrations and supports controlled prelaunch testing. Share it directly with approved testers and rotate it if it leaks. Keep photo upload `false` until private durable object storage, authenticated reviewer retrieval, retention/deletion behavior, malware/content safeguards, and owner-operated upload tests all pass. The customer interface reads this capability at runtime, so enabling the verified evidence system does not require removing or rebuilding the photo experience.
+
+## Public Identity and Policy Versions
+
+```text
+DRIVABLE_PUBLIC_ORIGIN=https://beta.example.com
+DRIVABLE_TERMS_VERSION=owner-approved-version
+DRIVABLE_PRIVACY_VERSION=owner-approved-version
+DRIVABLE_CONSENT_VERSION=owner-approved-version
+DRIVABLE_LAUNCH_CONTROLS_ENABLED=false
+```
+
+The public origin must be the exact canonical HTTPS origin with no path. Version values must identify the legal and consent text actually presented to the customer; placeholder values do not satisfy owner or legal approval. Keep launch controls `false` until the migration has been reviewed, applied to staging, and its required tables and triggers pass the protected readiness check. Enabling the flag without the complete schema remains fail-closed.
+
+## Launch Health
+
+`GET /api/health/live` is a public process-liveness check and intentionally discloses no configuration. `GET /api/health/readiness` requires the reviewer Bearer token and returns `503` until every configuration and production-capability gate passes. Do not route customer traffic merely because liveness returns `200`.
+
+Consent, human-review release, payment entitlement, and transactional delivery currently remain explicit red readiness gates. Do not bypass them with environment values: each gate becomes ready only when its durable production implementation is wired and verified.
 
 ## Private Evidence Object Storage
 

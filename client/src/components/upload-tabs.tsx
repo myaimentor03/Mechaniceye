@@ -66,55 +66,17 @@ export function UploadTabs({ formData, setFormData }: UploadTabsProps) {
 
     toast({
       title: "File Uploaded",
-      description: `${file.name} has been uploaded successfully`,
+      description: `${file.name} is selected as reviewer evidence. It has not been uploaded or analyzed yet.`,
     });
   };
 
   const startVibrationRecording = async () => {
-    if (!navigator.permissions) {
-      toast({
-        title: "Not Supported",
-        description: "Vibration recording is not supported on this device",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      setVibrationRecording(true);
-      
-      // Simulate vibration recording for 5 seconds
-      const vibrationData = {
-        duration: 5000,
-        timestamp: Date.now(),
-        readings: Array.from({ length: 50 }, (_, i) => ({
-          x: Math.random() * 2 - 1,
-          y: Math.random() * 2 - 1,
-          z: Math.random() * 2 - 1,
-          timestamp: Date.now() + i * 100,
-        })),
-      };
-
-      setTimeout(() => {
-        setFormData((prev: any) => ({
-          ...prev,
-          vibrationData,
-        }));
-        setVibrationRecording(false);
-        
-        toast({
-          title: "Vibration Recorded",
-          description: "5 seconds of vibration data captured",
-        });
-      }, 5000);
-    } catch (error) {
-      setVibrationRecording(false);
-      toast({
-        title: "Recording Failed",
-        description: "Could not access device sensors",
-        variant: "destructive",
-      });
-    }
+    setVibrationRecording(false);
+    toast({
+      title: "Vibration Capture Coming Later",
+      description: "This build does not capture or simulate vibration readings. Describe the vibration in the written follow-up instead.",
+      variant: "destructive",
+    });
   };
 
   const renderTabContent = () => {
@@ -192,7 +154,7 @@ export function UploadTabs({ formData, setFormData }: UploadTabsProps) {
           <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-automotive-orange transition-colors">
             <Waves className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Vibration Data</h3>
-            <p className="text-gray-600 mb-4">Use your device's accelerometer to detect vibrations</p>
+            <p className="text-gray-600 mb-4">Sensor capture is unavailable in this build. No synthetic readings will be created.</p>
             
             {formData.vibrationData ? (
               <div className="flex items-center justify-center space-x-2 text-green-600 mb-4">
@@ -209,7 +171,7 @@ export function UploadTabs({ formData, setFormData }: UploadTabsProps) {
               {vibrationRecording ? (
                 <>📊 Recording... {/* Progress would show here */}</>
               ) : (
-                <>▶️ Start Recording Vibration</>
+                <>Vibration Capture Unavailable</>
               )}
             </Button>
           </div>
