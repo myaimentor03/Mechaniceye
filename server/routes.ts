@@ -27,6 +27,11 @@ import {
   buildDrivableAiPayloadFields,
   type MockAiPayloadFields
 } from "./mock-drivable-report";
+import {
+  isR2EvidenceStorageConfigured,
+  storeEvidenceFiles,
+  type UploadedEvidenceFiles
+} from "./r2-evidence-storage";
 
 // Configure multer for file uploads
 const uploadDir = path.join(process.cwd(), 'uploads');
@@ -1821,13 +1826,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     { name: "video", maxCount: 4 },
     { name: "vibration", maxCount: 4 }
   ]), async (req, res) => {
-    const uploadedFiles = (req.files || {}) as Record<string, Express.Multer.File[]>;
+    const uploadedFiles = (req.files || {}) as UploadedEvidenceFiles;
+    const hasUploadedEvidence = Object.values(uploadedFiles).some((files) => Boolean(files?.length));
     const oversizedPhoto = (uploadedFiles.photos || []).find((file) => file.size > 12 * 1024 * 1024);
     if (oversizedPhoto) {
       for (const file of Object.values(uploadedFiles).flat()) {
         fs.rm(file.path, () => undefined);
       }
       return res.status(413).json({ message: "Each photo must be 12 MB or smaller." });
+    }
+    if (hasUploadedEvidence && !isR2EvidenceStorageConfigured()) {
+      for (const file of Object.values(uploadedFiles).flat()) {
+        fs.rm(file.path, () => undefined);
+      }
+      return res.status(503).json({
+        message: "Private evidence storage is temporarily unavailable. Your media was not retained."
+      });
     }
     const body = {
       ...req.body,
@@ -1867,6 +1881,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         responseBody = createPublicDiagnosisCase(input);
         usedPublicFallback = true;
+      }
+
+      if (hasUploadedEvidence) {
+        const storedEvidence = await storeEvidenceFiles(responseBody.id, uploadedFiles);
+        input.photoFileNames = storedEvidence.photos || [];
+        input.audioFileNames = storedEvidence.audio || [];
+        input.videoFileNames = storedEvidence.video || [];
+        input.vibrationFileNames = storedEvidence.vibration || [];
       }
 
       if (usedPublicFallback) {
@@ -2045,6 +2067,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Serve uploaded files
   app.get("/api/files/:filename", (req, res) => {
+    if (process.env.DRIVABLE_ALLOW_LOCAL_FILE_ACCESS !== "true") {
+      return res.status(404).json({ message: "File not found" });
+    }
     const filename = path.basename(req.params.filename);
     const filepath = path.resolve(uploadDir, filename);
     const resolvedUploadDir = path.resolve(uploadDir);
