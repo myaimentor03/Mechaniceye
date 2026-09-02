@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" role="img" aria-labelledby="title desc">
+  <title id="title">Drivable closed beta recruitment social card</title>
+  <desc id="desc">A dark editorial card reading Something changed with the car. Start there. Apply to test Drivable.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07111F"/>
+      <stop offset="1" stop-color="#0D1A2B"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="80%" cy="18%" r="70%">
+      <stop offset="0" stop-color="#3BD6FF" stop-opacity=".16"/>
+      <stop offset="1" stop-color="#3BD6FF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1080" height="1350" fill="url(#bg)"/>
+  <rect width="1080" height="1350" fill="url(#glow)"/>
+  <path d="M0 1080C205 994 384 999 536 1061C711 1132 873 1115 1080 1017V1350H0Z" fill="#0F1D31"/>
+  <g transform="translate(72 70) scale(.29)">
+    <path d="M0 0H202C387 0 504 97 504 244C504 391 387 488 202 488H0Z" fill="none" stroke="#3BD6FF" stroke-width="88" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M0 244H284" fill="none" stroke="#EDF5FF" stroke-width="62" stroke-linecap="round"/>
+    <circle cx="0" cy="0" r="46" fill="#9AF0C5"/>
+    <circle cx="504" cy="244" r="46" fill="#FFD27D"/>
+    <circle cx="0" cy="488" r="46" fill="#3BD6FF"/>
+  </g>
+  <g font-family="Inter, Arial, Helvetica, sans-serif">
+    <text x="260" y="130" fill="#EDF5FF" font-size="48" font-weight="800">Drivable</text>
+    <text x="262" y="172" fill="#9CB0C8" font-size="20" font-weight="700" letter-spacing="3.5">BY MECHANIC'S EYE</text>
+    <rect x="72" y="270" width="235" height="52" rx="26" fill="#3BD6FF" fill-opacity=".12" stroke="#3BD6FF" stroke-opacity=".45"/>
+    <text x="105" y="305" fill="#BCEFFF" font-size="22" font-weight="800" letter-spacing="2.5">CLOSED BETA</text>
+    <text x="72" y="450" fill="#EDF5FF" font-size="89" font-weight="790" letter-spacing="-3">
+      <tspan x="72" dy="0">Something changed</tspan>
+      <tspan x="72" dy="106">with the car.</tspan>
+      <tspan x="72" dy="106" fill="#79E9FF">Start there.</tspan>
+    </text>
+    <text x="76" y="805" fill="#9CB0C8" font-size="35" font-weight="500">
+      <tspan x="76" dy="0">Help test a clearer way to organize</tspan>
+      <tspan x="76" dy="50">symptoms, evidence, uncertainty,</tspan>
+      <tspan x="76" dy="50">and useful next questions.</tspan>
+    </text>
+    <rect x="72" y="1010" width="450" height="92" rx="20" fill="#3BD6FF"/>
+    <text x="297" y="1068" fill="#04131E" font-size="25" font-weight="850" text-anchor="middle" letter-spacing="1.2">LEARN ABOUT DRIVABLE</text>
+    <line x1="72" y1="1175" x2="1008" y2="1175" stroke="#223854" stroke-width="3"/>
+    <text x="72" y="1225" fill="#9CB0C8" font-size="22" font-weight="500">
+      <tspan x="72" dy="0">For non-emergency situations. Informational beta guidance—</tspan>
+      <tspan x="72" dy="34">not a diagnosis, inspection, emergency service, or safety clearance.</tspan>
+    </text>
+  </g>
+</svg>

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" role="img" aria-labelledby="title desc">
+  <title id="title">Ask for the evidence behind the estimate</title>
+  <desc id="desc">An editorial social card with respectful questions consumers can ask a repair shop.</desc>
+  <rect width="1080" height="1350" fill="#F7F9FB"/>
+  <rect x="0" y="0" width="28" height="1350" fill="#3BD6FF"/>
+  <g font-family="Inter,Arial,sans-serif" fill="#172334">
+    <text x="86" y="92" font-size="28" font-weight="800" letter-spacing="2" fill="#106B85">BETTER MECHANIC CONVERSATIONS</text>
+    <text x="86" y="215" font-size="72" font-weight="800">Ask for the evidence</text>
+    <text x="86" y="300" font-size="72" font-weight="800">behind the estimate.</text>
+    <text x="86" y="370" font-size="28" fill="#52677F">Clear questions are useful. Accusations are not.</text>
+    <g transform="translate(86 455)">
+      <rect width="908" height="120" rx="22" fill="#FFFFFF" stroke="#C9D6E4" stroke-width="2"/>
+      <path d="M38 38 h34 v28 h-14 l-12 13 v-13 h-8z" fill="#3BD6FF"/>
+      <text x="98" y="54" font-size="27" font-weight="750">“What evidence supports this work?”</text>
+      <text x="98" y="90" font-size="23" fill="#52677F">Ask what was observed, measured, tested, or ruled out.</text>
+    </g>
+    <g transform="translate(86 598)">
+      <rect width="908" height="120" rx="22" fill="#FFFFFF" stroke="#C9D6E4" stroke-width="2"/>
+      <path d="M38 38 h34 v28 h-14 l-12 13 v-13 h-8z" fill="#3BD6FF"/>
+      <text x="98" y="54" font-size="27" font-weight="750">“Which work is urgent—and why?”</text>
+      <text x="98" y="90" font-size="23" fill="#52677F">Separate safety-critical, preventive, and deferrable work.</text>
+    </g>
+    <g transform="translate(86 741)">
+      <rect width="908" height="120" rx="22" fill="#FFFFFF" stroke="#C9D6E4" stroke-width="2"/>
+      <path d="M38 38 h34 v28 h-14 l-12 13 v-13 h-8z" fill="#3BD6FF"/>
+      <text x="98" y="54" font-size="27" font-weight="750">“What is included in this price?”</text>
+      <text x="98" y="90" font-size="23" fill="#52677F">Confirm tests, parts, labor, fees, tax, and warranty.</text>
+    </g>
+    <g transform="translate(86 884)">
+      <rect width="908" height="120" rx="22" fill="#FFFFFF" stroke="#C9D6E4" stroke-width="2"/>
+      <path d="M38 38 h34 v28 h-14 l-12 13 v-13 h-8z" fill="#3BD6FF"/>
+      <text x="98" y="54" font-size="27" font-weight="750">“Will you call before the total changes?”</text>
+      <text x="98" y="90" font-size="23" fill="#52677F">Agree on authorization limits before work begins.</text>
+    </g>
+    <rect x="86" y="1054" width="908" height="108" rx="22" fill="#07111F"/>
+    <text x="540" y="1098" font-size="24" font-weight="800" text-anchor="middle" fill="#EDF5FF">GOOD QUESTIONS SUPPORT GOOD PROFESSIONALS.</text>
+    <text x="540" y="1134" font-size="22" text-anchor="middle" fill="#9CB0C8">No phrase alone proves that a mechanic is dishonest.</text>
+    <text x="86" y="1281" font-size="38" font-weight="800">drivable</text>
+    <text x="260" y="1281" font-size="21" fill="#52677F">by Mechanic's Eye</text>
+    <text x="994" y="1281" font-size="20" text-anchor="end" fill="#52677F">Save this checklist</text>
+  </g>
+</svg>

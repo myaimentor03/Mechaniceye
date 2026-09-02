@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img" aria-labelledby="title desc">
+  <title id="title">Observe, don't guess — Drivable story card</title>
+  <desc id="desc">A safe evidence checklist asking when a vehicle symptom happens, what changed, and what remains unknown. It warns never to collect evidence while driving.</desc>
+  <rect width="1080" height="1920" fill="#07111F"/><circle cx="970" cy="220" r="280" fill="#0D1A2B"/>
+  <g font-family="Inter,Arial,sans-serif">
+    <text x="84" y="180" fill="#3BD6FF" font-size="30" font-weight="800" letter-spacing="2">DRIVABLE CHECK · EVIDENCE 01</text>
+    <text x="84" y="350" fill="#EDF5FF" font-size="94" font-weight="800">Observe.</text>
+    <text x="84" y="455" fill="#EDF5FF" font-size="94" font-weight="800">Don't guess.</text>
+    <text x="84" y="535" fill="#9CB0C8" font-size="32">Start with what changed—not a part name.</text>
+    <g transform="translate(84 650)">
+      <rect width="912" height="150" rx="26" fill="#122238"/><circle cx="72" cy="75" r="32" fill="#3BD6FF"/><text x="72" y="86" text-anchor="middle" fill="#07111F" font-size="30" font-weight="800">1</text><text x="132" y="67" fill="#EDF5FF" font-size="34" font-weight="750">When does it happen?</text><text x="132" y="110" fill="#9CB0C8" font-size="26">Starting, braking, turning, idling, or at speed?</text>
+    </g>
+    <g transform="translate(84 830)">
+      <rect width="912" height="150" rx="26" fill="#122238"/><circle cx="72" cy="75" r="32" fill="#3BD6FF"/><text x="72" y="86" text-anchor="middle" fill="#07111F" font-size="30" font-weight="800">2</text><text x="132" y="67" fill="#EDF5FF" font-size="34" font-weight="750">What can you safely notice?</text><text x="132" y="110" fill="#9CB0C8" font-size="26">A sound, smell, warning, leak, or felt vibration.</text>
+    </g>
+    <g transform="translate(84 1010)">
+      <rect width="912" height="150" rx="26" fill="#122238"/><circle cx="72" cy="75" r="32" fill="#3BD6FF"/><text x="72" y="86" text-anchor="middle" fill="#07111F" font-size="30" font-weight="800">3</text><text x="132" y="67" fill="#EDF5FF" font-size="34" font-weight="750">What changed recently?</text><text x="132" y="110" fill="#9CB0C8" font-size="26">Weather, fuel, service, impact, load, or use.</text>
+    </g>
+    <g transform="translate(84 1190)">
+      <rect width="912" height="150" rx="26" fill="#122238"/><circle cx="72" cy="75" r="32" fill="#FFD27D"/><text x="72" y="87" text-anchor="middle" fill="#07111F" font-size="34" font-weight="800">?</text><text x="132" y="67" fill="#EDF5FF" font-size="34" font-weight="750">What is still unknown?</text><text x="132" y="110" fill="#9CB0C8" font-size="26">An honest unknown is useful evidence.</text>
+    </g>
+    <rect x="84" y="1430" width="912" height="150" rx="26" fill="#FFD27D"/>
+    <text x="540" y="1490" text-anchor="middle" fill="#07111F" font-size="30" font-weight="850">PARK FIRST. EVIDENCE SECOND.</text>
+    <text x="540" y="1538" text-anchor="middle" fill="#07111F" font-size="24">Never record, type, photograph, or connect equipment</text><text x="540" y="1572" text-anchor="middle" fill="#07111F" font-size="24">while driving.</text>
+    <text x="84" y="1740" fill="#EDF5FF" font-size="46" font-weight="850">drivable</text><text x="290" y="1740" fill="#9CB0C8" font-size="24">by Mechanic's Eye</text>
+    <text x="84" y="1800" fill="#9CB0C8" font-size="23">Educational card · not a diagnosis or safety determination</text>
+  </g>
+</svg>

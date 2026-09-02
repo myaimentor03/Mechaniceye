@@ -11,5 +11,6 @@
 - [DRIVABLE_CUSTOMER_SUPPORT_TRIAGE_V1.md](DRIVABLE_CUSTOMER_SUPPORT_TRIAGE_V1.md): Routes support and safety messages with questions, boundaries, escalation rules, logs, and statuses.
 - [DRIVABLE_NO_CREDIT_TEST_MODE_RUNBOOK_V1.md](DRIVABLE_NO_CREDIT_TEST_MODE_RUNBOOK_V1.md): Runs Make, sheet, email, and template tests with clearly labeled mock AI data and no OpenAI credits.
 - [DRIVABLE_ENV_FLAGS_V1.md](DRIVABLE_ENV_FLAGS_V1.md): Documents mock/live AI flags, webhook requirements, and secret-handling rules.
+- [DRIVABLE_BETA_LAUNCH_CHECKLIST_V1.md](DRIVABLE_BETA_LAUNCH_CHECKLIST_V1.md): Operator-ready controlled-beta launch checklist — Render single-service assumptions, env vars, DATABASE_URL/webhook/evidence-storage requirements, smoke and iPhone acceptance, rollback, and launch-day owner actions.
 
 Related source-of-truth documents remain in `docs/product/`, `docs/automation/`, and `docs/marketing/`.
