@@ -1,11 +1,11 @@
 const PROCESS_STEPS = [
   {
     title: "We review what you sent",
-    text: "We look at your symptoms, vehicle details, photos, videos, codes, and notes."
+    text: "We organize your symptoms, vehicle details, codes, notes, and any uploaded photos as case context. Photos are not visually analyzed."
   },
   {
     title: "We check what is missing",
-    text: "If the information is not enough, we ask for specific photos, videos, codes, or details."
+    text: "If the information is not enough, we ask for specific photos, manual codes, or written details. Audio and video upload are not enabled in this photo-first release."
   },
   {
     title: "We organize the likely options",

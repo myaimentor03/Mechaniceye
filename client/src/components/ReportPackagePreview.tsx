@@ -13,7 +13,7 @@ const PACKAGES = [
     name: "Full Decision Report",
     price: "$49-$79",
     forWhom: "People comparing professional repair, DIY, selling, waiting, or walking away.",
-    includes: "Deeper cause paths, evidence analysis, decision options, mechanic script, and buyer or seller guidance.",
+    includes: "Deeper cause paths, organized case evidence, decision options, mechanic script, and buyer or seller guidance.",
     boundary: "Does not guarantee the cause, repair result, condition, or financial outcome.",
     action: "Choose Full Report"
   },

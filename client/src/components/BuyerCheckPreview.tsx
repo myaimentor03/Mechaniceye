@@ -1,4 +1,6 @@
 import { FormEvent, useState } from "react";
+import type { DrivableEvidenceIntake } from "../../../shared/drivableEvidence";
+import { buildBuyerEvidenceDraft } from "../lib/buyerEvidenceDraft";
 import { NextActionStrip } from "./NextActionStrip";
 
 const BUYER_VEHICLE_KNOWLEDGE_ENDPOINT =
@@ -59,6 +61,15 @@ export function BuyerCheckPreview() {
   const [vehicleYear, setVehicleYear] = useState("2014");
   const [vehicleMake, setVehicleMake] = useState("Ford");
   const [vehicleModel, setVehicleModel] = useState("Focus");
+  const [vehicleVin, setVehicleVin] = useState("");
+  const [vehicleMileage, setVehicleMileage] = useState("");
+  const [askingPrice, setAskingPrice] = useState("");
+  const [listingUrl, setListingUrl] = useState("");
+  const [sellerClaims, setSellerClaims] = useState("");
+  const [buyerObservations, setBuyerObservations] = useState("");
+  const [obdCodes, setObdCodes] = useState("");
+  const [evidenceDraft, setEvidenceDraft] = useState<DrivableEvidenceIntake | null>(null);
+  const [evidenceError, setEvidenceError] = useState("");
   const [lookupStatus, setLookupStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [lookupError, setLookupError] = useState("");
   const [vehicleKnowledge, setVehicleKnowledge] = useState<BuyerVehicleKnowledgeResult | null>(null);
@@ -69,6 +80,29 @@ export function BuyerCheckPreview() {
     setLookupStatus("loading");
     setLookupError("");
     setVehicleKnowledge(null);
+    setEvidenceError("");
+
+    const parsedEvidence = buildBuyerEvidenceDraft({
+      year: vehicleYear,
+      make: vehicleMake,
+      model: vehicleModel,
+      vin: vehicleVin,
+      mileage: vehicleMileage,
+      askingPrice,
+      listingUrl,
+      sellerClaims,
+      buyerObservations,
+      obdCodes,
+    });
+
+    if (!parsedEvidence.success) {
+      setLookupStatus("idle");
+      setEvidenceDraft(null);
+      setEvidenceError(parsedEvidence.error.issues.map((issue) => issue.message).join(" "));
+      return;
+    }
+
+    setEvidenceDraft(parsedEvidence.data);
 
     try {
       const params = new URLSearchParams({
@@ -124,8 +158,8 @@ export function BuyerCheckPreview() {
             <p className="product-landing-eyebrow">NHTSA vehicle context</p>
             <h2>Check year, make, and model risk signals</h2>
             <p>
-              Start with official-context recall and complaint data before you message the seller,
-              schedule a drive, or waste gas visiting something with obvious red flags.
+              Build a buyer evidence draft, then add official-context recall and complaint data before
+              you message the seller, schedule a drive, or spend money visiting the vehicle.
             </p>
           </div>
 
@@ -143,12 +177,65 @@ export function BuyerCheckPreview() {
                 Model
                 <input value={vehicleModel} onChange={(event) => setVehicleModel(event.target.value)} required />
               </label>
+              <label>
+                VIN (optional)
+                <input value={vehicleVin} maxLength={17} autoCapitalize="characters" onChange={(event) => setVehicleVin(event.target.value.toUpperCase())} placeholder="17 characters" />
+              </label>
+              <label>
+                Mileage (optional)
+                <input value={vehicleMileage} min="0" inputMode="numeric" type="number" onChange={(event) => setVehicleMileage(event.target.value)} />
+              </label>
+              <label>
+                Asking price (optional)
+                <input value={askingPrice} min="0" inputMode="decimal" type="number" onChange={(event) => setAskingPrice(event.target.value)} />
+              </label>
+            </div>
+
+            <div className="buyer-check-evidence-grid">
+              <label>
+                Listing URL (optional)
+                <input value={listingUrl} type="url" onChange={(event) => setListingUrl(event.target.value)} placeholder="https://..." />
+              </label>
+              <label>
+                OBD-II codes (optional)
+                <input value={obdCodes} autoCapitalize="characters" onChange={(event) => setObdCodes(event.target.value.toUpperCase())} placeholder="P0300, P0420" />
+              </label>
+              <label>
+                Seller claims — one per line
+                <textarea value={sellerClaims} rows={4} onChange={(event) => setSellerClaims(event.target.value)} placeholder={"No accidents\nNew transmission\nNeeds only a sensor"} />
+                <small>Recorded as unverified seller statements, never as observed facts.</small>
+              </label>
+              <label>
+                What you observed — one per line
+                <textarea value={buyerObservations} rows={4} onChange={(event) => setBuyerObservations(event.target.value)} placeholder={"ABS light is on\nSteering wheel shakes while braking"} />
+                <small>Include only what you personally saw, heard, or verified.</small>
+              </label>
             </div>
 
             <button className="product-landing-action primary buyer-check-submit" type="submit" disabled={lookupStatus === "loading"}>
-              {lookupStatus === "loading" ? "Checking vehicle context..." : "Check vehicle context"}
+              {lookupStatus === "loading" ? "Checking vehicle context..." : "Build evidence and check context"}
             </button>
           </form>
+
+          {evidenceError && <aside className="product-landing-warning">Evidence draft needs attention: {evidenceError}</aside>}
+
+          {evidenceDraft && (
+            <section className="buyer-check-evidence-summary" aria-live="polite">
+              <div>
+                <p className="product-landing-eyebrow">Buyer evidence draft ready</p>
+                <h3>{evidenceDraft.vehicle.year} {evidenceDraft.vehicle.make} {evidenceDraft.vehicle.model}</h3>
+              </div>
+              <div className="buyer-check-meta-grid">
+                <div><strong>{evidenceDraft.situation.buyerObservations.length}</strong><span>Buyer observations</span></div>
+                <div><strong>{evidenceDraft.situation.sellerClaims.length}</strong><span>Unverified seller claims</span></div>
+                <div><strong>{evidenceDraft.obd.codes.length}</strong><span>Manual OBD codes</span></div>
+              </div>
+              <p className="buyer-check-evidence-boundary">
+                This structured draft exists only in this browser session. It has not been submitted,
+                persisted, visually analyzed, or verified by Drivable.
+              </p>
+            </section>
+          )}
 
           {lookupStatus === "error" && (
             <aside className="product-landing-warning">{lookupError}</aside>

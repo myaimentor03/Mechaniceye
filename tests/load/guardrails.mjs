@@ -1,4 +1,4 @@
-import { isIP } from "node:net";
+﻿import { isIP } from "node:net";
 
 export const SCENARIO_NAMES = Object.freeze([
   "health",
@@ -52,7 +52,8 @@ const KNOWN_PRODUCTION_HOSTS = new Set([
 ]);
 
 const PRODUCTION_LABEL = /(^|[.-])(prod|production|live)([.-]|$)/i;
-const NON_PRODUCTION_LABEL = /(^|[.-])(stage|staging|dev|development|test|testing|qa|preview|sandbox)([.-]|$)/i;
+const NON_PRODUCTION_LABEL = /(^|[.-])(stage|staging|stg|dev|development|test|testing|qa|uat|sandbox|preview|preprod|nonprod)([.-]|$)/i;
+const RESERVED_NON_PRODUCTION_HOST = /(^|\.)(example|example\.com|example\.net|example\.org|test|invalid)$/i;
 
 function finiteNumber(value, flag) {
   const parsed = Number(value);
@@ -233,8 +234,10 @@ export function isRecognizableProductionHostname(hostname) {
     || PRODUCTION_LABEL.test(normalized);
 }
 
-export function hasAffirmativeNonProductionMarker(hostname) {
-  return NON_PRODUCTION_LABEL.test(hostname.toLowerCase());
+export function hasExplicitNonProductionMarker(hostname) {
+  const normalized = hostname.toLowerCase();
+  return NON_PRODUCTION_LABEL.test(normalized)
+    || RESERVED_NON_PRODUCTION_HOST.test(normalized);
 }
 
 export function assertSafeTarget(target, allowStagingHosts = []) {
@@ -265,13 +268,13 @@ export function assertSafeTarget(target, allowStagingHosts = []) {
       `Remote target ${hostname} is blocked. Pass --allow-staging-host ${hostname} only after confirming it is staging.`,
     );
   }
+  if (!local && !hasExplicitNonProductionMarker(hostname)) {
+    throw new Error(
+      `Remote target ${hostname} is ambiguous. Its hostname must contain an explicit non-production marker such as staging, dev, test, qa, sandbox, or preview; an allowlist alone is not staging proof.`,
+    );
+  }
   if (!local && url.protocol !== "https:") {
     throw new Error("Remote staging targets must use HTTPS");
-  }
-  if (!local && !hasAffirmativeNonProductionMarker(hostname)) {
-    throw new Error(
-      `Remote target ${hostname} lacks an explicit staging, test, dev, QA, preview, or sandbox hostname marker.`,
-    );
   }
 
   return {
