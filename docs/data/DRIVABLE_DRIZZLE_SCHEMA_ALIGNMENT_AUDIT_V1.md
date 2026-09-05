@@ -1,5 +1,26 @@
 # Drivable Drizzle Schema Alignment Audit V1
 
+> **Resolution notes (branch `prep/drivable-production-data-0902`, 2026-09-05).**
+> The findings below reflect the audit date (June 12, 2026). Each has since been
+> acted on in the 0902 data-readiness work without touching production:
+>
+> - `shared/schema.ts` is now the authoritative canonical schema (415 lines, 17
+>   tables) and the runtime copy `server/shared/shared/schema.ts` is now
+>   byte-identical to it; `server/shared/shared/schema.js` was regenerated and
+>   now exports all 17 tables + 18 insert schemas.
+> - A tracked migration baseline now exists: `migrations/0001_...launch_controls`
+>   (consent/review), `migrations/0002_drivable_core_schema.sql` (all 17 core
+>   tables, idempotent), and `migrations/0003_drivable_data_integrity_hardening.sql`
+>   (optional `NOT VALID` FKs + lookup indexes). None are auto-applied.
+> - `db:push` is now `npm run db:push` → `scripts/db-push-guarded.mjs`, which
+>   refuses missing or unconfirmed targets (production-marker hosts and all
+>   non-local hosts require `DRIVABLE_CONFIRM_AUTHENTICATED_TARGET=1`). The
+>   reviewed SQL migrations remain the preferred path.
+> - `npm run preflight:safe` runs the no-database, no-mutation battery
+>   (seed validation, migration/schema parity, NHTSA inventory, config
+>   inspection, typecheck, build, seed-import dry run). Seed import remains
+>   dry-run only (`importAllowedNow: false`, `--apply` gated).
+
 ## Audit Scope
 
 This audit compares repository configuration, runtime imports, schema files, scripts, and migration artifacts. It did not load Drizzle Kit, read `DATABASE_URL`, connect to a database, generate SQL, create migrations, or change runtime files.
