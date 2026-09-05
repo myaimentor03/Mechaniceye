@@ -37,7 +37,8 @@
     "create:seed-tables": "node scripts/create-seed-tables-only.mjs",
     "nhtsa:pack": "node scripts/build-nhtsa-vehicle-knowledge-pack.mjs",
     "nhtsa:batch": "node scripts/batch-build-nhtsa-packs.mjs",
-    "test:public-case": "tsx --test server/public-case-db.test.ts"
+    "test:public-case": "tsx --test server/public-case-db.test.ts",
+    "verify:migration-parity": "node scripts/verify-migration-schema-parity.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1117.0",

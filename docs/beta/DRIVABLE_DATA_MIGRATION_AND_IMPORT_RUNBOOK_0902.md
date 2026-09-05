@@ -37,6 +37,7 @@ Run from the worktree root:
 ```bash
 npm run validate:seed-data     # 8 datasets, 270 rows, unique PKs, required fields
 npm run inspect:db-config      # confirm both drizzle configs resolve schema + out dir
+npm run verify:migration-parity   # static: migrations match shared/schema.ts (no DB, no network)
 node scripts/inventory-nhtsa-batch-lists.mjs   # read-only: 230 distinct vehicles, no dupes/malformed
 npm run check                  # typecheck
 npm run build                  # production build
