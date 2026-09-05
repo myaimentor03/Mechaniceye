@@ -2,7 +2,7 @@ import { FormEvent, useState } from "react";
 import { NextActionStrip } from "./NextActionStrip";
 
 const BUYER_VEHICLE_KNOWLEDGE_ENDPOINT =
-  "https://mechaniceye-backend-v2.onrender.com/api/buyer-risk/vehicle-knowledge";
+  "/api/buyer-risk/vehicle-knowledge";
 
 const REVIEW_AREAS = [
   "Seller evidence checklist",
@@ -78,11 +78,19 @@ export function BuyerCheckPreview() {
       });
 
       const response = await fetch(getBuyerVehicleKnowledgeEndpoint() + "?" + params.toString());
-      const data = await response.json() as BuyerVehicleKnowledgeResult;
 
       if (!response.ok) {
-        throw new Error(data.message || "Vehicle knowledge lookup failed.");
+        let message = "Vehicle knowledge lookup failed.";
+        try {
+          const errData = await response.json() as BuyerVehicleKnowledgeResult;
+          if (errData.message) message = errData.message;
+        } catch {
+          // ignore non-JSON error bodies
+        }
+        throw new Error(message);
       }
+
+      const data = await response.json() as BuyerVehicleKnowledgeResult;
 
       setVehicleKnowledge(data);
       setLookupStatus("success");

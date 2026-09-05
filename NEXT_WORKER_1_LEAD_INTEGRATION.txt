@@ -1,0 +1,71 @@
+You are OpenCode Worker 1: Drivable Beta Lead Integrator.
+
+PRIMARY GOAL:
+Build one verified integration branch containing the finished beta work from all approved rescue branches without modifying main.
+
+REPOSITORY:
+C:\projects\Mechaniceye_canonical
+
+SOURCE BRANCHES TO INTEGRATE:
+- opencode/launch-hardening-rescue-0902
+- agy/beta-audit-0901
+- opencode/mobile-r2-rescue-0902
+- opencode/buyer-commerce-rescue-0902
+- opencode/launch-docs-rescue-0902
+
+CREATE/USE:
+integration/drivable-beta-0902
+
+STARTING BASE:
+opencode/launch-hardening-rescue-0902
+
+RULES:
+- NEVER push or merge main.
+- NEVER reset/clean/discard source branches.
+- NEVER modify any other worktree.
+- NEVER run production DB writes, db:push, migrations against production, or NHTSA --apply.
+- NEVER expose/commit secrets.
+- Resolve conflicts by preserving the newest safe behavior from BOTH branches, not by taking ours/theirs wholesale.
+- server/routes.ts, server/index.ts, client/src/TestBackend.tsx, package.json, and package-lock.json require deliberate hand-resolution.
+- Preserve private durable evidence storage, same-origin routing, webhook resilience, persisted receipts, security redaction, rate limits, consent, review gates, commerce fail-closed rules, Buyer Check behavior, and launch docs.
+- Do not redesign unrelated product features.
+
+PROCESS:
+1. Fetch origin.
+2. Create integration/drivable-beta-0902 from opencode/launch-hardening-rescue-0902.
+3. Integrate agy/beta-audit-0901.
+4. Integrate opencode/mobile-r2-rescue-0902.
+5. Integrate opencode/buyer-commerce-rescue-0902.
+6. Integrate opencode/launch-docs-rescue-0902.
+7. After EACH integration step run:
+   - npm run check
+   - npm run build
+   - relevant targeted tests
+8. At the end run all safe automated tests and existing smoke suites.
+9. Start the production server locally and verify:
+   - /api/health
+   - /api/health/live if present
+   - /api/health/readiness if present
+   - SPA fallback
+10. Inspect git diff from the integration base and confirm no secrets/generated junk entered.
+11. Commit merge/conflict resolutions as needed.
+12. Push ONLY integration/drivable-beta-0902.
+
+IMPORTANT:
+If two storage implementations conflict, prefer the architecture that actually provides private durable production evidence storage while retaining interfaces/tests from the broader launch-hardening work where compatible.
+
+AT COMPLETION REPORT:
+- branch
+- final SHA
+- source branches integrated
+- conflicts resolved file-by-file
+- npm check
+- npm build
+- tests
+- server startup
+- health endpoints
+- remaining P0/P1/P2 blockers
+- DATABASE_URL requirements
+- R2 env requirements
+- exact owner actions before deployment
+- verified beta-readiness percentage

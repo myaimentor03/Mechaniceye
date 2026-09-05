@@ -2,8 +2,8 @@ import { FormEvent, useState } from "react";
 import { NeedHelpPanel } from "../components/NeedHelpPanel";
 import { getFrontendRoutePath, navigateFrontend } from "../frontendRouting";
 
-const MARKETPLACE_SELLER_INTAKE_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/marketplace/seller-intake";
-const MARKETPLACE_BUYER_INTEREST_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/marketplace/buyer-interest";
+const MARKETPLACE_SELLER_INTAKE_ENDPOINT = "/api/marketplace/seller-intake";
+const MARKETPLACE_BUYER_INTEREST_ENDPOINT = "/api/marketplace/buyer-interest";
 
 type HeroProps = {
   eyebrow?: string;
@@ -117,19 +117,11 @@ const guideLinks = [
 ];
 
 function getMarketplaceSellerIntakeEndpoint() {
-  const isLocalBrowser =
-    window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1";
-
-  return isLocalBrowser ? "/api/marketplace/seller-intake" : MARKETPLACE_SELLER_INTAKE_ENDPOINT;
+  return MARKETPLACE_SELLER_INTAKE_ENDPOINT;
 }
 
 function getMarketplaceBuyerInterestEndpoint() {
-  const isLocalBrowser =
-    window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1";
-
-  return isLocalBrowser ? "/api/marketplace/buyer-interest" : MARKETPLACE_BUYER_INTEREST_ENDPOINT;
+  return MARKETPLACE_BUYER_INTEREST_ENDPOINT;
 }
 
 function Hero({ eyebrow = "ClearSale", title, body, primaryLabel, primaryHref, secondaryLabel, secondaryHref }: HeroProps) {
