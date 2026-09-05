@@ -1,10 +1,20 @@
 import fs from "node:fs";
 import pg from "pg";
 import path from "node:path";
+import {
+  mutationTargetGuard,
+  safeTargetDescription,
+  sslConfigForUrl,
+} from "./lib/db-target-safe.mjs";
 
 const root = process.cwd();
 const apply = process.argv.includes("--apply");
 const seedDir = path.join(root, "docs", "seed-data", "json");
+
+const databaseUrl = process.env.DATABASE_URL?.trim();
+if (databaseUrl) {
+  console.log(`Intended database target: ${safeTargetDescription(databaseUrl)}`);
+}
 
 const datasets = [
   {
@@ -217,14 +227,25 @@ if (!apply) {
   process.exit(0);
 }
 
-if (!process.env.DATABASE_URL) {
+if (!databaseUrl) {
   throw new Error("DATABASE_URL is missing. Set it before running with --apply.");
 }
 
+const guard = mutationTargetGuard(databaseUrl);
+if (!guard.ok) {
+  console.error(`Seed import apply refused: ${guard.reason}`);
+  console.error("Dry runs are always allowed. Apply requires an owner-confirmed target.");
+  process.exit(1);
+}
+if (guard.markers?.length) {
+  console.log(`Target blocked markers: ${guard.markers.join(", ")}`);
+}
+console.log(`Confirmed target: ${safeTargetDescription(databaseUrl)}`);
+
 const { Client } = pg;
 const client = new Client({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  connectionString: databaseUrl,
+  ssl: sslConfigForUrl(databaseUrl),
 });
 
 await client.connect();

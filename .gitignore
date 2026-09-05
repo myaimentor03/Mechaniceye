@@ -6,3 +6,5 @@ vite.config.ts.*
 *.tar.gz
 # Generated NHTSA vehicle packs are stored in Render DB, not committed as raw JSON
 data/nhtsa/vehicle-knowledge-packs/*.json
+# Local scratch/output from preflight and dry-run import scripts (never committed)
+tmp/
