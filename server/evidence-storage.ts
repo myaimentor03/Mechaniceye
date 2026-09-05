@@ -55,6 +55,12 @@ export class RuntimeFileEvidenceStore implements EvidenceStore {
     return path.join(this.root, safeCaseSegment(caseId));
   }
 
+  private async photoBytes(file: Express.Multer.File): Promise<Buffer> {
+    if (file.buffer?.length) return file.buffer;
+    if (file.path) return fs.readFile(file.path);
+    throw new Error("Photo has no readable content");
+  }
+
   async savePhotos(caseId: string, files: Express.Multer.File[]) {
     if (files.length > PHOTO_LIMITS.maxCount) throw new Error("Too many photos");
     const caseRoot = this.caseRoot(caseId);
@@ -64,9 +70,10 @@ export class RuntimeFileEvidenceStore implements EvidenceStore {
 
     try {
       for (const file of files) {
-        if (!file.buffer?.length || file.size <= 0) throw new Error("Empty photo rejected");
+        const buffer = await this.photoBytes(file);
+        if (!buffer?.length || file.size <= 0) throw new Error("Empty photo rejected");
         if (file.size > PHOTO_LIMITS.maxBytesEach) throw new Error("Photo is too large");
-        const verified = verifiedImageType(file.buffer);
+        const verified = verifiedImageType(buffer);
         if (!verified) throw new Error("Photo content is not a supported image");
         const heifCompatible = verified.mimeType === "image/heic" && ["image/heic", "image/heif"].includes(file.mimetype);
         if (file.mimetype !== verified.mimeType && !heifCompatible) {
@@ -77,7 +84,7 @@ export class RuntimeFileEvidenceStore implements EvidenceStore {
         const storedName = `${id}${verified.extension}`;
         const storageKey = path.posix.join("evidence", safeCaseSegment(caseId), storedName);
         const target = path.join(caseRoot, storedName);
-        await fs.writeFile(target, file.buffer, { flag: "wx" });
+        await fs.writeFile(target, buffer, { flag: "wx" });
         writtenPaths.push(target);
         attachments.push({
           id, caseId, kind: "photo", originalName: path.basename(file.originalname),
@@ -155,9 +162,10 @@ export class S3PrivateEvidenceStore implements EvidenceStore {
     const writtenKeys: string[] = [];
     try {
       for (const file of files) {
-        if (!file.buffer?.length || file.size <= 0) throw new Error("Empty photo rejected");
+        const buffer = file.buffer?.length ? file.buffer : await fs.readFile(file.path);
+        if (!buffer?.length || file.size <= 0) throw new Error("Empty photo rejected");
         if (file.size > PHOTO_LIMITS.maxBytesEach) throw new Error("Photo is too large");
-        const verified = verifiedImageType(file.buffer);
+        const verified = verifiedImageType(buffer);
         if (!verified) throw new Error("Photo content is not a supported image");
         const heifCompatible = verified.mimeType === "image/heic" && ["image/heic", "image/heif"].includes(file.mimetype);
         if (file.mimetype !== verified.mimeType && !heifCompatible) throw new Error("Photo MIME type does not match its content");
@@ -166,7 +174,7 @@ export class S3PrivateEvidenceStore implements EvidenceStore {
         await this.client.send(new PutObjectCommand({
           Bucket: this.config.bucket,
           Key: storageKey,
-          Body: file.buffer,
+          Body: buffer,
           ContentType: verified.mimeType,
           CacheControl: "no-store",
         }));

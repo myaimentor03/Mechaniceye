@@ -1133,6 +1133,9 @@ const [manualEngine, setManualEngine] = useState("");
   const [urgency, setUrgency] = useState("");
 
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [videoFiles, setVideoFiles] = useState<File[]>([]);
+  const [audioFiles, setAudioFiles] = useState<File[]>([]);
+  const [vibrationFiles, setVibrationFiles] = useState<File[]>([]);
   const [serviceConsent, setServiceConsent] = useState(false);
   const [mediaConsent, setMediaConsent] = useState(false);
   const [humanReviewConsent, setHumanReviewConsent] = useState(false);
@@ -1229,9 +1232,11 @@ const [manualEngine, setManualEngine] = useState("");
       "",
       "Selected evidence files:",
       `Photos: ${photoFiles.length ? photoFiles.map((f) => f.name).join(", ") : "None"}`,
-      "Audio: Not uploaded in this photo-first version",
-      "Video: Not uploaded in this photo-first version",
-      "Vibration / Motion: Context only; no sensor readings are generated"
+      `Audio: ${audioFiles.length ? audioFiles.map((f) => f.name).join(", ") : "None"}`,
+      `Video: ${videoFiles.length ? videoFiles.map((f) => f.name).join(", ") : "None"}`,
+      `Vibration / Motion: ${vibrationFiles.length ? vibrationFiles.map((f) => f.name).join(", ") : "None"}`,
+      "",
+      "Note: uploaded media is received for human review and is not analyzed by AI."
     ].join("\n");
   }
 
@@ -1319,7 +1324,7 @@ const [manualEngine, setManualEngine] = useState("");
       timing: timingSelections.length ? `${timingSelections.join(", ")}${otherTiming ? ` | Other: ${otherTiming}` : ""}` : otherTiming || ""
     };
 
-    const endpoints = [PUBLIC_API_ENDPOINT];
+const endpoints = [PUBLIC_API_ENDPOINT];
 
     let lastError = "";
 
@@ -1366,6 +1371,9 @@ const [manualEngine, setManualEngine] = useState("");
             optional_product_learning: learningConsent,
           }));
           photoFiles.forEach((file) => requestBody.append("photos", file, file.name));
+          audioFiles.forEach((file) => requestBody.append("audio", file, file.name));
+          videoFiles.forEach((file) => requestBody.append("video", file, file.name));
+          vibrationFiles.forEach((file) => requestBody.append("vibration", file, file.name));
 
           const res = await fetch(endpoint, {
             method: "POST",
@@ -1740,7 +1748,7 @@ const [manualEngine, setManualEngine] = useState("");
                           </>
                         }
                       >
-                        {photoUploadEnabled
+{photoUploadEnabled
                           ? <PhotoPicker files={photoFiles} onChange={setPhotoFiles} onError={setError} />
                           : <div className="upload-note">Photo upload is temporarily unavailable until private hosted storage and reviewer access pass launch verification.</div>}
                       </EvidenceCard>
@@ -1755,7 +1763,8 @@ const [manualEngine, setManualEngine] = useState("");
                           </>
                         }
                       >
-                        <div className="upload-note">Video upload is not enabled in this photo-first release.</div>
+<input type="file" multiple accept="video/*" capture="environment" onChange={(e) => setVideoFiles(Array.from(e.target.files || []))} />
+                        <FileNames files={videoFiles} />
                       </EvidenceCard>
 
                       <EvidenceCard
@@ -1768,7 +1777,8 @@ const [manualEngine, setManualEngine] = useState("");
                           </>
                         }
                       >
-                        <div className="upload-note">Audio upload is not enabled in this photo-first release.</div>
+<input type="file" multiple accept="audio/*" capture="user" onChange={(e) => setAudioFiles(Array.from(e.target.files || []))} />
+                        <FileNames files={audioFiles} />
                       </EvidenceCard>
 
                       <EvidenceCard

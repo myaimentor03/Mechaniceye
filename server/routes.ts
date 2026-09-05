@@ -41,6 +41,13 @@ import { buildFollowUpEvidenceBoundary } from "./follow-up-evidence-boundary";
 import { registerDurableReviewRoutes } from "./review/review-routes";
 import { requireVerifiedLaunchControlRuntime } from "./review/launch-control-runtime";
 import { IntakeConsentError, persistAndAuthorizeIntakeConsent } from "./consent/intake-consent";
+import {
+  deleteStoredEvidenceForCase,
+  isR2EvidenceStorageConfigured,
+  storeEvidenceFiles,
+  type StoredEvidenceKeys,
+  type UploadedEvidenceFiles
+} from "./r2-evidence-storage";
 
 // Configure multer for file uploads
 const uploadDir = path.join(process.cwd(), 'uploads');
@@ -55,6 +62,7 @@ const upload = multer({
   },
   fileFilter: (req, file, cb) => {
     const allowedMimes = [
+      'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
       'audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/x-m4a',
       'video/mp4', 'video/quicktime', 'video/x-msvideo'
     ];
@@ -83,6 +91,50 @@ const diagnosisPhotoUploadMiddleware = (req: any, res: any, next: any) => {
       persisted: false,
     });
   });
+};
+
+const diagnosisEvidenceUpload = multer({
+  dest: uploadDir,
+  limits: {
+    fileSize: 12 * 1024 * 1024,
+    files: PHOTO_LIMITS.maxCount + 4 + 4 + 4,
+  },
+  fileFilter: (_req, file, cb) => {
+    const allowedMimes = [
+      ...ALLOWED_PHOTO_MEDIA_TYPES,
+      'audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/x-m4a',
+      'video/mp4', 'video/quicktime', 'video/x-msvideo',
+      'application/octet-stream',
+    ];
+    if (!allowedMimes.includes(file.mimetype)) {
+      return cb(new Error(`Unsupported evidence type: ${file.mimetype || "unknown"}`));
+    }
+    cb(null, true);
+  },
+});
+const diagnosisEvidenceUploadMiddleware = (req: any, res: any, next: any) => {
+  diagnosisEvidenceUpload.fields([
+    { name: "photos", maxCount: PHOTO_LIMITS.maxCount },
+    { name: "audio", maxCount: 4 },
+    { name: "video", maxCount: 4 },
+    { name: "vibration", maxCount: 4 }
+  ])(req, res, (error: unknown) => {
+    if (!error) return next();
+    const isLimitError = error instanceof multer.MulterError;
+    return res.status(isLimitError ? 413 : 415).json({
+      message: isLimitError
+        ? "Evidence upload exceeds the allowed limits (8 photos max, 12 MB per file, 20 files max)."
+        : error instanceof Error ? error.message : "Evidence upload was rejected.",
+      persisted: false,
+    });
+  });
+};
+const removeIntakeTempFiles = (files: UploadedEvidenceFiles) => {
+  for (const file of Object.values(files || {}).flat()) {
+    if (file?.path) {
+      fs.rm(file.path, () => undefined);
+    }
+  }
 };
 const evidenceStore = createEvidenceStoreFromEnvironment();
 
@@ -293,7 +345,14 @@ function buildDiagnosisInput(body: any): DiagnosisInput {
     Array.isArray(value)
       ? value.filter((item): item is string => typeof item === "string")
       : [];
-  const rawVehicleSelection = diagnosisBody.rawVehicleSelection || null;
+  let rawVehicleSelection = diagnosisBody.rawVehicleSelection || null;
+  if (typeof rawVehicleSelection === "string") {
+    try {
+      rawVehicleSelection = JSON.parse(rawVehicleSelection);
+    } catch {
+      rawVehicleSelection = null;
+    }
+  }
   const symptomSummary = pickString(diagnosisBody.symptomSummary, diagnosisBody.symptoms);
   const description = pickString(diagnosisBody.description, symptomSummary);
   const whenItHappens = pickString(diagnosisBody.whenItHappens);
@@ -1538,10 +1597,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/capabilities", (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
+    const r2Configured = isR2EvidenceStorageConfigured();
     res.json({
       photoUpload: process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && evidenceStore.durability === "private_object_storage",
-      audioUpload: false,
-      videoUpload: false,
+      audioUpload: r2Configured,
+      videoUpload: r2Configured,
       vibrationSensorCapture: false,
     });
   });
@@ -1941,7 +2001,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create new diagnosis and save to local case storage
-  app.post("/api/diagnoses", requireCustomer, customerIntakeLimit, diagnosisPhotoUploadMiddleware, async (req, res) => {
+  app.post("/api/diagnoses", requireCustomer, customerIntakeLimit, diagnosisEvidenceUploadMiddleware, async (req, res) => {
+    const uploadedFiles = (req.files || {}) as UploadedEvidenceFiles;
+    const photoFiles = uploadedFiles.photos || [];
+    const mobileMediaFiles: UploadedEvidenceFiles = {
+      audio: uploadedFiles.audio,
+      video: uploadedFiles.video,
+      vibration: uploadedFiles.vibration,
+    };
+    const hasMobileMedia = ["audio", "video", "vibration"].some((field) =>
+      (mobileMediaFiles as Record<string, Express.Multer.File[] | undefined>)[field]?.length
+    );
+
     let input: DiagnosisInput;
     let evidenceIntake;
     let consentChoices: unknown;
@@ -1960,26 +2031,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : String(evidenceIntake.vehicle.mileage);
       input.obdCodes = evidenceIntake.obd.codes.join(", ") || input.obdCodes;
     } catch (validationError) {
+      removeIntakeTempFiles(uploadedFiles);
       return res.status(400).json({
         message: validationError instanceof Error ? validationError.message : "Invalid diagnosis evidence metadata",
       });
     }
 
-    const photoFiles = (req.files || []) as Express.Multer.File[];
     if (photoFiles.length && (process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED !== "true" || evidenceStore.durability !== "private_object_storage")) {
+      removeIntakeTempFiles(uploadedFiles);
       return res.status(409).json({
         message: "Photo upload is not available until private evidence storage passes launch verification. You can continue with written symptoms and OBD-II codes.",
+        persisted: false,
+      });
+    }
+    if (photoFiles.some((file) => file.size > 12 * 1024 * 1024)) {
+      removeIntakeTempFiles(uploadedFiles);
+      return res.status(413).json({ message: "Each photo must be 12 MB or smaller.", persisted: false });
+    }
+    if (hasMobileMedia && !isR2EvidenceStorageConfigured()) {
+      removeIntakeTempFiles(uploadedFiles);
+      return res.status(503).json({
+        message: "Private evidence storage is temporarily unavailable. Your media was not retained.",
         persisted: false,
       });
     }
     let responseBody: DiagnosisCaseResponse;
     let storedCase: StoredDiagnosisCase | undefined;
     let usedPublicFallback = false;
+    let storedR2Keys: StoredEvidenceKeys = {};
 
     try {
       console.log("DIAGNOSIS_INTENT_RECEIVED", {
-        vehicleInfo: pickString(input.vehicleInfo),
-        problemCategory: pickString(input.symptomSummary)
+        hasVehicleInfo: Boolean(input.vehicleInfo),
+        hasDescription: Boolean(input.description),
+        photoCount: photoFiles.length,
+        audioCount: mobileMediaFiles.audio?.length || 0,
+        videoCount: mobileMediaFiles.video?.length || 0,
+        vibrationCount: mobileMediaFiles.vibration?.length || 0
       });
 
       const launchControlsEnabled = process.env.DRIVABLE_LAUNCH_CONTROLS_ENABLED === "true";
@@ -1995,7 +2083,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             accountId: req.drivableCustomer!.id,
             caseId: responseBody.id,
             choices: consentChoices,
-            hasMedia: photoFiles.length > 0,
+            hasMedia: photoFiles.length > 0 || hasMobileMedia,
           });
         } catch (consentError) {
           const status = consentError instanceof IntakeConsentError && consentError.code === "CONSENT_REQUIRED" ? 400 : 503;
@@ -2019,7 +2107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         usedPublicFallback = true;
       }
 
-      if (photoFiles.length) {
+if (photoFiles.length) {
         try {
           const attachments = await evidenceStore.savePhotos(responseBody.id, photoFiles);
           responseBody.attachments = attachments;
@@ -2031,10 +2119,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
           input.photoEvidenceStatus = "Persisted";
           input.photoFileNames = attachments.map((attachment) => attachment.originalName);
           input.attachments = attachments;
+          removeIntakeTempFiles({ photos: photoFiles });
         } catch (storageError) {
           console.error("Photo evidence persistence failed:", storageError);
+          removeIntakeTempFiles({ photos: photoFiles });
           return res.status(507).json({
             message: "The case could not be completed because its photo evidence was not persisted. Please try again.",
+            caseId: responseBody.id,
+            persisted: false,
+          });
+        }
+      }
+
+      if (hasMobileMedia) {
+        try {
+          storedR2Keys = await storeEvidenceFiles(responseBody.id, mobileMediaFiles);
+          if (storedR2Keys.audio?.length) input.audioFileNames = storedR2Keys.audio;
+          if (storedR2Keys.video?.length) input.videoFileNames = storedR2Keys.video;
+          if (storedR2Keys.vibration?.length) input.vibrationFileNames = storedR2Keys.vibration;
+          if (storedR2Keys.audio?.length) input.audioEvidenceStatus = "Persisted";
+          if (storedR2Keys.video?.length) input.videoEvidenceStatus = "Persisted";
+          if (storedR2Keys.vibration?.length) input.vibrationEvidenceStatus = "Persisted";
+          if (!responseBody.evidencePersistence) {
+            responseBody.evidencePersistence = {
+              durability: "private_object_storage",
+              durableStorageConfigured: true,
+              analysisStatus: "uploaded_not_analyzed",
+            };
+          }
+        } catch (storageError) {
+          console.error("Media evidence persistence failed:", storageError);
+          return res.status(507).json({
+            message: "The case could not be completed because its media evidence was not persisted. Please try again.",
             caseId: responseBody.id,
             persisted: false,
           });
@@ -2045,6 +2161,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, storedCase, authenticatedCaseOwnerId(req.drivableCustomer?.id));
         if (!dbResult.ok) {
           if (photoFiles.length) await evidenceStore.deleteCase(responseBody.id);
+          if (hasMobileMedia) await deleteStoredEvidenceForCase(responseBody.id, storedR2Keys);
           return res.status(503).json({ message: "The case was not saved to the case database. Please try again.", caseId: responseBody.id, persisted: false });
         }
         responseBody.casePersistence = { primary: "database", databaseMirror: "persisted" };
@@ -2241,8 +2358,9 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
 // Serve uploaded files (traversal-safe)
   app.get("/api/files/:filename", requireReviewer, (req, res) => {
     const filename = req.params.filename;
+    const basename = path.basename(req.params.filename || "");
 
-    if (!filename || filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
+    if (!filename || filename !== basename || filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
       return res.status(403).json({ message: "Forbidden" });
     }
 
