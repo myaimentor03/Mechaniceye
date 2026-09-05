@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img" aria-labelledby="title desc">
+  <title id="title">Buyer Check — check what is missing story card</title><desc id="desc">A Buyer Check educational card separating seller-reported statements, observed evidence, and unknowns, with an inspection limitation.</desc>
+  <rect width="1080" height="1920" fill="#EAF3F8"/><rect width="1080" height="300" fill="#07111F"/>
+  <g font-family="Inter,Arial,sans-serif">
+    <text x="76" y="130" fill="#EDF5FF" font-size="52" font-weight="850">Drivable</text><text x="78" y="180" fill="#9CB0C8" font-size="22" font-weight="750" letter-spacing="4">BY MECHANIC'S EYE</text><rect x="760" y="92" width="250" height="62" rx="31" fill="#143246" stroke="#3BD6FF"/><text x="885" y="132" text-anchor="middle" fill="#BCEFFF" font-size="24" font-weight="850" letter-spacing="2">BUYER CHECK</text>
+    <text x="76" y="500" fill="#172334" font-size="74" font-weight="850">Before you chase</text><text x="76" y="590" fill="#172334" font-size="74" font-weight="850">the used car,</text><text x="76" y="680" fill="#106B85" font-size="70" font-weight="850">check what is missing.</text>
+    <text x="76" y="820" fill="#52677F" font-size="33">Keep seller claims separate from observed evidence.</text><text x="76" y="868" fill="#52677F" font-size="33">See supported positives, risks, conflicts, and unknowns.</text>
+    <g transform="translate(76 980)"><rect width="928" height="150" rx="26" fill="#FFFFFF" stroke="#C9D6E4" stroke-width="2"/><circle cx="62" cy="75" r="25" fill="#FFD27D"/><text x="116" y="66" fill="#172334" font-size="31" font-weight="850">SELLER-REPORTED</text><text x="116" y="108" fill="#52677F" font-size="25">The source stays visible.</text></g>
+    <g transform="translate(76 1160)"><rect width="928" height="150" rx="26" fill="#FFFFFF" stroke="#C9D6E4" stroke-width="2"/><circle cx="62" cy="75" r="25" fill="#3BD6FF"/><text x="116" y="66" fill="#172334" font-size="31" font-weight="850">OBSERVED</text><text x="116" y="108" fill="#52677F" font-size="25">Scope and date matter.</text></g>
+    <g transform="translate(76 1340)"><rect width="928" height="150" rx="26" fill="#FFFFFF" stroke="#C9D6E4" stroke-width="2"/><circle cx="62" cy="75" r="25" fill="#FF8F8F"/><text x="116" y="66" fill="#172334" font-size="31" font-weight="850">UNKNOWN</text><text x="116" y="108" fill="#52677F" font-size="25">Missing information still needs verification.</text></g>
+    <rect x="76" y="1570" width="500" height="106" rx="24" fill="#0B344B"/><text x="326" y="1637" text-anchor="middle" fill="#FFFFFF" font-size="27" font-weight="900">LEARN ABOUT BUYER CHECK</text>
+    <text x="76" y="1770" fill="#52677F" font-size="23">Not a pre-purchase inspection. Drivable does not verify the seller,</text><text x="76" y="1806" fill="#52677F" font-size="23">title, mileage, vehicle condition, or transaction.</text>
+  </g>
+</svg>

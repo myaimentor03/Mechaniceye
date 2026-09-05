@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img" aria-labelledby="title desc">
+  <title id="title">What makes the observation change vertical educational card</title>
+  <desc id="desc">A vertical Drivable story card covering safely remembered temperature, action, conditions, and vehicle state without instructing a test.</desc>
+  <rect width="1080" height="1920" fill="#07111F"/><path d="M0 0 H1080 V330 Q740 470 0 290 Z" fill="#0D1A2B"/>
+  <g font-family="Inter,Arial,sans-serif">
+    <text x="72" y="168" font-size="27" font-weight="850" letter-spacing="2" fill="#3BD6FF">WHAT CHANGED? · 03/04</text>
+    <text x="72" y="300" font-size="70" font-weight="850" fill="#EDF5FF">What makes it</text><text x="72" y="382" font-size="70" font-weight="850" fill="#EDF5FF">change?</text>
+    <text x="72" y="452" font-size="28" fill="#9CB0C8">Compare only what you already noticed safely.</text>
+    <g transform="translate(72 548)" font-size="28" font-weight="800">
+      <rect width="936" height="176" rx="28" fill="#122238" stroke="#223854" stroke-width="2"/><circle cx="72" cy="68" r="30" fill="#3BD6FF"/><text x="126" y="77" fill="#EDF5FF">Temperature</text><text x="126" y="126" font-size="22" font-weight="400" fill="#9CB0C8">Cold start, warmed up, or hot weather?</text>
+      <g transform="translate(0 208)"><rect width="936" height="176" rx="28" fill="#122238" stroke="#223854" stroke-width="2"/><circle cx="72" cy="68" r="30" fill="#3BD6FF"/><text x="126" y="77" fill="#EDF5FF">Action</text><text x="126" y="126" font-size="22" font-weight="400" fill="#9CB0C8">Starting, idling, braking, turning, or accelerating?</text></g>
+      <g transform="translate(0 416)"><rect width="936" height="176" rx="28" fill="#122238" stroke="#223854" stroke-width="2"/><circle cx="72" cy="68" r="30" fill="#FFD27D"/><text x="126" y="77" fill="#EDF5FF">Conditions</text><text x="126" y="126" font-size="22" font-weight="400" fill="#9CB0C8">Smooth road, bumps, rain, hill, or highway speed?</text></g>
+      <g transform="translate(0 624)"><rect width="936" height="176" rx="28" fill="#122238" stroke="#223854" stroke-width="2"/><circle cx="72" cy="68" r="30" fill="#FFD27D"/><text x="126" y="77" fill="#EDF5FF">Vehicle state</text><text x="126" y="126" font-size="22" font-weight="400" fill="#9CB0C8">A/C on, added load, low fuel, or after sitting?</text></g>
+    </g>
+    <rect x="72" y="1402" width="936" height="180" rx="28" fill="#0B344B"/>
+    <text x="112" y="1464" font-size="27" font-weight="850" fill="#79E9FF">USE MEMORY. DO NOT RUN A TEST.</text>
+    <text x="112" y="1518" font-size="22" fill="#EDF5FF">Park before writing. Never repeat a maneuver or approach a hazard.</text>
+    <text x="112" y="1554" font-size="20" fill="#B8C9DA">“I do not know” and “I could not observe this safely” are valid.</text>
+    <line x1="72" y1="1710" x2="1008" y2="1710" stroke="#223854" stroke-width="2"/>
+    <text x="72" y="1802" font-size="40" font-weight="850" fill="#EDF5FF">drivable</text><text x="258" y="1802" font-size="22" fill="#9CB0C8">by Mechanic's Eye</text>
+    <text x="1008" y="1802" text-anchor="end" font-size="20" fill="#9CB0C8">Story/reel concept · review</text>
+  </g>
+</svg>

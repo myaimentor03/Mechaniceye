@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img" aria-labelledby="title desc">
+  <title id="title">What happened before the vehicle change vertical educational card</title>
+  <desc id="desc">A vertical Drivable story card treating service, fuel or charging, weather or road events, and routine changes as context rather than proof of causation.</desc>
+  <rect width="1080" height="1920" fill="#F2F7FB"/><rect width="1080" height="480" fill="#12344A"/>
+  <g font-family="Inter,Arial,sans-serif">
+    <text x="72" y="168" font-size="27" font-weight="850" letter-spacing="2" fill="#79E9FF">WHAT CHANGED? · 04/04</text>
+    <text x="72" y="300" font-size="68" font-weight="850" fill="#FFFFFF">What happened</text><text x="72" y="380" font-size="68" font-weight="850" fill="#FFFFFF">before?</text>
+    <text x="72" y="438" font-size="25" fill="#C7D7E6">Recent context can guide questions. It does not prove a cause.</text>
+    <g transform="translate(72 548)">
+      <rect width="936" height="176" rx="28" fill="#FFFFFF" stroke="#C8D7E5" stroke-width="3"/><circle cx="72" cy="68" r="30" fill="#DDF5FA"/><text x="126" y="76" font-size="28" font-weight="800" fill="#102033">Service or repair</text><text x="126" y="126" font-size="22" fill="#52677F">What work was done, when, and by whom?</text>
+      <g transform="translate(0 208)"><rect width="936" height="176" rx="28" fill="#FFFFFF" stroke="#C8D7E5" stroke-width="3"/><circle cx="72" cy="68" r="30" fill="#FFF0C7"/><text x="126" y="76" font-size="28" font-weight="800" fill="#102033">Fuel, charging, or battery event</text><text x="126" y="126" font-size="22" fill="#52677F">Note what changed without assigning blame.</text></g>
+      <g transform="translate(0 416)"><rect width="936" height="176" rx="28" fill="#FFFFFF" stroke="#C8D7E5" stroke-width="3"/><circle cx="72" cy="68" r="30" fill="#DDF5FA"/><text x="126" y="76" font-size="28" font-weight="800" fill="#102033">Weather, road, or impact event</text><text x="126" y="126" font-size="22" fill="#52677F">Record the event and approximate timing if known.</text></g>
+      <g transform="translate(0 624)"><rect width="936" height="176" rx="28" fill="#FFFFFF" stroke="#C8D7E5" stroke-width="3"/><circle cx="72" cy="68" r="30" fill="#FFF0C7"/><text x="126" y="76" font-size="28" font-weight="800" fill="#102033">Load, accessory, or routine change</text><text x="126" y="126" font-size="22" fill="#52677F">Passengers, cargo, towing, route, or storage?</text></g>
+    </g>
+    <rect x="72" y="1402" width="936" height="180" rx="28" fill="#FFD27D"/>
+    <text x="540" y="1464" text-anchor="middle" font-size="26" font-weight="850" fill="#102033">SEQUENCE IS CONTEXT—not proof of cause.</text>
+    <text x="540" y="1518" text-anchor="middle" font-size="22" fill="#102033">Use records when available. Mark memory and unknowns honestly.</text>
+    <text x="540" y="1554" text-anchor="middle" font-size="20" fill="#102033">Do not assign blame from timing alone.</text>
+    <line x1="72" y1="1710" x2="1008" y2="1710" stroke="#C8D7E5" stroke-width="2"/>
+    <text x="72" y="1802" font-size="40" font-weight="850" fill="#102033">drivable</text><text x="258" y="1802" font-size="22" fill="#52677F">by Mechanic's Eye</text>
+    <text x="1008" y="1802" text-anchor="end" font-size="20" fill="#52677F">Story/reel concept · review</text>
+  </g>
+</svg>

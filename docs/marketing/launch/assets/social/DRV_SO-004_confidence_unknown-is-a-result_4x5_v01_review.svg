@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" role="img" aria-labelledby="title desc">
+  <title id="title">Unknown is a responsible result</title>
+  <desc id="desc">A dark Drivable social card showing higher, moderate, low, and unable-to-rank confidence states.</desc>
+  <rect width="1080" height="1350" fill="#07111F"/>
+  <g font-family="Inter,Arial,sans-serif">
+    <text x="84" y="92" font-size="29" font-weight="800" letter-spacing="2" fill="#3BD6FF">HOW CONFIDENCE WORKS</text>
+    <text x="84" y="218" font-size="76" font-weight="800" fill="#EDF5FF">“Unknown” can be</text>
+    <text x="84" y="306" font-size="76" font-weight="800" fill="#EDF5FF">a responsible result.</text>
+    <text x="84" y="376" font-size="28" fill="#9CB0C8">Evidence should control the strength of the language.</text>
+    <g transform="translate(84 465)">
+      <rect width="912" height="112" rx="22" fill="#122238"/>
+      <rect width="16" height="112" rx="8" fill="#9AF0C5"/>
+      <text x="52" y="48" font-size="28" font-weight="800" fill="#EDF5FF">HIGHER CONFIDENCE</text>
+      <text x="52" y="82" font-size="22" fill="#9CB0C8">Several relevant signals align; material conflicts are absent.</text>
+    </g>
+    <g transform="translate(84 601)">
+      <rect width="912" height="112" rx="22" fill="#122238"/>
+      <rect width="16" height="112" rx="8" fill="#3BD6FF"/>
+      <text x="52" y="48" font-size="28" font-weight="800" fill="#EDF5FF">MODERATE CONFIDENCE</text>
+      <text x="52" y="82" font-size="22" fill="#9CB0C8">Useful signals align; missing evidence could change the ranking.</text>
+    </g>
+    <g transform="translate(84 737)">
+      <rect width="912" height="112" rx="22" fill="#122238"/>
+      <rect width="16" height="112" rx="8" fill="#FFD27D"/>
+      <text x="52" y="48" font-size="28" font-weight="800" fill="#EDF5FF">LOW CONFIDENCE</text>
+      <text x="52" y="82" font-size="22" fill="#9CB0C8">Weak support; more evidence or human review is needed.</text>
+    </g>
+    <g transform="translate(84 873)">
+      <rect width="912" height="140" rx="22" fill="#1A2637" stroke="#FFD27D" stroke-width="2"/>
+      <rect width="16" height="140" rx="8" fill="#FFD27D"/>
+      <text x="52" y="48" font-size="28" font-weight="800" fill="#EDF5FF">UNABLE TO RANK RESPONSIBLY</text>
+      <text x="52" y="82" font-size="22" fill="#9CB0C8">Evidence is too limited, unsafe to collect, out of scope,</text>
+      <text x="52" y="111" font-size="22" fill="#9CB0C8">or materially conflicting. Do not manufacture certainty.</text>
+    </g>
+    <text x="84" y="1095" font-size="31" font-weight="800" fill="#EDF5FF">Confidence is not a safety rating.</text>
+    <text x="84" y="1142" font-size="25" fill="#9CB0C8">Possible causes are not a confirmed diagnosis.</text>
+    <line x1="84" y1="1203" x2="996" y2="1203" stroke="#223854" stroke-width="2"/>
+    <text x="84" y="1282" font-size="38" font-weight="800" fill="#EDF5FF">drivable</text>
+    <text x="258" y="1282" font-size="21" fill="#9CB0C8">by Mechanic's Eye</text>
+    <text x="996" y="1282" font-size="20" text-anchor="end" fill="#9CB0C8">Evidence before certainty</text>
+  </g>
+</svg>

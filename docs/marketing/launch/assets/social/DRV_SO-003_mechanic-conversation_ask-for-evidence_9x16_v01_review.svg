@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img" aria-labelledby="title desc">
+  <title id="title">Better mechanic questions — Drivable story card</title><desc id="desc">Four respectful questions about evidence, urgency, price, and authorization. It states that no phrase alone proves dishonesty.</desc>
+  <rect width="1080" height="1920" fill="#F7F9FB"/><rect width="30" height="1920" fill="#3BD6FF"/>
+  <g font-family="Inter,Arial,sans-serif">
+    <text x="86" y="180" fill="#106B85" font-size="30" font-weight="850" letter-spacing="2">BETTER MECHANIC CONVERSATIONS</text>
+    <text x="86" y="345" fill="#172334" font-size="80" font-weight="850">Ask for the evidence</text><text x="86" y="435" fill="#172334" font-size="80" font-weight="850">behind the estimate.</text>
+    <text x="86" y="515" fill="#52677F" font-size="31">Clear questions are useful. Accusations are not.</text>
+    <g transform="translate(86 650)"><rect width="908" height="170" rx="26" fill="#FFFFFF" stroke="#C9D6E4" stroke-width="2"/><text x="62" y="72" fill="#172334" font-size="32" font-weight="800">What evidence supports this work?</text><text x="62" y="120" fill="#52677F" font-size="26">What was observed, measured, tested, or ruled out?</text></g>
+    <g transform="translate(86 850)"><rect width="908" height="170" rx="26" fill="#FFFFFF" stroke="#C9D6E4" stroke-width="2"/><text x="62" y="72" fill="#172334" font-size="32" font-weight="800">Which work is urgent—and why?</text><text x="62" y="120" fill="#52677F" font-size="26">Separate urgent, preventive, and deferrable work.</text></g>
+    <g transform="translate(86 1050)"><rect width="908" height="170" rx="26" fill="#FFFFFF" stroke="#C9D6E4" stroke-width="2"/><text x="62" y="72" fill="#172334" font-size="32" font-weight="800">What is included in this price?</text><text x="62" y="120" fill="#52677F" font-size="26">Confirm tests, parts, labor, fees, tax, and warranty.</text></g>
+    <g transform="translate(86 1250)"><rect width="908" height="170" rx="26" fill="#FFFFFF" stroke="#C9D6E4" stroke-width="2"/><text x="62" y="72" fill="#172334" font-size="32" font-weight="800">Will you call before the total changes?</text><text x="62" y="120" fill="#52677F" font-size="26">Agree on authorization limits before work begins.</text></g>
+    <rect x="86" y="1500" width="908" height="150" rx="26" fill="#07111F"/><text x="540" y="1560" text-anchor="middle" fill="#EDF5FF" font-size="28" font-weight="850">GOOD QUESTIONS SUPPORT GOOD PROFESSIONALS.</text><text x="540" y="1610" text-anchor="middle" fill="#9CB0C8" font-size="25">No phrase alone proves that a mechanic is dishonest.</text>
+    <text x="86" y="1770" fill="#172334" font-size="46" font-weight="850">drivable</text><text x="292" y="1770" fill="#52677F" font-size="24">by Mechanic's Eye</text>
+  </g>
+</svg>

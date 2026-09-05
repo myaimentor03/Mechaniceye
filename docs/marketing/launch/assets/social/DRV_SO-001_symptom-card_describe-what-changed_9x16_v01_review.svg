@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img" aria-labelledby="title desc">
+  <title id="title">Describe what changed vertical educational card</title>
+  <desc id="desc">A vertical Drivable story card organizing an observation into before, now, and unknown while keeping the cause open.</desc>
+  <rect width="1080" height="1920" fill="#F2F7FB"/><circle cx="1020" cy="120" r="290" fill="#DDF5FA"/>
+  <g font-family="Inter,Arial,sans-serif">
+    <text x="72" y="168" font-size="27" font-weight="850" letter-spacing="2" fill="#106B85">WHAT CHANGED? · 02/04</text>
+    <text x="72" y="300" font-size="72" font-weight="850" fill="#102033">Describe what</text><text x="72" y="384" font-size="72" font-weight="850" fill="#102033">changed.</text>
+    <text x="72" y="456" font-size="29" fill="#52677F">Use plain observations. Leave the cause open.</text>
+    <g transform="translate(72 552)">
+      <rect width="936" height="236" rx="30" fill="#FFFFFF" stroke="#C8D7E5" stroke-width="3"/><rect width="174" height="236" rx="30" fill="#12344A"/>
+      <text x="87" y="132" text-anchor="middle" font-size="27" font-weight="850" fill="#79E9FF">BEFORE</text><text x="214" y="76" font-size="28" font-weight="800" fill="#102033">What was normal?</text><text x="214" y="129" font-size="23" fill="#52677F">“It normally started quietly</text><text x="214" y="166" font-size="23" fill="#52677F">on the first try.”</text>
+    </g>
+    <g transform="translate(72 820)">
+      <rect width="936" height="236" rx="30" fill="#FFFFFF" stroke="#C8D7E5" stroke-width="3"/><rect width="174" height="236" rx="30" fill="#106B85"/>
+      <text x="87" y="132" text-anchor="middle" font-size="30" font-weight="850" fill="#FFFFFF">NOW</text><text x="214" y="76" font-size="28" font-weight="800" fill="#102033">What changed?</text><text x="214" y="129" font-size="23" fill="#52677F">“It now takes two tries after</text><text x="214" y="166" font-size="23" fill="#52677F">sitting overnight.”</text>
+    </g>
+    <g transform="translate(72 1088)">
+      <rect width="936" height="236" rx="30" fill="#FFFFFF" stroke="#C8D7E5" stroke-width="3"/><rect width="174" height="236" rx="30" fill="#FFD27D"/>
+      <text x="87" y="132" text-anchor="middle" font-size="22" font-weight="850" fill="#102033">UNKNOWN</text><text x="214" y="76" font-size="28" font-weight="800" fill="#102033">What is not established?</text><text x="214" y="129" font-size="23" fill="#52677F">“I do not know what caused</text><text x="214" y="166" font-size="23" fill="#52677F">the change.”</text>
+    </g>
+    <rect x="72" y="1382" width="936" height="176" rx="28" fill="#12344A"/>
+    <text x="540" y="1444" text-anchor="middle" font-size="27" font-weight="850" fill="#79E9FF">A CLEAR NOTE IS NOT A DIAGNOSIS.</text>
+    <text x="540" y="1500" text-anchor="middle" font-size="23" fill="#EDF5FF">Write from memory after parking. Never recreate a symptom.</text>
+    <text x="72" y="1638" font-size="22" fill="#52677F">Generic educational examples—not reports from a real vehicle.</text>
+    <line x1="72" y1="1710" x2="1008" y2="1710" stroke="#C8D7E5" stroke-width="2"/>
+    <text x="72" y="1802" font-size="40" font-weight="850" fill="#102033">drivable</text><text x="258" y="1802" font-size="22" fill="#52677F">by Mechanic's Eye</text>
+    <text x="1008" y="1802" text-anchor="end" font-size="20" fill="#52677F">Story/reel concept · review</text>
+  </g>
+</svg>

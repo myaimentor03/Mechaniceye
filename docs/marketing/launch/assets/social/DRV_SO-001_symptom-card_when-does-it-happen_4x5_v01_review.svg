@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" role="img" aria-labelledby="title desc">
+  <title id="title">When does the vehicle symptom happen?</title>
+  <desc id="desc">A Drivable educational card prompting drivers to describe the timing and conditions of a vehicle symptom without guessing at a diagnosis.</desc>
+  <rect width="1080" height="1350" fill="#07111F"/>
+  <circle cx="975" cy="135" r="250" fill="#0D1A2B"/>
+  <g font-family="Inter,Arial,sans-serif">
+    <text x="84" y="92" font-size="29" font-weight="800" letter-spacing="2" fill="#3BD6FF">WHAT CHANGED? · CARD 01</text>
+    <text x="84" y="224" font-size="78" font-weight="800" fill="#EDF5FF">When does it happen?</text>
+    <text x="84" y="294" font-size="28" fill="#9CB0C8">Timing can be useful evidence. You do not need to name the part.</text>
+    <g transform="translate(84 410)">
+      <rect width="432" height="150" rx="24" fill="#122238" stroke="#223854" stroke-width="2"/>
+      <circle cx="62" cy="58" r="25" fill="#3BD6FF"/><path d="M62 43 v17 l12 8" fill="none" stroke="#07111F" stroke-width="5" stroke-linecap="round"/>
+      <text x="108" y="57" font-size="29" font-weight="750" fill="#EDF5FF">At startup?</text>
+      <text x="36" y="111" font-size="22" fill="#9CB0C8">Cold, warm, or after sitting?</text>
+    </g>
+    <g transform="translate(564 410)">
+      <rect width="432" height="150" rx="24" fill="#122238" stroke="#223854" stroke-width="2"/>
+      <circle cx="62" cy="58" r="25" fill="#3BD6FF"/><path d="M48 58 h28 M62 44 v28" stroke="#07111F" stroke-width="5" stroke-linecap="round"/>
+      <text x="108" y="57" font-size="29" font-weight="750" fill="#EDF5FF">While idling?</text>
+      <text x="36" y="111" font-size="22" fill="#9CB0C8">In park, in gear, or with A/C?</text>
+    </g>
+    <g transform="translate(84 590)">
+      <rect width="432" height="150" rx="24" fill="#122238" stroke="#223854" stroke-width="2"/>
+      <circle cx="62" cy="58" r="25" fill="#3BD6FF"/><path d="M48 68 Q62 42 76 68" fill="none" stroke="#07111F" stroke-width="5" stroke-linecap="round"/>
+      <text x="108" y="57" font-size="29" font-weight="750" fill="#EDF5FF">During braking?</text>
+      <text x="36" y="111" font-size="22" fill="#9CB0C8">Light, firm, low speed, or downhill?</text>
+    </g>
+    <g transform="translate(564 590)">
+      <rect width="432" height="150" rx="24" fill="#122238" stroke="#223854" stroke-width="2"/>
+      <circle cx="62" cy="58" r="25" fill="#3BD6FF"/><path d="M49 66 Q62 44 77 52" fill="none" stroke="#07111F" stroke-width="5" stroke-linecap="round"/><path d="M70 44 l9 8 -10 6" fill="#07111F"/>
+      <text x="108" y="57" font-size="29" font-weight="750" fill="#EDF5FF">While turning?</text>
+      <text x="36" y="111" font-size="22" fill="#9CB0C8">Left, right, tight turns, or bumps?</text>
+    </g>
+    <g transform="translate(84 770)">
+      <rect width="432" height="150" rx="24" fill="#122238" stroke="#223854" stroke-width="2"/>
+      <circle cx="62" cy="58" r="25" fill="#3BD6FF"/><path d="M49 66 h26 M54 57 h16 M59 48 h6" stroke="#07111F" stroke-width="5" stroke-linecap="round"/>
+      <text x="108" y="57" font-size="29" font-weight="750" fill="#EDF5FF">Under load?</text>
+      <text x="36" y="111" font-size="22" fill="#9CB0C8">Accelerating, climbing, or carrying weight?</text>
+    </g>
+    <g transform="translate(564 770)">
+      <rect width="432" height="150" rx="24" fill="#122238" stroke="#223854" stroke-width="2"/>
+      <circle cx="62" cy="58" r="25" fill="#FFD27D"/><text x="62" y="68" font-size="31" font-weight="800" text-anchor="middle" fill="#07111F">?</text>
+      <text x="108" y="57" font-size="29" font-weight="750" fill="#EDF5FF">Not sure?</text>
+      <text x="36" y="111" font-size="22" fill="#9CB0C8">Write that down. Unknown is useful.</text>
+    </g>
+    <rect x="84" y="990" width="912" height="126" rx="22" fill="#FFD27D"/>
+    <text x="540" y="1037" font-size="25" font-weight="800" text-anchor="middle" fill="#07111F">NOTICE CONDITIONS ONLY WHEN IT IS SAFE.</text>
+    <text x="540" y="1073" font-size="22" text-anchor="middle" fill="#07111F">Pull over and park before recording or writing anything.</text>
+    <text x="540" y="1103" font-size="20" text-anchor="middle" fill="#07111F">Do not recreate a symptom or continue driving to gather evidence.</text>
+    <line x1="84" y1="1202" x2="996" y2="1202" stroke="#223854" stroke-width="2"/>
+    <text x="84" y="1282" font-size="38" font-weight="800" fill="#EDF5FF">drivable</text>
+    <text x="258" y="1282" font-size="21" fill="#9CB0C8">by Mechanic's Eye</text>
+    <text x="996" y="1282" font-size="20" text-anchor="end" fill="#9CB0C8">Educational card · not a diagnosis</text>
+  </g>
+</svg>

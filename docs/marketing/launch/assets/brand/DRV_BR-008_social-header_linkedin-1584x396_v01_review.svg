@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1584" height="396" viewBox="0 0 1584 396" role="img" aria-labelledby="title desc">
+  <title id="title">Drivable social header for LinkedIn review</title>
+  <desc id="desc">Dark navy Drivable by Mechanic's Eye header with an evidence path motif and the line Evidence before certainty.</desc>
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#06111F"/><stop offset="1" stop-color="#12324A"/></linearGradient><linearGradient id="line" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#3BD6FF"/><stop offset="1" stop-color="#79E9FF" stop-opacity="0"/></linearGradient></defs>
+  <rect width="1584" height="396" fill="url(#bg)"/>
+  <path d="M0 316 C250 250 350 375 610 296 S1040 180 1584 260" fill="none" stroke="url(#line)" stroke-width="3" opacity=".7"/>
+  <circle cx="420" cy="329" r="8" fill="#FFD27D"/><circle cx="790" cy="253" r="8" fill="#3BD6FF"/><circle cx="1180" cy="217" r="8" fill="#79E9FF"/>
+  <g transform="translate(92 82)"><path d="M0 0h76c50 0 88 35 88 82s-38 82-88 82H0zm45 39v86h27c27 0 46-17 46-43s-19-43-46-43z" fill="#3BD6FF"/><circle cx="72" cy="82" r="10" fill="#06111F"/></g>
+  <text x="286" y="137" fill="#EDF5FF" font-family="Inter,Arial,sans-serif" font-size="62" font-weight="850">Drivable</text>
+  <text x="289" y="181" fill="#9CB0C8" font-family="Inter,Arial,sans-serif" font-size="20" font-weight="750" letter-spacing="4">BY MECHANIC'S EYE</text>
+  <text x="286" y="274" fill="#EDF5FF" font-family="Inter,Arial,sans-serif" font-size="43" font-weight="800">Evidence before certainty.</text>
+  <text x="947" y="316" fill="#B8C9DA" font-family="Inter,Arial,sans-serif" font-size="23">Organize what you know. Keep unknowns visible.</text>
+</svg>

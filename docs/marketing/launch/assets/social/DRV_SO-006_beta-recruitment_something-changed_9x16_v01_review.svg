@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920" role="img" aria-labelledby="title desc">
+  <title id="title">Something changed with the car — Drivable beta story card</title><desc id="desc">An informational Drivable beta card inviting people to learn about the product, with non-emergency and safety limitations.</desc>
+  <defs><linearGradient id="bg" x1="0" x2="1"><stop stop-color="#07111F"/><stop offset="1" stop-color="#143246"/></linearGradient></defs><rect width="1080" height="1920" fill="url(#bg)"/>
+  <g font-family="Inter,Arial,sans-serif">
+    <text x="84" y="190" fill="#EDF5FF" font-size="54" font-weight="850">Drivable</text><text x="86" y="240" fill="#9CB0C8" font-size="22" font-weight="750" letter-spacing="4">BY MECHANIC'S EYE</text>
+    <rect x="84" y="330" width="260" height="60" rx="30" fill="#143246" stroke="#3BD6FF"/><text x="214" y="370" text-anchor="middle" fill="#BCEFFF" font-size="24" font-weight="850" letter-spacing="2">CLOSED BETA</text>
+    <text x="84" y="600" fill="#EDF5FF" font-size="78" font-weight="850">Something changed</text><text x="84" y="700" fill="#EDF5FF" font-size="78" font-weight="850">with the car.</text><text x="84" y="800" fill="#79E9FF" font-size="78" font-weight="850">Start there.</text>
+    <text x="84" y="1000" fill="#9CB0C8" font-size="38">Learn how Drivable is being built to organize</text><text x="84" y="1055" fill="#9CB0C8" font-size="38">written symptoms, timing, uncertainty,</text><text x="84" y="1110" fill="#9CB0C8" font-size="38">and useful next questions.</text>
+    <rect x="84" y="1280" width="500" height="108" rx="24" fill="#3BD6FF"/><text x="334" y="1348" text-anchor="middle" fill="#04131E" font-size="28" font-weight="900" letter-spacing="1">LEARN ABOUT DRIVABLE</text>
+    <line x1="84" y1="1515" x2="996" y2="1515" stroke="#223854" stroke-width="3"/>
+    <text x="84" y="1585" fill="#9CB0C8" font-size="25">For non-emergency situations. Informational beta guidance—</text><text x="84" y="1625" fill="#9CB0C8" font-size="25">not a diagnosis, inspection, emergency service, or safety clearance.</text>
+    <text x="84" y="1780" fill="#9CB0C8" font-size="23">Official information: getdrivable.com</text>
+  </g>
+</svg>

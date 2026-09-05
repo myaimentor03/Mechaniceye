@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" role="img" aria-labelledby="title desc">
+  <title id="title">Record what happened before a vehicle change</title>
+  <desc id="desc">A Drivable educational card listing recent service, fuel or charging, weather or road events, and load changes as context rather than proof of a cause.</desc>
+  <rect width="1080" height="1350" fill="#F2F7FB"/>
+  <rect x="0" y="0" width="1080" height="326" fill="#12344A"/>
+  <g font-family="Inter,Arial,sans-serif">
+    <text x="84" y="92" font-size="29" font-weight="800" letter-spacing="2" fill="#79E9FF">WHAT CHANGED? · CARD 04</text>
+    <text x="84" y="205" font-size="69" font-weight="850" fill="#FFFFFF">What happened before?</text>
+    <text x="84" y="272" font-size="27" fill="#C7D7E6">Recent context can guide questions. It does not prove a cause.</text>
+    <g transform="translate(84 386)">
+      <rect width="912" height="138" rx="24" fill="#FFFFFF" stroke="#C8D7E5" stroke-width="3"/>
+      <circle cx="70" cy="69" r="34" fill="#DDF5FA"/><path d="M53 69 h34 M70 52 v34" stroke="#106B85" stroke-width="6" stroke-linecap="round"/>
+      <text x="132" y="58" font-size="28" font-weight="800" fill="#102033">Service or repair</text>
+      <text x="132" y="99" font-size="22" fill="#52677F">What work was done, when, and by whom?</text>
+    </g>
+    <g transform="translate(84 548)">
+      <rect width="912" height="138" rx="24" fill="#FFFFFF" stroke="#C8D7E5" stroke-width="3"/>
+      <circle cx="70" cy="69" r="34" fill="#FFF0C7"/><path d="M58 48 h22 v42 h-22 z M80 57 q16 0 16 15 v13" fill="none" stroke="#7A5515" stroke-width="5" stroke-linecap="round"/>
+      <text x="132" y="58" font-size="28" font-weight="800" fill="#102033">Fuel, charging, or battery event</text>
+      <text x="132" y="99" font-size="22" fill="#52677F">Note what changed without assigning blame.</text>
+    </g>
+    <g transform="translate(84 710)">
+      <rect width="912" height="138" rx="24" fill="#FFFFFF" stroke="#C8D7E5" stroke-width="3"/>
+      <circle cx="70" cy="69" r="34" fill="#DDF5FA"/><path d="M48 73 q10 -22 25 -9 q13 -22 29 5 M57 87 l-5 9 M75 87 l-5 9 M93 87 l-5 9" fill="none" stroke="#106B85" stroke-width="5" stroke-linecap="round"/>
+      <text x="132" y="58" font-size="28" font-weight="800" fill="#102033">Weather, road, or impact event</text>
+      <text x="132" y="99" font-size="22" fill="#52677F">Record the event and approximate timing if known.</text>
+    </g>
+    <g transform="translate(84 872)">
+      <rect width="912" height="138" rx="24" fill="#FFFFFF" stroke="#C8D7E5" stroke-width="3"/>
+      <circle cx="70" cy="69" r="34" fill="#FFF0C7"/><path d="M51 80 h38 l-7 -28 h-24 z" fill="none" stroke="#7A5515" stroke-width="5" stroke-linejoin="round"/>
+      <text x="132" y="58" font-size="28" font-weight="800" fill="#102033">Load, accessory, or routine change</text>
+      <text x="132" y="99" font-size="22" fill="#52677F">Passengers, cargo, towing, route, or long storage?</text>
+    </g>
+    <rect x="84" y="1048" width="912" height="88" rx="22" fill="#FFD27D"/>
+    <text x="540" y="1084" text-anchor="middle" font-size="24" font-weight="850" fill="#102033">SEQUENCE IS CONTEXT—not proof that one event caused another.</text>
+    <text x="540" y="1116" text-anchor="middle" font-size="20" fill="#102033">Use records when available; mark memory and unknowns honestly.</text>
+    <line x1="84" y1="1202" x2="996" y2="1202" stroke="#C8D7E5" stroke-width="2"/>
+    <text x="84" y="1282" font-size="38" font-weight="850" fill="#102033">drivable</text>
+    <text x="258" y="1282" font-size="21" fill="#52677F">by Mechanic's Eye</text>
+    <text x="996" y="1282" font-size="20" text-anchor="end" fill="#52677F">Educational card · not a diagnosis</text>
+  </g>
+</svg>

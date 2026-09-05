@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" role="img" aria-labelledby="title desc">
+  <title id="title">A seller claim is not an observed fact</title>
+  <desc id="desc">A ClearSale educational social card showing how the same listing field keeps its provenance.</desc>
+  <rect width="1080" height="1350" fill="#F7F9FB"/>
+  <g font-family="Inter,Arial,sans-serif" fill="#172334">
+    <text x="84" y="90" font-size="29" font-weight="800" letter-spacing="2" fill="#106B85">CLEARSALE · TRANSPARENCY 01</text>
+    <text x="84" y="208" font-size="72" font-weight="800">A claim is not a fact</text>
+    <text x="84" y="291" font-size="72" font-weight="800">because AI rewrote it.</text>
+    <text x="84" y="360" font-size="28" fill="#52677F">The source should stay attached to every statement.</text>
+    <g transform="translate(84 448)">
+      <rect width="912" height="125" rx="22" fill="#FFF4DD" stroke="#D9B35F" stroke-width="2"/>
+      <text x="38" y="43" font-size="22" font-weight="800" fill="#7A5411">SELLER STATED</text>
+      <text x="38" y="87" font-size="31" font-weight="750">“No accidents.”</text>
+      <text x="874" y="76" font-size="38" text-anchor="end" fill="#7A5411">CLAIM</text>
+    </g>
+    <path d="M540 594 v52" stroke="#52677F" stroke-width="4"/><path d="M528 635 l12 16 12-16" fill="none" stroke="#52677F" stroke-width="4"/>
+    <g transform="translate(84 670)">
+      <rect width="912" height="125" rx="22" fill="#EAF8FF" stroke="#76C8E3" stroke-width="2"/>
+      <text x="38" y="43" font-size="22" font-weight="800" fill="#176681">AI-GENERATED LISTING DRAFT</text>
+      <text x="38" y="87" font-size="31" font-weight="750">“Seller reports no accidents.”</text>
+      <text x="874" y="76" font-size="34" text-anchor="end" fill="#176681">STILL A CLAIM</text>
+    </g>
+    <path d="M540 816 v52" stroke="#52677F" stroke-width="4"/><path d="M528 857 l12 16 12-16" fill="none" stroke="#52677F" stroke-width="4"/>
+    <g transform="translate(84 892)">
+      <rect width="912" height="151" rx="22" fill="#FFFFFF" stroke="#C9D6E4" stroke-width="2"/>
+      <text x="38" y="43" font-size="22" font-weight="800" fill="#52677F">BUYER CHECK DISPLAY</text>
+      <text x="38" y="84" font-size="28" font-weight="750">Seller claim · verification unavailable</text>
+      <text x="38" y="119" font-size="22" fill="#52677F">Request history records and an independent inspection.</text>
+    </g>
+    <rect x="84" y="1092" width="912" height="92" rx="18" fill="#07111F"/>
+    <text x="540" y="1130" font-size="24" font-weight="800" text-anchor="middle" fill="#EDF5FF">REPETITION IS NOT VERIFICATION.</text>
+    <text x="540" y="1161" font-size="20" text-anchor="middle" fill="#9CB0C8">ClearSale is coming soon. This is a synthetic educational example.</text>
+    <text x="84" y="1283" font-size="38" font-weight="800">drivable</text>
+    <text x="258" y="1283" font-size="21" fill="#52677F">by Mechanic's Eye</text>
+    <text x="996" y="1283" font-size="20" text-anchor="end" fill="#52677F">Claims · observations · verification · unknowns</text>
+  </g>
+</svg>
