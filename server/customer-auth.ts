@@ -4,7 +4,7 @@ import type { Express, RequestHandler } from "express";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "./db";
-import { users } from "./shared/shared/schema";
+import { users } from "../shared/schema";
 import { createRateLimit, requestIp } from "./rate-limit";
 import { logEventError } from "./observability/safe-log";
 
