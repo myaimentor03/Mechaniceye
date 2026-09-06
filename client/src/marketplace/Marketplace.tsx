@@ -2,8 +2,8 @@ import { FormEvent, useState } from "react";
 import { NeedHelpPanel } from "../components/NeedHelpPanel";
 import { getFrontendRoutePath, navigateFrontend } from "../frontendRouting";
 
-const MARKETPLACE_SELLER_INTAKE_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/marketplace/seller-intake";
-const MARKETPLACE_BUYER_INTEREST_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/marketplace/buyer-interest";
+const MARKETPLACE_SELLER_INTAKE_ENDPOINT = "/api/marketplace/seller-intake";
+const MARKETPLACE_BUYER_INTEREST_ENDPOINT = "/api/marketplace/buyer-interest";
 
 type HeroProps = {
   eyebrow?: string;

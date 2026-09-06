@@ -1,8 +1,7 @@
 import { FormEvent, useState } from "react";
 import { NextActionStrip } from "./NextActionStrip";
 
-const BUYER_VEHICLE_KNOWLEDGE_ENDPOINT =
-  "https://mechaniceye-backend-v2.onrender.com/api/buyer-risk/vehicle-knowledge";
+const BUYER_VEHICLE_KNOWLEDGE_ENDPOINT = "/api/buyer-risk/vehicle-knowledge";
 
 const REVIEW_AREAS = [
   "Seller evidence checklist",

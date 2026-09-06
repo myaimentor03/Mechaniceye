@@ -21,6 +21,7 @@
     "test:origin-guard": "tsx --test server/origin-guard.test.ts",
     "test:routes-security": "tsx --test server/routes-security.test.ts",
     "test:safe-log": "tsx --test server/observability/safe-log.test.ts",
+    "test:webhook-fetch": "tsx --test server/webhook-fetch.test.ts",
     "test:registration-enum": "tsx --test server/registration-enumeration.test.ts",
     "test:review": "tsx --test server/review/release-gate.test.ts",
     "test:review-async": "tsx --test server/review/async-release-gate.test.ts",

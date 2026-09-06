@@ -45,6 +45,7 @@ import { IntakeConsentError, recordConsentRevocation, persistAndAuthorizeIntakeC
 import { requireAllowedOrigin } from "./origin-guard";
 import { logEvent, logEventError } from "./observability/safe-log";
 import { sslConfigForDatabaseUrl } from "./database-ssl";
+import { fetchWebhookWithTimeout } from "./webhook-fetch";
 
 // Configure multer for file uploads
 const uploadDir = path.join(process.cwd(), 'uploads');
@@ -479,7 +480,7 @@ async function deliverPublicCaseNotification(
   }
 
   try {
-    await fetch(webhookUrl, {
+    await fetchWebhookWithTimeout(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(packet)
@@ -501,7 +502,7 @@ async function deliverDiagnosisWebhook(
   }
 
   try {
-    await fetch(webhookUrl, {
+    await fetchWebhookWithTimeout(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -621,15 +622,11 @@ async function forwardMasterDiagnosisIntakeWebhook(
     return { webhookConfigured: false, webhookForwarded: false };
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000);
-
   try {
-    const response = await fetch(webhookUrl, {
+    const response = await fetchWebhookWithTimeout(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(buildMasterDiagnosisIntakePayload(diagnosisCase, input)),
-      signal: controller.signal
     });
 
     if (!response.ok) {
@@ -645,8 +642,6 @@ async function forwardMasterDiagnosisIntakeWebhook(
   } catch (error) {
     logEventError("webhook.master_intake_forward_failed", error, { diagnosisCaseId: diagnosisCase.id });
     return { webhookConfigured: true, webhookForwarded: false };
-  } finally {
-    clearTimeout(timeout);
   }
 }
 
@@ -1183,7 +1178,7 @@ async function deliverMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
   }
 
   try {
-    const response = await fetch(webhookUrl, {
+    const response = await fetchWebhookWithTimeout(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(packet)
@@ -1247,7 +1242,7 @@ async function deliverMarketplaceBuyerInterest(intake: MarketplaceBuyerInterest)
   }
 
   try {
-    const response = await fetch(webhookUrl, {
+    const response = await fetchWebhookWithTimeout(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(packet)
@@ -1311,7 +1306,7 @@ async function deliverInternalReview(input: InternalReviewInput) {
   }
 
   try {
-    const response = await fetch(webhookUrl, {
+    const response = await fetchWebhookWithTimeout(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(packet)
@@ -1388,7 +1383,7 @@ async function deliverMechanicMatchRequest(input: MechanicMatchRequest) {
   }
 
   try {
-    const response = await fetch(webhookUrl, {
+    const response = await fetchWebhookWithTimeout(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(packet)
@@ -1456,7 +1451,7 @@ async function deliverConciergeRequest(input: ConciergeRequest) {
   }
 
   try {
-    const response = await fetch(webhookUrl, {
+    const response = await fetchWebhookWithTimeout(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(packet)

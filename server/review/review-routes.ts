@@ -98,11 +98,18 @@ function reviewError(res: Response, error: unknown): void {
     res.status(503).json({ ok: false, code: error.code, error: "Durable review controls are not ready." }); return;
   }
   if (error instanceof ReviewWriteError) {
+    // Never echo `error.message`: its text may later wrap storage/DB internals.
+    // Only a fixed, code-mapped string reaches the reviewer.
+    const message = error.code === "invalid_state"
+      ? "The review state is invalid."
+      : error.code === "conflict"
+        ? "The review change conflicts with current review state."
+        : "Review state could not be persisted.";
     res.status(error.code === "storage_unavailable" ? 503 : error.code === "conflict" ? 409 : 422)
-      .json({ ok: false, code: error.code, error: error.message }); return;
+      .json({ ok: false, code: error.code, error: message }); return;
   }
   if (error instanceof ReviewReleaseReadError) {
-    res.status(503).json({ ok: false, code: error.code, error: error.message }); return;
+    res.status(503).json({ ok: false, code: error.code, error: "Review release state could not be verified." }); return;
   }
   if (error instanceof TypeError) {
     res.status(400).json({ ok: false, code: "INVALID_REVIEW_INPUT", error: error.message }); return;

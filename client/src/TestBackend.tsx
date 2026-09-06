@@ -37,7 +37,7 @@ import {
   navigateFrontend
 } from "./frontendRouting";
 
-const PUBLIC_API_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/diagnoses";
+const PUBLIC_API_ENDPOINT = "/api/diagnoses";
 const SUBMISSION_TIMEOUT_MS = 20000;
 const CATEGORIES = [
   "No start / hard start",
@@ -1305,13 +1305,7 @@ const [manualEngine, setManualEngine] = useState("");
       timing: timingSelections.length ? `${timingSelections.join(", ")}${otherTiming ? ` | Other: ${otherTiming}` : ""}` : otherTiming || ""
     };
 
-    const isLocalBrowser =
-      window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1";
-
-    const endpoints = [
-      isLocalBrowser ? "/api/diagnoses" : PUBLIC_API_ENDPOINT
-    ];
+    const endpoints = ["/api/diagnoses"];
 
     let lastError = "";
 

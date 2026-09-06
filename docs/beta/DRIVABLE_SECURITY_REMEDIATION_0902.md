@@ -10,7 +10,7 @@
 
 ## Summary
 
-This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_0902.md`. All required P0/P1 fixes are implemented, regression-tested, and green. An additional adversarial audit pass over the full public surface produced two further small hardening fixes (bounded validation error responses and a public read rate limit) plus one P2 gap closed (consent revocation intake). `npm run check`, `npm run build`, and the complete security/auth/storage/review/consent/observability test suite pass.
+This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_0902.md`. All required P0/P1 fixes are implemented, regression-tested, and green. An additional adversarial audit pass over the full public surface produced two further small hardening fixes (bounded validation error responses and a public read rate limit) plus one P2 gap closed (consent revocation intake). A second adversarial session (0906) closed three more gaps: bounded webhook delivery timeouts across every outbound webhook, code-mapped (never raw-message) review error serialization, and same-origin API calls in the production client (removing hard-coded cross-origin coupling to a second Render host). `npm run check`, `npm run build`, and the complete security/auth/storage/review/consent/observability test suite pass.
 
 ---
 
@@ -80,6 +80,15 @@ This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_
 - **Centralized global origin enforcement:** extracted the index-level state-change origin check into `enforceOriginForStateChanging` so the global behavior is unit-tested and cannot drift from the route-level guard. *(`server/origin-guard.ts`, `server/index.ts`)*
 - **Explicit DB TLS posture:** added `server/database-ssl.ts` (`sslConfigForDatabaseUrl`) with `DRIVABLE_DATABASE_SSL_MODE=verify-full` (recommended for production), `disable` escape hatch, and the historical managed-host default; removes the blanket `rejectUnauthorized: false` hard-coding in `server/db.ts` and the buyer-knowledge reader client. *(P2 hardening from audit item 8)*
 
+### Second adversarial session (0906) — inbound to the go-live surface
+
+- **Bounded webhook delivery (all outbound):** only `forwardMasterDiagnosisIntakeWebhook` had a 5 s abort; the other seven outbound webhook deliveries (`deliverPublicCaseNotification`, `deliverDiagnosisWebhook`, `deliverMarketplaceSellerIntake`, `deliverMarketplaceBuyerInterest`, `deliverInternalReview`, `deliverMechanicMatchRequest`, `deliverConciergeRequest`) used unbounded `fetch`. A stalled or misconfigured `*_WEBHOOK_URL` could hold a request/socket open indefinitely. Added `server/webhook-fetch.ts` (`fetchWebhookWithTimeout`, combining any caller signal with `AbortSignal.timeout(5000)`) and wired it into all eight call sites; the manual `AbortController` in the master-intake forwarder was replaced by the same helper.
+  **Regression coverage:** `server/webhook-fetch.test.ts` (4 tests) — responding endpoint returns the body, non-2xx statuses are returned without throwing, a stalled endpoint aborts within the timeout, and a caller-provided abort signal also terminates an in-flight request. (`package.json` → `test:webhook-fetch`)
+- **Review error serialization never echoes `error.message`:** `reviewError` in `server/review/review-routes.ts` previously placed `error.message` into responses for `ReviewWriteError` and `ReviewReleaseReadError`. Today those messages are fixed internal strings, but the pattern would leak storage/DB internals if a wrapped message ever carried them. The handler now maps codes to fixed strings (`invalid_state`/`conflict`/`storage_unavailable`/`review_release_read_failed`) and only the code + fixed text reaches the reviewer.
+  **Regression coverage:** `server/review/review-routes.test.ts` — a `ReviewWriteError` whose message contains a fake connection string is serialized to the fixed "Review state could not be persisted." with no secret in the response body.
+- **Production client switched to same-origin API calls:** `client/src/marketplace/Marketplace.tsx`, `client/src/components/BuyerCheckPreview.tsx`, and `client/src/TestBackend.tsx` hard-coded absolute cross-origin endpoints to a second host (`https://mechaniceye-backend-v2.onrender.com`) for seller intake, buyer interest, buyer vehicle knowledge, and diagnosis submission. These coupled public forms to an un-allowlisted host, would fail closed with a 403 if the page origin ever differed from the allowlist, and were a stale-domain risk. The Express server serves both the SPA (`dist/client`) and every `/api/*` route from one origin, so all client fetches now use same-origin relative paths.
+  **Verification:** `npm run check` and `npm run build` (client bundle + server bundle) pass with the changes.
+
 ---
 
 ## Verification
@@ -110,7 +119,8 @@ This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_
 | `test:review-postgres` | PASS (3) | Postgres review reader durability contract |
 | `test:review-writer` | PASS (4) | Postgres review writer contract, error isolation |
 | `test:review-adapter` | PASS (3) | Postgres adapter contract |
-| `test:review-routes` | PASS (2) | Reviewer-gated wiring; ignores client identity |
+| `test:review-routes` | PASS (3) | Reviewer-gated wiring; ignores client identity; review failures never echo storage internals |
+| `test:webhook-fetch` | PASS (4) | Bounded webhook delivery: respond, non-2xx, stalled endpoint aborts, caller signal honored |
 | `test:media-contract` | PASS (7) | Traversal-resistant keys, server-generated keys, verified bytes, idempotent puts, private access, durability gate |
 | `test:delivery` | PASS (8) | Idempotent enqueue, fenced leases, bounded retries → DLQ, fixed metadata |
 
@@ -129,12 +139,13 @@ This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_
 - **Body/file limits:** `express.json()` default 100 kB; photo 12 MB × up to 4 files; follow-up audio/video 50 MB with strict MIME filter; trust-proxy configuration moved to headers from Render.
 - **Duplicate submission/idempotency:** DB insert uses `ON CONFLICT DO NOTHING` on generated case IDs; evidence puts are idempotent; review/consent events append with case-bound uniqueness.
 - **DB error handling:** no raw DB error text reaches a client or log; `public-case-db.ts` strips `DATABASE_URL`/password from internal messages and those strings never reach responses.
-- **Webhooks:** timeouts bounded (5 s), failures logged safely, no secrets/logging of payload PII.
+- **Webhooks:** every outbound webhook delivery is bounded by a 5 s hard timeout (`fetchWebhookWithTimeout`), failures logged safely, no secrets/logging of payload PII.
 - **Logging/observability:** every request-path log goes through the privacy layer; the only raw `console.log` is the startup banner (port only).
 - **Path traversal:** case/attachment/filename segments validated against `[a-zA-Z0-9._-]` or basename-normalized; covered by contract tests.
 - **Header injection/CSP:** no user-controlled header values are emitted; `Content-Disposition` uses server-generated attachment IDs.
 - **Open redirects:** none found on any route.
-- **Secrets/wildcard config/stale domains:** no secrets in code/docs/tests; no wildcard CORS; production origin in allowlist is `mechaniceye.onrender.com` (matches deployed host); local dev origins only in non-production development.
+- **Secrets/wildcard config/stale domains:** no secrets in code/docs/tests; no wildcard CORS; production origin in allowlist is `mechaniceye.onrender.com`; the client makes only same-origin `/api/*` calls, so no hard-coded secondary API host remains; local dev origins only in non-production development.
+- **Client-supplied identity/role/payment/review state:** not trusted — diagnosis ownership is overridden with the authenticated session email (`applyAuthenticatedCaseIdentity`), review identity is derived from the reviewer credential, payment entitlement is hardcoded `false` until provider verification, and release is fail-closed.
 
 ---
 
@@ -151,7 +162,7 @@ This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_
 
 ## Release Verdict
 
-**CONDITIONAL GO** for the invite-only, controlled beta — the two P0 items are fixed, all P1 items are fixed, every regression suite passes, and the fail-closed design is preserved.
+**CONDITIONAL GO** for the invite-only, controlled beta — the two P0 items are fixed, all P1 items are fixed, every regression suite passes, webhook delivery is time-bounded, review errors never echo internal messages, the client is same-origin only, and the fail-closed design is preserved.
 
 Conditions before go-live (unchanged from the audit):
 - Configure unique random `DRIVABLE_REVIEWER_TOKEN`, `DRIVABLE_SESSION_SECRET`, `DRIVABLE_BETA_INVITE_CODE`, approved consent/terms/privacy versions, and a durable `DATABASE_URL`.
