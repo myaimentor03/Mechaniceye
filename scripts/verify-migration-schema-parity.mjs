@@ -8,8 +8,9 @@
  *   2. Every named index in schema.ts has a matching CREATE [UNIQUE] INDEX in
  *      the SQL set.
  *   3. Every CREATE TABLE in the SQL set is either in schema.ts or known as a
- *      launch-control/manual table (0001 consent/review + 0003 hardening adds
- *      no tables, only constraints/indexes).
+ *      launch-control/manual table (0001 consent/review + 0004 optional
+ *      delivery outbox; 0003 hardening adds no tables, only
+ *      constraints/indexes).
  *   4. No SQL table is missing its CREATE INDEX IF NOT EXISTS for the
  *      schema-declared indexes.
  *
@@ -98,6 +99,14 @@ const EXPECTED_LAUNCH_CONTROL_TABLES = Object.freeze([
   "drivable_review_case_heads",
 ]);
 
+// Optional manual tables that live outside shared/schema.ts but ARE committed
+// migrations (unlike the ephemeral seed tables). schema.ts stays the source of
+// truth for wired runtime tables; the outbox is advisory until a durable
+// outbox implementation is wired.
+const EXPECTED_OPTIONAL_MANUAL_TABLES = Object.freeze([
+  "drivable_delivery_outbox",
+]);
+
 for (const table of tableNames) {
   if (sqlTables.has(table)) {
     ok(`table ${table}`, "present in migrations");
@@ -107,7 +116,11 @@ for (const table of tableNames) {
 }
 
 for (const table of sqlTables.keys()) {
-  if (tableNames.includes(table) || EXPECTED_LAUNCH_CONTROL_TABLES.includes(table)) {
+  if (
+    tableNames.includes(table) ||
+    EXPECTED_LAUNCH_CONTROL_TABLES.includes(table) ||
+    EXPECTED_OPTIONAL_MANUAL_TABLES.includes(table)
+  ) {
     continue;
   }
   fail(`table ${table}`, "not declared in shared/schema.ts (unknown extra table)");
@@ -131,10 +144,12 @@ for (const constraint of uniqueIndexNames) {
 }
 
 const sqlTablesMissing = [...sqlTables.keys()].filter(
-  (table) => !tableNames.includes(table) && !EXPECTED_LAUNCH_CONTROL_TABLES.includes(table),
+  (table) => !tableNames.includes(table) &&
+    !EXPECTED_LAUNCH_CONTROL_TABLES.includes(table) &&
+    !EXPECTED_OPTIONAL_MANUAL_TABLES.includes(table),
 );
 if (sqlTablesMissing.length === 0) {
-  ok("no unknown tables", "all SQL tables are schema-declared or launch-control");
+  ok("no unknown tables", "all SQL tables are schema-declared, launch-control, or documented optional");
 }
 
 if (failures.length) {

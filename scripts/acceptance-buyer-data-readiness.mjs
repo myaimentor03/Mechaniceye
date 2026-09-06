@@ -128,6 +128,13 @@ async function main() {
       report(triggers.has(trigger), `launch-control trigger ${trigger}`);
     }
 
+    const OPTIONAL_TABLES = Object.freeze([
+      "drivable_delivery_outbox",
+    ]);
+    for (const table of OPTIONAL_TABLES) {
+      console.log(`${tables.has(table) ? "INFO" : "INFO"}  optional (not yet required) table ${table}${tables.has(table) ? " — present" : " — absent (planned, not wired)"}`);
+    }
+
     let seedTotal = 0;
     for (const [table, expected] of Object.entries(EXPECTED_SEED_COUNTS)) {
       const { rows } = await pool.query(`select count(*)::int as n from ${table}`);
@@ -148,7 +155,7 @@ async function main() {
     );
 
     const focusPack = await pool.query(
-      `select pack_id, vehicle_year, vehicle_make, vehicle_model, json_array_length(raw) is not null as has_raw
+      `select pack_id, vehicle_year, vehicle_make, vehicle_model, raw is not null as has_raw
          from drivable_vehicle_knowledge_packs
         where vehicle_year = 2014 and lower(vehicle_make) = lower('Ford') and lower(vehicle_model) = lower('Focus')`,
     );

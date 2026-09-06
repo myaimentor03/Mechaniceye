@@ -1,3 +1,37 @@
+import { eq } from "drizzle-orm";
+import { getDb } from "./db";
+import { diagnoses } from "./shared/shared/schema";
+
+type DiagnosisRow = typeof diagnoses.$inferSelect;
+
+export function mapDiagnosisRowToRecord(row: DiagnosisRow): DiagnosisRecord {
+  const createdAt =
+    row.createdAt instanceof Date
+      ? row.createdAt.toISOString()
+      : typeof row.createdAt === "string"
+        ? row.createdAt
+        : new Date().toISOString();
+
+  return {
+    id: row.id,
+    userId: row.userId ?? undefined,
+    vehicleInfo: row.vehicleInfo ?? undefined,
+    description: row.description ?? undefined,
+    timing: row.timing ?? undefined,
+    audioFile: row.audioFile ?? null,
+    videoFile: row.videoFile ?? null,
+    vibrationData: row.vibrationData ?? null,
+    confidenceScore: row.confidenceScore ?? 0,
+    confidenceLevel: row.confidenceLevel ?? "low",
+    inputTypes: Array.isArray(row.inputTypes) ? row.inputTypes : [],
+    iterationCount: row.iterationCount ?? 1,
+    primaryDiagnosis: (row.primaryDiagnosis as DiagnosisRecord["primaryDiagnosis"]) ?? null,
+    alternativeScenarios: (row.alternativeScenarios as DiagnosisRecord["alternativeScenarios"]) ?? [],
+    status: row.isResolved === true ? "resolved" : "received",
+    createdAt,
+  };
+}
+
 type DiagnosisRecord = {
   id: string;
   userId?: string;
@@ -50,8 +84,22 @@ class LocalStorage {
     { id: "mechanic-1", name: "Mechanic Queue", active: true, rating: 5 }
   ];
 
+  private async dbDiagnoses(): Promise<DiagnosisRecord[]> {
+    try {
+      const rows = await getDb().select().from(diagnoses).limit(500);
+      return rows.map(mapDiagnosisRowToRecord);
+    } catch {
+      return [];
+    }
+  }
+
   async getRecentDiagnoses(limit: number) {
-    return Array.from(this.diagnoses.values())
+    const local = Array.from(this.diagnoses.values());
+    const remote = await this.dbDiagnoses();
+    const merged = new Map<string, DiagnosisRecord>();
+    for (const record of remote) merged.set(record.id, record);
+    for (const record of local) merged.set(record.id, record);
+    return Array.from(merged.values())
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
       .slice(0, limit);
   }
@@ -109,11 +157,24 @@ class LocalStorage {
   }
 
   async getDiagnosesByUser() {
-    return Array.from(this.diagnoses.values());
+    const local = Array.from(this.diagnoses.values());
+    const remote = await this.dbDiagnoses();
+    const merged = new Map<string, DiagnosisRecord>();
+    for (const record of remote) merged.set(record.id, record);
+    for (const record of local) merged.set(record.id, record);
+    return Array.from(merged.values())
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   }
 
   async getDiagnosis(id: string) {
-    return this.diagnoses.get(id) || null;
+    const local = this.diagnoses.get(id);
+    if (local) return local;
+    try {
+      const rows = await getDb().select().from(diagnoses).where(eq(diagnoses.id, id)).limit(1);
+      return rows.length > 0 ? mapDiagnosisRowToRecord(rows[0]) : null;
+    } catch {
+      return null;
+    }
   }
 
   async createDiagnosis(data: Partial<DiagnosisRecord>) {

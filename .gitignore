@@ -8,3 +8,5 @@ vite.config.ts.*
 data/nhtsa/vehicle-knowledge-packs/*.json
 # Local scratch/output from preflight and dry-run import scripts (never committed)
 tmp/
+# Session task instructions (worktree-only, never committed)
+MARATHON_TASK.txt

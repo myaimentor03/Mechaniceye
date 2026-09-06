@@ -224,6 +224,7 @@ console.log(`SQL preview written to ${outFile}`);
 if (!apply) {
   console.log("DRY RUN ONLY - no database connection made and no SQL executed.");
   console.log("To apply later, run this script with --apply after db schema has been pushed and DATABASE_URL is confirmed.");
+  console.log("Apply additionally requires every manifest dataset importAllowedNow: true (docs/seed-data/seed_import_manifest_v1.json) or an explicit DRIVABLE_ALLOW_SEED_IMPORT=1.");
   process.exit(0);
 }
 
@@ -241,6 +242,39 @@ if (guard.markers?.length) {
   console.log(`Target blocked markers: ${guard.markers.join(", ")}`);
 }
 console.log(`Confirmed target: ${safeTargetDescription(databaseUrl)}`);
+
+const manifestPath = path.join(root, "docs", "seed-data", "seed_import_manifest_v1.json");
+const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+if (!Array.isArray(manifest)) {
+  throw new Error("seed_import_manifest_v1.json must be a non-empty array of datasets");
+}
+const manifestByDataset = new Map(
+  manifest.map((entry) => [entry.datasetName, entry.importAllowedNow === true]),
+);
+const blockedDatasets = datasets
+  .map((dataset) => ({ name: dataset.name, allowed: manifestByDataset.get(dataset.name) ?? false }))
+  .filter((dataset) => !dataset.allowed)
+  .map((dataset) => dataset.name);
+
+const allowOverridden = process.env.DRIVABLE_ALLOW_SEED_IMPORT === "1";
+if (blockedDatasets.length > 0 && !allowOverridden) {
+  console.error(
+    `Seed import apply refused: each dataset must set importAllowedNow: true before it is imported.`,
+  );
+  console.error(`Blocked dataset(s): ${blockedDatasets.join(", ")}`);
+  console.error(
+    "The manifest (docs/seed-data/seed_import_manifest_v1.json) deliberately keeps every dataset",
+    "at importAllowedNow: false for launch. To apply anyway, confirm the target and set",
+    "DRIVABLE_ALLOW_SEED_IMPORT=1.",
+  );
+  console.error("Dry runs are always allowed and were not affected.");
+  process.exit(1);
+}
+if (blockedDatasets.length > 0 && allowOverridden) {
+  console.log(
+    `WARNING: applying seed data with DRIVABLE_ALLOW_SEED_IMPORT=1 despite manifest importAllowedNow=false for: ${blockedDatasets.join(", ")}`,
+  );
+}
 
 const { Client } = pg;
 const client = new Client({

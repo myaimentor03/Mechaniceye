@@ -5,7 +5,8 @@
  * Nothing here connects to a database, mutates anything, or applies a
  * migration. It covers: seed validation, migration/schema parity, NHTSA batch
  * inventory, drizzle config inspection, typecheck, production build, and the
- * seed-import dry run (which only writes tmp/drivable-seed-import.sql).
+*  seed-import dry run (which only writes tmp/drivable-seed-import.sql), and
+ *  the production storage guard (static no-in-memory-fake binding check).
  *
  * Usage:  node scripts/run-safe-preflight.mjs
  */
@@ -37,6 +38,7 @@ const stages = [
   ["drizzle config inspection", "node scripts/inspect-db-config.mjs"],
   ["typecheck (tsc)", "npm run check"],
   ["production build (vite + esbuild)", "npm run build"],
+  ["production storage guard (no in-memory fakes wired)", "node scripts/verify-production-storage-guards.mjs"],
   ["seed-import dry run (SQL preview only)", "npm run import:seed-data"],
 ];
 

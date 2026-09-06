@@ -21,12 +21,28 @@ is safe by construction:
 
 | Area | Artifacts | Applied/live? |
 | --- | --- | --- |
-| Migrations | `migrations/0001_drivable_launch_controls.sql`, `0002_drivable_core_schema.sql`, `0003_drivable_data_integrity_hardening.sql` | **Not applied** in this worktree. Addressed during prod setup. |
+| Migrations | `migrations/0001_drivable_launch_controls.sql`, `0002_drivable_core_schema.sql`, `0003_drivable_data_integrity_hardening.sql`, `0004_drivable_delivery_outbox.sql` | **Not applied** in this worktree. Addressed during prod setup. |
 | Schema sync | `server/shared/shared/schema.ts` now byte-identical to `shared/schema.ts`; `server/shared/shared/schema.js` regenerated (17 tables, 18 insert schemas) | In-tree, typechecked, tests green. |
 | Safety helper | `scripts/lib/db-target-safe.mjs` | Used by all connect scripts. |
 | Scripts | `import-seed-data-to-db.mjs`, `create-seed-tables-only.mjs`, `verify-seed-table-counts.mjs`, `count-vehicle-knowledge-packs.mjs`, `verify-vehicle-knowledge-packs.mjs`, `create-missing-tier2-nhtsa-batch.cjs`, `inventory-nhtsa-batch-lists.mjs`, `acceptance-buyer-data-readiness.mjs` | Preflight/import/verification. Refuse remote targets without the gate. |
 | Seed data | `docs/seed-data/` (8 datasets, 270 rows) | Validated; imported only via `--apply`. |
 | NHTSA packs | `data/nhtsa/vehicle-knowledge-packs/*.json` (230 packs) | **Gitignored**, generated locally, never applied without `--apply`. |
+
+---
+
+## 1.1 Environment requirements
+
+| Variable | Required | Purpose | Notes |
+| --- | --- | --- | --- |
+| `DATABASE_URL` | YES (apply steps) | PostgreSQL connection string for the reviewed target | Never echoed by any script; always shown redacted as `safeTargetDescription(...)`. |
+| `DRIVABLE_CONFIRM_AUTHENTICATED_TARGET` | YES (non-local target) | Set to `1` to allow any mutating script against a remote/hosted DB | Required for `render.com`, `neon.tech`, `supabase`, `railway`, `amazonaws`, `fly.io`, `azure`, `herokuapp`, `vercel.com` and any non-localhost host. |
+| `DRIVABLE_ALLOW_SEED_IMPORT` | Conditional | Set to `1` to import seed data while `seed_import_manifest_v1.json` still carries `importAllowedNow: false` | The manifest deliberately keeps every dataset blocked for launch; this is the explicit override. |
+| `DRIVABLE_LAUNCH_CONTROLS_ENABLED` | Optional | `true` to require the consent/review runtime (Postgres tables + triggers verified at startup) | Server runtime, not an import step. |
+| `DRIVABLE_PHOTO_UPLOAD_ENABLED` | Conditional | Must be `"true"` AND evidence backend `private_object_storage` before photo uploads are accepted | Server runtime; without it the intake returns 409 for photos. |
+| `DRIVABLE_EVIDENCE_S3_BUCKET` / `DRIVABLE_EVIDENCE_S3_REGION` | Conditional | Select the S3-compatible evidence store (`private_object_storage`) | Without these, evidence falls back to `runtime_local`. |
+| `PORT` | Optional | Server port (default 5000) | Server runtime. |
+
+Environment requirements table for the migration/import sequence only involves `DATABASE_URL` plus the two `DRIVABLE_CONFIRM_*` / `DRIVABLE_ALLOW_*` gates. The server runtime variables are listed so operators understand which features they are enabling.
 
 ---
 
@@ -45,6 +61,8 @@ npm run validate:seed-data          # 8 datasets, 270 rows, unique PKs, required
 npm run inspect:db-config           # confirm both drizzle configs resolve schema + out dir
 npm run verify:migration-parity     # static: migrations match shared/schema.ts (no DB, no network)
 node scripts/inventory-nhtsa-batch-lists.mjs   # read-only: 230 distinct vehicles, no dupes/malformed
+node scripts/verify-production-storage-guards.mjs # static: no in-memory fake reachable from production
+node scripts/acceptance-buyer-data-readiness.mjs  # no-target dry run (exits 2), never connects
 npm run import:seed-data            # seed-import dry run (SQL preview only, exit 0)
 npm run check                       # typecheck
 npm run build                       # production build
@@ -127,6 +145,14 @@ append-only/transition guards. It is the schema that
 `server/launch-readiness.ts` and `server/review/postgres-adapter.ts`
 (`REQUIRED_TABLES` / `REQUIRED_TRIGGERS`) verify at startup.
 
+### 3.4 `0004_drivable_delivery_outbox.sql` — optional, deferred
+
+Creates `drivable_delivery_outbox` (idempotent) for a future durable delivery
+outbox. **No runtime code reads or writes it yet** (current deliveries are
+direct fire-and-forget webhook fetches, §7). Apply it only when a durable
+outbox implementation is wired in; the acceptance script treats it as an
+optional/informational table.
+
 ---
 
 ## 4. Seed data import
@@ -206,6 +232,28 @@ Check example:
 `node scripts/verify-vehicle-knowledge-packs.mjs`, or the full acceptance
 probe in §6.
 
+### 5.4 Exact tier-1 distribution (source of truth)
+
+Actual `tier1-marketplace-vehicles.csv` (30 rows, verified against the batch
+list, **not** the audit's prose table):
+
+| Make | Models | Rows | Packs |
+| --- | --- | --- | --- |
+| Ford | Focus(4), F-150(1), Edge(1), Escape(1), Fusion(2) | 9 | 9 |
+| Chevrolet | Silverado(2), Cruze(3), Malibu(2) | 7 | 7 |
+| Nissan | Altima(3) | 3 | 3 |
+| Hyundai | Tiburon(1), Elantra(2) | 3 | 3 |
+| Toyota | Prius(3) | 3 | 3 |
+| Kia | Optima(2) | 2 | 2 |
+| Honda | Civic(2) | 2 | 2 |
+| Subaru | Outback(1) | 1 | 1 |
+| **Total** | | **30** | **30** |
+
+The audit memo's "Ford 10 / Chevrolet 6" prose was inaccurate (archived source
+audit: `docs/beta/DRIVABLE_PRODUCTION_DATA_READINESS_0902.md`); the CSV rows
+are authoritative (30 total either way). Tier-2 covers 215, tier-2-missing 21,
+grand-cherokee-repair 7; the cross-file distinct set is 230 packs.
+
 ---
 
 ## 6. Acceptance verification (read-only)
@@ -225,7 +273,9 @@ Checks (each exits non-zero on failure):
 - vehicle-knowledge-pack count (`--strict-packs` floor, default 30);
 - Buyer Check sample: the 2014 Ford Focus pack exists;
 - `drivable_seed_buyer_risk_flags` risk-level distribution and a high/critical
-  sample.
+  sample;
+- optional `drivable_delivery_outbox` reported as INFO (present or absent —
+  never a failure, it is not wired yet).
 
 With no `DATABASE_URL`, it prints the (redacted) "no target" line and exits 2
 — it never connects, mutates, or hangs.
@@ -242,21 +292,41 @@ Also available (read-only):
 
 Documented so operators set expectations correctly, not to hide anything:
 
-- **Diagnoses are durable in Postgres; the rich in-memory read model is not.**
-  `GET /api/diagnoses/:id` reads `LocalStorage` maps in
-  `server/storage.ts`, which are in-memory and lost on restart. Only the
-  launch-controlled public-case insert (`insertPublicDiagnosisCaseToDb`) writes
-  `diagnoses` rows to Postgres, idempotently (`ON CONFLICT ... DO NOTHING` →
-  `alread_exists`), and it returns `ok:false` (never throws to the caller) on a
-  database failure, redacting any credentials from the surfaced error.
+- **Diagnoses are durable in Postgres; the in-memory read model is a bridge.**
+  `GET /api/diagnoses/:id` / `/api/diagnoses/recent` / `/api/diagnoses` first
+  consult the in-memory `LocalStorage` maps in `server/storage.ts` and, on a
+  miss, fall back to the Postgres `diagnoses` table (best-effort, fails open to
+  in-memory only when `DATABASE_URL` is absent). Public-case rows written by
+  `insertPublicDiagnosisCaseToDb` are therefore visible to the reviewer routes
+  across restarts. The in-memory maps are still process-local for review
+  state, consultations, and follow-up-created diagnosis records.
+- **DB failure is never reported as success.** The launch-controlled public
+  path returns 503 with `persisted:false` when the `diagnoses` insert fails
+  and deletes persisted photo evidence. The Windows-only local-case-store
+  fallback now returns **202 Accepted** with `persisted:false`,
+  `databaseMirror:"unavailable"`, an explicit message, and **no webhooks** when
+  the database mirror write fails (webhooks previously fired regardless and a
+  200 was returned). `insertPublicDiagnosisCaseToDb` returns `{ok:false}`
+  (never throws to the caller) on a database failure and redacts credentials
+  from the surfaced error.
+- **Consent precedes the case row (audit trail).** In the launch-controlled
+  path the consent event is appended before the `diagnoses` insert. If the
+  insert then fails, the consent event intentionally remains as an intake
+  attempt record; retries create their own events. This is recorded rather
+  than auto-revoked to preserve the audit trail.
 - **Launch readiness gates on durable evidence.** `server/launch-readiness.ts`
   only reports ready when `evidenceStore.durability ===
   'private_object_storage'`, and `server/review/postgres-adapter.ts`'s
   `verifyLaunchControlSchema` requires the 6 tables + 6 triggers to exist.
-- **Webhook/delivery fire-and-miss risk.** Public-case notification and
-  diagnosis webhook deliveries are fire-and-forget with `console.error` only;
-  there is no durable outbox table. Out-of-band retry/durability is out of
-  scope for this data-readiness change.
+- **Delivery outbox is provisioned, not wired.** `migrations/0004_drivable_delivery_outbox.sql`
+  creates `drivable_delivery_outbox` (idempotent, optional) but no runtime code
+  reads or writes it yet. Current webhook/diagnosis deliveries are direct,
+  fire-and-forget `fetch` calls with `console.error` only. The static
+  production-storage guard
+  (`node scripts/verify-production-storage-guards.mjs`) proves no production
+  module imports an in-memory test double, and the contract-level guards
+  (`assertDurableDeliveryOutbox`, `assertDurableScalablePrivateStorage`,
+  `assertDurableReviewRepository`) are enforced by the contract tests.
 - **Schema drift fixed.** The runtime schema copy
   (`server/shared/shared/schema.ts`) is now byte-identical to the canonical
   `shared/schema.ts`, and `server/shared/shared/schema.js` was regenerated so
@@ -265,11 +335,73 @@ Documented so operators set expectations correctly, not to hide anything:
 
 ---
 
-## 8. Rollback / non-goals
+## 8. Rollback / non-goals / owner approvals
 
 - No destructive SQL exists in this branch. To undo an applied migration, use
   standard Postgres `DROP` of the specific tables/indexes — none of this
   branch auto-drops anything.
 - `db:push` (Drizzle) is **not** part of the safe path; prefer the checked-in
-  `0001`/`0002`/`0003` SQL so changes are reviewable and versioned.
+  `0001`/`0002`/`0003`/`0004` SQL so changes are reviewable and versioned.
 - Nothing here commits secrets, echoes `DATABASE_URL`, or stores credentials.
+
+### 8.1 Backup expectations before any apply step
+
+- Take a full logical snapshot of the target **before** running any migration
+  or `--apply` import, and record its restore procedure in your run notes:
+  `pg_dump "$DATABASE_URL" --no-owner --no-privileges > backup_$(date +%Y%m%d_%H%M%S).sql`
+  (or the managed provider's snapshot tool). Verify the dump is non-empty and
+  restorable to a scratch database before touching the target.
+- Verify the target is the reviewed, named database: run
+  `node scripts/acceptance-buyer-data-readiness.mjs` first (read-only; exits 2
+  with no target, 1 on any failed check) and `node scripts/inspect-db-config.mjs`
+  (never connects). Never trust a `DATABASE_URL` you did not paste yourself
+  from the provisioning console.
+- All imports are idempotent upserts (`ON CONFLICT ... DO UPDATE` / `DO NOTHING`),
+  so a failed or partial apply can be re-run safely after the underlying cause
+  is fixed. Rollback of applied seed rows is `TRUNCATE` of the 8
+  `drivable_seed_*` tables; NHTSA packs roll back with
+  `DELETE FROM drivable_vehicle_knowledge_packs WHERE source = 'NHTSA'`.
+- No down-migrations exist. Schema rollback is manual `DROP TABLE` (see the
+  archived source audit `docs/beta/DRIVABLE_PRODUCTION_DATA_READINESS_0902.md`
+  §8 for the safe drop order).
+
+### 8.2 Owner approvals required before applying
+
+Record explicit owner sign-off (name + date) next to each item before running
+the corresponding step:
+
+1. Provisioned PostgreSQL target identified and `DATABASE_URL` pasted from the
+   provisioning console (never from chat logs) — **approves §3.1.**
+2. Review of `migrations/0003_drivable_data_integrity_hardening.sql`
+   (`NOT VALID` FK assumptions: all writes carry a real registered `users.id`);
+   **approves §3.2** (optional hardening).
+3. Review of the seed manifest
+   `docs/seed-data/seed_import_manifest_v1.json` and decision to flip the 8
+   datasets to `importAllowedNow: true` **or** set
+   `DRIVABLE_ALLOW_SEED_IMPORT=1` — **approves §4.**
+4. NHTSA `--apply` target confirmation (packs are regenerable from the public
+   NHTSA API; applying them to the wrong DB is harmless but noisy) — **approves §5.3.**
+5. `DRIVABLE_CONFIRM_AUTHENTICATED_TARGET=1` for every non-localhost host —
+   required by every mutating script; never export it globally.
+
+### 8.3 Commands never to run blindly
+
+- `npm run db:push` — Drizzle schema diffing against a live target; guarded by
+  `scripts/db-push-guarded.mjs`, which requires an explicit authenticated
+  target confirmation and prints the redacted target first. Read the guard's
+  output before re-running with `DRIVABLE_CONFIRM_AUTHENTICATED_TARGET=1`.
+- `npm run import:seed-data -- --apply` — refuses to run while any manifest
+  dataset is `importAllowedNow: false` unless `DRIVABLE_ALLOW_SEED_IMPORT=1`.
+- `npm run nhtsa:batch -- --apply` / `npm run nhtsa:pack -- ... --apply` —
+  writes `drivable_vehicle_knowledge_packs`; requires the authenticated-target
+  gate.
+- `npm run create:seed-tables` — raw `CREATE TABLE IF NOT EXISTS`; safe to
+  re-run but only intended for fresh targets (see §4).
+- `node scripts/create-missing-tier2-nhtsa-batch.cjs` — writes a CSV from a
+  read-only DB probe; it requires and connects to `DATABASE_URL`. Confirm the
+  target first.
+- Any `psql "$DATABASE_URL" -f migrations/...` invoke is a schema-changing
+  migration; run with `ON_ERROR_STOP=1` and a fresh backup per §8.1.
+- Nothing in this branch should ever be pointed at a database whose contents
+  you cannot afford to lose. Prefer a fresh staging database for the first
+  migration + import rehearsal.
