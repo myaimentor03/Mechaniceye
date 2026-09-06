@@ -25,7 +25,14 @@ export function CustomerAccountGate({ onAuthenticated }: { onAuthenticated: (use
         }),
       });
       const result = await response.json().catch(() => ({ ok: false, error: "Account request failed." }));
-      if (!response.ok || !result.user) throw new Error(result.error || "Account request failed.");
+      if (!response.ok) throw new Error(result.error || "Account request failed.");
+      if (mode === "register") {
+        // Registration is intentionally opaque: the response is identical whether
+        // or not an account already exists, and no session is granted until sign in.
+        setMode("login");
+        return;
+      }
+      if (!result.user) throw new Error(result.error || "Account request failed.");
       onAuthenticated(result.user);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Account request failed.");
@@ -40,6 +47,7 @@ export function CustomerAccountGate({ onAuthenticated }: { onAuthenticated: (use
       <h2 id="account-gate-title">{mode === "register" ? "Create your Drivable account" : "Sign in to continue"}</h2>
       <p>Your account keeps vehicle submissions tied to you. Drivable never stores your password in readable form.</p>
       {error && <div className="alert-card warning" role="alert">{error}</div>}
+      {mode === "login" && <p className="helper-text">Sign in after creating or confirming your account.</p>}
       <form onSubmit={submit}>
         <div className="field-grid">
           {mode === "register" && <div className="field"><label>Beta Invite Code</label><input name="inviteCode" autoComplete="off" required /></div>}

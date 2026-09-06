@@ -1,21 +1,19 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { DRIVABLE_ALLOWED_ORIGINS, enforceOriginForStateChanging } from "./origin-guard";
+import { logEventError } from "./observability/safe-log";
 import path from "path";
 import fs from "fs";
 
 const app = express();
 app.set("trust proxy", 1);
 
-const allowedCorsOrigins = new Set([
-  "https://mechaniceye.onrender.com",
-  "http://127.0.0.1:5173",
-  "http://localhost:5173"
-]);
+app.use(enforceOriginForStateChanging);
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
 
-  if (origin && allowedCorsOrigins.has(origin)) {
+  if (origin && DRIVABLE_ALLOWED_ORIGINS.has(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -38,9 +36,14 @@ app.use(express.urlencoded({ extended: false }));
 
   // Error handler
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    logEventError("http.request.error", err, { path: _req.path, method: _req.method });
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-    res.status(status).json({ message });
+    const hasSafeStatus = typeof status === "number" && Number.isInteger(status) && status >= 400 && status <= 599;
+    if (!hasSafeStatus) {
+      res.status(500).json({ message: "Internal Server Error" });
+      return;
+    }
+    res.status(status).json({ message: "Request could not be completed." });
   });
 
   // 🔥 SERVE FRONTEND FROM DIST (PRODUCTION)

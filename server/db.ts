@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "./shared/shared/schema";
+import { sslConfigForDatabaseUrl } from "./database-ssl";
 
 const { Pool } = pg;
 
@@ -23,7 +24,7 @@ function createDb() {
 
   pool = new Pool({
     connectionString: databaseUrl,
-    ssl: { rejectUnauthorized: false }
+    ssl: sslConfigForDatabaseUrl(databaseUrl)
   } as any);
 
   return drizzle({ client: pool, schema });

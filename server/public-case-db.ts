@@ -1,4 +1,5 @@
 import { diagnoses } from "./shared/shared/schema";
+import { logEvent, logEventError } from "./observability/safe-log";
 import { getDb } from "./db";
 import type { IncomingDiagnosisCase, StoredDiagnosisCase } from "./case-storage";
 
@@ -148,7 +149,7 @@ export async function insertPublicDiagnosisCaseToDb(
 
   if (!id) {
     const error = "Public diagnosis case has no id";
-    console.error("PUBLIC_DB_CASE_INSERT_FAILED", error);
+    logEventError("public_case_db.insert_failed_no_id", undefined, { error });
     return { ok: false, status: "failed", error };
   }
 
@@ -172,15 +173,15 @@ export async function insertPublicDiagnosisCaseToDb(
       .returning({ id: diagnoses.id });
 
     if (inserted.length === 0) {
-      console.log("PUBLIC_DB_CASE_ALREADY_EXISTS", id);
+      logEvent("public_case_db.already_exists", { id });
       return { ok: true, status: "already_exists", id };
     }
 
-    console.log("PUBLIC_DB_CASE_INSERTED", id);
+    logEvent("public_case_db.inserted", { id });
     return { ok: true, status: "inserted", id };
   } catch (error) {
     const message = errorMessage(error);
-    console.error("PUBLIC_DB_CASE_INSERT_FAILED", id, message);
+    logEventError("public_case_db.insert_failed", undefined, { id });
     return { ok: false, status: "failed", id, error: message };
   }
 }
