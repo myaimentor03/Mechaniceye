@@ -1,47 +1,19 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { DRIVABLE_ALLOWED_ORIGINS, enforceOriginForStateChanging } from "./origin-guard";
+import { logEventError } from "./observability/safe-log";
 import path from "path";
 import fs from "fs";
 
 const app = express();
 app.set("trust proxy", 1);
 
-const defaultAllowedOrigins = [
-  "https://mechaniceye.onrender.com",
-  "https://getdrivable.com",
-  "https://drivable.onrender.com",
-  "http://127.0.0.1:5173",
-  "http://localhost:5173",
-  "http://127.0.0.1:5000",
-  "http://localhost:5000"
-];
-
-const envAllowedOrigins = (process.env.ALLOWED_ORIGINS || process.env.CORS_ORIGIN || "")
-  .split(",")
-  .map((o) => o.trim())
-  .filter(Boolean);
-
-const allowedCorsOrigins = new Set([...defaultAllowedOrigins, ...envAllowedOrigins]);
-
-function isAllowedOrigin(origin: string | undefined): boolean {
-  if (!origin) return false;
-  if (allowedCorsOrigins.has(origin)) return true;
-  if (process.env.NODE_ENV !== "production") return true;
-  try {
-    const url = new URL(origin);
-    if (url.hostname.endsWith(".onrender.com") || url.hostname.endsWith(".getdrivable.com")) {
-      return true;
-    }
-  } catch {
-    // Malformed origin URL
-  }
-  return false;
-}
+app.use(enforceOriginForStateChanging);
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
 
-  if (origin && isAllowedOrigin(origin)) {
+  if (origin && DRIVABLE_ALLOWED_ORIGINS.has(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
@@ -64,18 +36,14 @@ app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 
   // Error handler with secret redaction
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    logEventError("http.request.error", err, { path: _req.path, method: _req.method });
     const status = err.status || err.statusCode || 500;
-    let message = err.message || "Internal Server Error";
-
-    if (process.env.DATABASE_URL) {
-      message = message.replaceAll(process.env.DATABASE_URL, "[redacted]");
+    const hasSafeStatus = typeof status === "number" && Number.isInteger(status) && status >= 400 && status <= 599;
+    if (!hasSafeStatus) {
+      res.status(500).json({ message: "Internal Server Error" });
+      return;
     }
-    message = message.replace(
-      /postgres(?:ql)?:\/\/[^\s:@/]+:[^\s@/]+@[^\s)'"<>]+/gi,
-      "postgresql://[redacted]"
-    );
-
-    res.status(status).json({ message });
+    res.status(status).json({ message: "Request could not be completed." });
   });
 
   // Serve the frontend from dist (production)

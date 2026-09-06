@@ -1,4 +1,4 @@
-﻿ import type { Express } from "express";
+ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 // local fallback validation while DB/schema layer is disabled
@@ -40,7 +40,7 @@ import { evaluateLaunchReadiness } from "./launch-readiness";
 import { buildFollowUpEvidenceBoundary } from "./follow-up-evidence-boundary";
 import { registerDurableReviewRoutes } from "./review/review-routes";
 import { requireVerifiedLaunchControlRuntime } from "./review/launch-control-runtime";
-import { IntakeConsentError, persistAndAuthorizeIntakeConsent } from "./consent/intake-consent";
+import { IntakeConsentError, recordConsentRevocation, persistAndAuthorizeIntakeConsent } from "./consent/intake-consent";
 import {
   deleteStoredEvidenceForCase,
   isR2EvidenceStorageConfigured,
@@ -48,6 +48,9 @@ import {
   type StoredEvidenceKeys,
   type UploadedEvidenceFiles
 } from "./r2-evidence-storage";
+import { requireAllowedOrigin } from "./origin-guard";
+import { logEvent, logEventError } from "./observability/safe-log";
+import { sslConfigForDatabaseUrl } from "./database-ssl";
 
 // Configure multer for file uploads
 const uploadDir = path.join(process.cwd(), 'uploads');
@@ -87,7 +90,7 @@ const diagnosisPhotoUploadMiddleware = (req: any, res: any, next: any) => {
     return res.status(isLimitError ? 413 : 415).json({
       message: isLimitError
         ? `Photo upload exceeds the limit of ${PHOTO_LIMITS.maxCount} files and 12 MB per file.`
-        : error instanceof Error ? error.message : "Photo upload was rejected.",
+        : "Photo upload was rejected because the file type is not supported.",
       persisted: false,
     });
   });
@@ -530,7 +533,7 @@ async function deliverPublicCaseNotification(
   input: DiagnosisInput
 ) {
   const packet = buildPublicCasePacket(diagnosisCase, input);
-  console.log("PUBLIC_RENDER_CASE_PACKET_DEBUG", JSON.stringify({ id: packet.id, status: packet.status, source: packet.source }));
+  logEvent("public_case.packet_queued", { id: packet.id, status: packet.status, source: packet.source });
 
   const webhookUrl = process.env.PUBLIC_CASE_WEBHOOK_URL;
 
@@ -545,7 +548,7 @@ async function deliverPublicCaseNotification(
       body: JSON.stringify(packet)
     });
   } catch (webhookError) {
-    console.error("Public case webhook delivery failed:", webhookError);
+    logEventError("webhook.public_case_delivery_failed", webhookError);
   }
 }
 
@@ -590,7 +593,7 @@ async function deliverDiagnosisWebhook(
       })
     });
   } catch (webhookError) {
-    console.error("Webhook delivery failed:", webhookError);
+    logEventError("webhook.diagnosis_delivery_failed", webhookError);
   }
 }
 
@@ -693,17 +696,17 @@ async function forwardMasterDiagnosisIntakeWebhook(
     });
 
     if (!response.ok) {
-      console.error(
-        `Master intake webhook forward failed for diagnosis case ${diagnosisCase.id} with status ${response.status}`
-      );
+      logEventError("webhook.master_intake_forward_rejected", undefined, {
+        diagnosisCaseId: diagnosisCase.id,
+        status: response.status,
+      });
       return { webhookConfigured: true, webhookForwarded: false };
     }
 
-    console.log(`Master intake webhook forward succeeded for diagnosis case ${diagnosisCase.id}`);
+    logEvent("master_intake.forward_succeeded", { diagnosisCaseId: diagnosisCase.id });
     return { webhookConfigured: true, webhookForwarded: true };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown webhook error";
-    console.error(`Master intake webhook forward failed for diagnosis case ${diagnosisCase.id}: ${message}`);
+    logEventError("webhook.master_intake_forward_failed", error, { diagnosisCaseId: diagnosisCase.id });
     return { webhookConfigured: true, webhookForwarded: false };
   } finally {
     clearTimeout(timeout);
@@ -1231,28 +1234,17 @@ async function deliverMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
     })
   };
 
-  console.log("MARKETPLACE_SELLER_INTAKE_RECEIVED", JSON.stringify({
+  logEvent("marketplace.seller_intake_received", {
+    intakeType: packet.intakeType,
+    source: packet.source,
     submittedAt,
-    city: intake.city,
-    state: intake.state,
-    zip: intake.zip,
-    vehicle: {
-      year: intake.vehicleYear,
-      make: intake.make,
-      model: intake.model,
-      mileage: intake.mileage,
-      askingPrice: intake.askingPrice,
-      titleStatus: intake.titleStatus,
-      runsAndDrives: intake.runsAndDrives
-    },
-    listingType: intake.listingType
-  }));
+    listingType: intake.listingType,
+  });
 
   const webhookUrl = process.env.MASTER_INTAKE_WEBHOOK_URL;
 
   if (!webhookUrl) {
-    console.warn("MASTER_INTAKE_WEBHOOK_NOT_CONFIGURED", "marketplace seller intake not forwarded");
-    return { webhookConfigured: false, webhookForwarded: false, received: true };
+    throw new Error("MASTER_INTAKE_WEBHOOK_URL is not configured.");
   }
 
   try {
@@ -1263,19 +1255,18 @@ async function deliverMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
     });
 
     if (!response.ok) {
-      console.error("MASTER_INTAKE_WEBHOOK_FAILED", `Marketplace seller intake webhook returned ${response.status}`);
-      return { webhookConfigured: true, webhookForwarded: false, received: true };
+      logEventError("webhook.marketplace_seller_rejected", undefined, { status: response.status });
+      throw new Error(`Marketplace seller intake webhook returned ${response.status}`);
     }
 
-    console.log("MASTER_INTAKE_WEBHOOK_SENT", JSON.stringify({
+    logEvent("webhook.marketplace_seller_sent", {
       intakeType: packet.intakeType,
       source: packet.source,
       submittedAt
-    }));
-    return { webhookConfigured: true, webhookForwarded: true, received: true };
+    });
   } catch (error) {
-    console.error("MASTER_INTAKE_WEBHOOK_FAILED", error);
-    return { webhookConfigured: true, webhookForwarded: false, received: true };
+    logEventError("webhook.marketplace_seller_delivery_failed", error);
+    throw error;
   }
 }
 
@@ -1307,16 +1298,17 @@ async function deliverMarketplaceBuyerInterest(intake: MarketplaceBuyerInterest)
     })
   };
 
-  console.log("MARKETPLACE_BUYER_INTEREST_RECEIVED", JSON.stringify({
+  logEvent("marketplace.buyer_interest_received", {
+    intakeType: packet.intakeType,
+    source: packet.source,
     submittedAt,
-    listingTitle: intake.listingTitle
-  }));
+    listingTitle: intake.listingTitle,
+  });
 
   const webhookUrl = process.env.MASTER_INTAKE_WEBHOOK_URL;
 
   if (!webhookUrl) {
-    console.warn("MASTER_INTAKE_WEBHOOK_NOT_CONFIGURED", "marketplace buyer interest not forwarded");
-    return { webhookConfigured: false, webhookForwarded: false, received: true };
+    throw new Error("MASTER_INTAKE_WEBHOOK_URL is not configured.");
   }
 
   try {
@@ -1327,19 +1319,18 @@ async function deliverMarketplaceBuyerInterest(intake: MarketplaceBuyerInterest)
     });
 
     if (!response.ok) {
-      console.error("MASTER_INTAKE_WEBHOOK_FAILED", `Marketplace buyer interest webhook returned ${response.status}`);
-      return { webhookConfigured: true, webhookForwarded: false, received: true };
+      logEventError("webhook.marketplace_buyer_rejected", undefined, { status: response.status });
+      throw new Error(`Marketplace buyer interest webhook returned ${response.status}`);
     }
 
-    console.log("MASTER_INTAKE_WEBHOOK_SENT", JSON.stringify({
+    logEvent("webhook.marketplace_buyer_sent", {
       intakeType: packet.intakeType,
       source: packet.source,
       submittedAt
-    }));
-    return { webhookConfigured: true, webhookForwarded: true, received: true };
+    });
   } catch (error) {
-    console.error("MASTER_INTAKE_WEBHOOK_FAILED", error);
-    return { webhookConfigured: true, webhookForwarded: false, received: true };
+    logEventError("webhook.marketplace_buyer_delivery_failed", error);
+    throw error;
   }
 }
 
@@ -1392,18 +1383,18 @@ async function deliverInternalReview(input: InternalReviewInput) {
     });
 
     if (!response.ok) {
-      console.error("MASTER_INTAKE_WEBHOOK_FAILED", `Internal review webhook returned ${response.status}`);
+      logEventError("webhook.internal_review_rejected", undefined, { status: response.status });
       throw new Error(`Internal review webhook returned ${response.status}`);
     }
 
-    console.log("MASTER_INTAKE_WEBHOOK_SENT", JSON.stringify({
+    logEvent("webhook.internal_review_sent", {
       intakeType: packet.intakeType,
       source: packet.source,
       submittedAt,
       caseId: packet.caseId
-    }));
+    });
   } catch (error) {
-    console.error("MASTER_INTAKE_WEBHOOK_FAILED", error);
+    logEventError("webhook.internal_review_delivery_failed", error);
     throw error;
   }
 }
@@ -1458,8 +1449,7 @@ async function deliverMechanicMatchRequest(input: MechanicMatchRequest) {
   const webhookUrl = process.env.MASTER_INTAKE_WEBHOOK_URL;
 
   if (!webhookUrl) {
-    console.warn("MASTER_INTAKE_WEBHOOK_NOT_CONFIGURED", "mechanic match request not forwarded");
-    return { webhookConfigured: false, webhookForwarded: false, received: true };
+    throw new Error("MASTER_INTAKE_WEBHOOK_URL is not configured.");
   }
 
   try {
@@ -1470,19 +1460,18 @@ async function deliverMechanicMatchRequest(input: MechanicMatchRequest) {
     });
 
     if (!response.ok) {
-      console.error("MASTER_INTAKE_WEBHOOK_FAILED", `Mechanic Match webhook returned ${response.status}`);
-      return { webhookConfigured: true, webhookForwarded: false, received: true };
+      logEventError("webhook.mechanic_match_rejected", undefined, { status: response.status });
+      throw new Error(`Mechanic Match webhook returned ${response.status}`);
     }
 
-    console.log("MASTER_INTAKE_WEBHOOK_SENT", JSON.stringify({
+    logEvent("webhook.mechanic_match_sent", {
       intakeType: packet.intakeType,
       source: packet.source,
       submittedAt
-    }));
-    return { webhookConfigured: true, webhookForwarded: true, received: true };
+    });
   } catch (error) {
-    console.error("MASTER_INTAKE_WEBHOOK_FAILED", error);
-    return { webhookConfigured: true, webhookForwarded: false, received: true };
+    logEventError("webhook.mechanic_match_delivery_failed", error);
+    throw error;
   }
 }
 
@@ -1528,8 +1517,7 @@ async function deliverConciergeRequest(input: ConciergeRequest) {
   const webhookUrl = process.env.MASTER_INTAKE_WEBHOOK_URL;
 
   if (!webhookUrl) {
-    console.warn("MASTER_INTAKE_WEBHOOK_NOT_CONFIGURED", "concierge request not forwarded");
-    return { webhookConfigured: false, webhookForwarded: false, received: true };
+    throw new Error("MASTER_INTAKE_WEBHOOK_URL is not configured.");
   }
 
   try {
@@ -1540,19 +1528,18 @@ async function deliverConciergeRequest(input: ConciergeRequest) {
     });
 
     if (!response.ok) {
-      console.error("MASTER_INTAKE_WEBHOOK_FAILED", `Concierge request webhook returned ${response.status}`);
-      return { webhookConfigured: true, webhookForwarded: false, received: true };
+      logEventError("webhook.concierge_rejected", undefined, { status: response.status });
+      throw new Error(`Concierge request webhook returned ${response.status}`);
     }
 
-    console.log("MASTER_INTAKE_WEBHOOK_SENT", JSON.stringify({
+    logEvent("webhook.concierge_sent", {
       intakeType: packet.intakeType,
       source: packet.source,
       submittedAt
-    }));
-    return { webhookConfigured: true, webhookForwarded: true, received: true };
+    });
   } catch (error) {
-    console.error("MASTER_INTAKE_WEBHOOK_FAILED", error);
-    return { webhookConfigured: true, webhookForwarded: false, received: true };
+    logEventError("webhook.concierge_delivery_failed", error);
+    throw error;
   }
 }
 
@@ -1565,6 +1552,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerCustomerAuthRoutes(app);
   registerDurableReviewRoutes(app);
   const publicFormLimit = createRateLimit({ scope: "public-form", windowMs: 10 * 60_000, max: 15 });
+  const vehicleKnowledgeLimit = createRateLimit({ scope: "buyer-vehicle-knowledge", windowMs: 5 * 60_000, max: 120 });
   const customerIntakeLimit = createRateLimit({
     scope: "customer-intake",
     windowMs: 60 * 60_000,
@@ -1611,7 +1599,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(result.ok ? 200 : 503).json(result);
   });
 
-  app.post("/api/marketplace/seller-intake", publicFormLimit, async (req, res) => {
+  app.post("/api/marketplace/seller-intake", requireAllowedOrigin, publicFormLimit, async (req, res) => {
     try {
       const intake = buildMarketplaceSellerIntake(req.body || {});
       const validation = validateMarketplaceSellerIntake(intake);
@@ -1626,15 +1614,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      const delivery = await deliverMarketplaceSellerIntake(intake);
-      res.json({ ok: true, ...delivery });
+      await deliverMarketplaceSellerIntake(intake);
+      res.json({ ok: true, received: true });
     } catch (error) {
-      console.error("Marketplace seller intake failed:", error);
+      logEventError("form.marketplace_seller_intake_failed", error);
       res.status(502).json({ ok: false, error: "Seller intake could not be forwarded. Please try again." });
     }
   });
 
-  app.post("/api/marketplace/buyer-interest", publicFormLimit, async (req, res) => {
+  app.post("/api/marketplace/buyer-interest", requireAllowedOrigin, publicFormLimit, async (req, res) => {
     try {
       const intake = buildMarketplaceBuyerInterest(req.body || {});
       const validation = validateMarketplaceBuyerInterest(intake);
@@ -1649,10 +1637,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      const delivery = await deliverMarketplaceBuyerInterest(intake);
-      res.json({ ok: true, ...delivery });
+      await deliverMarketplaceBuyerInterest(intake);
+      res.json({ ok: true, received: true });
     } catch (error) {
-      console.error("Marketplace buyer interest failed:", error);
+      logEventError("form.marketplace_buyer_interest_failed", error);
       res.status(502).json({ ok: false, error: "Buyer interest could not be forwarded. Please try again." });
     }
   });
@@ -1670,12 +1658,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await deliverInternalReview(input);
       res.json({ ok: true, received: true });
     } catch (error) {
-      console.error("Internal review failed:", error);
+      logEventError("form.internal_review_failed", error);
       res.status(502).json({ ok: false, error: "Internal review could not be forwarded. Please check Make/Gmail before retrying." });
     }
   });
 
-  app.post("/api/mechanic-match/request", publicFormLimit, async (req, res) => {
+  app.post("/api/mechanic-match/request", requireAllowedOrigin, publicFormLimit, async (req, res) => {
     try {
       const input = buildMechanicMatchRequest(req.body || {});
       const validation = validateMechanicMatchRequest(input);
@@ -1690,15 +1678,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      const delivery = await deliverMechanicMatchRequest(input);
-      res.json({ ok: true, ...delivery });
+      await deliverMechanicMatchRequest(input);
+      res.json({ ok: true, received: true });
     } catch (error) {
-      console.error("Mechanic Match request failed:", error);
+      logEventError("form.mechanic_match_request_failed", error);
       res.status(502).json({ ok: false, error: "Mechanic Match request could not be forwarded. Please try again." });
     }
   });
 
-  app.post("/api/support/concierge-request", publicFormLimit, async (req, res) => {
+  app.post("/api/support/concierge-request", requireAllowedOrigin, publicFormLimit, async (req, res) => {
     try {
       const input = buildConciergeRequest(req.body || {});
       const validation = validateConciergeRequest(input);
@@ -1713,10 +1701,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      const delivery = await deliverConciergeRequest(input);
-      res.json({ ok: true, ...delivery });
+      await deliverConciergeRequest(input);
+      res.json({ ok: true, received: true });
     } catch (error) {
-      console.error("Concierge request failed:", error);
+      logEventError("form.concierge_request_failed", error);
       res.status(502).json({ ok: false, error: "Your help request could not be forwarded. Please try again." });
     }
   });
@@ -1725,10 +1713,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get recent diagnoses
   app.get("/api/diagnoses/recent", requireReviewer, async (req, res) => {
     try {
-      const limit = parseInt(req.query.limit as string) || 10;
+      const requestedLimit = parseInt(req.query.limit as string, 10) || 10;
+      const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 10, 1), 200);
       const diagnoses = await storage.getRecentDiagnoses(limit);
       res.json(diagnoses);
     } catch (error) {
+      logEventError("api.diagnoses_recent_failed", error);
       res.status(500).json({ message: "Failed to fetch recent diagnoses" });
     }
   });
@@ -1740,7 +1730,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const history = await storage.getFixHistory(diagnosisId);
       res.json(history);
     } catch (error) {
-      console.error("Error fetching fix history:", error);
+      logEventError("api.fix_history_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
       res.status(500).json({ message: "Failed to fetch fix history" });
     }
   });
@@ -1760,7 +1750,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(result);
     } catch (error) {
-      console.error("Error updating step completion:", error);
+      logEventError("api.step_completion_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
       res.status(500).json({ message: "Failed to update step completion" });
     }
   });
@@ -1781,7 +1771,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(result);
     } catch (error) {
-      console.error("Error marking fix complete:", error);
+      logEventError("api.fix_complete_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
       res.status(500).json({ message: "Failed to mark fix complete" });
     }
   });
@@ -1793,7 +1783,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const exportData = await storage.exportChatForMechanic(diagnosisId);
       res.json(exportData);
     } catch (error) {
-      console.error("Error exporting chat:", error);
+      logEventError("api.export_chat_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
       res.status(500).json({ message: "Failed to export chat" });
     }
   });
@@ -1805,7 +1795,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await storage.sendToMechanic(diagnosisId);
       res.json(result);
     } catch (error) {
-      console.error("Error sending to mechanic:", error);
+      logEventError("api.send_to_mechanic_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
       res.status(500).json({ message: "Failed to send to mechanic" });
     }
   });
@@ -1822,7 +1812,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
   // Get NHTSA-backed vehicle knowledge for Buyer Risk / Buyer Check
-  app.get("/api/buyer-risk/vehicle-knowledge", async (req, res) => {
+  app.get("/api/buyer-risk/vehicle-knowledge", vehicleKnowledgeLimit, async (req, res) => {
     const vehicleYear = pickString(req.query.year, req.query.vehicleYear);
     const make = pickString(req.query.make, req.query.vehicleMake);
     const model = pickString(req.query.model, req.query.vehicleModel);
@@ -1891,7 +1881,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
 
-    try {
+try {
       const result = await getDb().execute(
         sql`
           SELECT
@@ -1963,7 +1953,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         disclaimer: "NHTSA year/make/model data is context only. VIN-level confirmation is required before claiming a recall applies to a specific vehicle."
       });
     } catch (error) {
-      console.error("Buyer vehicle knowledge lookup failed:", error);
+      logEventError("api.buyer_vehicle_knowledge_failed", error);
       return res.status(500).json({
         found: false,
         message: "Failed to fetch vehicle knowledge pack"
@@ -1995,7 +1985,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader("X-Content-Type-Options", "nosniff");
       return res.send(result.bytes);
     } catch (error) {
-      console.error("Reviewer evidence retrieval failed:", error instanceof Error ? error.message : "unknown error");
+      logEventError("api.reviewer_evidence_retrieval_failed", error);
       return res.status(502).json({ ok: false, error: "Evidence could not be retrieved." });
     }
   });
@@ -2032,8 +2022,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       input.obdCodes = evidenceIntake.obd.codes.join(", ") || input.obdCodes;
     } catch (validationError) {
       removeIntakeTempFiles(uploadedFiles);
+      // Never echo parser/Zod messages: they can embed submitted values, schema
+      // internals, or the request body. The client performs its own validation.
       return res.status(400).json({
-        message: validationError instanceof Error ? validationError.message : "Invalid diagnosis evidence metadata",
+        message: "The diagnosis case details did not pass validation. Please review the entered information and try again.",
+        code: "INVALID_DIAGNOSIS_INTAKE",
       });
     }
 
@@ -2061,7 +2054,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     let storedR2Keys: StoredEvidenceKeys = {};
 
     try {
-      console.log("DIAGNOSIS_INTENT_RECEIVED", {
+      logEvent("diagnosis.intent_received", {
         hasVehicleInfo: Boolean(input.vehicleInfo),
         hasDescription: Boolean(input.description),
         photoCount: photoFiles.length,
@@ -2098,7 +2091,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           storedCase = createStoredDiagnosisCase(input, input.clientRequestId);
           responseBody = buildDiagnosisResponse(storedCase);
         } catch (storageError) {
-          console.error("Local case storage failed; using public fallback:", storageError);
+          logEventError("api.local_case_storage_failed", storageError);
           responseBody = createPublicDiagnosisCase(input, input.clientRequestId);
           usedPublicFallback = true;
         }
@@ -2121,7 +2114,7 @@ if (photoFiles.length) {
           input.attachments = attachments;
           removeIntakeTempFiles({ photos: photoFiles });
         } catch (storageError) {
-          console.error("Photo evidence persistence failed:", storageError);
+          logEventError("api.photo_evidence_persistence_failed", storageError);
           removeIntakeTempFiles({ photos: photoFiles });
           return res.status(507).json({
             message: "The case could not be completed because its photo evidence was not persisted. Please try again.",
@@ -2148,7 +2141,8 @@ if (photoFiles.length) {
             };
           }
         } catch (storageError) {
-          console.error("Media evidence persistence failed:", storageError);
+          logEventError("api.media_evidence_persistence_failed", storageError);
+          removeIntakeTempFiles(mobileMediaFiles);
           return res.status(507).json({
             message: "The case could not be completed because its media evidence was not persisted. Please try again.",
             caseId: responseBody.id,
@@ -2180,7 +2174,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
       await deliverDiagnosisWebhook(responseBody, input, storedCase);
       return res.json(buildDiagnosisApiResponse(responseBody, webhookDebug, dbResult.ok));
     } catch (error) {
-      console.error("Diagnosis creation error:", error);
+      logEventError("api.diagnosis_creation_failed", error);
       return res.status(500).json({
         message: "The diagnosis case was not confirmed as persisted. Please try again.",
         persisted: false,
@@ -2272,9 +2266,9 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
         analysisBoundary: evidenceBoundary.analysisBoundary,
       });
     } catch (error: any) {
-      console.error('Follow-up creation error:', error);
+      logEventError("api.follow_up_creation_failed", error);
       res.status(400).json({ 
-        message: error?.status === 404 ? error.message : "Failed to create follow-up" 
+        message: "Failed to create follow-up. Please try again."
       });
     }
   });
@@ -2308,9 +2302,9 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
 
       res.json(consultation);
     } catch (error: any) {
-      console.error("Error starting consultation:", error);
+      logEventError("api.consultation_start_failed", error);
       res.status(400).json({ 
-        message: "Failed to start consultation" 
+        message: "Failed to start consultation. Please try again."
       });
     }
   });
@@ -2348,35 +2342,67 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
 
       res.json(consultation);
     } catch (error: any) {
-      console.error("Error submitting consultation feedback:", error);
+      logEventError("api.consultation_feedback_failed", error);
       res.status(400).json({ 
-        message: "Failed to submit feedback" 
+        message: "Failed to submit feedback. Please try again."
       });
     }
   });
 
 // Serve uploaded files (traversal-safe)
   app.get("/api/files/:filename", requireReviewer, (req, res) => {
-    const filename = req.params.filename;
-    const basename = path.basename(req.params.filename || "");
+    const filename = path.basename(String(req.params.filename || ""));
 
-    if (!filename || filename !== basename || filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
-      return res.status(403).json({ message: "Forbidden" });
+    if (!filename || filename !== req.params.filename || filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
+      res.status(400).json({ message: "Invalid file name" });
+      return;
     }
 
     const resolvedRoot = path.resolve(uploadDir);
     const filepath = path.resolve(uploadDir, filename);
 
-    if (filepath !== path.join(resolvedRoot, path.basename(filepath)) || !filepath.startsWith(resolvedRoot + path.sep)) {
-      return res.status(403).json({ message: "Forbidden" });
+    if (!filepath.startsWith(resolvedRoot + path.sep)) {
+      res.status(400).json({ message: "Invalid file name" });
+      return;
     }
 
-    res.setHeader("X-Content-Type-Options", "nosniff");
-
-    if (fs.existsSync(filepath)) {
+    if (fs.existsSync(filepath) && fs.statSync(filepath).isFile()) {
+      res.setHeader("X-Content-Type-Options", "nosniff");
       res.sendFile(filepath);
     } else {
       res.status(404).json({ message: "File not found" });
+    }
+  });
+
+  // Revoke durable intake consent for an authenticated customer's case.
+  // Fail-closed: requires launch controls and an existing acceptance.
+  app.post("/api/consent/revoke", requireCustomer, async (req, res) => {
+    const accountId = req.drivableCustomer!.id;
+    const actorId = req.drivableCustomer!.id;
+    const caseId = String(req.body?.caseId || "").trim();
+    if (!caseId || caseId.length > 200) {
+      res.status(400).json({ message: "caseId is required.", code: "INVALID_CASE_ID" });
+      return;
+    }
+    try {
+      if (process.env.DRIVABLE_LAUNCH_CONTROLS_ENABLED !== "true") {
+        res.status(503).json({ message: "Consent controls are not ready.", code: "CONSENT_CONTROLS_UNAVAILABLE" });
+        return;
+      }
+      const runtime = await requireVerifiedLaunchControlRuntime();
+      await recordConsentRevocation(
+        runtime.consent,
+        { actorId, accountId, caseId, purposes: req.body?.purposes },
+      );
+      res.json({ ok: true, revoked: true });
+    } catch (error) {
+      if (error instanceof IntakeConsentError) {
+        const status = error.code === "NO_ACCEPTANCE" || error.code === "INVALID_PURPOSES" ? 400 : 503;
+        res.status(status).json({ message: error.message, code: error.code });
+        return;
+      }
+      logEventError("api.consent_revocation_failed", error);
+      res.status(503).json({ message: "Consent controls are not ready.", code: "CONSENT_CONTROLS_UNAVAILABLE" });
     }
   });
 

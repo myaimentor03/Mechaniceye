@@ -6,6 +6,7 @@ import { z } from "zod";
 import { getDb } from "./db";
 import { users } from "./shared/shared/schema";
 import { createRateLimit, requestIp } from "./rate-limit";
+import { logEventError } from "./observability/safe-log";
 
 const scrypt = promisify(scryptCallback);
 const COOKIE_NAME = "drivable_session";
@@ -14,6 +15,28 @@ export const SESSION_SECRET_ENV = "DRIVABLE_SESSION_SECRET";
 export const BETA_INVITE_ENV = "DRIVABLE_BETA_INVITE_CODE";
 
 type CustomerIdentity = { id: string; email: string };
+
+export type RegistrationDecision =
+  | { kind: "created"; user: CustomerIdentity }
+  | { kind: "existing" };
+
+/**
+ * Maps a registration decision to its HTTP response. The status and body are
+ * identical for both outcomes so an unauthenticated caller cannot tell whether
+ * an email already has an account. A session is only issued for a newly created
+ * account, via the route, and is never reflected in the body.
+ */
+export function registrationHttpResponse(decision: RegistrationDecision): {
+  status: number;
+  body: Readonly<{ ok: true }>;
+  sessionUser?: CustomerIdentity;
+} {
+  return {
+    status: 200,
+    body: Object.freeze({ ok: true }),
+    ...(decision.kind === "created" ? { sessionUser: decision.user } : {}),
+  };
+}
 
 const credentialsSchema = z.object({
   email: z.string().trim().email().max(254).transform((value) => value.toLowerCase()),
@@ -146,16 +169,25 @@ export function registerCustomerAuthRoutes(app: Express) {
     if (!configuredSecret()) return res.status(503).json({ ok: false, error: "Customer accounts are not configured." });
     if (!process.env[BETA_INVITE_ENV]?.trim()) return res.status(503).json({ ok: false, error: "Beta invitations are not configured." });
     if (!inviteMatches(parsed.data.inviteCode)) return res.status(403).json({ ok: false, error: "This beta invite code is not valid." });
+    let decision: RegistrationDecision = { kind: "existing" };
     try {
-      const existing = await getDb().select({ id: users.id }).from(users).where(eq(users.username, parsed.data.email)).limit(1);
-      if (existing.length) return res.status(409).json({ ok: false, error: "An account already exists for this email." });
-      const [created] = await getDb().insert(users).values({ username: parsed.data.email, password: await hashPassword(parsed.data.password) }).returning({ id: users.id, email: users.username });
-      setSessionCookie(res, createSessionToken(created));
-      return res.status(201).json({ ok: true, user: created });
+      const [created] = await getDb()
+        .insert(users)
+        .values({ username: parsed.data.email, password: await hashPassword(parsed.data.password) })
+        .onConflictDoNothing({ target: users.username })
+        .returning({ id: users.id, email: users.username });
+      decision = created ? { kind: "created", user: created } : { kind: "existing" };
     } catch (error) {
-      console.error("Customer registration failed:", error instanceof Error ? error.message : "unknown error");
+      logEventError("auth.register_failed", error, { ip: requestIp(req) });
       return res.status(503).json({ ok: false, error: "Account creation is temporarily unavailable." });
     }
+    // Enumeration-safe: the status and body are identical whether the email is
+    // brand new or already registered. No session is minted for existing
+    // accounts, so the two outcomes cannot be told apart.
+    const response = registrationHttpResponse(decision);
+    if (response.sessionUser) setSessionCookie(res, createSessionToken(response.sessionUser));
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(response.status).json(response.body);
   });
 
   app.post("/api/auth/login", loginIpLimit, loginAccountLimit, async (req, res) => {
@@ -168,7 +200,7 @@ export function registerCustomerAuthRoutes(app: Express) {
       setSessionCookie(res, createSessionToken(user));
       return res.json({ ok: true, user });
     } catch (error) {
-      console.error("Customer login failed:", error instanceof Error ? error.message : "unknown error");
+      logEventError("auth.login_failed", error, { ip: requestIp(req) });
       return res.status(503).json({ ok: false, error: "Sign in is temporarily unavailable." });
     }
   });
