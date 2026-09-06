@@ -1,8 +1,7 @@
 import { FormEvent, useState } from "react";
 import { NextActionStrip } from "./NextActionStrip";
 
-const BUYER_VEHICLE_KNOWLEDGE_ENDPOINT =
-  "https://mechaniceye-backend-v2.onrender.com/api/buyer-risk/vehicle-knowledge";
+const BUYER_VEHICLE_KNOWLEDGE_ENDPOINT = "/api/buyer-risk/vehicle-knowledge";
 
 const REVIEW_AREAS = [
   "Seller evidence checklist",
@@ -31,11 +30,7 @@ type BuyerVehicleKnowledgeResult = {
 };
 
 function getBuyerVehicleKnowledgeEndpoint() {
-  const isLocalBrowser =
-    typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-
-  return isLocalBrowser ? "/api/buyer-risk/vehicle-knowledge" : BUYER_VEHICLE_KNOWLEDGE_ENDPOINT;
+  return BUYER_VEHICLE_KNOWLEDGE_ENDPOINT;
 }
 
 function formatRiskTag(tag: string) {

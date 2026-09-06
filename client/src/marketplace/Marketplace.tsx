@@ -2,8 +2,8 @@ import { FormEvent, useState } from "react";
 import { NeedHelpPanel } from "../components/NeedHelpPanel";
 import { getFrontendRoutePath, navigateFrontend } from "../frontendRouting";
 
-const MARKETPLACE_SELLER_INTAKE_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/marketplace/seller-intake";
-const MARKETPLACE_BUYER_INTEREST_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/marketplace/buyer-interest";
+const MARKETPLACE_SELLER_INTAKE_ENDPOINT = "/api/marketplace/seller-intake";
+const MARKETPLACE_BUYER_INTEREST_ENDPOINT = "/api/marketplace/buyer-interest";
 
 type HeroProps = {
   eyebrow?: string;
@@ -117,19 +117,11 @@ const guideLinks = [
 ];
 
 function getMarketplaceSellerIntakeEndpoint() {
-  const isLocalBrowser =
-    window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1";
-
-  return isLocalBrowser ? "/api/marketplace/seller-intake" : MARKETPLACE_SELLER_INTAKE_ENDPOINT;
+  return MARKETPLACE_SELLER_INTAKE_ENDPOINT;
 }
 
 function getMarketplaceBuyerInterestEndpoint() {
-  const isLocalBrowser =
-    window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1";
-
-  return isLocalBrowser ? "/api/marketplace/buyer-interest" : MARKETPLACE_BUYER_INTEREST_ENDPOINT;
+  return MARKETPLACE_BUYER_INTEREST_ENDPOINT;
 }
 
 function Hero({ eyebrow = "ClearSale", title, body, primaryLabel, primaryHref, secondaryLabel, secondaryHref }: HeroProps) {
@@ -469,7 +461,7 @@ function BuyerInterestPage() {
       {submitted && <section className="mp-card"><h2>Interest received</h2><p>Your buyer interest was received for review and handoff. ClearSale does not guarantee seller response, buyer payment, vehicle condition, title status, transfer completion, or legal outcome.</p></section>}
       <form className="mp-intake-form" onSubmit={submit}>
         <fieldset><legend>Buyer information</legend><div className="mp-form-grid"><label>Buyer name<input name="buyerName" required /></label><label>Buyer email<input name="buyerEmail" type="email" required /></label><label>Buyer phone<input name="buyerPhone" type="tel" required /></label><label>Preferred contact method<select name="preferredContactMethod" required><option value="">Choose one</option><option>Phone</option><option>Email</option><option>Text</option></select></label><label>Buyer location<input name="buyerLocation" placeholder="City, state" /></label><label>Timeline<select name="timeline"><option value="">Choose one</option><option>Today or tomorrow</option><option>This week</option><option>Still researching</option></select></label></div></fieldset>
-        <fieldset><legend>Listing interest</legend><div className="mp-form-grid"><label>Listing<input name="listingTitle" defaultValue="2012 Ford F-150 XLT" required /></label></div><label>Message to seller or admin<textarea name="message" rows={5} placeholder="Questions, viewing availability, inspection plans, or other notes." required /></label></fieldset>
+        <fieldset><legend>Listing interest</legend><div className="mp-form-grid"><label>Listing<input name="listingTitle" placeholder="Which listing are you interested in?" required /></label></div><label>Message to seller or admin<textarea name="message" rows={5} placeholder="Questions, viewing availability, inspection plans, or other notes." required /></label></fieldset>
         <fieldset><legend>Buyer acknowledgments</legend><div className="mp-ack-list"><label><input name="ackPlatformOnly" type="checkbox" required /><span>I understand ClearSale is a listing platform only and is not the buyer, seller, dealer, broker, title agent, transporter, payment processor, or legal advisor.</span></label><label><input name="ackBuyerResponsibilities" type="checkbox" required /><span>I remain responsible for inspecting the vehicle, verifying VIN/title/seller authority, payment safety, taxes, registration, title transfer, and state-specific requirements.</span></label><label><input name="ackNoGuarantee" type="checkbox" required /><span>I understand ClearSale does not guarantee seller response, buyer payment, vehicle condition, title status, transfer completion, or legal outcome.</span></label></div></fieldset>
         {submitError && <div className="mp-form-error" role="alert">{submitError}</div>}
         <button className="mp-btn mp-btn-primary" type="submit" disabled={isSubmitting}>{isSubmitting ? "Submitting..." : "Submit Buyer Interest"}</button>

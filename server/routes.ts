@@ -76,7 +76,14 @@ const diagnosisPhotoUpload = multer({
 const diagnosisPhotoUploadMiddleware = (req: any, res: any, next: any) => {
   diagnosisPhotoUpload.array("photos", PHOTO_LIMITS.maxCount)(req, res, (error: unknown) => {
     if (!error) return next();
-    const isLimitError = error instanceof multer.MulterError;
+    const multerError = error instanceof multer.MulterError ? error : null;
+    if (multerError?.code === "LIMIT_UNEXPECTED_FILE") {
+      return res.status(415).json({
+        message: "Intake accepts only photos under the \"photos\" field. Audio, video, and other file fields are not supported at this step.",
+        persisted: false,
+      });
+    }
+    const isLimitError = Boolean(multerError);
     return res.status(isLimitError ? 413 : 415).json({
       message: isLimitError
         ? `Photo upload exceeds the limit of ${PHOTO_LIMITS.maxCount} files and 12 MB per file.`
@@ -482,7 +489,7 @@ async function deliverPublicCaseNotification(
       body: JSON.stringify(packet)
     });
   } catch (webhookError) {
-    console.error("Public case webhook delivery failed:", webhookError);
+    console.error("Public case webhook delivery failed:", webhookError instanceof Error ? webhookError.message : String(webhookError));
   }
 }
 
@@ -527,7 +534,7 @@ async function deliverDiagnosisWebhook(
       })
     });
   } catch (webhookError) {
-    console.error("Webhook delivery failed:", webhookError);
+    console.error("Webhook delivery failed:", webhookError instanceof Error ? webhookError.message : String(webhookError));
   }
 }
 
@@ -1168,12 +1175,8 @@ async function deliverMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
 
   console.log("MARKETPLACE_SELLER_INTAKE_RECEIVED", JSON.stringify({
     submittedAt,
-    sellerName: intake.sellerName,
-    sellerEmail: intake.sellerEmail,
-    sellerPhone: intake.sellerPhone,
-    city: intake.city,
-    state: intake.state,
-    zip: intake.zip,
+    source: packet.source,
+    intakeType: packet.intakeType,
     vehicle: {
       year: intake.vehicleYear,
       make: intake.make,
@@ -1210,7 +1213,7 @@ async function deliverMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
       submittedAt
     }));
   } catch (error) {
-    console.error("MASTER_INTAKE_WEBHOOK_FAILED", error);
+    console.error("MASTER_INTAKE_WEBHOOK_FAILED", error instanceof Error ? error.message : String(error));
     throw error;
   }
 }
@@ -1245,11 +1248,8 @@ async function deliverMarketplaceBuyerInterest(intake: MarketplaceBuyerInterest)
 
   console.log("MARKETPLACE_BUYER_INTEREST_RECEIVED", JSON.stringify({
     submittedAt,
-    buyerName: intake.buyerName,
-    buyerEmail: intake.buyerEmail,
-    buyerPhone: intake.buyerPhone,
-    preferredContactMethod: intake.preferredContactMethod,
-    listingTitle: intake.listingTitle
+    source: packet.source,
+    intakeType: packet.intakeType
   }));
 
   const webhookUrl = process.env.MASTER_INTAKE_WEBHOOK_URL;
@@ -1276,7 +1276,7 @@ async function deliverMarketplaceBuyerInterest(intake: MarketplaceBuyerInterest)
       submittedAt
     }));
   } catch (error) {
-    console.error("MASTER_INTAKE_WEBHOOK_FAILED", error);
+    console.error("MASTER_INTAKE_WEBHOOK_FAILED", error instanceof Error ? error.message : String(error));
     throw error;
   }
 }
@@ -1341,7 +1341,7 @@ async function deliverInternalReview(input: InternalReviewInput) {
       caseId: packet.caseId
     }));
   } catch (error) {
-    console.error("MASTER_INTAKE_WEBHOOK_FAILED", error);
+    console.error("MASTER_INTAKE_WEBHOOK_FAILED", error instanceof Error ? error.message : String(error));
     throw error;
   }
 }
@@ -1417,7 +1417,7 @@ async function deliverMechanicMatchRequest(input: MechanicMatchRequest) {
       submittedAt
     }));
   } catch (error) {
-    console.error("MASTER_INTAKE_WEBHOOK_FAILED", error);
+    console.error("MASTER_INTAKE_WEBHOOK_FAILED", error instanceof Error ? error.message : String(error));
     throw error;
   }
 }
@@ -1485,7 +1485,7 @@ async function deliverConciergeRequest(input: ConciergeRequest) {
       submittedAt
     }));
   } catch (error) {
-    console.error("MASTER_INTAKE_WEBHOOK_FAILED", error);
+    console.error("MASTER_INTAKE_WEBHOOK_FAILED", error instanceof Error ? error.message : String(error));
     throw error;
   }
 }
@@ -1557,7 +1557,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await deliverMarketplaceSellerIntake(intake);
       res.json({ ok: true, received: true });
     } catch (error) {
-      console.error("Marketplace seller intake failed:", error);
+      console.error("Marketplace seller intake failed:", error instanceof Error ? error.message : String(error));
       res.status(502).json({ ok: false, error: "Seller intake could not be forwarded. Please try again." });
     }
   });
@@ -1580,7 +1580,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await deliverMarketplaceBuyerInterest(intake);
       res.json({ ok: true, received: true });
     } catch (error) {
-      console.error("Marketplace buyer interest failed:", error);
+      console.error("Marketplace buyer interest failed:", error instanceof Error ? error.message : String(error));
       res.status(502).json({ ok: false, error: "Buyer interest could not be forwarded. Please try again." });
     }
   });
@@ -1598,7 +1598,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await deliverInternalReview(input);
       res.json({ ok: true, received: true });
     } catch (error) {
-      console.error("Internal review failed:", error);
+      console.error("Internal review failed:", error instanceof Error ? error.message : String(error));
       res.status(502).json({ ok: false, error: "Internal review could not be forwarded. Please check Make/Gmail before retrying." });
     }
   });
@@ -1621,7 +1621,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await deliverMechanicMatchRequest(input);
       res.json({ ok: true, received: true });
     } catch (error) {
-      console.error("Mechanic Match request failed:", error);
+      console.error("Mechanic Match request failed:", error instanceof Error ? error.message : String(error));
       res.status(502).json({ ok: false, error: "Mechanic Match request could not be forwarded. Please try again." });
     }
   });
@@ -1644,7 +1644,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await deliverConciergeRequest(input);
       res.json({ ok: true, received: true });
     } catch (error) {
-      console.error("Concierge request failed:", error);
+      console.error("Concierge request failed:", error instanceof Error ? error.message : String(error));
       res.status(502).json({ ok: false, error: "Your help request could not be forwarded. Please try again." });
     }
   });
@@ -1668,7 +1668,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const history = await storage.getFixHistory(diagnosisId);
       res.json(history);
     } catch (error) {
-      console.error("Error fetching fix history:", error);
+      console.error("Error fetching fix history:", error instanceof Error ? error.message : String(error));
       res.status(500).json({ message: "Failed to fetch fix history" });
     }
   });
@@ -1688,7 +1688,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(result);
     } catch (error) {
-      console.error("Error updating step completion:", error);
+      console.error("Error updating step completion:", error instanceof Error ? error.message : String(error));
       res.status(500).json({ message: "Failed to update step completion" });
     }
   });
@@ -1709,7 +1709,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(result);
     } catch (error) {
-      console.error("Error marking fix complete:", error);
+      console.error("Error marking fix complete:", error instanceof Error ? error.message : String(error));
       res.status(500).json({ message: "Failed to mark fix complete" });
     }
   });
@@ -1721,7 +1721,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const exportData = await storage.exportChatForMechanic(diagnosisId);
       res.json(exportData);
     } catch (error) {
-      console.error("Error exporting chat:", error);
+      console.error("Error exporting chat:", error instanceof Error ? error.message : String(error));
       res.status(500).json({ message: "Failed to export chat" });
     }
   });
@@ -1733,7 +1733,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await storage.sendToMechanic(diagnosisId);
       res.json(result);
     } catch (error) {
-      console.error("Error sending to mechanic:", error);
+      console.error("Error sending to mechanic:", error instanceof Error ? error.message : String(error));
       res.status(500).json({ message: "Failed to send to mechanic" });
     }
   });
@@ -1899,14 +1899,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         disclaimer: "NHTSA year/make/model data is context only. VIN-level confirmation is required before claiming a recall applies to a specific vehicle."
       });
     } catch (error) {
-      console.error("Buyer vehicle knowledge lookup failed:", error);
+      console.error("Buyer vehicle knowledge lookup failed:", error instanceof Error ? error.message : String(error));
       return res.status(500).json({
         found: false,
         message: "Failed to fetch vehicle knowledge pack"
       });
     } finally {
       await client.end().catch((endError) => {
-        console.error("Buyer vehicle knowledge DB client close failed:", endError);
+        console.error("Buyer vehicle knowledge DB client close failed:", endError instanceof Error ? endError.message : String(endError));
       });
     }
   });
@@ -2005,7 +2005,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           storedCase = createStoredDiagnosisCase(input);
           responseBody = buildDiagnosisResponse(storedCase);
         } catch (storageError) {
-          console.error("Local case storage failed; using public fallback:", storageError);
+          console.error("Local case storage failed; using public fallback:", storageError instanceof Error ? storageError.message : String(storageError));
           responseBody = createPublicDiagnosisCase(input);
           usedPublicFallback = true;
         }
@@ -2027,7 +2027,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           input.photoFileNames = attachments.map((attachment) => attachment.originalName);
           input.attachments = attachments;
         } catch (storageError) {
-          console.error("Photo evidence persistence failed:", storageError);
+          console.error("Photo evidence persistence failed:", storageError instanceof Error ? storageError.message : String(storageError));
           return res.status(507).json({
             message: "The case could not be completed because its photo evidence was not persisted. Please try again.",
             caseId: responseBody.id,
@@ -2058,7 +2058,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await deliverDiagnosisWebhook(responseBody, input, storedCase);
       return res.json(buildDiagnosisApiResponse(responseBody, webhookDebug));
     } catch (error) {
-      console.error("Diagnosis creation error:", error);
+      console.error("Diagnosis creation error:", error instanceof Error ? error.message : String(error));
       return res.status(500).json({
         message: "The diagnosis case was not confirmed as persisted. Please try again.",
         persisted: false,
@@ -2071,13 +2071,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     { name: 'audio', maxCount: 1 },
     { name: 'video', maxCount: 1 }
   ]), async (req, res) => {
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    const uploadedPaths = Object.values(files || {}).flat().map((file) => file.path).filter(Boolean);
+    const cleanupTemporaryFiles = async () => {
+      await Promise.all(uploadedPaths.map((filePath) => fs.promises.unlink(filePath).catch(() => undefined)));
+    };
     try {
       const diagnosisId = req.params.id;
-      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
 
       if (req.body.vibrationData) {
-        const uploadedPaths = Object.values(files || {}).flat().map((file) => file.path).filter(Boolean);
-        await Promise.all(uploadedPaths.map((filePath) => fs.promises.unlink(filePath).catch(() => undefined)));
+        await cleanupTemporaryFiles();
         return res.status(422).json({
           message: "Vibration capture is not available yet. No vibration readings were stored or analyzed.",
           code: "VIBRATION_CAPTURE_UNAVAILABLE",
@@ -2087,6 +2090,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get original diagnosis
       const originalDiagnosis = await storage.getDiagnosis(diagnosisId);
       if (!originalDiagnosis) {
+        await cleanupTemporaryFiles();
         return res.status(404).json({ message: "Original diagnosis not found" });
       }
 
@@ -2150,7 +2154,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         analysisBoundary: evidenceBoundary.analysisBoundary,
       });
     } catch (error: any) {
-      console.error('Follow-up creation error:', error);
+      await cleanupTemporaryFiles();
+      console.error("Follow-up creation error:", error instanceof Error ? error.message : String(error));
       res.status(400).json({ 
         message: error.message || "Failed to create follow-up" 
       });
@@ -2233,11 +2238,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Serve uploaded files
   app.get("/api/files/:filename", requireReviewer, (req, res) => {
-    const filename = req.params.filename;
-    const filepath = path.join(uploadDir, filename);
-    
-    if (fs.existsSync(filepath)) {
-      res.sendFile(filepath);
+    const filename = path.basename(req.params.filename);
+    const resolved = path.resolve(uploadDir, filename);
+    const root = path.resolve(uploadDir) + path.sep;
+
+    if (!filename || resolved === path.resolve(uploadDir) || !resolved.startsWith(root)) {
+      res.status(403).json({ message: "Invalid file path" });
+      return;
+    }
+
+    if (fs.existsSync(resolved)) {
+      res.sendFile(resolved);
     } else {
       res.status(404).json({ message: "File not found" });
     }

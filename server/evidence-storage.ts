@@ -125,6 +125,19 @@ function manifestKey(caseId: string) {
   return path.posix.join("evidence", safeCaseSegment(caseId), "attachments.json");
 }
 
+const EVIDENCE_RETENTION_DAYS = 30;
+
+function evidenceObjectMetadata(caseId: string, mediaType: string, now: Date = new Date()): Record<string, string> {
+  const deleteAfter = new Date(now.getTime() + EVIDENCE_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  return {
+    "evidence-status": "uploaded_not_analyzed",
+    "case-id": safeCaseSegment(caseId),
+    "media-type": mediaType,
+    "retention-days": String(EVIDENCE_RETENTION_DAYS),
+    "delete-after": deleteAfter,
+  };
+}
+
 async function bodyToBuffer(body: any): Promise<Buffer> {
   if (!body) throw new Error("Object storage returned an empty body");
   if (typeof body.transformToByteArray === "function") return Buffer.from(await body.transformToByteArray());
@@ -169,6 +182,7 @@ export class S3PrivateEvidenceStore implements EvidenceStore {
           Body: file.buffer,
           ContentType: verified.mimeType,
           CacheControl: "no-store",
+          Metadata: evidenceObjectMetadata(safeCaseId, verified.mimeType),
         }));
         writtenKeys.push(storageKey);
         attachments.push({
@@ -185,6 +199,7 @@ export class S3PrivateEvidenceStore implements EvidenceStore {
         Body: Buffer.from(JSON.stringify(attachments)),
         ContentType: "application/json",
         CacheControl: "no-store",
+        Metadata: evidenceObjectMetadata(safeCaseId, "application/json"),
       }));
       writtenKeys.push(key);
       return attachments;

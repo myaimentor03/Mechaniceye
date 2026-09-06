@@ -9,15 +9,23 @@ app.set("trust proxy", 1);
 const allowedCorsOrigins = new Set([
   "https://mechaniceye.onrender.com",
   "http://127.0.0.1:5173",
-  "http://localhost:5173"
+  "http://localhost:5173",
+  ...(process.env.DRIVABLE_PUBLIC_ORIGIN?.trim()
+    ? [process.env.DRIVABLE_PUBLIC_ORIGIN.trim().replace(/\/+$/, "")]
+    : []),
 ]);
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
 
+  // Response content varies by Origin (both allowed and denied), so intermediates
+  // must never serve one origin's CORS state to another.
+  if (origin) {
+    res.setHeader("Vary", "Origin");
+  }
+
   if (origin && allowedCorsOrigins.has(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   }

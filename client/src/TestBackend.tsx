@@ -37,7 +37,7 @@ import {
   navigateFrontend
 } from "./frontendRouting";
 
-const PUBLIC_API_ENDPOINT = "https://mechaniceye-backend-v2.onrender.com/api/diagnoses";
+const PUBLIC_API_ENDPOINT = "/api/diagnoses";
 const SUBMISSION_TIMEOUT_MS = 20000;
 const CATEGORIES = [
   "No start / hard start",
@@ -1305,12 +1305,8 @@ const [manualEngine, setManualEngine] = useState("");
       timing: timingSelections.length ? `${timingSelections.join(", ")}${otherTiming ? ` | Other: ${otherTiming}` : ""}` : otherTiming || ""
     };
 
-    const isLocalBrowser =
-      window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1";
-
     const endpoints = [
-      isLocalBrowser ? "/api/diagnoses" : PUBLIC_API_ENDPOINT
+      PUBLIC_API_ENDPOINT
     ];
 
     let lastError = "";
@@ -1427,7 +1423,7 @@ const [manualEngine, setManualEngine] = useState("");
             <button className="offer-card offer-card-primary" onClick={() => setPage("intake")}>
               <div className="offer-topline">Drivable Check</div>
               <div className="offer-title">Find Out What&apos;s Wrong</div>
-              <div className="offer-copy">Capture symptoms, timing, sounds, photos, video, and more before spending money on guesswork.</div>
+              <div className="offer-copy">Capture symptoms, timing, and photos before spending money on guesswork.</div>
               <div className="offer-action">Start Drivable Check</div>
             </button>
 
@@ -1442,7 +1438,7 @@ const [manualEngine, setManualEngine] = useState("");
 
         <div className="feature-grid">
           <div className="feature-card"><h3>Structured Intake</h3><p>Year, make, model, timing, urgency, and symptom story gathered in a useful format.</p></div>
-          <div className="feature-card"><h3>Evidence Support</h3><p>Photos, audio, video, and vibration inputs that make the platform feel ahead of the curve.</p></div>
+          <div className="feature-card"><h3>Evidence Support</h3><p>Photos and detailed symptom descriptions that help the review team understand the case.</p></div>
           <div className="feature-card"><h3>Practical Direction</h3><p>Designed to help you understand likely causes and prepare for the next real-world step.</p></div>
         </div>
 
@@ -1495,7 +1491,7 @@ const [manualEngine, setManualEngine] = useState("");
                 <li>Year, make, and model.</li>
                 <li>Warning lights, dashboard messages, or codes.</li>
                 <li>When it happens: startup, idle, braking, turning, highway speed, or after rain.</li>
-                <li>Sound, video, or photos if safe to collect.</li>
+                <li>Photos of anything visible if it is safe to collect.</li>
                 <li>What changed recently: repairs, parts, weather, fluids, jump start, or accident.</li>
                 <li>What has already been checked.</li>
               </ul>
@@ -1684,7 +1680,7 @@ const [manualEngine, setManualEngine] = useState("");
                       <div>
                         <h3>Diagnostic Evidence</h3>
                         <p className="section-intro">
-                          Upload the same kind of evidence a mechanic would ask for: photos, video, sound, vibration/motion context, and a clear symptom description.
+                          Upload the same kind of evidence a mechanic would ask for: clear photos plus a detailed symptom description.
                         </p>
                       </div>
                     </div>
@@ -1943,7 +1939,7 @@ const [manualEngine, setManualEngine] = useState("");
         </div>
         <div className="faq-grid">
           <div className="faq-card"><h3>What if I don’t know my engine?</h3><p>Use the I Don&apos;t Know option where available and keep going.</p></div>
-          <div className="faq-card"><h3>What uploads help most?</h3><p>Photos, sounds, videos, and vibration clues all help paint a better diagnostic picture.</p></div>
+          <div className="faq-card"><h3>What uploads help most?</h3><p>Clear photos and detailed descriptions of the symptom, timing, and recent changes help the review the most.</p></div>
           <div className="faq-card"><h3>Can this replace a hands-on inspection?</h3><p>No. It improves clarity and direction, but some problems still require real testing.</p></div>
         </div>
       </div>
