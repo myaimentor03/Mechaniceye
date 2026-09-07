@@ -3,8 +3,7 @@ import type { DrivableEvidenceIntake } from "../../../shared/drivableEvidence";
 import { buildBuyerEvidenceDraft } from "../lib/buyerEvidenceDraft";
 import { NextActionStrip } from "./NextActionStrip";
 
-const BUYER_VEHICLE_KNOWLEDGE_ENDPOINT =
-  "/api/buyer-risk/vehicle-knowledge";
+const BUYER_VEHICLE_KNOWLEDGE_ENDPOINT = "/api/buyer-risk/vehicle-knowledge";
 
 const REVIEW_AREAS = [
   "Seller evidence checklist",

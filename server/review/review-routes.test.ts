@@ -4,6 +4,7 @@ import express from "express";
 import { createServer } from "node:http";
 import { registerDurableReviewRoutes } from "./review-routes.js";
 import { reviewerIdentityFromCredential } from "../reviewer-auth.js";
+import { ReviewWriteError } from "./postgres-review-writer.js";
 
 const token = "review-route-test-token-that-is-long-enough";
 
@@ -45,6 +46,30 @@ test("missing reviewer authorization fails before runtime access", async () => {
       });
       assert.equal(appResponse.status, 401);
       assert.equal(accessed, false);
+    });
+  } finally { if (prior === undefined) delete process.env.DRIVABLE_REVIEWER_TOKEN; else process.env.DRIVABLE_REVIEWER_TOKEN = prior; }
+});
+
+test("review write failures never echo storage or database internals", async () => {
+  const secret = "connection-dsn-user=hunter2";
+  const prior = process.env.DRIVABLE_REVIEWER_TOKEN; process.env.DRIVABLE_REVIEWER_TOKEN = token;
+  const runtime = {
+    writer: {
+      async approve() {
+        throw new ReviewWriteError("storage_unavailable", `database connection failed ${secret}`, true);
+      },
+    },
+  };
+  try {
+    await withServer(runtime, async (origin) => {
+      const response = await fetch(`${origin}/api/internal/review/CASE-1/version_12345678/approve`, {
+        method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({ highRiskAcknowledged: true }),
+      });
+      assert.equal(response.status, 503);
+      const body = await response.text();
+      assert.equal(body.includes(secret), false);
+      assert.equal(body.includes("Review state could not be persisted."), true);
     });
   } finally { if (prior === undefined) delete process.env.DRIVABLE_REVIEWER_TOKEN; else process.env.DRIVABLE_REVIEWER_TOKEN = prior; }
 });

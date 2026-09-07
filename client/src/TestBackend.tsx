@@ -1337,7 +1337,7 @@ const [manualEngine, setManualEngine] = useState("");
       timing: timingSelections.length ? `${timingSelections.join(", ")}${otherTiming ? ` | Other: ${otherTiming}` : ""}` : otherTiming || ""
     };
 
-const endpoints = [PUBLIC_API_ENDPOINT];
+    const endpoints = [PUBLIC_API_ENDPOINT];
 
     let lastError = "";
 
