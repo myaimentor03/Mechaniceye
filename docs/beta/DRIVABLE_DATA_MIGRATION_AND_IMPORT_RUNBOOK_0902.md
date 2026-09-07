@@ -64,6 +64,8 @@ node scripts/inventory-nhtsa-batch-lists.mjs   # read-only: 230 distinct vehicle
 node scripts/verify-production-storage-guards.mjs # static: no in-memory fake reachable from production
 node scripts/acceptance-buyer-data-readiness.mjs  # no-target dry run (exits 2), never connects
 npm run import:seed-data            # seed-import dry run (SQL preview only, exit 0)
+npm run test:persistence-truth      # narrow persistence-truth battery, no DB (server/persistence-truth.test.ts)
+npm run test:storage-persistence    # storage read-bridge behavior, no DB
 npm run check                       # typecheck
 npm run build                       # production build
 ```
@@ -405,3 +407,23 @@ the corresponding step:
 - Nothing in this branch should ever be pointed at a database whose contents
   you cannot afford to lose. Prefer a fresh staging database for the first
   migration + import rehearsal.
+
+---
+
+## 9. Audit drift (this branch vs. the archived audit memo)
+
+`docs/beta/DRIVABLE_PRODUCTION_DATA_READINESS_0902.md` was authored before the
+last hardening commits. Verify everything against actual code — several audit
+claims are stale on this branch:
+
+| Archived audit claim | Actual status on `prep/drivable-production-data-0902` |
+| --- | --- |
+| `migrations/` directory does not exist | **Stale.** Four versioned migration files exist (`0001` launch controls, `0002` core schema, `0003` FK/index hardening, `0004` optional delivery outbox), idempotent and never auto-applied. `npm run verify:migration-parity` confirms they match `shared/schema.ts`. |
+| Needing `npx drizzle-kit generate` | **Stale.** Generated SQL migrations are already checked in; `db:push` is the non-preferred path (see §8.3). |
+| 0 NHTSA packs built locally | **Stale.** 230 pack JSON files exist locally (gitignored), one per distinct vehicle across the 4 batch lists. They are scratch files; the database is the source of truth after `--apply`. |
+| No tier-2 batch list exists | **Stale.** `tier2-common-used-vehicles.csv` (215), `tier2-missing-vehicles.csv` (21), and `grand-cherokee-repair.csv` (7) exist alongside `tier1-marketplace-vehicles.csv` (30). Cross-file distinct vehicles: 230. |
+| `server/commerce/in-memory-commerce-order-repository.ts` exists | **Stale / never present on this branch.** There is no `server/commerce/` directory or commerce schema here. |
+| Tier-1 distribution "Ford 10 / Chevrolet 6" | **Inaccurate prose.** The CSV is authoritative: Ford 9, Chevrolet 7 (still 30 total — see §5.4). |
+| All 17 app+Drivable tables only | **Extended.** Launch-control tables (consent + 5 review tables) and triggers are provisioned by `0001`; the delivery outbox is provisioned by `0004` (unwired). |
+| In-memory diagnosis data not durable | **Partially resolved.** Public-case rows persist to the `diagnoses` table via `insertPublicDiagnosisCaseToDb`; the DB is never reported as success on failure (§7). Review/consultation/follow-up in-memory maps remain process-local. |
+| Durable delivery outbox / commerce / durable private storage missing | **Still true and recorded.** Delivery outbox table is provisioned but unwired; commerce does not exist on this branch; evidence storage falls back to `runtime_local` unless S3 env vars are set. This is a documented, gated gap — not a silent risk. |

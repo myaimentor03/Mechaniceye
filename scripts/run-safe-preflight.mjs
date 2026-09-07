@@ -40,6 +40,8 @@ const stages = [
   ["production build (vite + esbuild)", "npm run build"],
   ["production storage guard (no in-memory fakes wired)", "node scripts/verify-production-storage-guards.mjs"],
   ["seed-import dry run (SQL preview only)", "npm run import:seed-data"],
+  ["persistence truth test (no DB)", "npx tsx --test server/persistence-truth.test.ts"],
+  ["storage persistence test (no DB)", "npx tsx --test server/storage-persistence.test.ts"],
 ];
 
 let passed = 0;
