@@ -2195,7 +2195,8 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
         databaseMirror: dbResult.ok ? "persisted" : "unavailable",
       };
       if (!dbResult.ok) {
-        console.error("LOCAL_CASE_DB_MIRROR_FAILED", responseBody.id, dbResult.error ?? "unknown error");
+        const dbError = dbResult.error ?? "unknown error";
+        logEventError("db.local_case_mirror_failed", undefined, { caseId: responseBody.id, reason: dbError });
         const partialResponse = buildDiagnosisApiResponse(responseBody, {
           webhookConfigured: false,
           webhookForwarded: false,
