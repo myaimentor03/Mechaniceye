@@ -103,6 +103,8 @@ This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_
 - **Consultation feedback schema lacked bounds (`server/routes.ts`):** ratings coerced with `Number()` and no `.min(1).max(10)` bound, so `-5`, `999`, or `"abc"`→`NaN` could poison mechanic average ratings. Now requires finite `[1,10]`, strict `wasFixed === true`, and caps feedback at 4,000 chars.
 - **Logout missing `Cache-Control: no-store` (`server/customer-auth.ts`):** added — matches every other auth route.
 - **Webhook filesystem path disclosure (`server/routes.ts`):** `deliverDiagnosisWebhook` embedded absolute `caseFolder`/`caseJsonPath`/`summaryPath`. Now sends only `path.basename(caseFolder)` and nulls the internal paths.
+- **Step-completion and fix-complete routes accepted unvalidated input (`server/routes.ts`):** `suggestionIndex`, `stepIndex`, `timeSpent`, `stepsCompleted`, and `feedback` flowed straight to storage with no type/range checks, so NaN/negative/oversized values could corrupt review/diagnosis state. Added `toIndex`, `toOptionalCount`, `toOptionalNumber`, and `toOptionalText` validators enforcing non-negative integer indices, bounded time, and 4,000-char text caps. Responses are 400 (not 500) on invalid input to distinguish client errors.
+- **Reviewer-gated write routes lacked rate limits (`server/routes.ts`):** the follow-up (50 MB disk writes), feedback (quotas on mechanic ratings), steps, and fix-complete routes had no per-actor limit. Added a shared `reviewerWriteLimit` (120 req / 10 min keyed by reviewer ref) applied to all four routes.
 
 ---
 
@@ -175,8 +177,7 @@ This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_
 7. **Rate-limit bypass via spoofable `X-Forwarded-For`** (`server/index.ts` `trust proxy = 1`, `server/rate-limit.ts` per-IP keys): on a multi-hop proxy topology a caller could rotate `XFF` to defeat IP limiter. Trust-proxy depth must be pinned to the exact Render hop, or a non-IP secondary key added. Requires prod verification of Render's `XFF` append-vs-overwrite.
 8. **Consent revocation recorded but not enforced downstream** — `decideConsentAuthorization` is never called by evidence/review/delivery paths. Validates requested purposes; a future-release policy item (original audit P2).
 9. **Outbound webhooks single-attempt, no retry; durable outbox unused** — `fetchWebhookWithTimeout` is bounded (5 s) but single-shot. Availability concern, not security.
-10. **`/api/diagnoses/:id/steps` and `/fix-complete` lack input validation** — reviewer-gated; unbounded/typed values could corrupt review data. Low-moderate severity.
-11. **Follow-up upload disk path** — reviewer-gated 50 MB writes to local `uploads/` with no rate limit; cleanup occurs when `vibrationData` is absent. Low-moderate severity.
+10. **Follow-up upload/steps/fix-complete/feedback** now carry the reviewer-write rate limit (120/10 min) and input validation (see third session), but the follow-up route still writes media to local `uploads/` by design until durable private-object evidence lands for reviewing media. Low-moderate severity.
 
 ---
 

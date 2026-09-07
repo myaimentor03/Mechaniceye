@@ -19,6 +19,32 @@ const consultationFeedbackSchema = {
     };
   }
 };
+
+function toIndex(value: unknown, field: string): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) throw new TypeError(`${field} must be a non-negative integer`);
+  return parsed;
+}
+
+function toOptionalCount(value: unknown, field: string): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 1_000_000) throw new TypeError(`${field} must be a non-negative integer`);
+  return parsed;
+}
+
+function toOptionalNumber(value: unknown, field: string): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 24 * 60 * 60 * 1000) throw new TypeError(`${field} must be a finite non-negative number`);
+  return parsed;
+}
+
+function toOptionalText(value: unknown, field: string): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "string" || value.length > 4_000) throw new TypeError(`${field} must be a string of at most 4000 characters`);
+  return value;
+}
 import { performEnhancedAnalysis } from "./enhanced-analysis";
 import multer from "multer";
 import path from "path";
@@ -1489,6 +1515,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     max: 20,
     key: (req) => req.drivableCustomer?.id || req.ip || "unknown",
   });
+  const reviewerWriteLimit = createRateLimit({
+    scope: "reviewer-write",
+    windowMs: 10 * 60_000,
+    max: 120,
+    key: (req) => req.drivableReviewer?.ref || req.ip || "unknown",
+  });
 
   app.get("/api/health/live", (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -1665,10 +1697,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update step completion
-  app.post("/api/diagnoses/:diagnosisId/steps", requireReviewer, async (req, res) => {
+  app.post("/api/diagnoses/:diagnosisId/steps", requireReviewer, reviewerWriteLimit, async (req, res) => {
     try {
       const { diagnosisId } = req.params;
-      const { suggestionIndex, stepIndex, completed, timeSpent } = req.body;
+      const suggestionIndex = toIndex(req.body?.suggestionIndex, "suggestionIndex");
+      const stepIndex = toIndex(req.body?.stepIndex, "stepIndex");
+      const completed = req.body?.completed === true;
+      const timeSpent = toOptionalNumber(req.body?.timeSpent, "timeSpent");
       
       const result = await storage.updateStepCompletion(diagnosisId, {
         suggestionIndex,
@@ -1680,15 +1715,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(result);
     } catch (error) {
       logEventError("api.step_completion_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
-      res.status(500).json({ message: "Failed to update step completion" });
+      res.status(400).json({ message: "Update step completion could not be processed." });
     }
   });
 
   // Mark fix as complete
-  app.post("/api/diagnoses/:diagnosisId/fix-complete", requireReviewer, async (req, res) => {
+  app.post("/api/diagnoses/:diagnosisId/fix-complete", requireReviewer, reviewerWriteLimit, async (req, res) => {
     try {
       const { diagnosisId } = req.params;
-      const { suggestionIndex, wasSuccessful, feedback, timeSpent, stepsCompleted } = req.body;
+      const suggestionIndex = toIndex(req.body?.suggestionIndex, "suggestionIndex");
+      const wasSuccessful = req.body?.wasSuccessful === true;
+      const feedback = toOptionalText(req.body?.feedback, "feedback");
+      const timeSpent = toOptionalNumber(req.body?.timeSpent, "timeSpent");
+      const stepsCompleted = toOptionalCount(req.body?.stepsCompleted, "stepsCompleted");
       
       const result = await storage.markFixComplete(diagnosisId, {
         suggestionIndex,
@@ -2060,7 +2099,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create follow-up request when previous fixes didn't work
-  app.post("/api/diagnoses/:id/follow-up", requireReviewer, upload.fields([
+  app.post("/api/diagnoses/:id/follow-up", requireReviewer, reviewerWriteLimit, upload.fields([
     { name: 'audio', maxCount: 1 },
     { name: 'video', maxCount: 1 }
   ]), async (req, res) => {
@@ -2187,7 +2226,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Submit consultation feedback
-  app.post("/api/consultations/:id/feedback", requireReviewer, async (req, res) => {
+  app.post("/api/consultations/:id/feedback", requireReviewer, reviewerWriteLimit, async (req, res) => {
     try {
       const consultationId = req.params.id;
       const feedbackData = consultationFeedbackSchema.parse(req.body);
