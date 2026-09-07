@@ -40,8 +40,8 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: false, limit: "10mb" }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 (async () => {
   const server = await registerRoutes(app);

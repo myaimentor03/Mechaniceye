@@ -456,10 +456,10 @@ function buildDiagnosisResponse(
   };
 }
 
-function createPublicDiagnosisCase(input: IncomingDiagnosisCase, clientRequestId?: string): DiagnosisCaseResponse {
+function createPublicDiagnosisCase(input: IncomingDiagnosisCase): DiagnosisCaseResponse {
   const publicCase = {
     ...input,
-    id: generateCaseId(clientRequestId),
+    id: generateCaseId(),
     status: "received" as const,
     createdAt: new Date().toISOString()
   };
@@ -1557,7 +1557,7 @@ async function deliverConciergeRequest(input: ConciergeRequest) {
 export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/health", (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
-    res.json({ ok: true, status: "ok" });
+    res.json({ ok: true, live: true });
   });
 
   registerCustomerAuthRoutes(app);
@@ -2063,10 +2063,22 @@ try {
       removeIntakeTempFiles(uploadedFiles);
       return res.status(413).json({ message: "Each photo must be 12 MB or smaller.", persisted: false });
     }
-    if (hasMobileMedia && !isR2EvidenceStorageConfigured()) {
+    const unsupportedPhotoMime = photoFiles.find((file) => !ALLOWED_PHOTO_MEDIA_TYPES.has(file.mimetype));
+    if (unsupportedPhotoMime) {
       removeIntakeTempFiles(uploadedFiles);
-      return res.status(503).json({
-        message: "Private evidence storage is temporarily unavailable. Your media was not retained.",
+      return res.status(415).json({
+        message: "A submitted photo has an unsupported file type. Supported types are JPEG, PNG, WebP, and HEIC.",
+        code: "UNSUPPORTED_PHOTO_MEDIA_TYPE",
+        persisted: false,
+      });
+    }
+    if (hasMobileMedia) {
+      // Photo-first release: audio/video/vibration capture is not advertised, so
+      // those parts are rejected outright rather than silently dropped.
+      removeIntakeTempFiles(uploadedFiles);
+      return res.status(415).json({
+        message: "Audio, video, and vibration capture are not supported yet. You can submit photos along with written symptoms and OBD-II codes.",
+        code: "UNSUPPORTED_MEDIA_TYPE",
         persisted: false,
       });
     }
@@ -2089,7 +2101,7 @@ try {
       if (launchControlsEnabled) {
         // Launch-controlled cases avoid runtime-local case files. Consent is
         // durably recorded before any private media is persisted.
-        responseBody = createPublicDiagnosisCase(input, input.clientRequestId);
+        responseBody = createPublicDiagnosisCase(input);
         usedPublicFallback = true;
         try {
           const runtime = await requireVerifiedLaunchControlRuntime();
@@ -2110,16 +2122,16 @@ try {
         }
       } else if (canUseLocalCaseStorage()) {
         try {
-          storedCase = createStoredDiagnosisCase(input, input.clientRequestId);
+          storedCase = createStoredDiagnosisCase(input);
           responseBody = buildDiagnosisResponse(storedCase);
         } catch (storageError) {
           logEventError("api.local_case_storage_failed", storageError);
-          responseBody = createPublicDiagnosisCase(input, input.clientRequestId);
+          responseBody = createPublicDiagnosisCase(input);
 
           usedPublicFallback = true;
         }
       } else {
-        responseBody = createPublicDiagnosisCase(input, input.clientRequestId);
+        responseBody = createPublicDiagnosisCase(input);
         usedPublicFallback = true;
       }
 
@@ -2200,7 +2212,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
         const partialResponse = buildDiagnosisApiResponse(responseBody, {
           webhookConfigured: false,
           webhookForwarded: false,
-        });
+        }, false);
         partialResponse.message = "Diagnosis case saved to local ops storage, but the case database write failed.";
         return res.status(202).json({ ...partialResponse, persisted: false });
       }

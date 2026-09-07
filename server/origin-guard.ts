@@ -23,6 +23,7 @@ export function originPermitted(
 export const requireAllowedOrigin: RequestHandler = (req, res, next) => {
   const origin = req.headers.origin;
   if (origin && !originPermitted(origin)) {
+    res.setHeader("Vary", "Origin");
     res.status(403).json({ ok: false, error: "Request origin is not allowed.", code: "ORIGIN_NOT_ALLOWED" });
     return;
   }
@@ -33,11 +34,13 @@ export const requireAllowedOrigin: RequestHandler = (req, res, next) => {
  * Global variant: safe read-only methods (GET/HEAD/OPTIONS) pass through even
  * with a disallowed Origin, while browser-initiated state changes are rejected.
  * Mount before CORS headers are written so a rejected request never receives
- * an allow-listed Access-Control-Allow-Origin.
+ * an allow-listed Access-Control-Allow-Origin. Every rejected response still
+ * carries Vary: Origin so shared caches never serve one origin's denial state.
  */
 export const enforceOriginForStateChanging: RequestHandler = (req, res, next) => {
   const origin = req.headers.origin;
   if (origin && !originPermitted(origin) && req.method !== "GET" && req.method !== "HEAD" && req.method !== "OPTIONS") {
+    res.setHeader("Vary", "Origin");
     res.status(403).json({ ok: false, error: "Request origin is not allowed.", code: "ORIGIN_NOT_ALLOWED" });
     return;
   }

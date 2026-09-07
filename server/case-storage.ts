@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { randomBytes } from "node:crypto";
 
 export type IncomingDiagnosisCase = {
   description: string;
@@ -247,25 +248,16 @@ function buildTrackerRow(
   };
 }
 
-export function generateCaseId(seed?: string) {
-  if (seed && typeof seed === "string") {
-    const normalized = seed.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 48);
-
-    if (normalized.length >= 8) {
-      return `CASE-${normalized}`;
-    }
-  }
-
+export function generateCaseId() {
   const now = new Date();
   const stamp = now.toISOString().replace(/[-:.TZ]/g, "").slice(0, 17);
-  const rand = Math.floor(Math.random() * 1000).toString().padStart(3, "0");
-  return `CASE-${stamp}-${rand}`;
+  return `CASE-${stamp}-${randomBytes(4).toString("hex")}`;
 }
 
-export function createStoredDiagnosisCase(input: IncomingDiagnosisCase, clientRequestId?: string): StoredDiagnosisCase {
+export function createStoredDiagnosisCase(input: IncomingDiagnosisCase): StoredDiagnosisCase {
   ensureDir(casesRoot);
 
-  const id = generateCaseId(clientRequestId);
+  const id = generateCaseId();
   const caseFolder = path.join(casesRoot, safeFileName(id));
   ensureDir(caseFolder);
 

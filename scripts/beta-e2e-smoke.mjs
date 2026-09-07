@@ -1236,11 +1236,13 @@ async function main() {
       return "ok";
     });
 
-    await check("origin enforcement: disallowed Origin on a public POST gets no ACAO header (browser blocks)", async () => {
+    await check("origin enforcement: disallowed Origin on a public POST is rejected with no ACAO header and Vary: Origin (browser blocks)", async () => {
       const response = await postJson(`${baseUrl}/api/marketplace/seller-intake`, marketplaceSellerBody(), { origin: "https://evil.example.test" });
       assert(!response.headers.get("access-control-allow-origin"), "disallowed origin must not be echoed");
       assert(response.headers.get("vary")?.toLowerCase().includes("origin"), "expected Vary: Origin");
-      assert(response.status === 200, `request itself may complete server-side; got ${response.status}`);
+      assert(response.status === 403, `P1-3 enforces the origin allow-list; expected 403 got ${response.status}`);
+      const body = await jsonResponse(response);
+      assert(body.ok === false && body.code === "ORIGIN_NOT_ALLOWED", "expected ORIGIN_NOT_ALLOWED body");
       return "ok";
     });
 
