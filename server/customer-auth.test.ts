@@ -27,3 +27,13 @@ test("beta invitations require a configured exact code", () => {
   assert.equal(inviteMatches("", ""), false);
   assert.equal(inviteMatches(undefined, "pilot-123"), false);
 });
+
+test("session tokens carry a fresh random nonce for each issuance", () => {
+  const now = 1_700_000_000_000;
+  const identity = { id: "user-1", email: "person@example.com" };
+  const first = createSessionToken(identity, now);
+  const second = createSessionToken(identity, now);
+  assert.notEqual(first, second);
+  assert.deepEqual(readSessionToken(first, now + 1_000), identity);
+  assert.deepEqual(readSessionToken(second, now + 1_000), identity);
+});

@@ -56,6 +56,14 @@ test("case traversal and storage failure never report success", async () => {
     const store = new RuntimeFileEvidenceStore(root);
     const jpg = upload(Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
     await assert.rejects(() => store.savePhotos("../escape", [jpg]), /Invalid server case ID/);
+    await assert.rejects(() => store.savePhotos("..", [jpg]), /Invalid server case ID/);
+    await assert.rejects(() => store.savePhotos("..\\escape", [jpg]), /Invalid server case ID/);
+    await assert.rejects(() => store.savePhotos("CASE/..", [jpg]), /Invalid server case ID/);
+    await assert.rejects(() => store.savePhotos("", [jpg]), /Invalid server case ID/);
+    await assert.rejects(() => store.savePhotos(".", [jpg]), /Invalid server case ID/);
+    await assert.rejects(() => store.savePhotos("-CASE", [jpg]), /Invalid server case ID/);
+    await assert.rejects(() => store.savePhotos("CASE-", [jpg]), /Invalid server case ID/);
+    await assert.rejects(() => store.savePhotos("CASE..ID", [jpg]), /Invalid server case ID/);
     const blockedRoot = path.join(root, "not-a-directory");
     await writeFile(blockedRoot, "blocked");
     await assert.rejects(() => new RuntimeFileEvidenceStore(blockedRoot).savePhotos("CASE-FAIL", [jpg]));

@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { randomBytes } from "crypto";
 
 export type IncomingDiagnosisCase = {
   description: string;
@@ -250,7 +251,7 @@ function buildTrackerRow(
 export function generateCaseId() {
   const now = new Date();
   const stamp = now.toISOString().replace(/[-:.TZ]/g, "").slice(0, 17);
-  const rand = Math.floor(Math.random() * 1000).toString().padStart(3, "0");
+  const rand = randomBytes(4).toString("hex");
   return `CASE-${stamp}-${rand}`;
 }
 

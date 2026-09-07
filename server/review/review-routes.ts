@@ -112,7 +112,7 @@ function reviewError(res: Response, error: unknown): void {
     res.status(503).json({ ok: false, code: error.code, error: "Review release state could not be verified." }); return;
   }
   if (error instanceof TypeError) {
-    res.status(400).json({ ok: false, code: "INVALID_REVIEW_INPUT", error: error.message }); return;
+    res.status(400).json({ ok: false, code: "INVALID_REVIEW_INPUT", error: "The review input is invalid." }); return;
   }
   res.status(503).json({ ok: false, code: "REVIEW_OPERATION_FAILED", error: "Review operation could not be completed." });
 }

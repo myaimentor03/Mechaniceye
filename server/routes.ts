@@ -4,12 +4,18 @@ import { storage } from "./storage";
 // local fallback validation while DB/schema layer is disabled
 const consultationFeedbackSchema = {
   parse(input: any) {
+    const toRating = (value: unknown): number => {
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed)) throw new TypeError("Ratings must be finite numbers");
+      if (parsed < 1 || parsed > 10) throw new TypeError("Ratings must be between 1 and 10");
+      return parsed;
+    };
     return {
-      politenessRating: Number(input.politenessRating || 0),
-      effectivenessRating: Number(input.effectivenessRating || 0),
-      easeOfWorkRating: Number(input.easeOfWorkRating || 0),
-      wasFixed: !!input.wasFixed,
-      feedback: input.feedback || ""
+      politenessRating: toRating(input?.politenessRating ?? 0),
+      effectivenessRating: toRating(input?.effectivenessRating ?? 0),
+      easeOfWorkRating: toRating(input?.easeOfWorkRating ?? 0),
+      wasFixed: input?.wasFixed === true,
+      feedback: typeof input?.feedback === "string" ? input.feedback.slice(0, 4_000) : ""
     };
   }
 };
@@ -44,6 +50,7 @@ import { requireVerifiedLaunchControlRuntime } from "./review/launch-control-run
 import { IntakeConsentError, recordConsentRevocation, persistAndAuthorizeIntakeConsent } from "./consent/intake-consent";
 import { requireAllowedOrigin } from "./origin-guard";
 import { logEvent, logEventError } from "./observability/safe-log";
+import { serializeErrorSafely } from "./observability/errors";
 import { sslConfigForDatabaseUrl } from "./database-ssl";
 import { fetchWebhookWithTimeout } from "./webhook-fetch";
 
@@ -515,9 +522,9 @@ async function deliverDiagnosisWebhook(
         timing: diagnosisCase.timing,
         unsupportedVehicle: input.unsupportedVehicle,
         manualVehicleEntryUsed: input.manualVehicleEntryUsed,
-        caseFolder: storedCase?.caseFolder || null,
-        caseJsonPath: storedCase ? path.join(storedCase.caseFolder, "case.json") : null,
-        summaryPath: storedCase ? path.join(storedCase.caseFolder, "summary.txt") : null,
+        caseFolder: storedCase ? path.basename(storedCase.caseFolder) : null,
+        caseJsonPath: null,
+        summaryPath: null,
         rawVehicleSelection: input.rawVehicleSelection || null,
         ...buildDrivableAiPayloadFields({
           reportType: "first_look_report",
@@ -1168,7 +1175,6 @@ async function deliverMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
     intakeType: packet.intakeType,
     source: packet.source,
     submittedAt,
-    listingType: intake.listingType,
   });
 
   const webhookUrl = process.env.MASTER_INTAKE_WEBHOOK_URL;
@@ -1232,7 +1238,6 @@ async function deliverMarketplaceBuyerInterest(intake: MarketplaceBuyerInterest)
     intakeType: packet.intakeType,
     source: packet.source,
     submittedAt,
-    listingTitle: intake.listingTitle,
   });
 
   const webhookUrl = process.env.MASTER_INTAKE_WEBHOOK_URL;
@@ -1730,6 +1735,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const diagnoses = await storage.getDiagnosesByUser();
       res.json(diagnoses);
     } catch (error) {
+      logEventError("api.diagnoses_fetch_failed", error);
       res.status(500).json({ message: "Failed to fetch diagnoses" });
     }
   });
@@ -2269,7 +2275,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       if (error instanceof IntakeConsentError) {
         const status = error.code === "NO_ACCEPTANCE" || error.code === "INVALID_PURPOSES" ? 400 : 503;
-        res.status(status).json({ message: error.message, code: error.code });
+        logEventError("api.consent_revocation_failed", error, { actorId, accountId, caseId });
+        const safeError = serializeErrorSafely(error);
+        res.status(status).json({ message: safeError.type, code: safeError.code || error.code });
         return;
       }
       logEventError("api.consent_revocation_failed", error);

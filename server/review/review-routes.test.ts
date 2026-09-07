@@ -50,6 +50,24 @@ test("missing reviewer authorization fails before runtime access", async () => {
   } finally { if (prior === undefined) delete process.env.DRIVABLE_REVIEWER_TOKEN; else process.env.DRIVABLE_REVIEWER_TOKEN = prior; }
 });
 
+test("review input validation never echoes error.message internals", async () => {
+  const prior = process.env.DRIVABLE_REVIEWER_TOKEN; process.env.DRIVABLE_REVIEWER_TOKEN = token;
+  const internalDetail = "Cannot destructure property 'config' of undefined";
+  const runtime = { writer: { async createDraft() { throw new TypeError(internalDetail); } } };
+  try {
+    await withServer(runtime, async (origin) => {
+      const response = await fetch(`${origin}/api/internal/review/drafts`, {
+        method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({ riskLevel: "low" }),
+      });
+      assert.equal(response.status, 400);
+      const body = await response.text();
+      assert.equal(body.includes(internalDetail), false);
+      assert.equal(body.includes("The review input is invalid."), true);
+    });
+  } finally { if (prior === undefined) delete process.env.DRIVABLE_REVIEWER_TOKEN; else process.env.DRIVABLE_REVIEWER_TOKEN = prior; }
+});
+
 test("review write failures never echo storage or database internals", async () => {
   const secret = "connection-dsn-user=hunter2";
   const prior = process.env.DRIVABLE_REVIEWER_TOKEN; process.env.DRIVABLE_REVIEWER_TOKEN = token;

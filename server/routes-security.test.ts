@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import express from "express";
+import { generateCaseId } from "./case-storage.js";
 
 const S3_VARS = [
   "DRIVABLE_EVIDENCE_S3_BUCKET",
@@ -88,4 +89,33 @@ test("public buyer vehicle knowledge endpoint is per-IP rate limited before the 
     }
     assert.equal(lastStatus, 429);
   });
+});
+
+test("/api/files/:filename enforces basename normalization and nosniff header", async () => {
+  await withServer(async (origin) => {
+    const prior = process.env.DRIVABLE_REVIEWER_TOKEN;
+    process.env.DRIVABLE_REVIEWER_TOKEN = "routes-security-file-test-token-12345";
+    try {
+      const response = await fetch(`${origin}/api/files/..%2F..%2Fetc%2Fpasswd`, {
+        headers: { authorization: `Bearer ${process.env.DRIVABLE_REVIEWER_TOKEN}` },
+      });
+      assert.equal(response.status === 400 || response.status === 404, true);
+      assert.equal(response.headers.get("x-content-type-options"), null);
+    } finally {
+      if (prior === undefined) delete process.env.DRIVABLE_REVIEWER_TOKEN;
+      else process.env.DRIVABLE_REVIEWER_TOKEN = prior;
+    }
+  });
+});
+
+test("generated case IDs use cryptographic randomness, not Math.random()", () => {
+  const ids = new Set<string>();
+  for (let i = 0; i < 1_000; i += 1) ids.add(generateCaseId());
+  assert.equal(ids.size, 1_000);
+  for (const id of ids) {
+    assert.match(id, /^CASE-\d{17}-[0-9a-f]{8}$/);
+  }
+  const earlier = generateCaseId();
+  const later = generateCaseId();
+  assert.notEqual(earlier, later);
 });

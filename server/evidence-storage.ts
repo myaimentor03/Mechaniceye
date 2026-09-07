@@ -43,7 +43,8 @@ export interface EvidenceStore {
 }
 
 function safeCaseSegment(value: string) {
-  if (!/^[a-zA-Z0-9._-]+$/.test(value)) throw new Error("Invalid server case ID");
+  if (value === ".." || value.includes("..")) throw new Error("Invalid server case ID");
+  if (!/^[a-zA-Z0-9](?:[a-zA-Z0-9._-]{0,126}[a-zA-Z0-9])?$/.test(value)) throw new Error("Invalid server case ID");
   return value;
 }
 
