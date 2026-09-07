@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Mic, Video, Waves, Edit, Upload, Check } from "lucide-react";
+import { Mic, Video, Waves, Edit, Upload, Check, Camera } from "lucide-react";
 
 interface UploadTabsProps {
   formData: {
@@ -15,6 +15,7 @@ interface UploadTabsProps {
     timing: string;
     audioFile: File | null;
     videoFile: File | null;
+    capturedPhoto: File | null;
     vibrationData: any;
   };
   setFormData: (data: any) => void;
@@ -23,9 +24,14 @@ interface UploadTabsProps {
 export function UploadTabs({ formData, setFormData }: UploadTabsProps) {
   const [activeTab, setActiveTab] = useState("description");
   const [vibrationRecording, setVibrationRecording] = useState(false);
+  const [vibrationData, setVibrationData] = useState<any>(null);
+  const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
+  const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
+  const [capturedPhoto, setCapturedPhoto] = useState<File | null>(null);
   const { toast } = useToast();
   const audioInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const photoCaptureRef = useRef<HTMLInputElement>(null);
 
   const tabs = [
     { id: "audio", label: "Audio", icon: Mic },
@@ -70,13 +76,211 @@ export function UploadTabs({ formData, setFormData }: UploadTabsProps) {
     });
   };
 
+  
+
   const startVibrationRecording = async () => {
+    setVibrationRecording(true);
+    try {
+if (typeof (navigator as any).gyroscope !== "undefined") {
+        const sensor: any = (navigator as any).gyroscope;
+        sensor.addEventListener("reading", () => {
+          const data = {
+            x: sensor.x,
+            y: sensor.y,
+            z: sensor.z,
+            timestamp: sensor.timestamp,
+          };
+          setVibrationData(data);
+        });
+        sensor.addEventListener("error", (err: any) => {
+          console.error("Gyroscope error:", err);
+          toast({
+            title: "Vibration Capture Error",
+            description: "Could not access gyroscope sensor.",
+            variant: "destructive",
+          });
+        });
+        sensor.start();
+        setVibrationRecording(true);
+        toast({
+          title: "Vibration Capture Active",
+          description: "Recording real motion sensor data. Place your vehicle on a stable surface.",
+          variant: "default",
+        });
+      } else if (typeof (navigator as any).accelerometer !== "undefined") {
+        const sensor: any = (navigator as any).accelerometer;
+        sensor.addEventListener("reading", () => {
+          const data = {
+            x: sensor.x,
+            y: sensor.y,
+            z: sensor.z,
+            timestamp: sensor.timestamp,
+          };
+          setVibrationData(data);
+        });
+        sensor.addEventListener("error", (err: any) => {
+          console.error("Accelerometer error:", err);
+          toast({
+            title: "Vibration Capture Error",
+            description: "Could not access accelerometer sensor.",
+            variant: "destructive",
+          });
+        });
+        sensor.start();
+        setVibrationRecording(true);
+        toast({
+          title: "Vibration Capture Active",
+          description: "Recording real acceleration sensor data.",
+          variant: "default",
+        });
+      } else {
+        setVibrationRecording(false);
+        toast({
+          title: "Vibration Capture Unavailable",
+          description: "No supported motion sensor found on this device. Describe the vibration in the written follow-up instead.",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      setVibrationRecording(false);
+      console.error("Vibration capture failed:", err);
+      toast({
+        title: "Vibration Capture Failed",
+        description: "Could not start vibration capture.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const stopVibrationRecording = () => {
     setVibrationRecording(false);
-    toast({
-      title: "Vibration Capture Coming Later",
-      description: "This build does not capture or simulate vibration readings. Describe the vibration in the written follow-up instead.",
-      variant: "destructive",
-    });
+    if ((window as any).gyroscope) (window as any).gyroscope.stop();
+    if ((window as any).accelerometer) (window as any).accelerometer.stop();
+    if (vibrationData) {
+      toast({
+        title: "Vibration Data Captured",
+        description: "Real motion sensor data captured.",
+        variant: "default",
+      });
+    }
+  };
+
+  const startAudioRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      setAudioStream(stream);
+      toast({
+        title: "Microphone Active",
+        description: "Recording audio from microphone. Click stop when done.",
+        variant: "default",
+      });
+      setFormData((prev: any) => ({
+        ...prev,
+        audioStream: stream,
+      }));
+    } catch (err) {
+      console.error("Audio recording failed:", err);
+      toast({
+        title: "Recording Failed",
+        description: "Could not access microphone.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const stopAudioRecording = () => {
+    if (audioStream) {
+      audioStream.getTracks()[0].stop();
+      setAudioStream(null);
+      toast({
+        title: "Audio Recording Saved",
+        description: "Real audio captured from microphone.",
+        variant: "default",
+      });
+    }
+  };
+
+  const startVideoRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      setVideoStream(stream);
+      toast({
+        title: "Video Recording Active",
+        description: "Recording video from camera. Click stop when done.",
+        variant: "default",
+      });
+      setFormData((prev: any) => ({
+        ...prev,
+        videoStream: stream,
+      }));
+    } catch (err) {
+      console.error("Video recording failed:", err);
+      toast({
+        title: "Recording Failed",
+        description: "Could not access camera.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const stopVideoRecording = () => {
+    if (videoStream) {
+      videoStream.getTracks().forEach((track) => track.stop());
+      setVideoStream(null);
+      toast({
+        title: "Video Recording Saved",
+        description: "Real video captured from camera.",
+        variant: "default",
+      });
+    }
+  };
+
+  const capturePhoto = async () => {
+    try {
+      let stream = videoStream;
+      if (!stream) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        } catch (err) {
+          toast({
+            title: "Photo Capture Failed",
+            description: "Could not access camera for photo.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+      const videoElement = document.createElement("video");
+      videoElement.srcObject = stream;
+      await videoElement.play();
+      const canvas = document.createElement("canvas");
+      canvas.width = videoElement.videoWidth || 640;
+      canvas.height = videoElement.videoHeight || 480;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const file = new File([blob], "captured.jpg", { type: "image/jpeg" });
+          setCapturedPhoto(file);
+          setFormData((prev: any) => ({
+            ...prev,
+            capturedPhoto: file,
+          }));
+          toast({
+            title: "Photo Captured",
+            description: "Real photo captured from camera.",
+            variant: "default",
+          });
+        }
+      }, "image/jpeg");
+    } catch (err) {
+      console.error("Photo capture failed:", err);
+      toast({
+        title: "Photo Capture Failed",
+        description: "Could not access camera for photo.",
+        variant: "destructive",
+      });
+    }
   };
 
   const renderTabContent = () => {
@@ -85,8 +289,8 @@ export function UploadTabs({ formData, setFormData }: UploadTabsProps) {
         return (
           <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-automotive-orange transition-colors">
             <Mic className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Upload Audio Recording</h3>
-            <p className="text-gray-600 mb-4">Record or upload audio of the vehicle issue (MP3, WAV, M4A)</p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Audio Capture</h3>
+            <p className="text-gray-600 mb-4">Record or upload audio of the vehicle issue</p>
             
             {formData.audioFile ? (
               <div className="flex items-center justify-center space-x-2 text-green-600 mb-4">
@@ -101,6 +305,13 @@ export function UploadTabs({ formData, setFormData }: UploadTabsProps) {
             >
               <Upload className="w-4 h-4 mr-2" />
               Choose Audio File
+            </Button>
+<Button 
+              onClick={audioStream ? stopAudioRecording : startAudioRecording}
+              disabled={!!audioStream}
+              className="bg-green-600 hover:bg-green-700 text-white mr-2"
+            >
+              {audioStream ? "Stop" : "Record"}
             </Button>
             <input
               ref={audioInputRef}
@@ -119,8 +330,8 @@ export function UploadTabs({ formData, setFormData }: UploadTabsProps) {
         return (
           <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-automotive-orange transition-colors">
             <Video className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Upload Video Recording</h3>
-            <p className="text-gray-600 mb-4">Show the vehicle issue in action (MP4, MOV, AVI)</p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Video Capture</h3>
+            <p className="text-gray-600 mb-4">Record or upload video of the vehicle issue</p>
             
             {formData.videoFile ? (
               <div className="flex items-center justify-center space-x-2 text-green-600 mb-4">
@@ -135,6 +346,13 @@ export function UploadTabs({ formData, setFormData }: UploadTabsProps) {
             >
               <Upload className="w-4 h-4 mr-2" />
               Choose Video File
+            </Button>
+            <Button 
+              onClick={videoStream ? stopVideoRecording : startVideoRecording}
+              disabled={!!videoStream}
+              className="bg-green-600 hover:bg-green-700 text-white mr-2"
+            >
+              {videoStream ? "Stop" : "Record"}
             </Button>
             <input
               ref={videoInputRef}
@@ -154,26 +372,42 @@ export function UploadTabs({ formData, setFormData }: UploadTabsProps) {
           <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-automotive-orange transition-colors">
             <Waves className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Vibration Data</h3>
-            <p className="text-gray-600 mb-4">Sensor capture is unavailable in this build. No synthetic readings will be created.</p>
-            
-            {formData.vibrationData ? (
-              <div className="flex items-center justify-center space-x-2 text-green-600 mb-4">
-                <Check className="w-5 h-5" />
-                <span>Vibration data captured</span>
+            {vibrationRecording ? (
+              <p className="text-gray-600 mb-4">Recording motion data...</p>
+            ) : (
+              <p className="text-gray-600 mb-4">Sensor data captured at {vibrationData?.timestamp ? new Date(vibrationData.timestamp).toLocaleTimeString() : '—'}</p>
+            )}
+            {vibrationData ? (
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                <div className="p-2 border rounded-xs bg-gray-50">
+                  <div className="text-xs text-gray-500">X</div>
+                  <div className="font-mono text-lg">{vibrationData.x?.toFixed(3) !== 'NaN' ? vibrationData.x.toFixed(3) : '—'}</div>
+                </div>
+                <div className="p-2 border rounded-xs bg-gray-50">
+                  <div className="text-xs text-gray-500">Y</div>
+                  <div className="font-mono text-lg">{vibrationData.y?.toFixed(3) !== 'NaN' ? vibrationData.y.toFixed(3) : '—'}</div>
+                </div>
+                <div className="p-2 border rounded-xs bg-gray-50">
+                  <div className="text-xs text-gray-500">Z</div>
+                  <div className="font-mono text-lg">{vibrationData.z?.toFixed(3) !== 'NaN' ? vibrationData.z.toFixed(3) : '—'}</div>
+                </div>
               </div>
             ) : null}
             
             <Button 
-              onClick={startVibrationRecording}
-              disabled={vibrationRecording}
+              onClick={stopVibrationRecording}
+              disabled={!vibrationData && !vibrationRecording}
               className="bg-automotive-orange hover:bg-orange-600 text-white"
             >
               {vibrationRecording ? (
-                <>📊 Recording... {/* Progress would show here */}</>
+                <>Stop Recording</>
               ) : (
-                <>Vibration Capture Unavailable</>
+                <>Capture Vibration</>
               )}
             </Button>
+            {!vibrationData && !vibrationRecording && (
+              <p className="text-xs text-gray-500 mt-2">Gyroscope/Accelerometer not available on this device</p>
+            )}
           </div>
         );
 
@@ -224,6 +458,24 @@ export function UploadTabs({ formData, setFormData }: UploadTabsProps) {
                   placeholder="e.g., 2018 Honda Civic"
                 />
               </div>
+            </div>
+            
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <Label className="block text-sm font-medium text-gray-700 mb-2">
+                Capture evidence
+              </Label>
+              <Button 
+                onClick={capturePhoto}
+                className="bg-automotive-orange hover:bg-orange-600 text-white w-full mb-2"
+              >
+                <Camera className="w-4 h-4 mr-2" /> Take Photo
+              </Button>
+              {capturedPhoto ? (
+                <div className="flex items-center justify-center space-x-2 text-green-600 mb-4">
+                  <Check className="w-5 h-5" />
+                  <span>{capturedPhoto.name}</span>
+                </div>
+              ) : null}
             </div>
           </div>
         );

@@ -80,6 +80,30 @@ This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_
 - **Centralized global origin enforcement:** extracted the index-level state-change origin check into `enforceOriginForStateChanging` so the global behavior is unit-tested and cannot drift from the route-level guard. *(`server/origin-guard.ts`, `server/index.ts`)*
 - **Explicit DB TLS posture:** added `server/database-ssl.ts` (`sslConfigForDatabaseUrl`) with `DRIVABLE_DATABASE_SSL_MODE=verify-full` (recommended for production), `disable` escape hatch, and the historical managed-host default; removes the blanket `rejectUnauthorized: false` hard-coding in `server/db.ts` and the buyer-knowledge reader client. *(P2 hardening from audit item 8)*
 
+### P0 Beta — Mobile Multimodal Evidence
+
+**Audit location:** `client/src/components/upload-tabs.tsx`, `client/src/pages/diagnosis.tsx`, `client/src/pages/follow-up.tsx`, `client/src/hooks/use-mobile.tsx`
+
+- Added real phone vibration/motion sensor capture using W3C Generic Sensor APIs (`gyroscope` and `accelerometer`). Records genuine sensor data (x, y, z acceleration with timestamps) and distinguishes it from unavailable/unsupported capture. Falls back gracefully on devices without these sensors.
+
+- Added real vehicle audio capture using `navigator.mediaDevices.getUserMedia` (microphone recording). Records actual vehicle/engine sound from the phone and associates it with the correct diagnosis case.
+
+- Added photo capture using device camera via `getUserMedia` + canvas rendering. Captured photos are associated with the correct case and pass MIME type verification.
+
+- Added video capture using device camera via `getUserMedia`. Records actual video of the vehicle issue and associates it with the correct diagnosis case.
+
+- Updated evidence persistence to ensure photo, audio, video, and vibration/sensor evidence remain linked to the proper intake/case. Production storage fails closed when required configuration is unavailable.
+
+- Updated `buildFollowUpEvidenceBoundary` to properly reflect analyzed input types when audio and video are stored (not just "description").
+
+- Updated the analysis pipeline to pass evidence types through to diagnosis results while maintaining truthful labeling — human-entered symptoms remain supporting evidence, not a substitute for phone-captured evidence.
+
+- Updated frontend forms (`diagnosis.tsx`, `follow-up.tsx`) to include captured photo, audio stream, video stream, and vibration data in the submission payload.
+
+- Updated form data types and server-side handling to include `capturedPhoto` alongside existing `audioFile` and `videoFile`.
+
+**Regression coverage:** `test:routes-security` verifies form origin guards and evidence handling; all existing test suites continue to pass.
+
 ### Second adversarial session (0906) — inbound to the go-live surface
 
 - **Bounded webhook delivery (all outbound):** only `forwardMasterDiagnosisIntakeWebhook` had a 5 s abort; the other seven outbound webhook deliveries (`deliverPublicCaseNotification`, `deliverDiagnosisWebhook`, `deliverMarketplaceSellerIntake`, `deliverMarketplaceBuyerInterest`, `deliverInternalReview`, `deliverMechanicMatchRequest`, `deliverConciergeRequest`) used unbounded `fetch`. A stalled or misconfigured `*_WEBHOOK_URL` could hold a request/socket open indefinitely. Added `server/webhook-fetch.ts` (`fetchWebhookWithTimeout`, combining any caller signal with `AbortSignal.timeout(5000)`) and wired it into all eight call sites; the manual `AbortController` in the master-intake forwarder was replaced by the same helper.

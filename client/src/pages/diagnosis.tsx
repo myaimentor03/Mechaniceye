@@ -21,6 +21,7 @@ export default function Diagnosis() {
     timing: "",
     audioFile: null as File | null,
     videoFile: null as File | null,
+    capturedPhoto: null as File | null,
     vibrationData: null as any,
   });
 
@@ -81,6 +82,10 @@ export default function Diagnosis() {
     
     if (formData.videoFile) {
       formDataToSend.append("video", formData.videoFile);
+    }
+    
+    if (formData.capturedPhoto) {
+      formDataToSend.append("photo", formData.capturedPhoto);
     }
     
     if (formData.vibrationData) {
