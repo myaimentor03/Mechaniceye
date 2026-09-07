@@ -1,10 +1,5 @@
-<<<<<<< HEAD
-﻿/**
- * Drivable safe preflight ΓÇö runs the full no-database, no-mutation battery a
-=======
 /**
  * Drivable safe preflight — runs the full no-database, no-mutation battery a
->>>>>>> origin/prep/drivable-production-data-0902
  * single time and reports pass/fail per stage.
  *
  * Nothing here connects to a database, mutates anything, or applies a
@@ -62,8 +57,5 @@ if (failed.length) {
   console.error(`Failed stages:\n${failed.map((f) => `  - ${f}`).join("\n")}`);
   process.exit(1);
 }
-<<<<<<< HEAD
 console.log("All safe preflight stages passed. No database connection and no mutation were performed.");
-=======
-console.log("All safe preflight stages passed. No database connection and no mutation were performed.");
->>>>>>> origin/prep/drivable-production-data-0902
+

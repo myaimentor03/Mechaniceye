@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-﻿/**
-=======
 /**
->>>>>>> origin/prep/drivable-production-data-0902
  * Guarded wrapper for `drizzle-kit push` so the dangerous one-shot schema
  * command can never run against an unconfirmed target.
  *
@@ -59,8 +55,6 @@ const result = spawnSync("drizzle-kit push", {
   timeout: 5 * 60 * 1000,
 });
 
-<<<<<<< HEAD
 process.exit(result.status ?? 1);
-=======
-process.exit(result.status ?? 1);
->>>>>>> origin/prep/drivable-production-data-0902
+
+

@@ -1,6 +1,4 @@
-<<<<<<< HEAD
-=======
-﻿> [!IMPORTANT] ARCHIVED SOURCE AUDIT (2026-09-02)
+> [!IMPORTANT] ARCHIVED SOURCE AUDIT (2026-09-02)
 > This file is the verbatim source readiness audit that this branch was built
 > against. It is archived for reference ("audit memo" references in
 > `DRIVABLE_DATA_MIGRATION_AND_IMPORT_RUNBOOK_0902.md` point here). Several
@@ -17,7 +15,6 @@
 >     webhooks when the database mirror write fails.
 >
 
->>>>>>> origin/prep/drivable-production-data-0902
 # Drivable Production Data Readiness Audit
 
 **Date:** 2026-09-02
@@ -499,7 +496,5 @@ npm run dev
 ```
 
 Total expected database rows after full import: **270 seed rows + 30 NHTSA packs + app data = 300+ rows minimum**.
-<<<<<<< HEAD
-=======
 
->>>>>>> origin/prep/drivable-production-data-0902
+

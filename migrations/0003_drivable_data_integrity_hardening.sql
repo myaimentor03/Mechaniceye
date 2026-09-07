@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-﻿-- Optional Drivable data-integrity hardening (2024-09-02).
-=======
 -- Optional Drivable data-integrity hardening (2024-09-02).
->>>>>>> origin/prep/drivable-production-data-0902
 --
 -- Adds referential integrity and lookup indexes on top of the core schema
 -- (0002). EVERY constraint is CREATE ... NOT VALID so existing data is never
@@ -83,8 +79,6 @@ create index if not exists diagnoses_user_created_at_idx
 create index if not exists follow_up_user_created_at_idx
   on follow_up_requests (user_id, created_at desc);
 
-<<<<<<< HEAD
 commit;
-=======
-commit;
->>>>>>> origin/prep/drivable-production-data-0902
+
+

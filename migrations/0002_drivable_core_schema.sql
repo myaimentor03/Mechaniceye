@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-﻿-- Drivable core schema (production), equivalent to `drizzle-kit push` over
-=======
 -- Drivable core schema (production), equivalent to `drizzle-kit push` over
->>>>>>> origin/prep/drivable-production-data-0902
 -- shared/schema.ts, expressed explicitly so migrations stay durable and
 -- reviewable. Mirrors shared/schema.ts column-for-column, including indexes
 -- and defaults. Idempotent: every statement is CREATE ... IF NOT EXISTS, so
@@ -303,8 +299,6 @@ create table if not exists drivable_vehicle_knowledge_packs (
 create index if not exists knowledge_packs_vehicle_idx
   on drivable_vehicle_knowledge_packs (vehicle_year, vehicle_make, vehicle_model);
 
-<<<<<<< HEAD
 commit;
-=======
-commit;
->>>>>>> origin/prep/drivable-production-data-0902
+
+
