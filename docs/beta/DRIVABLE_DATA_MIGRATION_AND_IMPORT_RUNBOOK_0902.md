@@ -65,6 +65,7 @@ npm run verify:packs-quality        # static: all 230 local NHTSA packs structur
 node scripts/inventory-nhtsa-batch-lists.mjs   # read-only: 230 distinct vehicles, no dupes/malformed
 node scripts/verify-production-storage-guards.mjs # static: no in-memory fake reachable from production
 node scripts/acceptance-buyer-data-readiness.mjs  # no-target dry run (exits 2), never connects
+npm run preflight:acceptance                       # alias for the same read-only live-audit probe
 npm run import:seed-data            # seed-import dry run (SQL preview only, exit 0)
 npm run test:persistence-truth      # narrow persistence-truth battery, no DB (server/persistence-truth.test.ts)
 npm run test:storage-persistence    # storage read-bridge behavior, no DB

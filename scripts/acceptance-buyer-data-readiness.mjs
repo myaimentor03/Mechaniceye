@@ -74,9 +74,31 @@ const EXPECTED_SEED_COUNTS = Object.freeze({
 let pool;
 const failures = [];
 
+function redactSecrets(message) {
+  let out = String(message ?? "");
+  if (environment) {
+    out = out.replaceAll(environment, "[redacted]");
+    try {
+      const parsed = new URL(environment);
+      const sensitive = [parsed.username, parsed.password, parsed.host, parsed.hostname, parsed.pathname.replace(/^\//, "")].filter(Boolean);
+      for (const value of sensitive) {
+        out = out.replaceAll(value, "[redacted]");
+        try {
+          out = out.replaceAll(decodeURIComponent(value), "[redacted]");
+        } catch {
+          // Keep the encoded replacement above.
+        }
+      }
+    } catch {
+      // The full env value was already redacted above.
+    }
+  }
+  return out.replace(/postgres(?:ql)?:\/\/[^\s:@/]+:[^\s@/]+@[^\s)'"<>]+/gi, "postgresql://[redacted]");
+}
+
 function report(ok, label, detail = "") {
   const marker = ok ? "OK  " : "FAIL";
-  console.log(`${marker}  ${label}${detail ? ` — ${detail}` : ""}`);
+  console.log(`${marker}  ${label}${detail ? ` — ${redactSecrets(detail)}` : ""}`);
   if (!ok) failures.push(label);
 }
 

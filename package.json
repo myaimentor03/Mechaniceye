@@ -43,7 +43,11 @@
     "verify:migration-parity": "node scripts/verify-migration-schema-parity.mjs",
     "verify:packs-quality": "node scripts/validate-local-nhtsa-packs.mjs",
     "verify:no-destructive-sql": "node scripts/scan-for-destructive-sql.mjs",
-    "preflight:safe": "node scripts/run-safe-preflight.mjs"
+    "verify:seed-counts": "node scripts/verify-seed-table-counts.mjs",
+    "verify:packs-count": "node scripts/count-vehicle-knowledge-packs.mjs",
+    "verify:packs-sample": "node scripts/verify-vehicle-knowledge-packs.mjs",
+    "preflight:safe": "node scripts/run-safe-preflight.mjs",
+    "preflight:acceptance": "node scripts/acceptance-buyer-data-readiness.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1117.0",
