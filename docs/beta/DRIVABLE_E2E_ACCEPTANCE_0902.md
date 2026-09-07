@@ -46,7 +46,7 @@ npm run test:beta-e2e       # node:test wrapper (smoke + helper unit tests)
 
 ### Local E2E — deployment, routing, CORS, transport guards
 - `GET /` serves the built SPA; SPA deep links (`/clearsale`, `/buyer-check`, `/mechanic-match`, `/marketplace`, `/start`, `/help`) and client-rendered routes return `index.html`
-- `GET /api` (unknown API path) → 404 JSON; **`GET /api/health` (bare) → 404** (gap vs convention, see §5)
+- `GET /api` (unknown API path) → 404 JSON; **`GET /api/health` (bare) → 200 aggregate `{ok:true,live:true}` with `no-store`** (ladder convention)
 - `/api/health/live` → 200 `ok:true` with `no-store`
 - Readiness without reviewer token → 401; with token + no DB → `ready:false` (fail-closed, truthful)
 - `/api/health/db` with token + no DB → 503
@@ -110,6 +110,7 @@ These were verified broken in the candidate build and fixed + covered by the har
 4. **`/api/files/:filename` path traversal.** Arbitrary file reads were possible via `..` segments; now guarded with `path.basename` + `path.resolve` containment → 404/403.
 5. **Homepage/preview copy promised unsupported media capture.** The beta is photo-first (server rejects audio/video with 415, vibration with 422), but offer copy claimed "sounds, photos, video"; the Evidence Support card and FAQ promised "audio, video, and vibration inputs". Now photo-first and consistent with intake.
 6. **Buyer-interest form pipelined a sample listing.** `<input name="listingTitle" defaultValue="2012 Ford F-150 XLT" required>` meant an accidental submit would create a queue entry for a fake listing; replaced with a placeholder and no default.
+7. **Bare `/api/health` returned 404.** Only `/live`, `/readiness`, `/db` existed, so monitor/load-balancer probes hitting the ladder root got 404. Added `GET /api/health` → 200 aggregate `{ok:true,live:true}` with `no-store`; fine-grained gates stay at `/live`, `/readiness`, `/db`.
 
 ---
 
@@ -117,7 +118,6 @@ These were verified broken in the candidate build and fixed + covered by the har
 
 | Finding | Impact | Recommendation |
 |---------|--------|----------------|
-| `GET /api/health` (bare) returns 404 — only `/live`, `/readiness`, `/db` exist | Monitor probes hitting the bare path get 404 | Add `/api/health` → 200 aggregate, aligning with the ladder convention |
 | The public-form rate limiter is a **single shared** `FixedWindowRateLimiter` instance (15/10 min, key `scope:public-form:sha256(ip)`) across seller-intake, buyer-interest, mechanic-match, and concierge | A burst on one form throttles every other public form from the same IP | Confirm intended; if not, key by route |
 | S3 evidence store lacks retention / `delete_after` metadata on objects | Old evidence is never pruned | Add lifecycle/retention design before GA |
 | Correcting prior assumption: `intakeType` for seller webhook packet is `marketplace-seller` (not `marketplace-seller-intake`) | Documentation/assets mapping | Keep `DRIVABLE_MASTER_WORKBOOK_*` docs aligned |

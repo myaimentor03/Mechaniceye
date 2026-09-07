@@ -1501,6 +1501,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     key: (req) => req.drivableCustomer?.id || req.ip || "unknown",
   });
 
+  app.get("/api/health", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true, live: true });
+  });
+
   app.get("/api/health/live", (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
     res.json({ ok: true });

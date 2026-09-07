@@ -341,9 +341,12 @@ async function main() {
     return "ok";
   });
 
-  await check("GET /api/health (bare) returns 404 — documented gap vs ladder convention", async () => {
+  await check("GET /api/health (bare) returns 200 aggregate with no-store", async () => {
     const response = await get(baseUrl + "/api/health");
-    assert(response.status === 404, `expected 404 got ${response.status}`);
+    const body = await jsonResponse(response);
+    assert(response.status === 200, `expected 200 got ${response.status}`);
+    assert(body.ok === true && body.live === true, "expected ok:true live:true");
+    assert(response.headers.get("cache-control")?.includes("no-store"), "missing no-store");
     return "ok";
   });
 
