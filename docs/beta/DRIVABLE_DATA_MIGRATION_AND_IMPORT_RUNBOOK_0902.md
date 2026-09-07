@@ -69,6 +69,7 @@ npm run preflight:acceptance                       # alias for the same read-onl
 npm run import:seed-data            # seed-import dry run (SQL preview only, exit 0)
 npm run test:persistence-truth      # narrow persistence-truth battery, no DB (server/persistence-truth.test.ts)
 npm run test:storage-persistence    # storage read-bridge behavior, no DB
+npm run test:safe-contracts         # all no-DB contract suites (104 tests, ~36s)
 npm run check                       # typecheck
 npm run build                       # production build
 ```

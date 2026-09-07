@@ -39,6 +39,7 @@
     "nhtsa:batch": "node scripts/batch-build-nhtsa-packs.mjs",
     "test:storage-persistence": "tsx --test server/storage-persistence.test.ts",
     "test:persistence-truth": "tsx --test server/persistence-truth.test.ts",
+    "test:safe-contracts": "tsx --test \"server/**/*.test.ts\" \"shared/**/*.test.ts\"",
     "test:public-case": "tsx --test server/public-case-db.test.ts",
     "verify:migration-parity": "node scripts/verify-migration-schema-parity.mjs",
     "verify:packs-quality": "node scripts/validate-local-nhtsa-packs.mjs",
