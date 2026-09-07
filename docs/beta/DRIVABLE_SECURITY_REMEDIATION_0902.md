@@ -89,6 +89,23 @@ This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_
 - **Production client switched to same-origin API calls:** `client/src/marketplace/Marketplace.tsx`, `client/src/components/BuyerCheckPreview.tsx`, and `client/src/TestBackend.tsx` hard-coded absolute cross-origin endpoints to a second host (`https://mechaniceye-backend-v2.onrender.com`) for seller intake, buyer interest, buyer vehicle knowledge, and diagnosis submission. These coupled public forms to an un-allowlisted host, would fail closed with a 403 if the page origin ever differed from the allowlist, and were a stale-domain risk. The Express server serves both the SPA (`dist/client`) and every `/api/*` route from one origin, so all client fetches now use same-origin relative paths.
   **Verification:** `npm run check` and `npm run build` (client bundle + server bundle) pass with the changes.
 
+### Third adversarial session (0907)
+
+- **Review error serialization — `TypeError` branch echoed `error.message`:** the `TypeError` arm of `reviewError` in `server/review/review-routes.ts` returned `error.message` (destructuring/validation messages may include internal structure details). Now returns the fixed string "The review input is invalid." — consistent with every other error path.
+  **Regression coverage:** `server/review/review-routes.test.ts` — a `TypeError` whose message contains an internal detail is replaced by the fixed text with no leakage.
+- **Silent error swallowing on `GET /api/diagnoses`:** the catch returned 500 without logging, making failures invisible to observability. Added `logEventError("api.diagnoses_fetch_failed", error)`.
+- **`safeCaseSegment` accepted `..` → path traversal in evidence storage (`server/evidence-storage.ts`):** the `^[a-zA-Z0-9._-]+$` regex permitted the bare value `..`, which `path.join` collapses, escaping the evidence root in both the runtime file store and S3/R2 key construction (`evidence/../attachments.json` at bucket root). Fails closed for `..` (standalone or embedded) and requires alphanumeric bounds: `/^[a-zA-Z0-9](?:[a-zA-Z0-9._-]{0,126}[a-zA-Z0-9])?$/`.
+  **Regression coverage:** `server/evidence-storage.test.ts` traversal test now covers `..`, `..\escape`, `CASE/..`, empty string, `.`, leading/trailing hyphens, and embedded `..`.
+- **Case IDs used `Math.random()` (`server/case-storage.ts`):** only 1,000 possible random values per second-granularity timestamp. These IDs gate consent events, evidence keys, DB rows, and follow-ups. Switched to `randomBytes(4).toString("hex")` (32 bits of entropy) — format `CASE-YYYYMMDDHHMMSSmmm-8hex`.
+  **Regression coverage:** `server/routes-security.test.ts` — 1,000 distinct IDs matching `^CASE-\d{17}-[0-9a-f]{8}$`.
+- **Session tokens lacked per-session entropy (`server/customer-auth.ts`):** HMAC-signed tokens contained only `{id, email, exp, v}`; the same user logging in twice in the same second got byte-identical tokens. Added a `randomBytes(16)` nonce to each payload — unique tokens per issuance, still validated for signature/`v`/`exp`.
+  **Regression coverage:** `server/customer-auth.test.ts` — "session tokens carry a fresh random nonce for each issuance".
+- **Consultation feedback schema lacked bounds (`server/routes.ts`):** ratings coerced with `Number()` and no `.min(1).max(10)` bound, so `-5`, `999`, or `"abc"`→`NaN` could poison mechanic average ratings. Now requires finite `[1,10]`, strict `wasFixed === true`, and caps feedback at 4,000 chars.
+- **Logout missing `Cache-Control: no-store` (`server/customer-auth.ts`):** added — matches every other auth route.
+- **Webhook filesystem path disclosure (`server/routes.ts`):** `deliverDiagnosisWebhook` embedded absolute `caseFolder`/`caseJsonPath`/`summaryPath`. Now sends only `path.basename(caseFolder)` and nulls the internal paths.
+- **Step-completion and fix-complete routes accepted unvalidated input (`server/routes.ts`):** `suggestionIndex`, `stepIndex`, `timeSpent`, `stepsCompleted`, and `feedback` flowed straight to storage with no type/range checks, so NaN/negative/oversized values could corrupt review/diagnosis state. Added `toIndex`, `toOptionalCount`, `toOptionalNumber`, and `toOptionalText` validators enforcing non-negative integer indices, bounded time, and 4,000-char text caps. Responses are 400 (not 500) on invalid input to distinguish client errors.
+- **Reviewer-gated write routes lacked rate limits (`server/routes.ts`):** the follow-up (50 MB disk writes), feedback (quotas on mechanic ratings), steps, and fix-complete routes had no per-actor limit. Added a shared `reviewerWriteLimit` (120 req / 10 min keyed by reviewer ref) applied to all four routes.
+
 ---
 
 ## Verification
@@ -99,10 +116,10 @@ This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_
 | Test suite | Result | Focus |
 |---|---|---|
 | `test:security` (reviewer-auth) | PASS (4) | Bearer extraction, timing-safe compare, fail-closed unconfigured, opaque identity |
-| `test:auth` (customer-auth) | PASS (3) | scrypt hashing, HMAC session tamper/expiry rejection, invite exact-match |
+| `test:auth` (customer-auth) | PASS (4) | scrypt hashing, HMAC session tamper/expiry rejection, invite exact-match, per-session nonce uniqueness |
 | `test:identity` (case-identity) | PASS (2) | Authenticated identity overrides body; delivery email fail closed |
 | `test:rate-limit` | PASS (3) | Bounded window limiter, fail-closed on capacity, no client key echo |
-| `test:evidence` | PASS (7) | Server IDs, controlled extensions, honest analysis state, rollback on failure |
+| `test:evidence` | PASS (7) | Server IDs, controlled extensions, honest analysis state, rollback on failure, `..` traversal rejected |
 | `test:readiness` | PASS (3) | Ready only when all gates pass; fails closed; rejects insecure URLs/secrets |
 | `test:consent` | PASS (7) | Versioned immutable consent events; consent required for persistence/sharing |
 | `test:consent-postgres` | PASS (3) | Postgres consent repository contract |
@@ -112,14 +129,14 @@ This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_
 | `test:safe-log` | PASS (4) | Structured log lines; no message/stack/cause leak; PII-redacted attributes |
 | `test:origin-guard` | PASS (6) | Allowlist; route-level 403; global read-through/write-reject; no-origin pass |
 | `test:registration-enum` | PASS (2) | Identical register responses; session only for new accounts |
-| `test:routes-security` | PASS (3) | Form 403 on disallowed origin before validation; allowed origin passes guard; knowledge endpoint 429 before DB |
+| `test:routes-security` | PASS (5) | Form 403 on disallowed origin before validation; allowed origin passes guard; knowledge endpoint 429 before DB; file containment; case-ID entropy |
 | `test:follow-up-boundary` | PASS (2) | Only text labeled analyzed; no implied media |
 | `test:review` (release gate) | PASS (11) | All deny paths fail closed; immutable versioned records |
 | `test:review-async` | PASS (3) | Async release gate read contract |
 | `test:review-postgres` | PASS (3) | Postgres review reader durability contract |
 | `test:review-writer` | PASS (4) | Postgres review writer contract, error isolation |
 | `test:review-adapter` | PASS (3) | Postgres adapter contract |
-| `test:review-routes` | PASS (3) | Reviewer-gated wiring; ignores client identity; review failures never echo storage internals |
+| `test:review-routes` | PASS (4) | Reviewer-gated wiring; ignores client identity; review failures never echo storage internals; TypeError never echoes message |
 | `test:webhook-fetch` | PASS (4) | Bounded webhook delivery: respond, non-2xx, stalled endpoint aborts, caller signal honored |
 | `test:media-contract` | PASS (7) | Traversal-resistant keys, server-generated keys, verified bytes, idempotent puts, private access, durability gate |
 | `test:delivery` | PASS (8) | Idempotent enqueue, fenced leases, bounded retries → DLQ, fixed metadata |
@@ -152,17 +169,21 @@ This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_
 ## Remaining Issues (non-blocking for the invite-only, controlled beta)
 
 1. **Payment + email delivery readiness remain hardcoded false** (`server/routes.ts` readiness report): releases stay fail-closed until real provider integration lands. Payment/fulfillment state is never trusted from the client.
-2. **Session statelessness:** sessions are server-minted and signed but not revocable server-side; acceptable for a 12-hour beta session window.
+2. **Session statelessness:** sessions are server-minted, signed, and carry a per-session random nonce, but not revocable server-side on logout; a captured token stays valid for the 12 h TTL (client cookie deletion is the only revocation). Acceptable for the beta window.
 3. **DB TLS default** keeps the historical managed-host posture (`rejectUnauthorized: false`). Production should set `DRIVABLE_DATABASE_SSL_MODE=verify-full`; the code now supports it explicitly.
-4. **Consultation tools** (`/api/consultations`, consultation feedback) read `userId`/`mechanicId` from the request body but are reviewer-only internal tooling; the reviewer credential is the gate.
+4. **Consultation tools** (`/api/consultations`, consultation feedback) read `userId`/`mechanicId` from the request body but are reviewer-only internal tooling; the reviewer credential is the gate. Feedback ratings are now range-bounded (1–10) server-side.
 5. **Windows-only local case storage** (`C:\MechanicsEye_Operations`) is a dev convenience; launch-controlled deployments always use the DB mirror path.
 6. **Uploads directory** is local-disk storage by design and must not be treated as durable; durable evidence lives exclusively in private object storage.
+7. **Rate-limit bypass via spoofable `X-Forwarded-For`** (`server/index.ts` `trust proxy = 1`, `server/rate-limit.ts` per-IP keys): on a multi-hop proxy topology a caller could rotate `XFF` to defeat IP limiter. Trust-proxy depth must be pinned to the exact Render hop, or a non-IP secondary key added. Requires prod verification of Render's `XFF` append-vs-overwrite.
+8. **Consent revocation recorded but not enforced downstream** — `decideConsentAuthorization` is never called by evidence/review/delivery paths. Validates requested purposes; a future-release policy item (original audit P2).
+9. **Outbound webhooks single-attempt, no retry; durable outbox unused** — `fetchWebhookWithTimeout` is bounded (5 s) but single-shot. Availability concern, not security.
+10. **Follow-up upload/steps/fix-complete/feedback** now carry the reviewer-write rate limit (120/10 min) and input validation (see third session), but the follow-up route still writes media to local `uploads/` by design until durable private-object evidence lands for reviewing media. Low-moderate severity.
 
 ---
 
 ## Release Verdict
 
-**CONDITIONAL GO** for the invite-only, controlled beta — the two P0 items are fixed, all P1 items are fixed, every regression suite passes, webhook delivery is time-bounded, review errors never echo internal messages, the client is same-origin only, and the fail-closed design is preserved.
+**CONDITIONAL GO** for the invite-only, controlled beta — the two P0 items are fixed, all P1 items are fixed, every regression suite passes, webhook delivery is time-bounded, review errors never echo internal messages, the client is same-origin only, evidence/consent/case segments are traversal-hardened, session tokens carry per-issuance entropy, case IDs use cryptographic randomness, consultation ratings are bounded, and the fail-closed design is preserved.
 
 Conditions before go-live (unchanged from the audit):
 - Configure unique random `DRIVABLE_REVIEWER_TOKEN`, `DRIVABLE_SESSION_SECRET`, `DRIVABLE_BETA_INVITE_CODE`, approved consent/terms/privacy versions, and a durable `DATABASE_URL`.

@@ -4,15 +4,47 @@ import { storage } from "./storage";
 // local fallback validation while DB/schema layer is disabled
 const consultationFeedbackSchema = {
   parse(input: any) {
+    const toRating = (value: unknown): number => {
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed)) throw new TypeError("Ratings must be finite numbers");
+      if (parsed < 1 || parsed > 10) throw new TypeError("Ratings must be between 1 and 10");
+      return parsed;
+    };
     return {
-      politenessRating: Number(input.politenessRating || 0),
-      effectivenessRating: Number(input.effectivenessRating || 0),
-      easeOfWorkRating: Number(input.easeOfWorkRating || 0),
-      wasFixed: !!input.wasFixed,
-      feedback: input.feedback || ""
+      politenessRating: toRating(input?.politenessRating ?? 0),
+      effectivenessRating: toRating(input?.effectivenessRating ?? 0),
+      easeOfWorkRating: toRating(input?.easeOfWorkRating ?? 0),
+      wasFixed: input?.wasFixed === true,
+      feedback: typeof input?.feedback === "string" ? input.feedback.slice(0, 4_000) : ""
     };
   }
 };
+
+function toIndex(value: unknown, field: string): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) throw new TypeError(`${field} must be a non-negative integer`);
+  return parsed;
+}
+
+function toOptionalCount(value: unknown, field: string): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 1_000_000) throw new TypeError(`${field} must be a non-negative integer`);
+  return parsed;
+}
+
+function toOptionalNumber(value: unknown, field: string): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 24 * 60 * 60 * 1000) throw new TypeError(`${field} must be a finite non-negative number`);
+  return parsed;
+}
+
+function toOptionalText(value: unknown, field: string): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "string" || value.length > 4_000) throw new TypeError(`${field} must be a string of at most 4000 characters`);
+  return value;
+}
 import { performEnhancedAnalysis } from "./enhanced-analysis";
 import multer from "multer";
 import path from "path";
@@ -50,6 +82,7 @@ import {
 } from "./r2-evidence-storage";
 import { requireAllowedOrigin } from "./origin-guard";
 import { logEvent, logEventError } from "./observability/safe-log";
+import { serializeErrorSafely } from "./observability/errors";
 import { sslConfigForDatabaseUrl } from "./database-ssl";
 import { fetchWebhookWithTimeout } from "./webhook-fetch";
 
@@ -586,9 +619,9 @@ async function deliverDiagnosisWebhook(
         timing: diagnosisCase.timing,
         unsupportedVehicle: input.unsupportedVehicle,
         manualVehicleEntryUsed: input.manualVehicleEntryUsed,
-        caseFolder: storedCase?.caseFolder || null,
-        caseJsonPath: storedCase ? path.join(storedCase.caseFolder, "case.json") : null,
-        summaryPath: storedCase ? path.join(storedCase.caseFolder, "summary.txt") : null,
+        caseFolder: storedCase ? path.basename(storedCase.caseFolder) : null,
+        caseJsonPath: null,
+        summaryPath: null,
         rawVehicleSelection: input.rawVehicleSelection || null,
         ...buildDrivableAiPayloadFields({
           reportType: "first_look_report",
@@ -1189,12 +1222,6 @@ async function deliverMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
     appBrand: "Drivable by Mechanic's Eye",
     marketplaceBrand: "Drivable Marketplace",
     payloadVersion: "v1",
-    sellerName: intake.sellerName,
-    sellerEmail: intake.sellerEmail,
-    sellerPhone: intake.sellerPhone,
-    city: intake.city,
-    state: intake.state,
-    zip: intake.zip,
     vehicleYear: intake.vehicleYear,
     make: intake.make,
     model: intake.model,
@@ -1204,21 +1231,8 @@ async function deliverMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
     titleStatus: intake.titleStatus,
     runsAndDrives: intake.runsAndDrives,
     knownIssues: intake.knownIssues,
-    recentRepairs: intake.recentRepairs,
     listingType: intake.listingType,
     acknowledgments: intake.acknowledgments,
-    optionalDetails: {
-      vin: intake.vin,
-      exteriorColor: intake.exteriorColor,
-      transmission: intake.transmission,
-      fuelType: intake.fuelType,
-      hasKeys: intake.hasKeys,
-      lienStatus: intake.lienStatus,
-      bestContactMethod: intake.bestContactMethod,
-      buyerTestDriveAllowed: intake.buyerTestDriveAllowed,
-      buyerMechanicAllowed: intake.buyerMechanicAllowed,
-      sellerNotes: intake.sellerNotes
-    },
     type: "mechanics_eye_marketplace_seller_intake",
     ...buildDrivableAiPayloadFields({
       reportType: "seller_as_is_listing_pack",
@@ -1242,7 +1256,6 @@ async function deliverMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
     intakeType: packet.intakeType,
     source: packet.source,
     submittedAt,
-    listingType: intake.listingType,
   });
 
 
@@ -1285,13 +1298,9 @@ async function deliverMarketplaceBuyerInterest(intake: MarketplaceBuyerInterest)
     appBrand: "Drivable by Mechanic's Eye",
     marketplaceBrand: "Drivable Marketplace",
     payloadVersion: "v1",
-    buyerName: intake.buyerName,
-    buyerEmail: intake.buyerEmail,
-    buyerPhone: intake.buyerPhone,
     preferredContactMethod: intake.preferredContactMethod,
     listingTitle: intake.listingTitle,
     listingUrl: intake.listingUrl,
-    buyerLocation: intake.buyerLocation,
     message: intake.message,
     timeline: intake.timeline,
     acknowledgments: intake.acknowledgments,
@@ -1308,7 +1317,6 @@ async function deliverMarketplaceBuyerInterest(intake: MarketplaceBuyerInterest)
     intakeType: packet.intakeType,
     source: packet.source,
     submittedAt,
-    listingTitle: intake.listingTitle,
   });
 
 
@@ -1570,6 +1578,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     max: 20,
     key: (req) => req.drivableCustomer?.id || req.ip || "unknown",
   });
+  const reviewerWriteLimit = createRateLimit({
+    scope: "reviewer-write",
+    windowMs: 10 * 60_000,
+    max: 120,
+    key: (req) => req.drivableReviewer?.ref || req.ip || "unknown",
+  });
 
   app.get("/api/health/live", (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -1753,10 +1767,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update step completion
-  app.post("/api/diagnoses/:diagnosisId/steps", requireReviewer, async (req, res) => {
+  app.post("/api/diagnoses/:diagnosisId/steps", requireReviewer, reviewerWriteLimit, async (req, res) => {
     try {
       const { diagnosisId } = req.params;
-      const { suggestionIndex, stepIndex, completed, timeSpent } = req.body;
+      const suggestionIndex = toIndex(req.body?.suggestionIndex, "suggestionIndex");
+      const stepIndex = toIndex(req.body?.stepIndex, "stepIndex");
+      const completed = req.body?.completed === true;
+      const timeSpent = toOptionalNumber(req.body?.timeSpent, "timeSpent");
       
       const result = await storage.updateStepCompletion(diagnosisId, {
         suggestionIndex,
@@ -1768,16 +1785,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(result);
     } catch (error) {
       logEventError("api.step_completion_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
-
-      res.status(500).json({ message: "Failed to update step completion" });
+res.status(400).json({ message: "Update step completion could not be processed." });
     }
   });
 
   // Mark fix as complete
-  app.post("/api/diagnoses/:diagnosisId/fix-complete", requireReviewer, async (req, res) => {
+  app.post("/api/diagnoses/:diagnosisId/fix-complete", requireReviewer, reviewerWriteLimit, async (req, res) => {
     try {
       const { diagnosisId } = req.params;
-      const { suggestionIndex, wasSuccessful, feedback, timeSpent, stepsCompleted } = req.body;
+      const suggestionIndex = toIndex(req.body?.suggestionIndex, "suggestionIndex");
+      const wasSuccessful = req.body?.wasSuccessful === true;
+      const feedback = toOptionalText(req.body?.feedback, "feedback");
+      const timeSpent = toOptionalNumber(req.body?.timeSpent, "timeSpent");
+      const stepsCompleted = toOptionalCount(req.body?.stepsCompleted, "stepsCompleted");
       
       const result = await storage.markFixComplete(diagnosisId, {
         suggestionIndex,
@@ -1827,6 +1847,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const diagnoses = await storage.getDiagnosesByUser();
       res.json(diagnoses);
     } catch (error) {
+      logEventError("api.diagnoses_fetch_failed", error);
       res.status(500).json({ message: "Failed to fetch diagnoses" });
     }
   });
@@ -2230,7 +2251,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
   });
 
   // Create follow-up request when previous fixes didn't work
-  app.post("/api/diagnoses/:id/follow-up", requireReviewer, upload.fields([
+  app.post("/api/diagnoses/:id/follow-up", requireReviewer, reviewerWriteLimit, upload.fields([
     { name: 'audio', maxCount: 1 },
     { name: 'video', maxCount: 1 }
   ]), async (req, res) => {
@@ -2362,7 +2383,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
   });
 
   // Submit consultation feedback
-  app.post("/api/consultations/:id/feedback", requireReviewer, async (req, res) => {
+  app.post("/api/consultations/:id/feedback", requireReviewer, reviewerWriteLimit, async (req, res) => {
     try {
       const consultationId = req.params.id;
       const feedbackData = consultationFeedbackSchema.parse(req.body);
@@ -2452,7 +2473,9 @@ const filename = path.basename(String(req.params.filename || ""));
     } catch (error) {
       if (error instanceof IntakeConsentError) {
         const status = error.code === "NO_ACCEPTANCE" || error.code === "INVALID_PURPOSES" ? 400 : 503;
-        res.status(status).json({ message: error.message, code: error.code });
+        logEventError("api.consent_revocation_failed", error, { actorId, accountId, caseId });
+        const safeError = serializeErrorSafely(error);
+        res.status(status).json({ message: safeError.type, code: safeError.code || error.code });
         return;
       }
       logEventError("api.consent_revocation_failed", error);

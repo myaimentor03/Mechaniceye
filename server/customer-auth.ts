@@ -89,7 +89,8 @@ export async function verifyPassword(password: string, stored: string): Promise<
 export function createSessionToken(identity: CustomerIdentity, now = Date.now()): string {
   const secret = configuredSecret();
   if (!secret) throw new Error(`${SESSION_SECRET_ENV} must contain at least 32 characters`);
-  const payload = base64url(JSON.stringify({ ...identity, exp: Math.floor(now / 1000) + SESSION_TTL_SECONDS, v: 1 }));
+  const nonce = randomBytes(16).toString("base64url");
+  const payload = base64url(JSON.stringify({ ...identity, exp: Math.floor(now / 1000) + SESSION_TTL_SECONDS, v: 1, nonce }));
   const signature = createHmac("sha256", secret).update(payload).digest("base64url");
   return `${payload}.${signature}`;
 }
@@ -181,13 +182,14 @@ export function registerCustomerAuthRoutes(app: Express) {
       logEventError("auth.register_failed", error, { ip: requestIp(req) });
       return res.status(503).json({ ok: false, error: "Account creation is temporarily unavailable." });
     }
-    // Enumeration-safe: the status and body are identical whether the email is
-    // brand new or already registered. No session is minted for existing
-    // accounts, so the two outcomes cannot be told apart.
-    const response = registrationHttpResponse(decision);
-    if (response.sessionUser) setSessionCookie(res, createSessionToken(response.sessionUser));
+    // Enumeration-safe: always return identical response body;
+    // session cookie is set only for newly created accounts but not reflected in the body.
     res.setHeader("Cache-Control", "no-store");
-    return res.status(response.status).json(response.body);
+    if (decision.kind === "created") {
+      const user = decision.user;
+      setSessionCookie(res, createSessionToken(user));
+    }
+    return res.status(200).json({ ok: true });
   });
 
   app.post("/api/auth/login", loginIpLimit, loginAccountLimit, async (req, res) => {
@@ -212,6 +214,7 @@ export function registerCustomerAuthRoutes(app: Express) {
 
   app.post("/api/auth/logout", (_req, res) => {
     clearSessionCookie(res);
+    res.setHeader("Cache-Control", "no-store");
     return res.json({ ok: true });
   });
 }
