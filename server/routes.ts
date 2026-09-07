@@ -87,7 +87,14 @@ const diagnosisPhotoUpload = multer({
 const diagnosisPhotoUploadMiddleware = (req: any, res: any, next: any) => {
   diagnosisPhotoUpload.array("photos", PHOTO_LIMITS.maxCount)(req, res, (error: unknown) => {
     if (!error) return next();
-    const isLimitError = error instanceof multer.MulterError;
+    const multerError = error instanceof multer.MulterError ? error : null;
+    if (multerError?.code === "LIMIT_UNEXPECTED_FILE") {
+      return res.status(415).json({
+        message: "Intake accepts only photos under the \"photos\" field. Audio, video, and other file fields are not supported at this step.",
+        persisted: false,
+      });
+    }
+    const isLimitError = Boolean(multerError);
     return res.status(isLimitError ? 413 : 415).json({
       message: isLimitError
         ? `Photo upload exceeds the limit of ${PHOTO_LIMITS.maxCount} files and 12 MB per file.`
@@ -550,6 +557,7 @@ async function deliverPublicCaseNotification(
     });
   } catch (webhookError) {
     logEventError("webhook.public_case_delivery_failed", webhookError);
+
   }
 }
 
@@ -595,6 +603,7 @@ async function deliverDiagnosisWebhook(
     });
   } catch (webhookError) {
     logEventError("webhook.diagnosis_delivery_failed", webhookError);
+
   }
 }
 
@@ -1236,6 +1245,7 @@ async function deliverMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
     listingType: intake.listingType,
   });
 
+
   const webhookUrl = process.env.MASTER_INTAKE_WEBHOOK_URL;
 
   if (!webhookUrl) {
@@ -1261,6 +1271,7 @@ async function deliverMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
     });
   } catch (error) {
     logEventError("webhook.marketplace_seller_delivery_failed", error);
+
     throw error;
   }
 }
@@ -1300,6 +1311,7 @@ async function deliverMarketplaceBuyerInterest(intake: MarketplaceBuyerInterest)
     listingTitle: intake.listingTitle,
   });
 
+
   const webhookUrl = process.env.MASTER_INTAKE_WEBHOOK_URL;
 
   if (!webhookUrl) {
@@ -1325,6 +1337,7 @@ async function deliverMarketplaceBuyerInterest(intake: MarketplaceBuyerInterest)
     });
   } catch (error) {
     logEventError("webhook.marketplace_buyer_delivery_failed", error);
+
     throw error;
   }
 }
@@ -1390,6 +1403,7 @@ async function deliverInternalReview(input: InternalReviewInput) {
     });
   } catch (error) {
     logEventError("webhook.internal_review_delivery_failed", error);
+
     throw error;
   }
 }
@@ -1466,6 +1480,7 @@ async function deliverMechanicMatchRequest(input: MechanicMatchRequest) {
     });
   } catch (error) {
     logEventError("webhook.mechanic_match_delivery_failed", error);
+
     throw error;
   }
 }
@@ -1534,6 +1549,7 @@ async function deliverConciergeRequest(input: ConciergeRequest) {
     });
   } catch (error) {
     logEventError("webhook.concierge_delivery_failed", error);
+
     throw error;
   }
 }
@@ -1613,6 +1629,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ ok: true, received: true });
     } catch (error) {
       logEventError("form.marketplace_seller_intake_failed", error);
+
       res.status(502).json({ ok: false, error: "Seller intake could not be forwarded. Please try again." });
     }
   });
@@ -1636,6 +1653,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ ok: true, received: true });
     } catch (error) {
       logEventError("form.marketplace_buyer_interest_failed", error);
+
       res.status(502).json({ ok: false, error: "Buyer interest could not be forwarded. Please try again." });
     }
   });
@@ -1654,6 +1672,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ ok: true, received: true });
     } catch (error) {
       logEventError("form.internal_review_failed", error);
+
       res.status(502).json({ ok: false, error: "Internal review could not be forwarded. Please check Make/Gmail before retrying." });
     }
   });
@@ -1677,6 +1696,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ ok: true, received: true });
     } catch (error) {
       logEventError("form.mechanic_match_request_failed", error);
+
       res.status(502).json({ ok: false, error: "Mechanic Match request could not be forwarded. Please try again." });
     }
   });
@@ -1700,6 +1720,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ ok: true, received: true });
     } catch (error) {
       logEventError("form.concierge_request_failed", error);
+
       res.status(502).json({ ok: false, error: "Your help request could not be forwarded. Please try again." });
     }
   });
@@ -1726,6 +1747,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(history);
     } catch (error) {
       logEventError("api.fix_history_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
+
       res.status(500).json({ message: "Failed to fetch fix history" });
     }
   });
@@ -1746,6 +1768,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(result);
     } catch (error) {
       logEventError("api.step_completion_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
+
       res.status(500).json({ message: "Failed to update step completion" });
     }
   });
@@ -1767,6 +1790,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(result);
     } catch (error) {
       logEventError("api.fix_complete_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
+
       res.status(500).json({ message: "Failed to mark fix complete" });
     }
   });
@@ -1779,6 +1803,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(exportData);
     } catch (error) {
       logEventError("api.export_chat_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
+
       res.status(500).json({ message: "Failed to export chat" });
     }
   });
@@ -1791,6 +1816,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(result);
     } catch (error) {
       logEventError("api.send_to_mechanic_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
+
       res.status(500).json({ message: "Failed to send to mechanic" });
     }
   });
@@ -1949,6 +1975,7 @@ try {
       });
     } catch (error) {
       logEventError("api.buyer_vehicle_knowledge_failed", error);
+
       return res.status(500).json({
         found: false,
         message: "Failed to fetch vehicle knowledge pack"
@@ -2088,6 +2115,7 @@ try {
         } catch (storageError) {
           logEventError("api.local_case_storage_failed", storageError);
           responseBody = createPublicDiagnosisCase(input, input.clientRequestId);
+
           usedPublicFallback = true;
         }
       } else {
@@ -2111,6 +2139,7 @@ if (photoFiles.length) {
         } catch (storageError) {
           logEventError("api.photo_evidence_persistence_failed", storageError);
           removeIntakeTempFiles({ photos: photoFiles });
+
           return res.status(507).json({
             message: "The case could not be completed because its photo evidence was not persisted. Please try again.",
             caseId: responseBody.id,
@@ -2179,6 +2208,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
       return res.json(buildDiagnosisApiResponse(responseBody, webhookDebug, dbResult.ok));
     } catch (error) {
       logEventError("api.diagnosis_creation_failed", error);
+
       return res.status(500).json({
         message: "The diagnosis case was not confirmed as persisted. Please try again.",
         persisted: false,
@@ -2191,13 +2221,16 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
     { name: 'audio', maxCount: 1 },
     { name: 'video', maxCount: 1 }
   ]), async (req, res) => {
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    const uploadedPaths = Object.values(files || {}).flat().map((file) => file.path).filter(Boolean);
+    const cleanupTemporaryFiles = async () => {
+      await Promise.all(uploadedPaths.map((filePath) => fs.promises.unlink(filePath).catch(() => undefined)));
+    };
     try {
       const diagnosisId = req.params.id;
-      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
 
       if (req.body.vibrationData) {
-        const uploadedPaths = Object.values(files || {}).flat().map((file) => file.path).filter(Boolean);
-        await Promise.all(uploadedPaths.map((filePath) => fs.promises.unlink(filePath).catch(() => undefined)));
+        await cleanupTemporaryFiles();
         return res.status(422).json({
           message: "Vibration capture is not available yet. No vibration readings were stored or analyzed.",
           code: "VIBRATION_CAPTURE_UNAVAILABLE",
@@ -2207,6 +2240,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
       // Get original diagnosis
       const originalDiagnosis = await storage.getDiagnosis(diagnosisId);
       if (!originalDiagnosis) {
+        await cleanupTemporaryFiles();
         return res.status(404).json({ message: "Original diagnosis not found" });
       }
 
@@ -2271,6 +2305,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
       });
     } catch (error: any) {
       logEventError("api.follow_up_creation_failed", error);
+
       res.status(400).json({ 
         message: "Failed to create follow-up. Please try again."
       });
@@ -2355,10 +2390,10 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
 
 // Serve uploaded files (traversal-safe)
   app.get("/api/files/:filename", requireReviewer, (req, res) => {
-    const filename = path.basename(String(req.params.filename || ""));
+const filename = path.basename(String(req.params.filename || ""));
 
     if (!filename || filename !== req.params.filename || filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
-      res.status(400).json({ message: "Invalid file name" });
+      res.status(403).json({ message: "Invalid file path" });
       return;
     }
 
@@ -2366,13 +2401,15 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
     const filepath = path.resolve(uploadDir, filename);
 
     if (!filepath.startsWith(resolvedRoot + path.sep)) {
-      res.status(400).json({ message: "Invalid file name" });
+      res.status(403).json({ message: "Invalid file path" });
       return;
     }
 
     if (fs.existsSync(filepath) && fs.statSync(filepath).isFile()) {
       res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Cache-Control", "no-store");
       res.sendFile(filepath);
+
     } else {
       res.status(404).json({ message: "File not found" });
     }

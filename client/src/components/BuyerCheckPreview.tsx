@@ -32,11 +32,7 @@ type BuyerVehicleKnowledgeResult = {
 };
 
 function getBuyerVehicleKnowledgeEndpoint() {
-  const isLocalBrowser =
-    typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-
-  return isLocalBrowser ? "/api/buyer-risk/vehicle-knowledge" : BUYER_VEHICLE_KNOWLEDGE_ENDPOINT;
+  return BUYER_VEHICLE_KNOWLEDGE_ENDPOINT;
 }
 
 function formatRiskTag(tag: string) {

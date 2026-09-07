@@ -1337,7 +1337,7 @@ const [manualEngine, setManualEngine] = useState("");
       timing: timingSelections.length ? `${timingSelections.join(", ")}${otherTiming ? ` | Other: ${otherTiming}` : ""}` : otherTiming || ""
     };
 
-    const endpoints = [PUBLIC_API_ENDPOINT];
+const endpoints = [PUBLIC_API_ENDPOINT];
 
     let lastError = "";
 
@@ -1461,7 +1461,7 @@ const [manualEngine, setManualEngine] = useState("");
             <button className="offer-card offer-card-primary" onClick={() => setPage("intake")}>
               <div className="offer-topline">Drivable Check</div>
               <div className="offer-title">Find Out What&apos;s Wrong</div>
-              <div className="offer-copy">Capture written symptoms, timing, photos, and manual OBD codes before spending money on guesswork.</div>
+<div className="offer-copy">Capture written symptoms, timing, photos, and manual OBD codes before spending money on guesswork.</div>
               <div className="offer-action">Start Drivable Check</div>
             </button>
 
@@ -1476,7 +1476,7 @@ const [manualEngine, setManualEngine] = useState("");
 
         <div className="feature-grid">
           <div className="feature-card"><h3>Structured Intake</h3><p>Year, make, model, timing, urgency, and symptom story gathered in a useful format.</p></div>
-          <div className="feature-card"><h3>Evidence Support</h3><p>Written symptoms, manual OBD codes, vibration context, and photo attachments organized with the case. Current photos are not visually analyzed.</p></div>
+<div className="feature-card"><h3>Evidence Support</h3><p>Written symptoms, manual OBD codes, vibration context, and photo attachments organized with the case. Current photos are not visually analyzed.</p></div>
           <div className="feature-card"><h3>Practical Direction</h3><p>Designed to help you understand likely causes and prepare for the next real-world step.</p></div>
         </div>
 
@@ -1529,7 +1529,7 @@ const [manualEngine, setManualEngine] = useState("");
                 <li>Year, make, and model.</li>
                 <li>Warning lights, dashboard messages, or codes.</li>
                 <li>When it happens: startup, idle, braking, turning, highway speed, or after rain.</li>
-                <li>Sound, video, or photos if safe to collect.</li>
+                <li>Photos of anything visible if it is safe to collect.</li>
                 <li>What changed recently: repairs, parts, weather, fluids, jump start, or accident.</li>
                 <li>What has already been checked.</li>
               </ul>
@@ -1723,7 +1723,7 @@ const [manualEngine, setManualEngine] = useState("");
                       <div>
                         <h3>Diagnostic Evidence</h3>
                         <p className="section-intro">
-                          Add a clear written symptom description, manual OBD codes, vibration context, and relevant photos. Audio and video upload are not enabled in this photo-first release.
+Add a clear written symptom description, manual OBD codes, vibration context, and relevant photos. Audio and video upload are not enabled in this photo-first release.
                         </p>
                       </div>
                     </div>
@@ -1871,7 +1871,7 @@ const [manualEngine, setManualEngine] = useState("");
         </div>
         <div className="faq-grid">
           <div className="faq-card"><h3>What if I don’t know my engine?</h3><p>Use the I Don&apos;t Know option where available and keep going.</p></div>
-          <div className="faq-card"><h3>What information helps most?</h3><p>Clear written symptoms, timing, manual OBD codes, vibration context, and relevant photos help organize the case. Current photos are not visually analyzed, and audio/video upload is unavailable.</p></div>
+<div className="faq-card"><h3>What information helps most?</h3><p>Clear written symptoms, timing, manual OBD codes, vibration context, and relevant photos help organize the case. Current photos are not visually analyzed, and audio/video upload is unavailable.</p></div>
           <div className="faq-card"><h3>Can this replace a hands-on inspection?</h3><p>No. It improves clarity and direction, but some problems still require real testing.</p></div>
         </div>
       </div>

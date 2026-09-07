@@ -8,14 +8,26 @@ import fs from "fs";
 const app = express();
 app.set("trust proxy", 1);
 
+const allowedCorsOrigins = new Set([
+  ...DRIVABLE_ALLOWED_ORIGINS,
+  ...(process.env.DRIVABLE_PUBLIC_ORIGIN?.trim()
+    ? [process.env.DRIVABLE_PUBLIC_ORIGIN.trim().replace(/\/+$/, "")]
+    : []),
+]);
+
 app.use(enforceOriginForStateChanging);
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
 
-  if (origin && DRIVABLE_ALLOWED_ORIGINS.has(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
+  // Response content varies by Origin (both allowed and denied), so intermediates
+  // must never serve one origin's CORS state to another.
+  if (origin) {
     res.setHeader("Vary", "Origin");
+  }
+
+  if (origin && allowedCorsOrigins.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
   }
