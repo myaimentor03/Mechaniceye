@@ -60,6 +60,8 @@ Or the individual stages:
 npm run validate:seed-data          # 8 datasets, 270 rows, unique PKs, required fields
 npm run inspect:db-config           # confirm both drizzle configs resolve schema + out dir
 npm run verify:migration-parity     # static: migrations match shared/schema.ts (no DB, no network)
+npm run verify:no-destructive-sql   # static: migrations + seed preview contain no DROP/TRUNCATE/DELETE/UPDATE
+npm run verify:packs-quality        # static: all 230 local NHTSA packs structurally valid (no DB, no network)
 node scripts/inventory-nhtsa-batch-lists.mjs   # read-only: 230 distinct vehicles, no dupes/malformed
 node scripts/verify-production-storage-guards.mjs # static: no in-memory fake reachable from production
 node scripts/acceptance-buyer-data-readiness.mjs  # no-target dry run (exits 2), never connects

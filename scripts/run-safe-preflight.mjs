@@ -34,6 +34,8 @@ function run(label, command) {
 const stages = [
   ["validate seed data (270 rows)", "node scripts/validate-seed-data.mjs"],
   ["migration/schema parity", "node scripts/verify-migration-schema-parity.mjs"],
+  ["destructive-SQL scan (migrations + seed preview)", "node scripts/scan-for-destructive-sql.mjs"],
+  ["local NHTSA pack quality (no DB, no network)", "node scripts/validate-local-nhtsa-packs.mjs"],
   ["NHTSA batch inventory (no DB, no network)", "node scripts/inventory-nhtsa-batch-lists.mjs"],
   ["drizzle config inspection", "node scripts/inspect-db-config.mjs"],
   ["typecheck (tsc)", "npm run check"],
