@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 ﻿/**
+=======
+/**
+>>>>>>> origin/prep/drivable-production-data-0902
  * Static parity check: migrations/*.sql must describe exactly the tables and
  * indexes the canonical shared/schema.ts declares (plus the launch-control
  * tables that 0001 adds by design). Runs with no database and no network.
@@ -27,10 +31,17 @@ const failures = [];
 
 function fail(label, detail) {
   failures.push(`${label}: ${detail}`);
+<<<<<<< HEAD
   console.error(`FAIL  ${label} ΓÇö ${detail}`);
 }
 function ok(label, detail) {
   console.log(`OK    ${label} ΓÇö ${detail}`);
+=======
+  console.error(`FAIL  ${label} — ${detail}`);
+}
+function ok(label, detail) {
+  console.log(`OK    ${label} — ${detail}`);
+>>>>>>> origin/prep/drivable-production-data-0902
 }
 
 try {
@@ -157,4 +168,8 @@ if (failures.length) {
   process.exit(1);
 }
 
+<<<<<<< HEAD
 console.log("\nMigration/schema parity PASSED: migrations match shared/schema.ts (no database required).");
+=======
+console.log("\nMigration/schema parity PASSED: migrations match shared/schema.ts (no database required).");
+>>>>>>> origin/prep/drivable-production-data-0902

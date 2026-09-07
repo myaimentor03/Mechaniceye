@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 ﻿/**
+=======
+/**
+>>>>>>> origin/prep/drivable-production-data-0902
  * Read-only inventory of every NHTSA batch list under data/nhtsa/batch-lists.
  *
  * No network calls and no database connection. Reports per file:
@@ -179,4 +183,8 @@ if (overallFailed) {
   process.exitCode = 1;
 } else {
   console.log("\nInventory clean: no duplicate rows and no malformed rows in any batch list.");
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> origin/prep/drivable-production-data-0902

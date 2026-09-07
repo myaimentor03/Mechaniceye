@@ -1,4 +1,9 @@
 import pg from "pg";
+import {
+  mutationTargetGuard,
+  safeTargetDescription,
+  sslConfigForUrl,
+} from "./lib/db-target-safe.mjs";
 
 const { Client } = pg;
 
@@ -6,9 +11,19 @@ if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is missing. Set it before running this script.");
 }
 
+console.log(`Intended database target: ${safeTargetDescription(process.env.DATABASE_URL)}`);
+
+const guard = mutationTargetGuard(process.env.DATABASE_URL);
+if (!guard.ok) {
+  console.error(`Seed table creation refused: ${guard.reason}`);
+  console.error("This script creates tables. It requires an owner-confirmed target.");
+  process.exit(1);
+}
+console.log(`Confirmed target: ${safeTargetDescription(process.env.DATABASE_URL)}`);
+
 const client = new Client({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: sslConfigForUrl(process.env.DATABASE_URL)
 });
 
 const statements = [

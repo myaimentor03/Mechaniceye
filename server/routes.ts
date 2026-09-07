@@ -2170,6 +2170,15 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
         primary: "local_case_store",
         databaseMirror: dbResult.ok ? "persisted" : "unavailable",
       };
+      if (!dbResult.ok) {
+        console.error("LOCAL_CASE_DB_MIRROR_FAILED", responseBody.id, dbResult.error ?? "unknown error");
+        const partialResponse = buildDiagnosisApiResponse(responseBody, {
+          webhookConfigured: false,
+          webhookForwarded: false,
+        });
+        partialResponse.message = "Diagnosis case saved to local ops storage, but the case database write failed.";
+        return res.status(202).json({ ...partialResponse, persisted: false });
+      }
       const webhookDebug = await forwardMasterDiagnosisIntakeWebhook(responseBody, input);
       await deliverDiagnosisWebhook(responseBody, input, storedCase);
       return res.json(buildDiagnosisApiResponse(responseBody, webhookDebug, dbResult.ok));

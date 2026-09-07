@@ -1,3 +1,23 @@
+<<<<<<< HEAD
+=======
+﻿> [!IMPORTANT] ARCHIVED SOURCE AUDIT (2026-09-02)
+> This file is the verbatim source readiness audit that this branch was built
+> against. It is archived for reference ("audit memo" references in
+> `DRIVABLE_DATA_MIGRATION_AND_IMPORT_RUNBOOK_0902.md` point here). Several
+> statements are stale relative to the shipped code — this branch implemented
+> the work. Verified corrections are documented in the runbook:
+>   - Migrations now exist (`migrations/0001..0004`), verified byte-for-byte
+>     against `shared/schema.ts` (`verify:migration-parity`).
+>   - `import-seed-data-to-db.mjs --apply` now enforces the manifest
+>     `importAllowedNow` gate (or `DRIVABLE_ALLOW_SEED_IMPORT=1`).
+>   - Tier-1 NHTSA distribution is Ford 9 / Chevrolet 7 (not the 10 / 6 in the
+>     prose below); the CSV is authoritative (30 total).
+>   - Reviewer read routes now bridge to Postgres for durable diagnosis reads.
+>   - The local-case-store fallback returns 202 + `persisted:false` and skips
+>     webhooks when the database mirror write fails.
+>
+
+>>>>>>> origin/prep/drivable-production-data-0902
 # Drivable Production Data Readiness Audit
 
 **Date:** 2026-09-02
@@ -479,3 +499,7 @@ npm run dev
 ```
 
 Total expected database rows after full import: **270 seed rows + 30 NHTSA packs + app data = 300+ rows minimum**.
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/prep/drivable-production-data-0902

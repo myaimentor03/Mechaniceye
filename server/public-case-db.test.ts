@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 ﻿import assert from "node:assert/strict";
+=======
+import assert from "node:assert/strict";
+>>>>>>> origin/prep/drivable-production-data-0902
 import test from "node:test";
 import { insertPublicDiagnosisCaseToDb } from "./public-case-db.js";
 
@@ -57,4 +61,8 @@ test("public case DB insert redacts any database credentials echoed back", async
       else delete process.env.DATABASE_URL;
     }
   });
+<<<<<<< HEAD
 });
+=======
+});
+>>>>>>> origin/prep/drivable-production-data-0902

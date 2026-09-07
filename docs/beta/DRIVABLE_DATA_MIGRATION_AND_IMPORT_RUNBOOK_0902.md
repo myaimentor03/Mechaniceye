@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 ﻿# Drivable Data Migration & Import Runbook (beta / 0902)
+=======
+# Drivable Data Migration & Import Runbook (beta / 0902)
+>>>>>>> origin/prep/drivable-production-data-0902
 
 Owner-only operational guide for taking the Drivable production data
 (schema, seed knowledge, NHTSA vehicle-knowledge packs) from this branch to a
@@ -16,6 +20,7 @@ reviewed staging/production PostgreSQL target.
 
 ## 1. Scope of the branch
 
+<<<<<<< HEAD
 `integration/drivable-beta-0902`. Everything it adds is safe by construction:
 
 | Area | Artifacts | Applied/live? |
@@ -26,6 +31,19 @@ reviewed staging/production PostgreSQL target.
 | Scripts | `import-seed-data-to-db.mjs`, `create-seed-tables-only.mjs`, `verify-seed-table-counts.mjs`, `count-vehicle-knowledge-packs.mjs`, `verify-vehicle-knowledge-packs.mjs`, `create-missing-tier2-nhtsa-batch.cjs`, `inventory-nhtsa-batch-lists.mjs`, `acceptance-buyer-data-readiness.mjs`, `db-push-guarded.mjs`, `verify-migration-schema-parity.mjs`, `run-safe-preflight.mjs` | Preflight/import/verification. Refuse remote targets without the gate. |
 | Seed data | `docs/seed-data/` (8 datasets, 270 rows) | Validated; imported only via `--apply` and the explicit `DRIVABLE_ALLOW_SEED_IMPORT=1` override while `importAllowedNow` remains `false`. |
 | NHTSA packs | `data/nhtsa/vehicle-knowledge-packs/*.json` | **Gitignored**, generated locally, never applied without `--apply`. |
+=======
+`prep/drivable-production-data-0902` (worktree: `data/`). Everything it adds
+is safe by construction:
+
+| Area | Artifacts | Applied/live? |
+| --- | --- | --- |
+| Migrations | `migrations/0001_drivable_launch_controls.sql`, `0002_drivable_core_schema.sql`, `0003_drivable_data_integrity_hardening.sql`, `0004_drivable_delivery_outbox.sql` | **Not applied** in this worktree. Addressed during prod setup. |
+| Schema sync | `server/shared/shared/schema.ts` now byte-identical to `shared/schema.ts`; `server/shared/shared/schema.js` regenerated (17 tables, 18 insert schemas) | In-tree, typechecked, tests green. |
+| Safety helper | `scripts/lib/db-target-safe.mjs` | Used by all connect scripts. |
+| Scripts | `import-seed-data-to-db.mjs`, `create-seed-tables-only.mjs`, `verify-seed-table-counts.mjs`, `count-vehicle-knowledge-packs.mjs`, `verify-vehicle-knowledge-packs.mjs`, `create-missing-tier2-nhtsa-batch.cjs`, `inventory-nhtsa-batch-lists.mjs`, `acceptance-buyer-data-readiness.mjs` | Preflight/import/verification. Refuse remote targets without the gate. |
+| Seed data | `docs/seed-data/` (8 datasets, 270 rows) | Validated; imported only via `--apply`. |
+| NHTSA packs | `data/nhtsa/vehicle-knowledge-packs/*.json` (230 packs) | **Gitignored**, generated locally, never applied without `--apply`. |
+>>>>>>> origin/prep/drivable-production-data-0902
 
 ---
 
@@ -91,7 +109,11 @@ by this branch**. The table order below assumes `0002` (core schema) then
 `0003` (optional hardening); `0001` (launch controls) is the existing baseline
 that created the consent/review tables.
 
+<<<<<<< HEAD
 ### 3.1 `0002_drivable_core_schema.sql` ΓÇö required
+=======
+### 3.1 `0002_drivable_core_schema.sql` — required
+>>>>>>> origin/prep/drivable-production-data-0902
 
 Idempotent (`CREATE ... IF NOT EXISTS`), mirrors `shared/schema.ts`
 column-for-column for the 7 app tables + 10 Drivable tables, no FKs, with the
@@ -111,10 +133,17 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/0002_drivable_core_schema.
 Verification (read-only):
 
 ```bash
+<<<<<<< HEAD
 DATABASE_URL=... node scripts/verify-seed-table-counts.mjs   # counts reflect pre-import: needs seed import first; see ┬º4/┬º6
 ```
 
 ### 3.2 `0003_drivable_data_integrity_hardening.sql` ΓÇö optional, review first
+=======
+DATABASE_URL=... node scripts/verify-seed-table-counts.mjs   # counts reflect pre-import: needs seed import first; see §4/§6
+```
+
+### 3.2 `0003_drivable_data_integrity_hardening.sql` — optional, review first
+>>>>>>> origin/prep/drivable-production-data-0902
 
 Adds `NOT VALID` foreign keys (enforce on new writes only, never rescan
 existing rows) plus a lowercase Buyer Check lookup index and timeline indexes.
@@ -137,18 +166,30 @@ existing rows) plus a lowercase Buyer Check lookup index and timeline indexes.
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/0003_drivable_data_integrity_hardening.sql
 ```
 
+<<<<<<< HEAD
 ### 3.3 `0001_drivable_launch_controls.sql` ΓÇö existing baseline
+=======
+### 3.3 `0001_drivable_launch_controls.sql` — existing baseline
+>>>>>>> origin/prep/drivable-production-data-0902
 
 Already in the repo (from base `8eba023`). Creates the consent/review tables +
 append-only/transition guards. It is the schema that
 `server/launch-readiness.ts` and `server/review/postgres-adapter.ts`
 (`REQUIRED_TABLES` / `REQUIRED_TRIGGERS`) verify at startup.
 
+<<<<<<< HEAD
 ### 3.4 `0004_drivable_delivery_outbox.sql` ΓÇö optional, deferred
 
 Creates `drivable_delivery_outbox` (idempotent) for a future durable delivery
 outbox. **No runtime code reads or writes it yet** (current deliveries are
 direct fire-and-forget webhook fetches, ┬º7). Apply it only when a durable
+=======
+### 3.4 `0004_drivable_delivery_outbox.sql` — optional, deferred
+
+Creates `drivable_delivery_outbox` (idempotent) for a future durable delivery
+outbox. **No runtime code reads or writes it yet** (current deliveries are
+direct fire-and-forget webhook fetches, §7). Apply it only when a durable
+>>>>>>> origin/prep/drivable-production-data-0902
 outbox implementation is wired in; the acceptance script treats it as an
 optional/informational table.
 
@@ -159,7 +200,11 @@ optional/informational table.
 Seeds are staged, never written at runtime. To apply to the confirmed target:
 
 ```bash
+<<<<<<< HEAD
 # 1) Create tables (0002 applied in ┬º3.1, or use this helper on a fresh target)
+=======
+# 1) Create tables (0002 applied in §3.1, or use this helper on a fresh target)
+>>>>>>> origin/prep/drivable-production-data-0902
 npm run create:seed-tables
 
 # 2) Apply the 270 seed upserts (idempotent; safe to re-run)
@@ -188,14 +233,22 @@ Expected post-import row counts (see
 | `drivable_seed_seller_disclosure_prompts` | 30 |
 | **Total** | **270** |
 
+<<<<<<< HEAD
 Import order follows `importPriority` (symptom_categories first, so category ΓåÆ
+=======
+Import order follows `importPriority` (symptom_categories first, so category →
+>>>>>>> origin/prep/drivable-production-data-0902
 follow-up FK from `0003` holds).
 
 ---
 
 ## 5. NHTSA vehicle-knowledge packs
 
+<<<<<<< HEAD
 ### 5.1 Inventory (already covered in ┬º2)
+=======
+### 5.1 Inventory (already covered in §2)
+>>>>>>> origin/prep/drivable-production-data-0902
 
 `node scripts/inventory-nhtsa-batch-lists.mjs` reports per-file rows, unique
 vehicles, duplicates, malformed rows, expected pack count, and how many packs
@@ -216,7 +269,11 @@ npm run nhtsa:pack -- --year 2014 --make Ford --model Focus   # single pack, dry
 This branch already generated all 230 distinct vehicles across the 4 batch
 lists (tier1 = 30, tier2-common = 215, tier2-missing = 21, grand-cherokee = 7;
 the distinct overlap is 230). Pack id format:
+<<<<<<< HEAD
 `nhtsa_<year>_<make>_<model>` (lowercased, non-alphanumerics ΓåÆ `_`).
+=======
+`nhtsa_<year>_<make>_<model>` (lowercased, non-alphanumerics → `_`).
+>>>>>>> origin/prep/drivable-production-data-0902
 
 ### 5.3 Apply (owner only)
 
@@ -229,7 +286,11 @@ Same remote-target gate applies. After apply, sanity-check with the Buyer
 Check example:
 `DATABASE_URL=... node scripts/count-vehicle-knowledge-packs.mjs` and
 `node scripts/verify-vehicle-knowledge-packs.mjs`, or the full acceptance
+<<<<<<< HEAD
 probe in ┬º6.
+=======
+probe in §6.
+>>>>>>> origin/prep/drivable-production-data-0902
 
 ### 5.4 Exact tier-1 distribution (source of truth)
 
@@ -273,6 +334,7 @@ Checks (each exits non-zero on failure):
 - Buyer Check sample: the 2014 Ford Focus pack exists;
 - `drivable_seed_buyer_risk_flags` risk-level distribution and a high/critical
   sample;
+<<<<<<< HEAD
 - optional `drivable_delivery_outbox` reported as INFO (present or absent ΓÇö
   never a failure, it is not wired yet).
 
@@ -284,6 +346,19 @@ Also available (read-only):
 - `DATABASE_URL=... node scripts/count-vehicle-knowledge-packs.mjs` ΓÇö total packs.
 - `DATABASE_URL=... node scripts/verify-vehicle-knowledge-packs.mjs` ΓÇö pack presence required for coverage.
 - `DATABASE_URL=... node scripts/create-missing-tier2-nhtsa-batch.cjs` ΓÇö regenerates a missing-coverage CSV for tier2 (reads DB only; never prompts, never writes).
+=======
+- optional `drivable_delivery_outbox` reported as INFO (present or absent —
+  never a failure, it is not wired yet).
+
+With no `DATABASE_URL`, it prints the (redacted) "no target" line and exits 2
+— it never connects, mutates, or hangs.
+
+Also available (read-only):
+- `DATABASE_URL=... node scripts/verify-seed-table-counts.mjs` — seed row counts, all 8 tables + 270 total, exit 1 on mismatch.
+- `DATABASE_URL=... node scripts/count-vehicle-knowledge-packs.mjs` — total packs.
+- `DATABASE_URL=... node scripts/verify-vehicle-knowledge-packs.mjs` — pack presence required for coverage.
+- `DATABASE_URL=... node scripts/create-missing-tier2-nhtsa-batch.cjs` — regenerates a missing-coverage CSV for tier2 (reads DB only; never prompts, never writes).
+>>>>>>> origin/prep/drivable-production-data-0902
 
 ---
 
@@ -317,6 +392,7 @@ Documented so operators set expectations correctly, not to hide anything:
   only reports ready when `evidenceStore.durability ===
   'private_object_storage'`, and `server/review/postgres-adapter.ts`'s
   `verifyLaunchControlSchema` requires the 6 tables + 6 triggers to exist.
+<<<<<<< HEAD
 - **Delivery outbox contract is enforced; no 0004 migration here.** No
   `0004_drivable_delivery_outbox.sql` exists in this branch. The persist-first
   outbox contract lives in `server/jobs/delivery-outbox.ts` and is enforced by
@@ -336,16 +412,39 @@ Documented so operators set expectations correctly, not to hide anything:
   `npm run verify:migration-parity` confirms `0001`-`0003` match it with no
   database required. There are no foreign keys declared in the schema; `0003`
   adds them as optional hardening.
+=======
+- **Delivery outbox is provisioned, not wired.** `migrations/0004_drivable_delivery_outbox.sql`
+  creates `drivable_delivery_outbox` (idempotent, optional) but no runtime code
+  reads or writes it yet. Current webhook/diagnosis deliveries are direct,
+  fire-and-forget `fetch` calls with `console.error` only. The static
+  production-storage guard
+  (`node scripts/verify-production-storage-guards.mjs`) proves no production
+  module imports an in-memory test double, and the contract-level guards
+  (`assertDurableDeliveryOutbox`, `assertDurableScalablePrivateStorage`,
+  `assertDurableReviewRepository`) are enforced by the contract tests.
+- **Schema drift fixed.** The runtime schema copy
+  (`server/shared/shared/schema.ts`) is now byte-identical to the canonical
+  `shared/schema.ts`, and `server/shared/shared/schema.js` was regenerated so
+  the 10 Drivable tables are present in the compiled artifact. There are no
+  foreign keys declared in the schema; `0003` adds them as optional hardening.
+>>>>>>> origin/prep/drivable-production-data-0902
 
 ---
 
 ## 8. Rollback / non-goals / owner approvals
 
 - No destructive SQL exists in this branch. To undo an applied migration, use
+<<<<<<< HEAD
   standard Postgres `DROP` of the specific tables/indexes ΓÇö none of this
   branch auto-drops anything.
 - `db:push` (Drizzle) is **not** part of the safe path; prefer the checked-in
   `0001`/`0002`/`0003` SQL so changes are reviewable and versioned.
+=======
+  standard Postgres `DROP` of the specific tables/indexes — none of this
+  branch auto-drops anything.
+- `db:push` (Drizzle) is **not** part of the safe path; prefer the checked-in
+  `0001`/`0002`/`0003`/`0004` SQL so changes are reviewable and versioned.
+>>>>>>> origin/prep/drivable-production-data-0902
 - Nothing here commits secrets, echoes `DATABASE_URL`, or stores credentials.
 
 ### 8.1 Backup expectations before any apply step
@@ -367,7 +466,11 @@ Documented so operators set expectations correctly, not to hide anything:
   `DELETE FROM drivable_vehicle_knowledge_packs WHERE source = 'NHTSA'`.
 - No down-migrations exist. Schema rollback is manual `DROP TABLE` (see the
   archived source audit `docs/beta/DRIVABLE_PRODUCTION_DATA_READINESS_0902.md`
+<<<<<<< HEAD
   ┬º8 for the safe drop order).
+=======
+  §8 for the safe drop order).
+>>>>>>> origin/prep/drivable-production-data-0902
 
 ### 8.2 Owner approvals required before applying
 
@@ -375,6 +478,7 @@ Record explicit owner sign-off (name + date) next to each item before running
 the corresponding step:
 
 1. Provisioned PostgreSQL target identified and `DATABASE_URL` pasted from the
+<<<<<<< HEAD
    provisioning console (never from chat logs) ΓÇö **approves ┬º3.1.**
 2. Review of `migrations/0003_drivable_data_integrity_hardening.sql`
    (`NOT VALID` FK assumptions: all writes carry a real registered `users.id`);
@@ -386,10 +490,24 @@ the corresponding step:
 4. NHTSA `--apply` target confirmation (packs are regenerable from the public
    NHTSA API; applying them to the wrong DB is harmless but noisy) ΓÇö **approves ┬º5.3.**
 5. `DRIVABLE_CONFIRM_AUTHENTICATED_TARGET=1` for every non-localhost host ΓÇö
+=======
+   provisioning console (never from chat logs) — **approves §3.1.**
+2. Review of `migrations/0003_drivable_data_integrity_hardening.sql`
+   (`NOT VALID` FK assumptions: all writes carry a real registered `users.id`);
+   **approves §3.2** (optional hardening).
+3. Review of the seed manifest
+   `docs/seed-data/seed_import_manifest_v1.json` and decision to flip the 8
+   datasets to `importAllowedNow: true` **or** set
+   `DRIVABLE_ALLOW_SEED_IMPORT=1` — **approves §4.**
+4. NHTSA `--apply` target confirmation (packs are regenerable from the public
+   NHTSA API; applying them to the wrong DB is harmless but noisy) — **approves §5.3.**
+5. `DRIVABLE_CONFIRM_AUTHENTICATED_TARGET=1` for every non-localhost host —
+>>>>>>> origin/prep/drivable-production-data-0902
    required by every mutating script; never export it globally.
 
 ### 8.3 Commands never to run blindly
 
+<<<<<<< HEAD
 - `npm run db:push` ΓÇö Drizzle schema diffing against a live target; guarded by
   `scripts/db-push-guarded.mjs`, which requires an explicit authenticated
   target confirmation and prints the redacted target first. Read the guard's
@@ -409,3 +527,24 @@ the corresponding step:
 - Nothing in this branch should ever be pointed at a database whose contents
   you cannot afford to lose. Prefer a fresh staging database for the first
   migration + import rehearsal.
+=======
+- `npm run db:push` — Drizzle schema diffing against a live target; guarded by
+  `scripts/db-push-guarded.mjs`, which requires an explicit authenticated
+  target confirmation and prints the redacted target first. Read the guard's
+  output before re-running with `DRIVABLE_CONFIRM_AUTHENTICATED_TARGET=1`.
+- `npm run import:seed-data -- --apply` — refuses to run while any manifest
+  dataset is `importAllowedNow: false` unless `DRIVABLE_ALLOW_SEED_IMPORT=1`.
+- `npm run nhtsa:batch -- --apply` / `npm run nhtsa:pack -- ... --apply` —
+  writes `drivable_vehicle_knowledge_packs`; requires the authenticated-target
+  gate.
+- `npm run create:seed-tables` — raw `CREATE TABLE IF NOT EXISTS`; safe to
+  re-run but only intended for fresh targets (see §4).
+- `node scripts/create-missing-tier2-nhtsa-batch.cjs` — writes a CSV from a
+  read-only DB probe; it requires and connects to `DATABASE_URL`. Confirm the
+  target first.
+- Any `psql "$DATABASE_URL" -f migrations/...` invoke is a schema-changing
+  migration; run with `ON_ERROR_STOP=1` and a fresh backup per §8.1.
+- Nothing in this branch should ever be pointed at a database whose contents
+  you cannot afford to lose. Prefer a fresh staging database for the first
+  migration + import rehearsal.
+>>>>>>> origin/prep/drivable-production-data-0902

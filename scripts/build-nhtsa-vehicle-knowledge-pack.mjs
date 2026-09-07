@@ -1,6 +1,11 @@
 ﻿import fs from "node:fs";
 import path from "node:path";
 import pg from "pg";
+import {
+  mutationTargetGuard,
+  safeTargetDescription,
+  sslConfigForUrl,
+} from "./lib/db-target-safe.mjs";
 
 const { Client } = pg;
 
@@ -18,6 +23,10 @@ const apply = process.argv.includes("--apply");
 
 if (!year || !make || !model) {
   throw new Error("Usage: npm run nhtsa:pack -- --year 2014 --make Ford --model Focus");
+}
+
+if (apply && process.env.DATABASE_URL) {
+  console.log(`Intended database target: ${safeTargetDescription(process.env.DATABASE_URL)}`);
 }
 
 const root = process.cwd();
@@ -299,9 +308,17 @@ if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is missing. Set it before using --apply.");
 }
 
+const guard = mutationTargetGuard(process.env.DATABASE_URL);
+if (!guard.ok) {
+  console.error(`NHTSA pack apply refused: ${guard.reason}`);
+  console.error("Local pack writes are always available. --apply requires an owner-confirmed target.");
+  process.exit(1);
+}
+console.log(`Confirmed target: ${safeTargetDescription(process.env.DATABASE_URL)}`);
+
 const client = new Client({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: sslConfigForUrl(process.env.DATABASE_URL)
 });
 
 await client.connect();

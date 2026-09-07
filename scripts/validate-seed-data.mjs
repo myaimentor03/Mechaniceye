@@ -21,6 +21,7 @@ const requiredManifestFields = [
 
 const results = [];
 const manifestErrors = [];
+const rowsByDataset = new Map();
 let manifest = [];
 let failed = false;
 
@@ -94,6 +95,7 @@ for (const entry of manifest) {
   } else if (rows.length === 0) {
     errors.push("array must contain at least one row");
   }
+  rowsByDataset.set(entry.datasetName, rows);
 
   const ids = new Set();
   rows.forEach((row, index) => {
@@ -144,6 +146,37 @@ console.table([
 
 console.log("\nSeed dataset validation:");
 console.table(results);
+
+const categoriesDataset = rowsByDataset.get("symptom_categories") ?? [];
+const categoriesResult = results.find((result) => result.Dataset === "symptom_categories");
+let crossErrors = [];
+if (categoriesResult && categoriesResult.Status === "PASS") {
+  const categoryIds = new Set(
+    categoriesDataset
+      .map((row) => row.symptomCategoryId)
+      .filter((id) => typeof id === "string" && id),
+  );
+  crossErrors = (rowsByDataset.get("follow_up_questions") ?? [])
+    .map((row) => {
+      if (typeof row?.symptomCategoryId !== "string" || !row.symptomCategoryId) {
+        return `follow_up_questions ${row?.questionId ?? "(unspecified)"} is missing symptomCategoryId`;
+      }
+      if (!categoryIds.has(row.symptomCategoryId)) {
+        return `follow_up_questions ${row?.questionId ?? "(unspecified)"} references unknown symptomCategoryId ${row.symptomCategoryId}`;
+      }
+      return null;
+    })
+    .filter((message) => message !== null);
+  console.log("\nCross-dataset referential validation:");
+  if (crossErrors.length) {
+    failed = true;
+    crossErrors.slice(0, 8).forEach((message) => console.error(`FAIL  ${message}`));
+  } else {
+    console.log("PASS — all follow_up_questions.symptomCategoryId resolve to seed categories (matches 0003 FK)");
+  }
+} else {
+  console.log("\nCross-dataset referential validation: SKIPPED (symptom_categories dataset failed to load)");
+}
 
 const totalRows = results.reduce((sum, result) => sum + result.Rows, 0);
 const passedDatasets = results.filter((result) => result.Status === "PASS").length;

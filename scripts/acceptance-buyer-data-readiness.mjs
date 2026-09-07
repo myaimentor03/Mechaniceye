@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 ﻿/**
+=======
+/**
+>>>>>>> origin/prep/drivable-production-data-0902
  * Read-only Buyer Check / Drivable launch data-readiness acceptance probe.
  *
  * Connects to the DATABASE_URL target (never printed), verifies schema,
@@ -76,7 +80,11 @@ const failures = [];
 
 function report(ok, label, detail = "") {
   const marker = ok ? "OK  " : "FAIL";
+<<<<<<< HEAD
   console.log(`${marker}  ${label}${detail ? ` ΓÇö ${detail}` : ""}`);
+=======
+  console.log(`${marker}  ${label}${detail ? ` — ${detail}` : ""}`);
+>>>>>>> origin/prep/drivable-production-data-0902
   if (!ok) failures.push(label);
 }
 
@@ -132,7 +140,11 @@ async function main() {
       "drivable_delivery_outbox",
     ]);
     for (const table of OPTIONAL_TABLES) {
+<<<<<<< HEAD
       console.log(`${tables.has(table) ? "INFO" : "INFO"}  optional (not yet required) table ${table}${tables.has(table) ? " ΓÇö present" : " ΓÇö absent (planned, not wired)"}`);
+=======
+      console.log(`${tables.has(table) ? "INFO" : "INFO"}  optional (not yet required) table ${table}${tables.has(table) ? " — present" : " — absent (planned, not wired)"}`);
+>>>>>>> origin/prep/drivable-production-data-0902
     }
 
     let seedTotal = 0;
@@ -191,4 +203,8 @@ async function main() {
   }
 }
 
+<<<<<<< HEAD
 main();
+=======
+main();
+>>>>>>> origin/prep/drivable-production-data-0902

@@ -1,6 +1,5 @@
 ﻿const fs = require("fs");
 const pg = require("pg");
-const readline = require("readline");
 
 function parseCsv(text) {
   const lines = text.trim().split(/\r?\n/);
@@ -23,31 +22,24 @@ function packId(row) {
     .replace(/^_+|_+$/g, "");
 }
 
-function askForDatabaseUrl() {
-  return new Promise((resolve) => {
-    if (process.env.DATABASE_URL?.trim()) {
-      resolve(process.env.DATABASE_URL.trim());
-      return;
-    }
-
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
-
-    rl.question("Enter Render DATABASE_URL: ", (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    });
-  });
+function safeTargetDescription(databaseUrl) {
+  try {
+    const url = new URL(databaseUrl);
+    const auth = url.username || url.password ? "<redacted>:<redacted>@" : "";
+    return `postgres://${auth}${url.hostname}:${url.port || 5432}/${url.pathname.replace(/^\//, "").replace(/\/$/, "")}`;
+  } catch {
+    return "DATABASE_URL present but unparseable (refusing to echo it)";
+  }
 }
 
 async function main() {
-  const databaseUrl = await askForDatabaseUrl();
+  const databaseUrl = process.env.DATABASE_URL?.trim();
 
   if (!databaseUrl) {
-    throw new Error("No DATABASE_URL was provided.");
+    throw new Error("DATABASE_URL is missing. Set it before running this read-only script. This script never prompts for a URL on the command line.");
   }
+
+  console.log(`Read-only verification target: ${safeTargetDescription(databaseUrl)}`);
 
   const sourceFile = "data/nhtsa/batch-lists/tier2-common-used-vehicles.csv";
   const outputFile = "data/nhtsa/batch-lists/tier2-missing-vehicles.csv";

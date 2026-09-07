@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 ﻿/**
+=======
+/**
+>>>>>>> origin/prep/drivable-production-data-0902
  * Safe database-target helpers for Drivable preflight, import, and
  * read-only verification scripts.
  *
@@ -149,4 +153,8 @@ export function sslConfigForUrl(databaseUrl) {
     return false;
   }
   return parsed.sslRequested === false ? false : { rejectUnauthorized: false };
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> origin/prep/drivable-production-data-0902
