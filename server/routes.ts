@@ -2427,7 +2427,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
 const filename = path.basename(String(req.params.filename || ""));
 
     if (!filename || filename !== req.params.filename || filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
-      res.status(400).json({ message: "Invalid file path" });
+      res.status(403).json({ message: "Invalid file path" });
       return;
     }
 
