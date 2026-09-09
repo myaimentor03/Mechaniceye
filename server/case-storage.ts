@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { randomBytes } from "node:crypto";>>> origin/fix/drivable-security-remediation-0902
+import { randomBytes } from "node:crypto";
 
 export type IncomingDiagnosisCase = {
   description: string;
@@ -252,7 +252,6 @@ export function generateCaseId() {
   const now = new Date();
   const stamp = now.toISOString().replace(/[-:.TZ]/g, "").slice(0, 17);
 return `CASE-${stamp}-${randomBytes(4).toString("hex")}`;
->>>>>>> origin/fix/drivable-security-remediation-0902
 }
 
 export function createStoredDiagnosisCase(input: IncomingDiagnosisCase): StoredDiagnosisCase {
