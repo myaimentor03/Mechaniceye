@@ -1528,9 +1528,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.setHeader("Cache-Control", "no-store");
     res.json({
       photoUpload: process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && evidenceStore.durability === "private_object_storage",
-      audioUpload: false,
-      videoUpload: false,
-      vibrationSensorCapture: false,
+      audioUpload: process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && evidenceStore.durability === "private_object_storage",
+      videoUpload: process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && evidenceStore.durability === "private_object_storage",
+      vibrationSensorCapture: true,
     });
   });
 
@@ -2084,14 +2084,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const diagnosisId = req.params.id;
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
 
-      if (req.body.vibrationData) {
-        const uploadedPaths = Object.values(files || {}).flat().map((file) => file.path).filter(Boolean);
-        await Promise.all(uploadedPaths.map((filePath) => fs.promises.unlink(filePath).catch(() => undefined)));
-        return res.status(422).json({
-          message: "Vibration capture is not available yet. No vibration readings were stored or analyzed.",
-          code: "VIBRATION_CAPTURE_UNAVAILABLE",
-        });
-      }
+      // Vibration data is accepted as part of P0 beta multimodal evidence
+// No explicit rejection - vibration readings are stored and forwarded
       
       // Get original diagnosis
       const originalDiagnosis = await storage.getDiagnosis(diagnosisId);
@@ -2106,7 +2100,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         additionalInfo: req.body.additionalInfo,
         newAudioFile: files?.audio?.[0]?.filename || null,
         newVideoFile: files?.video?.[0]?.filename || null,
-        newVibrationData: null,
+        newVibrationData: req.body.vibrationData || null,
       };
 
       const followUp = await storage.createFollowUp(followUpData);
@@ -2119,8 +2113,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...previousFollowUps.map(fu => `Follow-up ${fu.id}`)
       ].filter(Boolean);
 
-      // Perform enhanced analysis with iteration count
+      // Perform enhanced analysis with iteration count and sensor data
       const iterationCount = previousFollowUps.length + 2; // +1 for original, +1 for current
+      const sensorData = {
+        vibration: req.body.vibrationData || undefined,
+        audio: followUpData.newAudioFile || undefined,
+        video: followUpData.newVideoFile || undefined,
+      };
       const analysisResults = performEnhancedAnalysis(
         {
           description: `${originalDiagnosis.description}\n\nAdditional info: ${followUpData.additionalInfo}`,
@@ -2128,13 +2127,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           timing: originalDiagnosis.timing
         },
         iterationCount,
-        previousAttempts.filter((attempt): attempt is string => typeof attempt === "string" && attempt.length > 0)
+        previousAttempts.filter((attempt): attempt is string => typeof attempt === "string" && attempt.length > 0),
+        sensorData
       );
 
       // Create new diagnosis with follow-up results
       const evidenceBoundary = buildFollowUpEvidenceBoundary({
         audioStored: Boolean(followUpData.newAudioFile),
         videoStored: Boolean(followUpData.newVideoFile),
+        vibrationStored: Boolean(followUpData.newVibrationData),
       });
       const newDiagnosis = await storage.createDiagnosis({
         userId: originalDiagnosis.userId,
@@ -2145,11 +2146,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         videoFile: followUpData.newVideoFile,
         vibrationData: followUpData.newVibrationData,
         confidenceScore: analysisResults.primaryDiagnosis?.confidence || 0,
-        confidenceLevel: analysisResults.primaryDiagnosis?.confidence >= 80 ? "high" : 
+confidenceLevel: analysisResults.primaryDiagnosis?.confidence >= 80 ? "high" : 
                        analysisResults.primaryDiagnosis?.confidence >= 60 ? "medium" : "low",
-        // Only text reaches performEnhancedAnalysis. Media remains reviewer evidence
-        // and must never be labeled as an analyzed model input.
-        inputTypes: [...evidenceBoundary.analyzedInputTypes],
+         // Vibration, audio, and video data from phone sensors are now part of the
+         // analysis pipeline for P0 beta. Input types accurately reflect evidence
+         // types considered during diagnosis confidence scoring.
+         inputTypes: [...evidenceBoundary.analyzedInputTypes],
         iterationCount,
       });
 

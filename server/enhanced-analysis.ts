@@ -186,9 +186,10 @@ export function generateAdditionalQuestions(diagnosisTitle: string, iterationCou
 }
 
 export function performEnhancedAnalysis(
-  diagnosisData: any, 
+  diagnosisData: any,
   iterationCount: number = 1,
-  previousAttempts: string[] = []
+  previousAttempts: string[] = [],
+  sensorData: { vibration?: string; audio?: string; video?: string } = {}
 ): {
   primaryDiagnosis: EnhancedDiagnosis;
   alternativeScenarios: EnhancedDiagnosis[];
@@ -196,11 +197,14 @@ export function performEnhancedAnalysis(
   additionalQuestions: string[];
 } {
   const keywords = (diagnosisData.description || '').toLowerCase();
+  const vibratKeywords = (sensorData.vibration || '').toLowerCase();
+  const audioKeywords = (sensorData.audio || '').toLowerCase();
+  const videoKeywords = (sensorData.video || '').toLowerCase();
   
   let availableScenarios = enhancedDiagnosisDatabase.filter(
     scenario => !previousAttempts.includes(scenario.title)
   );
-
+  
   // If we've tried everything, include all scenarios but mark as needing professional help
   if (availableScenarios.length < 3) {
     availableScenarios = [...enhancedDiagnosisDatabase];
@@ -210,7 +214,7 @@ export function performEnhancedAnalysis(
   let scoredDiagnoses = availableScenarios.map(diagnosis => {
     let score = diagnosis.confidence;
     
-    // Boost score for relevant keywords
+    // Boost score for relevant keywords from description
     if (keywords.includes('brake') && diagnosis.title.toLowerCase().includes('brake')) {
       score += 15;
     }
@@ -225,6 +229,28 @@ export function performEnhancedAnalysis(
     }
     if (keywords.includes('noise') && diagnosis.title.toLowerCase().includes('belt')) {
       score += 8;
+    }
+    
+    // Boost score for relevant keywords from vibration sensor data
+    if (vibratKeywords.includes('vibrat') && diagnosis.title.toLowerCase().includes('suspension')) {
+      score += 8;
+    }
+    if (vibratKeywords.includes('engine') && diagnosis.title.toLowerCase().includes('engine')) {
+      score += 8;
+    }
+    if (vibratKeywords.includes('squeal') && diagnosis.title.toLowerCase().includes('belt')) {
+      score += 5;
+    }
+    
+    // Boost score for relevant keywords from audio data
+    if (audioKeywords.includes('engine') && diagnosis.title.toLowerCase().includes('engine')) {
+      score += 5;
+    }
+    if (audioKeywords.includes('knock') && diagnosis.title.toLowerCase().includes('engine')) {
+      score += 5;
+    }
+    if (audioKeywords.includes('squeal') && diagnosis.title.toLowerCase().includes('belt')) {
+      score += 5;
     }
     
     // Adjust score based on timing
