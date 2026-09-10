@@ -14,6 +14,20 @@ export const ALLOWED_PHOTO_MEDIA_TYPES = new Set([
   "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif",
 ]);
 
+const AUDIO_VIDEO_MIME_EXTENSIONS: Record<string, string> = {
+  "audio/mpeg": ".mp3",
+  "audio/wav": ".wav",
+  "audio/mp4": ".m4a",
+  "audio/x-m4a": ".m4a",
+  "video/mp4": ".mp4",
+  "video/quicktime": ".mov",
+  "video/x-msvideo": ".avi",
+};
+
+function getExtensionFromMime(mimeType: string): string {
+  return AUDIO_VIDEO_MIME_EXTENSIONS[mimeType] || ".bin";
+}
+
 type VerifiedImage = { mimeType: string; extension: string };
 
 function verifiedImageType(buffer: Buffer): VerifiedImage | null {
@@ -38,6 +52,7 @@ function verifiedImageType(buffer: Buffer): VerifiedImage | null {
 export interface EvidenceStore {
   readonly durability: "runtime_local" | "private_object_storage";
   savePhotos(caseId: string, files: Express.Multer.File[]): Promise<EvidenceAttachment[]>;
+  saveAudioVideo(caseId: string, files: Express.Multer.File[]): Promise<EvidenceAttachment[]>;
   deleteCase(caseId: string): Promise<void>;
   getAttachment(caseId: string, attachmentId: string): Promise<{ attachment: EvidenceAttachment; bytes: Buffer } | null>;
 }
@@ -82,6 +97,48 @@ export class RuntimeFileEvidenceStore implements EvidenceStore {
         attachments.push({
           id, caseId, kind: "photo", originalName: path.basename(file.originalname),
           mimeType: verified.mimeType, byteSize: file.size, status: "persisted",
+          serverAttachmentId: id, storageKey, createdAt: new Date().toISOString(),
+          provenance: "uploaded_media", analysisStatus: "uploaded_not_analyzed",
+        });
+      }
+
+      await fs.writeFile(path.join(caseRoot, "attachments.json"), JSON.stringify(attachments, null, 2), { encoding: "utf8", flag: "wx" });
+      return attachments;
+    } catch (error) {
+      await Promise.all(writtenPaths.map((filePath) => fs.rm(filePath, { force: true })));
+      await fs.rm(caseRoot, { recursive: true, force: true });
+      throw error;
+    }
+  }
+
+  async saveAudioVideo(caseId: string, files: Express.Multer.File[]) {
+    if (files.length > 2) throw new Error("Too many audio/video files");
+    const caseRoot = this.caseRoot(caseId);
+    await fs.mkdir(caseRoot, { recursive: true });
+    const attachments: EvidenceAttachment[] = [];
+    const writtenPaths: string[] = [];
+
+    try {
+      const allowedAudioVideoMimes = new Set([
+        "audio/mpeg", "audio/wav", "audio/mp4", "audio/x-m4a",
+        "video/mp4", "video/quicktime", "video/x-msvideo",
+      ]);
+      for (const file of files) {
+        if (!file.buffer?.length || file.size <= 0) throw new Error("Empty audio/video rejected");
+        if (file.size > 50 * 1024 * 1024) throw new Error("Audio/Video is too large");
+        if (!allowedAudioVideoMimes.has(file.mimetype)) {
+          throw new Error("Audio/Video content is not a supported type");
+        }
+        const id = randomUUID();
+        const extension = getExtensionFromMime(file.mimetype);
+        const storedName = `${id}${extension}`;
+        const storageKey = path.posix.join("evidence", safeCaseSegment(caseId), storedName);
+        const target = path.join(caseRoot, storedName);
+        await fs.writeFile(target, file.buffer, { flag: "wx" });
+        writtenPaths.push(target);
+        attachments.push({
+          id, caseId, kind: "audio", originalName: path.basename(file.originalname),
+          mimeType: file.mimetype, byteSize: file.size, status: "persisted",
           serverAttachmentId: id, storageKey, createdAt: new Date().toISOString(),
           provenance: "uploaded_media", analysisStatus: "uploaded_not_analyzed",
         });
@@ -174,6 +231,56 @@ export class S3PrivateEvidenceStore implements EvidenceStore {
         attachments.push({
           id, caseId: safeCaseId, kind: "photo", originalName: path.basename(file.originalname),
           mimeType: verified.mimeType, byteSize: file.size, status: "persisted",
+          serverAttachmentId: id, storageKey, createdAt: new Date().toISOString(),
+          provenance: "uploaded_media", analysisStatus: "uploaded_not_analyzed",
+        });
+      }
+      const key = manifestKey(safeCaseId);
+      await this.client.send(new PutObjectCommand({
+        Bucket: this.config.bucket,
+        Key: key,
+        Body: Buffer.from(JSON.stringify(attachments)),
+        ContentType: "application/json",
+        CacheControl: "no-store",
+      }));
+      writtenKeys.push(key);
+      return attachments;
+} catch (error) {
+      await Promise.allSettled(writtenKeys.map((Key) => this.client.send(new DeleteObjectCommand({ Bucket: this.config.bucket, Key }))));
+      throw error;
+    }
+}  // closes savePhotos method
+
+  async saveAudioVideo(caseId: string, files: Express.Multer.File[]) {
+    if (files.length > 2) throw new Error("Too many audio/video files");
+    const safeCaseId = safeCaseSegment(caseId);
+    const attachments: EvidenceAttachment[] = [];
+    const writtenKeys: string[] = [];
+    try {
+      const allowedAudioVideoMimes = new Set([
+        "audio/mpeg", "audio/wav", "audio/mp4", "audio/x-m4a",
+        "video/mp4", "video/quicktime", "video/x-msvideo",
+      ]);
+      for (const file of files) {
+        if (!file.buffer?.length || file.size <= 0) throw new Error("Empty audio/video rejected");
+        if (file.size > 50 * 1024 * 1024) throw new Error("Audio/Video is too large");
+        if (!allowedAudioVideoMimes.has(file.mimetype)) {
+          throw new Error("Audio/Video content is not a supported type");
+        }
+        const id = randomUUID();
+        const extension = getExtensionFromMime(file.mimetype);
+        const storageKey = path.posix.join("evidence", safeCaseId, `${id}${extension}`);
+        await this.client.send(new PutObjectCommand({
+          Bucket: this.config.bucket,
+          Key: storageKey,
+          Body: file.buffer,
+          ContentType: file.mimetype,
+          CacheControl: "no-store",
+        }));
+        writtenKeys.push(storageKey);
+        attachments.push({
+          id, caseId: safeCaseId, kind: "audio", originalName: path.basename(file.originalname),
+          mimeType: file.mimetype, byteSize: file.size, status: "persisted",
           serverAttachmentId: id, storageKey, createdAt: new Date().toISOString(),
           provenance: "uploaded_media", analysisStatus: "uploaded_not_analyzed",
         });

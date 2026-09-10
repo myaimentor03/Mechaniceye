@@ -85,6 +85,33 @@ const diagnosisPhotoUploadMiddleware = (req: any, res: any, next: any) => {
     });
   });
 };
+
+const diagnosisAudioVideoUploadMiddleware = (req: any, res: any, next: any) => {
+  const audioVideoUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 50 * 1024 * 1024,
+      files: 2,
+    },
+    fileFilter: (req, file, cb) => {
+      const allowedMimes = [
+        'audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/x-m4a',
+        'video/mp4', 'video/quicktime', 'video/x-msvideo'
+      ];
+      cb(null, allowedMimes.includes(file.mimetype));
+    },
+  });
+  audioVideoUpload.array("audioVideo", 2)(req, res, (error: unknown) => {
+    if (!error) return next();
+    const isLimitError = error instanceof multer.MulterError;
+    return res.status(isLimitError ? 413 : 415).json({
+      message: isLimitError
+        ? `Audio/Video upload exceeds limits: max 2 files, 50 MB each.`
+        : error instanceof Error ? error.message : "Audio/Video upload was rejected.",
+      persisted: false,
+    });
+  });
+};
 const evidenceStore = createEvidenceStoreFromEnvironment();
 
 // Subscription tier features
@@ -1941,7 +1968,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create new diagnosis and save to local case storage
-  app.post("/api/diagnoses", requireCustomer, customerIntakeLimit, diagnosisPhotoUploadMiddleware, async (req, res) => {
+  app.post("/api/diagnoses", requireCustomer, customerIntakeLimit, diagnosisPhotoUploadMiddleware, diagnosisAudioVideoUploadMiddleware, async (req, res) => {
     let input: DiagnosisInput;
     let evidenceIntake;
     let consentChoices: unknown;
@@ -1966,9 +1993,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     const photoFiles = (req.files || []) as Express.Multer.File[];
+    const audioVideoFiles = ((req as any).audioVideoFiles || []) as Express.Multer.File[];
+
+    // Check photo upload availability
     if (photoFiles.length && (process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED !== "true" || evidenceStore.durability !== "private_object_storage")) {
       return res.status(409).json({
         message: "Photo upload is not available until private evidence storage passes launch verification. You can continue with written symptoms and OBD-II codes.",
+        persisted: false,
+      });
+    }
+
+    // Check audio/video upload availability
+    const audioVideoEnabled = process.env.DRIVABLE_AUDIO_VIDEO_UPLOAD_ENABLED === "true" && evidenceStore.durability === "private_object_storage";
+    if (!audioVideoEnabled && audioVideoFiles.length > 0) {
+      return res.status(409).json({
+        message: "Audio/Video upload is not available until private evidence storage passes launch verification. You can continue without audio/video.",
         persisted: false,
       });
     }
