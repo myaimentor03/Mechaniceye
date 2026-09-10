@@ -2314,6 +2314,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
       const evidenceBoundary = buildFollowUpEvidenceBoundary({
         audioStored: Boolean(followUpData.newAudioFile),
         videoStored: Boolean(followUpData.newVideoFile),
+        vibrationStored: Boolean(followUpData.newVibrationData),
       });
       const newDiagnosis = await storage.createDiagnosis({
         userId: originalDiagnosis.userId,
@@ -2427,7 +2428,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
 const filename = path.basename(String(req.params.filename || ""));
 
     if (!filename || filename !== req.params.filename || filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
-      res.status(403).json({ message: "Invalid file path" });
+      res.status(404).json({ message: "Invalid file path" });
       return;
     }
 

@@ -2,11 +2,12 @@
  * Drivable safe preflight — runs the full no-database, no-mutation battery a
  * single time and reports pass/fail per stage.
  *
- * Nothing here connects to a database, mutates anything, or applies a
- * migration. It covers: seed validation, migration/schema parity, NHTSA batch
- * inventory, drizzle config inspection, typecheck, production build, and the
-*  seed-import dry run (which only writes tmp/drivable-seed-import.sql), and
- *  the production storage guard (static no-in-memory-fake binding check).
+* Nothing here connects to a database, mutates anything, or applies a
+ * migration. It covers: seed validation, migration/schema parity, destructive-SQL
+ * scan, NHTSA batch inventory, local pack quality, drizzle config inspection,
+ * typecheck, production build, production storage guard, the seed-import dry run
+ * (which only writes tmp/drivable-seed-import.sql), the persistence-truth
+ * batteries, and the full no-DB contract sweep.
  *
  * Usage:  node scripts/run-safe-preflight.mjs
  */
@@ -34,12 +35,17 @@ function run(label, command) {
 const stages = [
   ["validate seed data (270 rows)", "node scripts/validate-seed-data.mjs"],
   ["migration/schema parity", "node scripts/verify-migration-schema-parity.mjs"],
+  ["destructive-SQL scan (migrations + seed preview)", "node scripts/scan-for-destructive-sql.mjs"],
+  ["local NHTSA pack quality (no DB, no network)", "node scripts/validate-local-nhtsa-packs.mjs"],
   ["NHTSA batch inventory (no DB, no network)", "node scripts/inventory-nhtsa-batch-lists.mjs"],
   ["drizzle config inspection", "node scripts/inspect-db-config.mjs"],
   ["typecheck (tsc)", "npm run check"],
   ["production build (vite + esbuild)", "npm run build"],
   ["production storage guard (no in-memory fakes wired)", "node scripts/verify-production-storage-guards.mjs"],
   ["seed-import dry run (SQL preview only)", "npm run import:seed-data"],
+  ["persistence truth test (no DB)", "npx tsx --test server/persistence-truth.test.ts"],
+  ["storage persistence test (no DB)", "npx tsx --test server/storage-persistence.test.ts"],
+  ["contract sweep (all no-DB suites)", "npm run test:safe-contracts"],
 ];
 
 let passed = 0;
