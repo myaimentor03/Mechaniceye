@@ -46,9 +46,7 @@ app.use(express.urlencoded({ extended: false }));
 (async () => {
   const server = await registerRoutes(app);
 
-<<<<<<< HEAD
   // Error handler with secret redaction
-=======
   // Unknown or invalid API routes must answer JSON 404, never Express's
   // default HTML, never the SPA shell, and never a stack trace. This also
   // covers unsupported HTTP methods on otherwise-valid routes.
