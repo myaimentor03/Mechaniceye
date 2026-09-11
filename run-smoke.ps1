@@ -1,0 +1,1 @@
+node scripts/beta-e2e-smoke.mjs > run.log 2>&1

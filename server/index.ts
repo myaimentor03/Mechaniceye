@@ -46,6 +46,16 @@ app.use(express.urlencoded({ extended: false }));
 (async () => {
   const server = await registerRoutes(app);
 
+<<<<<<< HEAD
+  // Error handler with secret redaction
+=======
+  // Unknown or invalid API routes must answer JSON 404, never Express's
+  // default HTML, never the SPA shell, and never a stack trace. This also
+  // covers unsupported HTTP methods on otherwise-valid routes.
+  app.use("/api", (_req, res) => {
+    res.status(404).json({ message: "Not found" });
+  });
+
   // Error handler with secret redaction
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     logEventError("http.request.error", err, { path: _req.path, method: _req.method });
