@@ -121,3 +121,37 @@ test("S3 stub DELETE removes objects and DELETE is idempotent", async () => {
     await stub.close();
   }
 });
+
+test("S3 stub preserves x-amz-meta-* headers as object metadata (retention/evidence tagging contract)", async () => {
+  const stub = createS3Stub();
+  const endpoint = await stub.start();
+  try {
+    const client = new S3Client({
+      region: "us-east-1",
+      endpoint,
+      forcePathStyle: true,
+      credentials: { accessKeyId: "k", secretAccessKey: "s" },
+      maxAttempts: 1,
+    });
+    const metadata = {
+      "evidence-status": "uploaded_not_analyzed",
+      "case-id": "CASE-meta-0001",
+      "media-type": "image/jpeg",
+      "retention-days": "30",
+      "delete-after": "2026-10-10T00:00:00.000Z",
+    };
+    await client.send(new PutObjectCommand({
+      Bucket: "qa-evidence", Key: "evidence/CASE-meta-0001/uuid.jpg", Body: Buffer.from("x"),
+      ContentType: "image/jpeg", Metadata: metadata,
+    }));
+    assert.equal(stub.objectKeys()[0], "evidence/CASE-meta-0001/uuid.jpg");
+    const records = stub.objectMetadata();
+    assert.equal(records.length, 1, "expected one stored object");
+    assert.equal(records[0].contentType, "image/jpeg");
+    for (const [key, value] of Object.entries(metadata)) {
+      assert.equal(records[0].metadata[key], value, `missing metadata ${key}`);
+    }
+  } finally {
+    await stub.close();
+  }
+});

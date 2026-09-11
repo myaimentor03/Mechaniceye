@@ -249,6 +249,8 @@ async function main() {
   console.log(`Drivable beta E2E smoke — mode=${EXTERNAL ? "external" : "auto"}${DATABASE_URL ? " +db" : ""}`);
   console.log(`Repository root: ${REPO_ROOT}`);
 
+  const uploadsBaseline = uploadsDirFileCount();
+
   let serverConfig = null;
   let s3stub = null;
   let webhook = null;
@@ -335,9 +337,22 @@ async function main() {
     return "ok";
   });
 
-  await check("GET /api (unknown API path) returns 404 JSON", async () => {
+  await check("GET /api (unknown API path) returns 404 JSON with no SPA HTML and no stack", async () => {
     const response = await get(baseUrl + "/api");
+    const text = await response.text();
     assert(response.status === 404, `expected 404 got ${response.status}`);
+    assert(response.headers.get("content-type")?.includes("application/json"), "unknown API path must answer JSON, not Express default HTML");
+    assert(!text.includes('"root"') && !/<html/i.test(text), "must not return the SPA shell");
+    assert(!/^\s*at\s/i.test(text.split("\n")[0] || ""), "response leaked stack frame");
+    return "ok";
+  });
+
+  await check("unknown nested /api route (e.g. /api/health/live/extra) -> 404 JSON, never HTML fallback", async () => {
+    const response = await get(baseUrl + "/api/health/live/extra");
+    const text = await response.text();
+    assert(response.status === 404, `expected 404 got ${response.status}`);
+    assert(response.headers.get("content-type")?.includes("application/json"), "unknown API route must answer JSON");
+    assert(!text.includes('"root"'), "must not fall back to the SPA shell for unknown API routes");
     return "ok";
   });
 
@@ -378,6 +393,13 @@ async function main() {
     const body = await jsonResponse(response);
     assert(response.status === 503, `expected 503 got ${response.status}`);
     assert(body.ok === false, "expected ok:false");
+    return "ok";
+  });
+
+  await check("GET /api/health/db without reviewer token -> 401", async () => {
+    const response = await get(baseUrl + "/api/health/db");
+    assert(response.status === 401, `expected 401 got ${response.status}`);
+    await response.text();
     return "ok";
   });
 
@@ -450,9 +472,26 @@ async function main() {
     return "ok";
   });
 
-  await check("GET /api/assets content-type guard (unknown API route) 404", async () => {
+  await check("CORS/origin enforcement on GET JSON endpoints: disallowed cross-origin read gets no ACAO", async () => {
+    const response = await get(baseUrl + "/api/health/live", { origin: "https://attacker.example.test" });
+    assert(response.status === 200, `expected 200 got ${response.status}`);
+    assert(!response.headers.get("access-control-allow-origin"), "browser must not be able to read the response from a disallowed origin");
+    assert(response.headers.get("vary")?.toLowerCase().includes("origin"), "expected Vary: Origin");
+    return "ok";
+  });
+
+  await check("GET /api/assets content-type guard (unknown API route) 404 JSON", async () => {
     const response = await get(baseUrl + "/api/does-not-exist");
     assert(response.status === 404, `expected 404 got ${response.status}`);
+    assert(response.headers.get("content-type")?.includes("application/json"), "unknown API route must answer JSON");
+    await response.text();
+    return "ok";
+  });
+
+  await check("POST marketplace with an empty JSON object body -> 400 (missing required fields)", async () => {
+    const response = await postJson(`${baseUrl}/api/marketplace/seller-intake`, {});
+    assert(response.status === 400, `expected 400 got ${response.status}`);
+    await response.text();
     return "ok";
   });
 
@@ -526,6 +565,14 @@ async function main() {
     const body = await jsonResponse(response);
     assert(response.status === 200 || response.status === 401, `unexpected status ${response.status}`);
     assert(!("entitlement" in (body || {})) && !(body && body.user && "tier" in body.user), "anonymous /me must not expose paid state");
+    return `status ${response.status}`;
+  });
+
+  await check("expired session on /api/auth/me degrades to anonymous (200 user:null), never paid", async () => {
+    const response = await get(baseUrl + "/api/auth/me", { cookie: expiredCookie });
+    const body = await jsonResponse(response);
+    assert(response.status === 200 || response.status === 401, `unexpected status ${response.status}`);
+    if (response.status === 200) assert(body.user === null, "expired session must read as anonymous");
     return `status ${response.status}`;
   });
 
@@ -780,6 +827,13 @@ async function main() {
       return "ok";
     });
 
+    await check("protected evidence retrieval with a wrong reviewer token -> 401", async () => {
+      const response = await get(`${legacyUrl}/api/internal/evidence/qa-case/qa-attachment`, { authorization: "Bearer definitely-not-the-token" });
+      assert(response.status === 401, `expected 401 got ${response.status}`);
+      await response.text();
+      return "ok";
+    });
+
     await check("server stdout never exposes storage endpoints, signed URLs, or credentials", async () => {
       const output = runners[0].combinedOutput + runners[1].combinedOutput;
       for (const needle of ["X-Amz-Credential", ".r2.cloudflarestorage.com", "qa-secret-key", "SIGV4", "AWSAccessKeyId"]) {
@@ -827,6 +881,16 @@ async function main() {
       const response = await postMultipart(`${legacyUrl}/api/diagnoses`, intakeForm({ photos: [{ bytes: exeBytes(), type: "image/jpeg", name: "evil.exe.jpg" }] }), { cookie });
       assert(response.status === 507, `expected 507 got ${response.status}`);
       assert(s3.getPutCount() === before, "no objects may be written for non-image bytes");
+      return "ok";
+    });
+
+    await check("0-byte photo labeled image/jpeg -> 507 empty-file rejection, no objects written", async () => {
+      const beforePut = s3.getPutCount();
+      const response = await postMultipart(`${legacyUrl}/api/diagnoses`, intakeForm({ photos: [{ bytes: Buffer.alloc(0), type: "image/jpeg", name: "empty.jpg" }] }), { cookie });
+      const body = await jsonResponse(response);
+      assert(response.status === 507, `expected 507 got ${response.status}`);
+      assert(body.persisted === false, "must report persisted:false for an empty file");
+      assert(s3.getPutCount() === beforePut, "no objects may be written for an empty file");
       return "ok";
     });
 
@@ -984,6 +1048,23 @@ async function main() {
     assert(response.status === 503, `expected 503 got ${response.status}`);
     assert(body.found === false, "must not fabricate a pack");
     return "ok";
+  });
+
+  await check("receipt semantics: non-GET methods on buyer-risk GET-only route -> 404 JSON, never silent acceptance", async () => {
+    for (const method of ["POST", "PUT", "DELETE", "PATCH"]) {
+      const response = await fetch(`${baseUrl}/api/buyer-risk/vehicle-knowledge?year=2015&make=Toyota&model=Camry`, { method, signal: AbortSignal.timeout(GLOBAL_TIMEOUT_MS) });
+      assert(response.status === 404, `${method} expected 404 got ${response.status}`);
+      assert(response.headers.get("content-type")?.includes("application/json"), `${method} must answer JSON 404`);
+      await response.text();
+    }
+    return "ok";
+  });
+
+  await check("origin enforcement on public buyer-risk GET: disallowed cross-origin read gets no ACAO", async () => {
+    const response = await get(`${baseUrl}/api/buyer-risk/vehicle-knowledge?year=2015&make=Toyota&model=Camry`, { origin: "https://scraper.example.test" });
+    assert(!response.headers.get("access-control-allow-origin"), "disallowed origin must not read the payload via CORS");
+    assert(response.headers.get("vary")?.toLowerCase().includes("origin"), "expected Vary: Origin");
+    return `status ${response.status}`;
   });
 
   if (DATABASE_URL) {
@@ -1236,6 +1317,12 @@ async function main() {
       return "ok";
     });
 
+    await check("buyer interest missing required fields -> 400", async () => {
+      const response = await postJson(`${baseUrl}/api/marketplace/buyer-interest`, { buyerName: "x" });
+      assert(response.status === 400, `expected 400 got ${response.status}`);
+      return "ok";
+    });
+
     await check("origin enforcement: disallowed Origin on a public POST gets no ACAO header (browser blocks)", async () => {
       const response = await postJson(`${baseUrl}/api/marketplace/seller-intake`, marketplaceSellerBody(), { origin: "https://evil.example.test" });
       assert(!response.headers.get("access-control-allow-origin"), "disallowed origin must not be echoed");
@@ -1322,6 +1409,29 @@ async function main() {
     return "clean";
   });
 
+  await check("client source uses only same-origin relative API calls (no absolute http(s) URL baked into app code)", async () => {
+    const clientSrc = path.join(REPO_ROOT, "client", "src");
+    const offenders = [];
+    const walk = (dir) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (/\.(ts|tsx|js|jsx|mjs)$/.test(entry.name)) {
+          const content = readFileSync(full, "utf8");
+          const matches = content.match(/https?:\/\/[^"'\s)`]+/g) || [];
+          for (const url of matches) {
+            if (/localhost|127\.0\.0\.1|onrender|lifeos|amazonaws|cloudflare|vercel\.app/i.test(url)) {
+              offenders.push(`${full} -> ${url}`);
+            }
+          }
+        }
+      }
+    };
+    walk(clientSrc);
+    assert(offenders.length === 0, `absolute/remote URL baked into client source: ${offenders.join(", ")}`);
+    return "clean";
+  });
+
   await check("server source keeps only allowlisted production URL references", async () => {
     const lib = path.join(REPO_ROOT, "server");
     const offenders = [];
@@ -1371,6 +1481,11 @@ async function main() {
   });
 
   // ------------------------------------------------------------------ REPORT
+  await check("uploads/ temp-file dir returns to baseline after all intakes, aborts, and follow-ups", async () => {
+    await assertUploadsCountStable(uploadsBaseline, { retries: 60, delayMs: 100 });
+    return `baseline=${uploadsBaseline} after=${uploadsDirFileCount()}`;
+  });
+
   console.log("");
   console.log("=".repeat(72));
   console.log("BETA E2E SMOKE SUMMARY");
