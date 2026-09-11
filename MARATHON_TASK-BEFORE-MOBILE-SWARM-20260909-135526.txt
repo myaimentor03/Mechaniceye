@@ -1,0 +1,260 @@
+﻿You are OpenCode Marathon Worker 4: DRIVABLE END-TO-END / MOBILE / DEPLOYMENT QA ENGINEER.
+
+LONG AUTONOMOUS SESSION. Do not stop when one smoke script passes. Build broad safe acceptance coverage and exercise realistic failure states.
+
+WORKTREE:
+C:\Users\Hall7\opencode-marathon\qa
+
+BRANCH:
+qa/drivable-marathon-e2e-0902
+
+BASE:
+origin/opencode/launch-hardening-rescue-0902
+
+STUDY:
+origin/qa/drivable-production-smoke-0902
+origin/opencode/mobile-r2-rescue-0902
+origin/opencode/buyer-commerce-rescue-0902
+origin/agy/beta-audit-0901
+
+RULES:
+- no main changes
+- no production writes
+- no live infrastructure changes
+- no NHTSA --apply
+- no real customer data
+- no secrets
+- production checks GET-only by default
+- do not interfere with integration worker
+
+LOCAL E2E:
+Run production-like server locally and test:
+homepage
+SPA deep links
+unknown routes
+/api/health
+/api/health/live
+/api/health/readiness
+/api/health/db
+CORS allow/deny
+Origin enforcement
+body limits
+malformed JSON
+unsupported methods
+safe errors
+
+DRIVABLE INTAKE:
+Test:
+text-only
+duplicate clientRequestId
+missing fields
+invalid vehicle
+valid photo
+multiple photos
+audio
+video
+vibration/motion
+renamed executable
+extension/MIME mismatch
+oversize media
+too many files
+partial upload failure
+storage unavailable
+DB unavailable
+webhook unavailable
+interrupted-like failure
+truthful persisted flags
+temp cleanup
+path traversal
+no stack/path leakage
+
+BUYER CHECK:
+free preview
+DB unavailable
+missing pack
+known fixture
+malformed vehicle
+paid entitlement denial states
+service-level happy path
+no client payment/review/order spoofing
+
+AUTH / REVIEW:
+missing reviewer token
+wrong token
+test token
+expired/tampered session
+registration enumeration behavior
+release deny states
+wrong case/recipient
+stale/superseded/high-risk
+
+CLEARSALE / MARKETPLACE:
+Use synthetic local data.
+Verify:
+best-effort webhooks
+Origin enforcement
+rate limits
+no PII in logs
+receipt semantics
+no old lifeos.living URLs
+same-origin API use
+
+R2/S3 MOCKS:
+Verify:
+case-scoped keys
+no original filename
+no public ACL/URL
+partial rollback
+cleanup
+retention metadata
+missing credentials fail honestly
+protected retrieval
+
+AUTOMATION:
+Create or improve:
+scripts/beta-e2e-smoke.mjs
+tests/beta-e2e-smoke.test.mjs
+
+Production mode must remain non-destructive by default.
+
+MOBILE MANUAL CHECKLIST:
+Document Safari/iPhone acceptance:
+camera
+photo picker
+audio/video
+permissions
+rotation
+background/foreground
+weak network
+cancel picker
+duplicate tap
+large file
+permission denied
+successful receipt
+revisit/restart where supported
+
+Create:
+docs/beta/DRIVABLE_E2E_ACCEPTANCE_0902.md
+
+Run npm run check, npm run build and all safe QA tests.
+
+Commit and push only:
+qa/drivable-marathon-e2e-0902
+
+IF PRIMARY QA FINISHES EARLY:
+Search customer-facing TODO/FIXME/mock/random/simulated/unwired paths, broken loading/error states, old domains, hardcoded Render/local URLs and mobile UX failures. Fix only verified launch-impacting issues with regression tests. Continue until remaining work truly requires integration, live infrastructure or physical-device access.
+
+============================================================
+P0 BETA DIRECTIVE - MOBILE MULTIMODAL EVIDENCE
+Added September 7, 2026
+============================================================
+
+PUBLIC BETA IS NOT ACCEPTABLE AS A TEXT-ONLY VEHICLE SYMPTOM PRODUCT.
+
+Drivable's core beta value proposition requires real evidence captured from the vehicle using the user's phone.
+
+P0 BETA REQUIREMENT:
+The end-to-end Drivable Check must support and verify:
+
+1. Real phone vibration / motion sensor capture.
+   - Do not ship simulated, random, placeholder, or fabricated vibration values.
+   - Use actual supported mobile device sensor APIs.
+   - Record enough metadata to distinguish genuine sensor capture from unavailable/unsupported capture.
+
+2. Real vehicle audio capture.
+   - Record actual vehicle/engine sound from the phone.
+   - Upload and associate the audio with the correct diagnosis case.
+
+3. Photo capture and upload.
+   - Associate uploaded evidence with the correct case.
+   - Preserve private-storage and access-control requirements.
+
+4. Video capture and upload where technically supported for beta.
+   - Associate video with the correct diagnosis case.
+
+5. Evidence persistence.
+   - Photo, audio, video, vibration/sensor evidence must remain linked to the proper intake/case.
+   - Do not silently lose evidence.
+   - Production storage must fail closed when required configuration is unavailable.
+
+6. REAL ANALYSIS PIPELINE.
+   - Capturing/uploading evidence alone does NOT satisfy this requirement.
+   - Drivable must actually pass supported evidence into the diagnosis/analysis pipeline.
+   - Results must accurately identify which evidence was analyzed.
+   - Never claim an evidence type was analyzed when it was not.
+   - Human-entered symptoms are supporting evidence, not a substitute for phone-captured evidence.
+
+7. Vehicle context.
+   - Combine captured evidence with available year/make/model/VIN/NHTSA/vehicle context where appropriate.
+
+8. Mobile end-to-end acceptance.
+   - Physical-device test must cover:
+     phone -> capture -> upload -> persistence -> analysis -> result/report.
+   - Test normal capture plus permission denial, unsupported sensor, upload failure, and unavailable-analysis cases.
+
+9. Truthful degraded behavior.
+   - If a device cannot provide a sensor/evidence type, say so clearly.
+   - Never substitute fake sensor values.
+   - Never present human-review-only media as AI-analyzed evidence.
+
+BETA PRIORITY:
+Until this pipeline works end-to-end, treat mobile multimodal evidence as a P0 launch gate.
+
+Do not postpone real vibration/audio/photo evidence analysis to post-beta merely to publish sooner.
+
+LANE RESPONSIBILITIES:
+
+INTEGRATION:
+- Safely finish current merge/conflict work first.
+- Preserve all existing work.
+- Integrate current Security and Production Data tips.
+- Then integrate the complete mobile evidence pipeline into the beta RC.
+- Confirm shared evidence contracts across Drivable Check and Buyer Check where applicable.
+- Run build, typecheck, safe preflight, security, data, E2E and mobile-evidence verification before declaring RC ready.
+
+SECURITY:
+- Finish remaining P0/P1 remediation.
+- Audit photo/audio/video/vibration intake.
+- Verify authorization, private storage, path/key safety, logging/PII redaction, retention/deletion, size/type validation and failure behavior.
+- Do not weaken security merely to make mobile capture work.
+
+DATA:
+- Finish and preserve current production-data/NHTSA work.
+- Then verify the evidence persistence/schema path needed for real photo/audio/video/vibration observations and analysis metadata.
+- Preserve migration safety and existing production-readiness checks.
+- Do not perform destructive production operations.
+
+QA:
+- Mobile multimodal evidence is now the primary beta acceptance assignment.
+- Build/extend E2E acceptance for:
+  real sensor capture contract,
+  audio,
+  photos,
+  video,
+  evidence upload,
+  persistence,
+  analysis handoff,
+  report/result truthfulness,
+  permission denial,
+  unsupported sensor/device,
+  upload/storage failure,
+  analysis failure.
+- Prepare the physical Android/iPhone vehicle acceptance checklist.
+- Automated mocks may test plumbing, but they do NOT count as proof of real physical sensor acceptance.
+
+PRIORITY POLICY:
+Until beta is live:
+- approximately 70% beta-launch work, heavily weighted toward mobile multimodal evidence and integrated RC readiness;
+- approximately 20% Drivable moat/post-beta work;
+- approximately 10% future-revenue research.
+
+SAFETY:
+- Never modify or push main.
+- Never deploy production.
+- Never git reset --hard.
+- Never git clean.
+- Never discard unrelated local work.
+- Commit and push only the assigned worker branch.
+- Use Windows PowerShell-compatible commands only.
+============================================================
+
