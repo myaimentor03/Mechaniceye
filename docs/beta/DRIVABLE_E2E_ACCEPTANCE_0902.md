@@ -103,6 +103,7 @@ npm run test:beta-e2e       # node:test wrapper (smoke + helper unit tests)
 - **Client copy regression: homepage/offer/guidance/FAQ no longer promise audio/video/vibration capture that the photo-first intake rejects** (the offending strings disappeared)
 - **Buyer-interest form ships no pipelined sample/default listing title** (the old `2012 Ford F-150 XLT` default that could be submitted by mistake is gone)
 - **`uploads/` temp directory returns to its baseline after every intake, mid-upload abort, and follow-up 404 (no leaked temp files)**
+- Mock/simulated sources are not wired anywhere an end user could read them as real phenomena: `server/mock-drivable-report.ts` is only consulted for `buildDrivableAiPayloadFields` (AI-forward packet shaping), and `client/src/lib/mock-analysis.ts` has no importers (dead code, not the diagnosis backend). No TODO/FIXME-gated fake endpoints remain in `server/` or `client/src/`.
 
 ---
 
