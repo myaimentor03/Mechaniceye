@@ -1610,11 +1610,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/capabilities", (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
-    const r2Configured = isR2EvidenceStorageConfigured();
     res.json({
       photoUpload: process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && evidenceStore.durability === "private_object_storage",
-      audioUpload: r2Configured,
-      videoUpload: r2Configured,
+      audioUpload: false,
+      videoUpload: false,
       vibrationSensorCapture: false,
     });
   });
