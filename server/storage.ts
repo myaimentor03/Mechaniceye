@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "./db";
 import { diagnoses } from "./shared/shared/schema";
+import type { EvidenceAttachment } from "../shared/drivableEvidence.js";
 
 type DiagnosisRow = typeof diagnoses.$inferSelect;
 
@@ -49,6 +50,8 @@ type DiagnosisRecord = {
   status?: string;
   primaryDiagnosis?: { title?: string; confidence?: number } | null;
   alternativeScenarios?: Array<{ title?: string }>;
+  attachments?: EvidenceAttachment[];
+  evidenceSummary?: Record<string, { provided: number; persisted: number; status: string }>;
 };
 
 type FollowUpRecord = {

@@ -314,3 +314,31 @@ test("malformed vibration payloads are rejected, never stored", async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("manifest file contains all attachment kinds and evidence status is truthful", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-summary-"));
+  try {
+    const store = new RuntimeFileEvidenceStore(root);
+    const jpg = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+    const mp3 = Buffer.alloc(256);
+    mp3[0] = 0x49; mp3[1] = 0x44; mp3[2] = 0x33;
+    const jsonReadings = JSON.stringify([{ x: 0.1, y: -0.03, z: 9.81, t: Date.now() }]);
+
+    await store.savePhotos("CASE-SUMMARY", [upload(jpg)]);
+    await store.saveAudioFiles("CASE-SUMMARY", [upload(mp3, "clip.mp3", "audio/mpeg")]);
+    await store.saveVibrationFiles("CASE-SUMMARY", [upload(Buffer.from(jsonReadings), "vib.json", "application/json")]);
+
+    const manifestPath = path.join(root, "CASE-SUMMARY", "attachments.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    assert.equal(manifest.length, 3);
+    assert.equal(manifest.filter((a: any) => a.kind === "photo").length, 1);
+    assert.equal(manifest.filter((a: any) => a.kind === "audio").length, 1);
+    assert.equal(manifest.filter((a: any) => a.kind === "sensor_session").length, 1);
+    for (const attachment of manifest) {
+      assert.equal(attachment.status, "persisted");
+      assert.equal(attachment.analysisStatus, "uploaded_not_analyzed");
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

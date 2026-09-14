@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, Download, RotateCcw, MapPin } from "lucide-react";
+import { Shield, Download, RotateCcw, MapPin, Camera, Mic, Video, Waves } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { featureFlags } from "@/lib/featureFlags";
@@ -14,12 +14,28 @@ import type { Diagnosis } from "@shared/schema";
 
 const EVIDENCE_STATUS = "uploaded_not_analyzed";
 
+interface EvidenceSummary {
+  photos: { provided: number; persisted: number; status: string };
+  audio: { provided: number; persisted: number; status: string };
+  video: { provided: number; persisted: number; status: string };
+  vibration: { provided: number; persisted: number; status: string };
+}
+
 interface DiagnosisResultsProps {
-  diagnosis: Diagnosis;
+  diagnosis: Diagnosis & {
+    attachments?: Array<{ kind: string }>;
+    evidenceSummary?: EvidenceSummary;
+  };
 }
 
 export function DiagnosisResults({ diagnosis }: DiagnosisResultsProps) {
   const { toast } = useToast();
+  const summary = diagnosis.evidenceSummary;
+  const attachments = diagnosis.attachments ?? [];
+  const photoCount = summary?.photos?.persisted ?? attachments.filter((a) => a.kind === "photo").length ?? 0;
+  const audioCount = summary?.audio?.persisted ?? attachments.filter((a) => a.kind === "audio").length ?? 0;
+  const videoCount = summary?.video?.persisted ?? attachments.filter((a) => a.kind === "video").length ?? 0;
+  const vibrationCount = summary?.vibration?.persisted ?? attachments.filter((a) => a.kind === "sensor_session").length ?? 0;
 
   return (
     <div className="space-y-6">
@@ -30,7 +46,7 @@ export function DiagnosisResults({ diagnosis }: DiagnosisResultsProps) {
             <h2 className="text-2xl font-bold text-gray-900">Case Evidence</h2>
             <div className="flex items-center space-x-2 text-sm text-blue-600">
               <Shield className="w-4 h-4" />
-              <span>Evidence Stored ({EVIDENCE_STATUS})</span>
+              <span>Evidence {attachments.length > 0 ? `Stored (${attachments.length} file(s))` : "Not Provided"}</span>
             </div>
           </div>
 
@@ -45,22 +61,31 @@ export function DiagnosisResults({ diagnosis }: DiagnosisResultsProps) {
           {/* Evidence Summary */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
             <div className="border rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-gray-900">0</div>
-              <div className="text-xs text-gray-500">Photos</div>
+              <div className="text-2xl font-bold text-gray-900">{photoCount}</div>
+              <div className="text-xs text-gray-500">Photos {photoCount > 0 ? `✓` : "—"}</div>
             </div>
             <div className="border rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-gray-900">{diagnosis.audioFile ? 1 : 0}</div>
-              <div className="text-xs text-gray-500">Audio</div>
+              <div className="text-2xl font-bold text-gray-900">{audioCount}</div>
+              <div className="text-xs text-gray-500">Audio {audioCount > 0 ? `✓` : "—"}</div>
             </div>
             <div className="border rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-gray-900">{diagnosis.videoFile ? 1 : 0}</div>
-              <div className="text-xs text-gray-500">Video</div>
+              <div className="text-2xl font-bold text-gray-900">{videoCount}</div>
+              <div className="text-xs text-gray-500">Video {videoCount > 0 ? `✓` : "—"}</div>
             </div>
             <div className="border rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-gray-900">{diagnosis.vibrationData ? 1 : 0}</div>
-              <div className="text-xs text-gray-500">Vibration</div>
+              <div className="text-2xl font-bold text-gray-900">{vibrationCount}</div>
+              <div className="text-xs text-gray-500">Vibration {vibrationCount > 0 ? `✓` : "—"}</div>
             </div>
           </div>
+          {attachments.length > 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <p className="text-green-800 font-medium mb-1">Evidence stored and awaiting review.</p>
+              <p className="text-green-700 text-sm">
+                {attachments.length} file(s) captured across {new Set(attachments.map((a) => a.kind)).size} modality/modalities.
+                All evidence is stored privately and has not been analyzed by any AI. A human reviewer will examine it before any diagnosis is prepared.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 

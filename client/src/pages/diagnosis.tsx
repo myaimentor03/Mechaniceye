@@ -17,6 +17,12 @@ export default function Diagnosis() {
   const queryClient = useQueryClient();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [capabilities, setCapabilities] = useState<MediaCapabilities>(MEDIA_UNAVAILABLE);
+  const [evidenceStatus, setEvidenceStatus] = useState<{
+    photo: "persisted" | "not_provided" | "failed";
+    audio: "persisted" | "not_provided" | "failed";
+    video: "persisted" | "not_provided" | "failed";
+    vibration: "persisted" | "not_provided" | "failed";
+  } | undefined>(undefined);
   const [formData, setFormData] = useState({
     description: "",
     vehicleInfo: "",
@@ -43,6 +49,15 @@ export default function Diagnosis() {
     },
     onSuccess: (diagnosis) => {
       queryClient.invalidateQueries({ queryKey: ["/api/diagnoses"] });
+      const summary = diagnosis.evidenceSummary;
+      if (summary) {
+        setEvidenceStatus({
+          photo: summary.photos?.status as "persisted" | "not_provided" | "failed" ?? "not_provided",
+          audio: summary.audio?.status as "persisted" | "not_provided" | "failed" ?? "not_provided",
+          video: summary.video?.status as "persisted" | "not_provided" | "failed" ?? "not_provided",
+          vibration: summary.vibration?.status as "persisted" | "not_provided" | "failed" ?? "not_provided",
+        });
+      }
       setLocation(`/results/${diagnosis.id}`);
       toast({
         title: "Case saved",
@@ -155,7 +170,7 @@ export default function Diagnosis() {
               </div>
             </div>
 
-            <EvidenceCapture formData={formData} setFormData={setFormData} capabilities={capabilities} />
+            <EvidenceCapture formData={formData} setFormData={setFormData} capabilities={capabilities} evidenceStatus={evidenceStatus} />
 
             {/* Submit Button */}
             <div className="mt-8 pt-6 border-t border-gray-200">

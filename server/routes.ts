@@ -2022,12 +2022,31 @@ try {
     }
   });
 
-  // Get specific diagnosis
+  // Get specific diagnosis with evidence status
   app.get("/api/diagnoses/:id", requireReviewer, async (req, res) => {
     try {
       const diagnosis = await storage.getDiagnosis(req.params.id);
       if (!diagnosis) {
         return res.status(404).json({ message: "Diagnosis not found" });
+      }
+      // Attach evidence status from local evidence manifest for truthful display
+      try {
+        const caseId = req.params.id;
+        const manifestKey = path.join(process.cwd(), "uploads", "evidence", caseId, "attachments.json");
+        const manifest = JSON.parse((await fs.promises.readFile(manifestKey, "utf8"))) as EvidenceAttachment[];
+        const photos = manifest.filter((a) => a.kind === "photo");
+        const audio = manifest.filter((a) => a.kind === "audio");
+        const video = manifest.filter((a) => a.kind === "video");
+        const vibration = manifest.filter((a) => a.kind === "sensor_session");
+        diagnosis.attachments = manifest;
+        diagnosis.evidenceSummary = {
+          photos: { provided: photos.length, persisted: photos.length, status: photos.length > 0 ? "persisted" : "not_provided" },
+          audio: { provided: audio.length, persisted: audio.length, status: audio.length > 0 ? "persisted" : "not_provided" },
+          video: { provided: video.length, persisted: video.length, status: video.length > 0 ? "persisted" : "not_provided" },
+          vibration: { provided: vibration.length, persisted: vibration.length, status: vibration.length > 0 ? "persisted" : "not_provided" },
+        };
+      } catch {
+        // No evidence manifest for this case
       }
       res.json(diagnosis);
     } catch (error) {

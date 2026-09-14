@@ -342,15 +342,21 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
       {/* Evidence Status Bar */}
       <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm">
         <Shield className="w-4 h-4 text-blue-600" />
-        <span className="text-blue-800 font-medium">Evidence Status: {formData.photoFiles.length > 0 ? "provided" : "not_provided"}</span>
+        <span className="text-blue-800 font-medium">
+          Evidence: {evidenceStatus?.photo === "persisted" || evidenceStatus?.audio === "persisted" || evidenceStatus?.video === "persisted" || evidenceStatus?.vibration === "persisted"
+            ? "Stored privately — awaiting review"
+            : formData.photoFiles.length + formData.audioFiles.length + formData.videoFiles.length + formData.vibrationFiles.length > 0
+            ? "Pending save"
+            : "No evidence captured"}
+        </span>
         <span className="text-blue-600">|</span>
-        <span className="text-blue-700">Photos: {formData.photoFiles.length}/8</span>
+        <span className="text-blue-700">Photos: {formData.photoFiles.length}/{MAX_PHOTO_COUNT}{evidenceStatus?.photo === "persisted" ? " ✓" : ""}</span>
         <span className="text-blue-600">|</span>
-        <span className="text-blue-700">Audio: {formData.audioFiles.length}/{MAX_AUDIO_FILES}</span>
+        <span className="text-blue-700">Audio: {formData.audioFiles.length}/{MAX_AUDIO_FILES}{evidenceStatus?.audio === "persisted" ? " ✓" : ""}</span>
         <span className="text-blue-600">|</span>
-        <span className="text-blue-700">Video: {formData.videoFiles.length}/{MAX_VIDEO_FILES}</span>
+        <span className="text-blue-700">Video: {formData.videoFiles.length}/{MAX_VIDEO_FILES}{evidenceStatus?.video === "persisted" ? " ✓" : ""}</span>
         <span className="text-blue-600">|</span>
-        <span className="text-blue-700">Vibration: {formData.vibrationFiles.length}/{MAX_VIBRATION_FILES}</span>
+        <span className="text-blue-700">Vibration: {formData.vibrationFiles.length}/{MAX_VIBRATION_FILES}{evidenceStatus?.vibration === "persisted" ? " ✓" : ""}</span>
       </div>
 
       <div className="border-b border-gray-200 mb-6">
