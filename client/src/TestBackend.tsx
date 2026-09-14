@@ -37,6 +37,13 @@ import {
 } from "../../shared/drivableDecisionEngine";
 import type { DrivableEvidenceIntake } from "../../shared/drivableEvidence";
 import {
+  MEDIA_UNAVAILABLE,
+  filterSubmittableEvidence,
+  mediaUnavailableMessage,
+  parseMediaCapabilities,
+  type MediaCapabilities,
+} from "./lib/mediaAvailability";
+import {
   getFrontendRoutePath,
   getFrontendSearchParams,
   navigateFrontend
@@ -1166,6 +1173,7 @@ const [manualEngine, setManualEngine] = useState("");
   const [customer, setCustomer] = useState<DrivableCustomer | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [photoUploadEnabled, setPhotoUploadEnabled] = useState(false);
+  const [mediaCapabilities, setMediaCapabilities] = useState<MediaCapabilities>({ ...MEDIA_UNAVAILABLE });
   const [draftRestored, setDraftRestored] = useState(false);
 
   const DRAFT_KEY = "drivable-intake-draft-v1";
@@ -1235,8 +1243,21 @@ const [manualEngine, setManualEngine] = useState("");
   useEffect(() => {
     fetch("/api/capabilities")
       .then((response) => response.json())
-      .then((body) => setPhotoUploadEnabled(body.photoUpload === true))
-      .catch(() => setPhotoUploadEnabled(false));
+      .then((body) => {
+        const parsed = parseMediaCapabilities(body);
+        setMediaCapabilities(parsed);
+        setPhotoUploadEnabled(parsed.photoUpload);
+        // Drop stale selections the server cannot persist so a good case
+        // cannot turn into a 507 because storage went away mid-draft.
+        setPhotoFiles((current) => (parsed.photoUpload ? current : []));
+        setAudioFiles((current) => (parsed.audioUpload ? current : []));
+        setVideoFiles((current) => (parsed.videoUpload ? current : []));
+        setVibrationFiles((current) => (parsed.vibrationSensorCapture ? current : []));
+      })
+      .catch(() => {
+        setMediaCapabilities({ ...MEDIA_UNAVAILABLE });
+        setPhotoUploadEnabled(false);
+      });
   }, []);
 
   const availableMakes = useMemo(() => {
@@ -1278,7 +1299,8 @@ const [manualEngine, setManualEngine] = useState("");
   setManualEngine("");
 }
 
-  function buildDescriptionBlock() {
+  function buildDescriptionBlock(files?: { photos: File[]; audio: File[]; video: File[]; vibration: File[] }) {
+    const selected = files || { photos: photoFiles, audio: audioFiles, video: videoFiles, vibration: vibrationFiles };
     return [
       `Problem Category: ${problemCategory || "Not provided"}`,
       `Vehicle: ${year} ${make === "Other Make" ? manualMake : make} ${model === "Other Model" ? manualModel : model}`,
@@ -1298,10 +1320,10 @@ const [manualEngine, setManualEngine] = useState("");
       description || "Not provided",
       "",
       "Selected evidence files:",
-      `Photos: ${photoFiles.length ? photoFiles.map((f) => f.name).join(", ") : "None"}`,
-      `Audio: ${audioFiles.length ? audioFiles.map((f) => f.name).join(", ") : "None"}`,
-      `Video: ${videoFiles.length ? videoFiles.map((f) => f.name).join(", ") : "None"}`,
-      `Vibration / Motion: ${vibrationFiles.length ? vibrationFiles.map((f) => f.name).join(", ") : "None"}`,
+      `Photos: ${selected.photos.length ? selected.photos.map((f) => f.name).join(", ") : "None"}`,
+      `Audio: ${selected.audio.length ? selected.audio.map((f) => f.name).join(", ") : "None"}`,
+      `Video: ${selected.video.length ? selected.video.map((f) => f.name).join(", ") : "None"}`,
+      `Vibration / Motion: ${selected.vibration.length ? selected.vibration.map((f) => f.name).join(", ") : "None"}`,
       "",
       "Note: uploaded media is received for human review and is not analyzed by AI."
     ].join("\n");
@@ -1345,7 +1367,11 @@ const [manualEngine, setManualEngine] = useState("");
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
-    const hasMediaFiles = photoFiles.length > 0 || audioFiles.length > 0 || videoFiles.length > 0 || vibrationFiles.length > 0;
+    const submittable = filterSubmittableEvidence(
+      { photos: photoFiles, audio: audioFiles, video: videoFiles, vibration: vibrationFiles },
+      mediaCapabilities,
+    );
+    const hasMediaFiles = submittable.photos.length > 0 || submittable.audio.length > 0 || submittable.video.length > 0 || submittable.vibration.length > 0;
     if (!serviceConsent || !humanReviewConsent || (hasMediaFiles && !mediaConsent)) {
       setError("Please accept service fulfillment and human review. Media submissions also require media processing consent.");
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1369,11 +1395,11 @@ const [manualEngine, setManualEngine] = useState("");
     setError("");
     setResult(null);
 
-    const photoFileNames = photoFiles.map((file) => file.name);
+    const photoFileNames = submittable.photos.map((file) => file.name);
     const payload = {
       clientRequestId,
       problemCategory,
-      description: buildDescriptionBlock(),
+      description: buildDescriptionBlock(submittable),
       vehicleInfo: `${year} ${resolvedMake} ${resolvedModel} | Engine: ${resolvedEngine || "N/A"} | Mileage: ${mileage || "N/A"} | Transmission: ${transmission || "N/A"} | Drivetrain: ${drivetrain || "N/A"}`,
       unsupportedVehicle,
       manualVehicleEntryUsed: usedManualVehicleEntry,
@@ -1438,10 +1464,10 @@ const endpoints = [PUBLIC_API_ENDPOINT];
             human_review_sharing: humanReviewConsent,
             optional_product_learning: learningConsent,
           }));
-          photoFiles.forEach((file) => requestBody.append("photos", file, file.name));
-          audioFiles.forEach((file) => requestBody.append("audio", file, file.name));
-          videoFiles.forEach((file) => requestBody.append("video", file, file.name));
-          vibrationFiles.forEach((file) => requestBody.append("vibration", file, file.name));
+          submittable.photos.forEach((file) => requestBody.append("photos", file, file.name));
+          submittable.audio.forEach((file) => requestBody.append("audio", file, file.name));
+          submittable.video.forEach((file) => requestBody.append("video", file, file.name));
+          submittable.vibration.forEach((file) => requestBody.append("vibration", file, file.name));
 
           const res = await fetch(endpoint, {
             method: "POST",
@@ -1868,7 +1894,9 @@ Add a clear written symptom description, manual OBD codes, vibration context, an
                           </>
                         }
                       >
-                        <VideoRecorder files={videoFiles} onChange={setVideoFiles} onError={setError} />
+                        {mediaCapabilities.videoUpload
+                          ? <VideoRecorder files={videoFiles} onChange={setVideoFiles} onError={setError} />
+                          : <div className="upload-note">{mediaUnavailableMessage("video")}</div>}
                       </EvidenceCard>
 
                       <EvidenceCard
@@ -1880,7 +1908,9 @@ Add a clear written symptom description, manual OBD codes, vibration context, an
                           </>
                         }
                       >
-                        <AudioRecorder files={audioFiles} onChange={setAudioFiles} onError={setError} />
+                        {mediaCapabilities.audioUpload
+                          ? <AudioRecorder files={audioFiles} onChange={setAudioFiles} onError={setError} />
+                          : <div className="upload-note">{mediaUnavailableMessage("audio")}</div>}
                       </EvidenceCard>
 
                       <EvidenceCard
@@ -1892,7 +1922,9 @@ Add a clear written symptom description, manual OBD codes, vibration context, an
                           </>
                         }
                       >
-                        <VibrationCapture files={vibrationFiles} onChange={setVibrationFiles} onError={setError} />
+                        {mediaCapabilities.vibrationSensorCapture
+                          ? <VibrationCapture files={vibrationFiles} onChange={setVibrationFiles} onError={setError} />
+                          : <div className="upload-note">{mediaUnavailableMessage("vibration")}</div>}
                       </EvidenceCard>
                     </div>
                   </div>
