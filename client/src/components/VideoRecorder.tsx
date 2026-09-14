@@ -94,7 +94,7 @@ export function VideoRecorder({ files, onChange, onError }: VideoRecorderProps) 
       return;
     }
     if (file.size > MAX_VIDEO_BYTES) {
-      onError("Video file is too large (max 50 MB).");
+      onError("Video file is too large (max 100 MB).");
       return;
     }
     onError("");

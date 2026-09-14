@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,10 +11,7 @@ import { AudioRecorder } from "@/components/AudioRecorder";
 import { VideoRecorder } from "@/components/VideoRecorder";
 import { VibrationCapture } from "@/components/VibrationCapture";
 import { type MediaCapabilities, MEDIA_UNAVAILABLE, mediaUnavailableMessage } from "@/lib/mediaAvailability";
-
-const MAX_PHOTO_COUNT = 8;
-const MAX_PHOTO_BYTES = 12 * 1024 * 1024;
-const ALLOWED_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
+import { MAX_PHOTO_COUNT, validatePhotoFiles } from "@/lib/photoValidation";
 const MAX_AUDIO_FILES = 4;
 const MAX_VIDEO_FILES = 4;
 const MAX_VIBRATION_FILES = 4;
@@ -48,17 +45,18 @@ interface EvidenceCaptureProps {
 export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UNAVAILABLE, evidenceStatus, onRetry }: EvidenceCaptureProps) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("description");
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  // Stable object URLs for thumbnails — avoids creating new URLs on every render and cleans up on removal/unmount
-  const photoUrls = useMemo(() => formData.photoFiles.map((file) => URL.createObjectURL(file)), [formData.photoFiles]);
+  // Object URLs are a side effect: create them in an effect so every
+  // created URL is revoked exactly once (on change or unmount).
+  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   useEffect(() => {
-    return () => { photoUrls.forEach((url) => URL.revokeObjectURL(url)); };
-  }, [photoUrls]);
-  useEffect(() => {
-    return () => { if (photoPreview) URL.revokeObjectURL(photoPreview); };
-  }, [photoPreview]);
+    const urls = formData.photoFiles.map((file) => URL.createObjectURL(file));
+    setPhotoUrls(urls);
+    return () => { urls.forEach((url) => URL.revokeObjectURL(url)); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.photoFiles]);
 
   const tabs = [
     { id: "audio", label: "Audio", icon: Mic },
@@ -68,51 +66,31 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
     { id: "description", label: "Description", icon: Edit },
   ];
 
-  function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-
-    const validFiles: File[] = [];
-    const errors: string[] = [];
-
-    for (const file of files) {
-      if (!ALLOWED_PHOTO_TYPES.includes(file.type)) {
-        errors.push(`${file.name}: Unsupported file type. Use JPEG, PNG, WebP, or HEIC.`);
-        continue;
-      }
-      if (file.size > MAX_PHOTO_BYTES) {
-        errors.push(`${file.name}: File too large (max 12 MB).`);
-        continue;
-      }
-      validFiles.push(file);
-    }
-
+  function addPhotoFiles(candidates: File[]) {
+    if (candidates.length === 0) return;
+    const { validFiles, errors } = validatePhotoFiles(candidates, formData.photoFiles.length);
     if (errors.length > 0) {
-      toast({ title: "Photo Upload Issues", description: errors.join("\n"), variant: "destructive" });
+      toast({
+        title: validFiles.length > 0 ? "Some Photos Could Not Be Added" : "Photo Upload Issues",
+        description: errors.join("\n"),
+        variant: "destructive",
+      });
     }
-
     if (validFiles.length > 0) {
-      if (formData.photoFiles.length + validFiles.length > MAX_PHOTO_COUNT) {
-        const allowed = MAX_PHOTO_COUNT - formData.photoFiles.length;
-        toast({ title: "Photo Limit Reached", description: `Maximum ${MAX_PHOTO_COUNT} photos allowed. Only ${allowed} more can be added.`, variant: "destructive" });
-        return;
-      }
-      const nextFiles = [...formData.photoFiles, ...validFiles];
+      const nextFiles = [...formData.photoFiles, ...(validFiles as File[])];
       setFormData((prev: any) => ({ ...prev, photoFiles: nextFiles }));
       toast({ title: "Photos Saved", description: `${validFiles.length} photo(s) stored with your case.` });
-      if (validFiles[0]) {
-        setPhotoPreview(URL.createObjectURL(validFiles[0]));
-      }
     }
+  }
 
+  function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    addPhotoFiles(Array.from(e.target.files || []));
     e.target.value = "";
   }
 
   function removePhoto(index: number) {
     const next = formData.photoFiles.filter((_, i) => i !== index);
     setFormData((prev: any) => ({ ...prev, photoFiles: next }));
-    if (next.length === 0) setPhotoPreview(null);
-    else setPhotoPreview(URL.createObjectURL(next[0]));
   }
 
   function handleAudioChange(files: File[]) {
@@ -231,22 +209,38 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
               <Image className="w-16 h-16 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Add Photos</h3>
               <p className="text-gray-600 mb-4">
-                Tap to choose photos of the vehicle issue. Dash lights, tires, leaks, damage, engine bay.
+                Take a photo of the vehicle issue right now, or choose photos you already have. Dash lights, tires, leaks, damage, engine bay.
                 <br />
                 <span className="text-xs text-gray-500">Max 8 photos, 12 MB each. JPEG, PNG, WebP, HEIC.</span>
               </p>
 
-              <Button
-                onClick={() => fileInputRef.current?.click()}
-                className="bg-automotive-orange hover:bg-orange-600 text-white"
-              >
-                <Upload className="w-4 h-4 mr-2" /> Choose Photos
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                <Button
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="bg-automotive-orange hover:bg-orange-600 text-white"
+                >
+                  <Camera className="w-4 h-4 mr-2" /> Take Photo
+                </Button>
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300"
+                >
+                  <Upload className="w-4 h-4 mr-2" /> Choose Photos
+                </Button>
+              </div>
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
                 multiple
+                hidden
+                onChange={handlePhotoUpload}
+              />
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
                 hidden
                 onChange={handlePhotoUpload}
               />
@@ -277,12 +271,9 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
               </div>
             )}
 
-            <Button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300"
-            >
-              <Camera className="w-4 h-4 mr-2" /> Take Photo with Camera
-            </Button>
+            <p className="text-xs text-gray-500">
+              Photos are stored with your case only. They are not analyzed automatically.
+            </p>
           </div>
         );
 
