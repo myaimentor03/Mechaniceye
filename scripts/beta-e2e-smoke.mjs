@@ -1317,13 +1317,13 @@ async function main() {
       return "ok";
     });
 
-+    await check("buyer interest missing required fields -> 400", async () => {
-+      const response = await postJson(`${baseUrl}/api/marketplace/buyer-interest`, { buyerName: "x" });
-+      assert(response.status === 400, `expected 400 got ${response.status}`);
-+      return "ok";
-+    });
-+
-+    await check("origin enforcement: disallowed Origin on a public POST is rejected with no ACAO header and Vary: Origin (browser blocks)", async () => {
+    await check("buyer interest missing required fields -> 400", async () => {
+      const response = await postJson(`${baseUrl}/api/marketplace/buyer-interest`, { buyerName: "x" });
+      assert(response.status === 400, `expected 400 got ${response.status}`);
+      return "ok";
+    });
+
+    await check("origin enforcement: disallowed Origin on a public POST is rejected with no ACAO header and Vary: Origin (browser blocks)", async () => {
       const response = await postJson(`${baseUrl}/api/marketplace/seller-intake`, marketplaceSellerBody(), { origin: "https://evil.example.test" });
       assert(!response.headers.get("access-control-allow-origin"), "disallowed origin must not be echoed");
       assert(response.headers.get("vary")?.toLowerCase().includes("origin"), "expected Vary: Origin");

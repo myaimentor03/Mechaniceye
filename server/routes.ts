@@ -173,12 +173,12 @@ const diagnosisEvidenceUploadMiddleware = (req: any, res: any, next: any) => {
     });
   });
 };
-const removeIntakeTempFiles = (files: UploadedEvidenceFiles) => {
-  for (const file of Object.values(files || {}).flat()) {
+const removeIntakeTempFiles = async (files: UploadedEvidenceFiles) => {
+  await Promise.all(Object.values(files || {}).flat().map(async (file) => {
     if (file?.path) {
-      fs.rm(file.path, () => undefined);
+      await fs.promises.rm(file.path, { force: true });
     }
-  }
+  }));
 };
 const evidenceStore = createEvidenceStoreFromEnvironment();
 
@@ -1222,6 +1222,7 @@ async function deliverMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
     appBrand: "Drivable by Mechanic's Eye",
     marketplaceBrand: "Drivable Marketplace",
     payloadVersion: "v1",
+    ...intake,
     vehicleYear: intake.vehicleYear,
     make: intake.make,
     model: intake.model,
@@ -1298,6 +1299,7 @@ async function deliverMarketplaceBuyerInterest(intake: MarketplaceBuyerInterest)
     appBrand: "Drivable by Mechanic's Eye",
     marketplaceBrand: "Drivable Marketplace",
     payloadVersion: "v1",
+    ...intake,
     preferredContactMethod: intake.preferredContactMethod,
     listingTitle: intake.listingTitle,
     listingUrl: intake.listingUrl,
@@ -2063,7 +2065,7 @@ try {
         : String(evidenceIntake.vehicle.mileage);
       input.obdCodes = evidenceIntake.obd.codes.join(", ") || input.obdCodes;
     } catch (validationError) {
-      removeIntakeTempFiles(uploadedFiles);
+      await removeIntakeTempFiles(uploadedFiles);
       // Never echo parser/Zod messages: they can embed submitted values, schema
       // internals, or the request body. The client performs its own validation.
       return res.status(400).json({
@@ -2073,19 +2075,19 @@ try {
     }
 
     if (photoFiles.length && (process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED !== "true" || evidenceStore.durability !== "private_object_storage")) {
-      removeIntakeTempFiles(uploadedFiles);
+      await removeIntakeTempFiles(uploadedFiles);
       return res.status(409).json({
         message: "Photo upload is not available until private evidence storage passes launch verification. You can continue with written symptoms and OBD-II codes.",
         persisted: false,
       });
     }
     if (photoFiles.some((file) => file.size > 12 * 1024 * 1024)) {
-      removeIntakeTempFiles(uploadedFiles);
+      await removeIntakeTempFiles(uploadedFiles);
       return res.status(413).json({ message: "Each photo must be 12 MB or smaller.", persisted: false });
     }
     const unsupportedPhotoMime = photoFiles.find((file) => !ALLOWED_PHOTO_MEDIA_TYPES.has(file.mimetype));
     if (unsupportedPhotoMime) {
-      removeIntakeTempFiles(uploadedFiles);
+      await removeIntakeTempFiles(uploadedFiles);
       return res.status(415).json({
         message: "A submitted photo has an unsupported file type. Supported types are JPEG, PNG, WebP, and HEIC.",
         code: "UNSUPPORTED_PHOTO_MEDIA_TYPE",
@@ -2095,7 +2097,7 @@ try {
     if (hasMobileMedia) {
       // Photo-first release: audio/video/vibration capture is not advertised, so
       // those parts are rejected outright rather than silently dropped.
-      removeIntakeTempFiles(uploadedFiles);
+      await removeIntakeTempFiles(uploadedFiles);
       return res.status(415).json({
         message: "Audio, video, and vibration capture are not supported yet. You can submit photos along with written symptoms and OBD-II codes.",
         code: "UNSUPPORTED_MEDIA_TYPE",
@@ -2134,6 +2136,7 @@ try {
           });
         } catch (consentError) {
           const status = consentError instanceof IntakeConsentError && consentError.code === "CONSENT_REQUIRED" ? 400 : 503;
+          await removeIntakeTempFiles(uploadedFiles);
           return res.status(status).json({
             message: consentError instanceof IntakeConsentError ? consentError.message : "Consent controls are not ready.",
             code: consentError instanceof IntakeConsentError ? consentError.code : "CONSENT_CONTROLS_UNAVAILABLE",
@@ -2167,10 +2170,10 @@ if (photoFiles.length) {
           input.photoEvidenceStatus = "Persisted";
           input.photoFileNames = attachments.map((attachment) => attachment.originalName);
           input.attachments = attachments;
-          removeIntakeTempFiles({ photos: photoFiles });
+          await removeIntakeTempFiles({ photos: photoFiles });
         } catch (storageError) {
           logEventError("api.photo_evidence_persistence_failed", storageError);
-          removeIntakeTempFiles({ photos: photoFiles });
+          await removeIntakeTempFiles({ photos: photoFiles });
 
           return res.status(507).json({
             message: "The case could not be completed because its photo evidence was not persisted. Please try again.",
@@ -2198,7 +2201,7 @@ if (photoFiles.length) {
           }
         } catch (storageError) {
           logEventError("api.media_evidence_persistence_failed", storageError);
-          removeIntakeTempFiles(mobileMediaFiles);
+          await removeIntakeTempFiles(mobileMediaFiles);
           return res.status(507).json({
             message: "The case could not be completed because its media evidence was not persisted. Please try again.",
             caseId: responseBody.id,
