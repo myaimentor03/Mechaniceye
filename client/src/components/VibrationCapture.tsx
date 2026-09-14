@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { X, Waves, Smartphone } from "lucide-react";
 
 interface VibrationCaptureProps {
   files: File[];
@@ -21,12 +23,9 @@ const MAX_READINGS = 5000;
 function detectMotionSource(): MotionSource {
   if (typeof window === "undefined") return "none";
   const w = window as unknown as Record<string, unknown>;
-  // Generic Sensor API exposes globals (Accelerometer, LinearAccelerationSensor,
-  // Gyroscope) — not navigator.accelerometer. Chrome/Android path.
   if (w.Accelerometer || w.LinearAccelerationSensor || w.Gyroscope) {
     return "generic-sensor";
   }
-  // iOS Safari and most Android browsers expose motion via DeviceMotionEvent.
   if (typeof DeviceMotionEvent !== "undefined") {
     return "device-motion";
   }
@@ -54,7 +53,6 @@ export function VibrationCapture({ files, onChange, onError }: VibrationCaptureP
     return () => {
       stopCaptureSources();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function pushReading(x: number, y: number, z: number) {
@@ -90,7 +88,6 @@ export function VibrationCapture({ files, onChange, onError }: VibrationCaptureP
   function startDeviceMotion(): boolean {
     if (typeof DeviceMotionEvent === "undefined") return false;
     const handler = (event: DeviceMotionEvent) => {
-      // acceleration excludes gravity when available — better for vibration.
       const a = event.acceleration?.x != null ? event.acceleration : event.accelerationIncludingGravity;
       if (!a || a.x == null || a.y == null || a.z == null) return;
       pushReading(a.x, a.y, a.z);
@@ -177,78 +174,104 @@ export function VibrationCapture({ files, onChange, onError }: VibrationCaptureP
   }
 
   if (motionSource === null) {
-    return <div className="upload-note">Checking for motion sensors on this device...</div>;
+    return <div className="text-sm text-gray-600 bg-gray-50 p-4 rounded-lg border border-gray-200">Checking for motion sensors on this device...</div>;
   }
 
   if (motionSource === "none") {
     return (
-      <div>
-        <div className="upload-note">
-          This device does not have a motion sensor. Describe where you feel the vibration, at what speed or RPM, and whether it changes with braking, turning, or acceleration.
-        </div>
+      <div className="text-sm text-gray-600 bg-gray-50 p-4 rounded-lg border border-gray-200">
+        This device does not have a motion sensor. Describe where you feel the vibration, at what speed or RPM, and whether it changes with braking, turning, or acceleration.
       </div>
     );
   }
 
   return (
-    <div>
-      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "12px" }}>
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row gap-3">
         {!permissionGranted ? (
-          <button
-            type="button"
-            className="secondary-btn"
+          <Button
+            variant="outline"
             onClick={() => void requestMotionPermission()}
+            className="flex-1 sm:flex-none"
           >
+            <Smartphone className="w-4 h-4 mr-2" />
             Enable Motion Access
-          </button>
+          </Button>
         ) : (
-          <button
-            type="button"
-            className="secondary-btn"
+          <Button
+            variant={recording ? "destructive" : "default"}
             onClick={recording ? stopRecording : () => void startRecording()}
+            className="flex-1 sm:flex-none bg-automotive-orange hover:bg-orange-600 text-white"
           >
+            <Waves className="w-4 h-4 mr-2" />
             {recording ? "Stop Measurement" : "Measure Vibration"}
-          </button>
+          </Button>
         )}
-        {recording && <span className="upload-note" style={{ alignSelf: "center" }}>Recording motion data ({readingCount} readings)...</span>}
       </div>
 
+      {recording && (
+        <div className="flex items-center gap-3 text-sm text-automotive-orange">
+          <span className="animate-pulse">● Measuring...</span>
+          <span>{readingCount} readings</span>
+        </div>
+      )}
+
       {recording && currentReading && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginBottom: "12px" }}>
-          <div style={{ padding: "8px", border: "1px solid #294a6b", borderRadius: "8px", background: "rgba(19,42,67,0.75)", textAlign: "center" }}>
-            <div style={{ fontSize: "0.7rem", color: "#9cb0c8", marginBottom: "2px" }}>X (L/R)</div>
-            <div style={{ fontFamily: "monospace", fontSize: "1rem" }}>{currentReading.x.toFixed(3)}</div>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="p-3 bg-gray-900 border border-gray-700 rounded-lg text-center">
+            <div className="text-xs text-gray-400 mb-1">X (L/R)</div>
+            <div className="font-mono text-lg text-white">{currentReading.x.toFixed(3)}</div>
           </div>
-          <div style={{ padding: "8px", border: "1px solid #294a6b", borderRadius: "8px", background: "rgba(19,42,67,0.75)", textAlign: "center" }}>
-            <div style={{ fontSize: "0.7rem", color: "#9cb0c8", marginBottom: "2px" }}>Y (F/B)</div>
-            <div style={{ fontFamily: "monospace", fontSize: "1rem" }}>{currentReading.y.toFixed(3)}</div>
+          <div className="p-3 bg-gray-900 border border-gray-700 rounded-lg text-center">
+            <div className="text-xs text-gray-400 mb-1">Y (F/B)</div>
+            <div className="font-mono text-lg text-white">{currentReading.y.toFixed(3)}</div>
           </div>
-          <div style={{ padding: "8px", border: "1px solid #294a6b", borderRadius: "8px", background: "rgba(19,42,67,0.75)", textAlign: "center" }}>
-            <div style={{ fontSize: "0.7rem", color: "#9cb0c8", marginBottom: "2px" }}>Z (U/D)</div>
-            <div style={{ fontFamily: "monospace", fontSize: "1rem" }}>{currentReading.z.toFixed(3)}</div>
+          <div className="p-3 bg-gray-900 border border-gray-700 rounded-lg text-center">
+            <div className="text-xs text-gray-400 mb-1">Z (U/D)</div>
+            <div className="font-mono text-lg text-white">{currentReading.z.toFixed(3)}</div>
           </div>
         </div>
       )}
 
       {files.length > 0 && (
-        <div className="file-list">
-          {files.map((file, index) => (
-            <div key={`${file.name}-${index}`} className="file-pill" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span>{file.name} ({readingCount || "..."} readings)</span>
-              <button type="button" onClick={() => removeFile(index)} style={{ background: "none", border: "none", color: "#ff6b6b", cursor: "pointer", padding: "0 4px" }}>x</button>
-            </div>
-          ))}
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-gray-700">Vibration Sessions ({files.length}/4)</h4>
+          <div className="space-y-2">
+            {files.map((file, index) => (
+              <div
+                key={`${file.name}-${index}`}
+                className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg"
+              >
+                <div className="flex items-center gap-3">
+                  <Waves className="w-5 h-5 text-gray-500" />
+                  <span className="text-sm text-gray-900 truncate max-w-[200px]">{file.name}</span>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeFile(index)}
+                  aria-label="Remove vibration session"
+                >
+                  <X className="w-4 h-4 text-red-500" />
+                </Button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {!recording && files.length === 0 && permissionGranted && (
-        <div className="upload-note">
-          Place the phone flat on the center console or dashboard, then tap Measure Vibration. Motion data is captured for 5 seconds and stored with your case. It has not been analyzed yet.
+        <div className="text-sm text-gray-600 bg-gray-50 p-4 rounded-lg border border-gray-200">
+          <p className="font-medium text-gray-900 mb-1">Place the phone flat on the center console.</p>
+          <p>Tap <strong>Measure Vibration</strong> to capture motion data for 5 seconds. It is stored with your case and has not been analyzed yet.</p>
         </div>
       )}
+
       {!recording && files.length === 0 && !permissionGranted && (
-        <div className="upload-note">
-          Your iPhone needs permission before the motion sensor can be used. Tap Enable Motion Access, then place the phone flat on the center console and tap Measure Vibration.
+        <div className="text-sm text-gray-600 bg-amber-50 p-4 rounded-lg border border-amber-200">
+          <p className="font-medium text-amber-900 mb-1">Permission required.</p>
+          <p>Your iPhone needs permission before the motion sensor can be used. Tap <strong>Enable Motion Access</strong>, then place the phone flat on the center console and tap Measure Vibration.</p>
         </div>
       )}
     </div>

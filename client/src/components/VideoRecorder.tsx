@@ -1,4 +1,7 @@
 import { useState, useRef, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { X, Video, FileVideo } from "lucide-react";
 
 interface VideoRecorderProps {
   files: File[];
@@ -110,61 +113,93 @@ export function VideoRecorder({ files, onChange, onError }: VideoRecorderProps) 
   }
 
   return (
-    <div>
-      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "12px" }}>
-        <button type="button" className="secondary-btn" onClick={() => fileInputRef.current?.click()}>
-          Choose Video File
-        </button>
-        <button
-          type="button"
-          className="secondary-btn"
-          onClick={recording ? stopRecording : startRecording}
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row gap-3">
+        <Button
+          variant="outline"
+          onClick={() => fileInputRef.current?.click()}
+          className="flex-1 sm:flex-none"
         >
+          <FileVideo className="w-4 h-4 mr-2" />
+          Choose Video File
+        </Button>
+        <Button
+          variant={recording ? "destructive" : "default"}
+          onClick={recording ? stopRecording : startRecording}
+          className="flex-1 sm:flex-none bg-automotive-orange hover:bg-orange-600 text-white"
+        >
+          <Video className="w-4 h-4 mr-2" />
           {recording ? `Stop (${formatTime(elapsed)})` : "Record Video"}
-        </button>
-        {recording && <span className="upload-note" style={{ alignSelf: "center" }}>Recording...</span>}
+        </Button>
       </div>
 
-      <input
+      <Input
         ref={fileInputRef}
         type="file"
         accept="video/*"
         capture="environment"
-        hidden
+        className="hidden"
         onChange={handleFileUpload}
       />
 
       {recording && (
-        <div style={{ marginBottom: "12px", borderRadius: "12px", overflow: "hidden", background: "#000" }}>
+        <div className="rounded-xl overflow-hidden bg-black">
           <video
             ref={videoRef}
             autoPlay
             muted
             playsInline
-            style={{ width: "100%", maxHeight: "200px", objectFit: "contain" }}
+            className="w-full max-h-[200px] object-contain"
           />
         </div>
       )}
 
+      {recording && (
+        <div className="flex items-center gap-3 text-sm text-automotive-orange">
+          <span className="animate-pulse">● Recording...</span>
+          <span>{formatTime(elapsed)}</span>
+        </div>
+      )}
+
       {files.length > 0 && (
-        <div className="file-list">
-          {files.map((file, index) => (
-            <div key={`${file.name}-${index}`} className="file-pill" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span>{file.name}</span>
-              <button type="button" onClick={() => removeFile(index)} style={{ background: "none", border: "none", color: "#ff6b6b", cursor: "pointer", padding: "0 4px" }}>x</button>
-            </div>
-          ))}
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-gray-700">Videos ({files.length}/4)</h4>
+          <div className="space-y-2">
+            {files.map((file, index) => (
+              <div
+                key={`${file.name}-${index}`}
+                className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg"
+              >
+                <div className="flex items-center gap-3">
+                  <FileVideo className="w-5 h-5 text-gray-500" />
+                  <span className="text-sm text-gray-900 truncate max-w-[200px]">{file.name}</span>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeFile(index)}
+                  aria-label="Remove video"
+                >
+                  <X className="w-4 h-4 text-red-500" />
+                </Button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {previewUrl && !recording && (
-        <div style={{ marginTop: "12px", borderRadius: "12px", overflow: "hidden" }}>
-          <video controls src={previewUrl} style={{ width: "100%", maxHeight: "200px" }} />
+        <div className="mt-4 rounded-xl overflow-hidden">
+          <video controls src={previewUrl} className="w-full max-h-[200px]" />
         </div>
       )}
 
       {!recording && files.length === 0 && (
-        <div className="upload-note">Tap Record Video to film the vehicle issue. Do not record while driving.</div>
+        <div className="text-sm text-gray-600 bg-gray-50 p-4 rounded-lg border border-gray-200">
+          <p className="font-medium text-gray-900 mb-1">Show me the issue.</p>
+          <p>Tap <strong>Record Video</strong> to film the vehicle issue from a safe distance. Do not record while driving. Or choose a file you already recorded.</p>
+        </div>
       )}
     </div>
   );
