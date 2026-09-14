@@ -63,9 +63,11 @@ import {
   ALLOWED_PHOTO_MEDIA_TYPES,
   ALLOWED_AUDIO_MEDIA_TYPES,
   ALLOWED_VIDEO_MEDIA_TYPES,
+  ALLOWED_VIBRATION_MEDIA_TYPES,
   PHOTO_LIMITS,
   AUDIO_LIMITS,
   VIDEO_LIMITS,
+  VIBRATION_LIMITS,
   createEvidenceStoreFromEnvironment,
 } from "./evidence-storage";
 import { requireReviewer } from "./reviewer-auth";
@@ -78,10 +80,7 @@ import { registerDurableReviewRoutes } from "./review/review-routes";
 import { requireVerifiedLaunchControlRuntime } from "./review/launch-control-runtime";
 import { IntakeConsentError, recordConsentRevocation, persistAndAuthorizeIntakeConsent } from "./consent/intake-consent";
 import {
-  deleteStoredEvidenceForCase,
   isR2EvidenceStorageConfigured,
-  storeEvidenceFiles,
-  type StoredEvidenceKeys,
   type UploadedEvidenceFiles
 } from "./r2-evidence-storage";
 import { requireAllowedOrigin } from "./origin-guard";
@@ -143,17 +142,17 @@ const diagnosisPhotoUploadMiddleware = (req: any, res: any, next: any) => {
 };
 
 const diagnosisEvidenceUpload = multer({
-  dest: uploadDir,
+  storage: multer.memoryStorage(),
   limits: {
-    fileSize: 12 * 1024 * 1024,
-    files: PHOTO_LIMITS.maxCount + 4 + 4 + 4,
+    fileSize: VIDEO_LIMITS.maxBytesEach,
+    files: PHOTO_LIMITS.maxCount + AUDIO_LIMITS.maxCount + VIDEO_LIMITS.maxCount + VIBRATION_LIMITS.maxCount,
   },
   fileFilter: (_req, file, cb) => {
     const allowedMimes = [
       ...ALLOWED_PHOTO_MEDIA_TYPES,
-      'audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/x-m4a', 'audio/webm', 'audio/ogg',
-      'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm',
-      'application/octet-stream',
+      ...ALLOWED_AUDIO_MEDIA_TYPES,
+      ...ALLOWED_VIDEO_MEDIA_TYPES,
+      ...ALLOWED_VIBRATION_MEDIA_TYPES,
     ];
     if (!allowedMimes.includes(file.mimetype)) {
       return cb(new Error(`Unsupported evidence type: ${file.mimetype || "unknown"}`));
@@ -179,6 +178,7 @@ const diagnosisEvidenceUploadMiddleware = (req: any, res: any, next: any) => {
   });
 };
 const removeIntakeTempFiles = async (files: UploadedEvidenceFiles) => {
+  // Memory storage cases have .buffer, not .path. No-op cleanup for buffers.
   await Promise.all(Object.values(files || {}).flat().map(async (file) => {
     if (file?.path) {
       await fs.promises.rm(file.path, { force: true });
@@ -1633,7 +1633,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       photoUpload: (process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && hasDurableStorage) || localPhotoUpload,
       audioUpload: hasAnyStorage,
       videoUpload: hasAnyStorage,
-      vibrationSensorCapture: hasDurableStorage,
+      vibrationSensorCapture: hasAnyStorage,
     });
   });
 
@@ -2117,7 +2117,6 @@ try {
     let responseBody: DiagnosisCaseResponse;
     let storedCase: StoredDiagnosisCase | undefined;
     let usedPublicFallback = false;
-    let storedR2Keys: StoredEvidenceKeys = {};
 
     try {
       logEvent("diagnosis.intent_received", {
@@ -2239,10 +2238,30 @@ if (photoFiles.length) {
           }
 
           const vibrationFiles = mobileMediaFiles.vibration || [];
+          let vibrationAttachments: import("../shared/drivableEvidence.js").EvidenceAttachment[] = [];
           if (vibrationFiles.length) {
-            storedR2Keys = await storeEvidenceFiles(responseBody.id, { vibration: vibrationFiles });
-            if (storedR2Keys.vibration?.length) input.vibrationEvidenceStatus = "Persisted";
-            if (storedR2Keys.vibration?.length) input.vibrationFileNames = storedR2Keys.vibration;
+            if (vibrationFiles.some((file) => file.size > VIBRATION_LIMITS.maxBytesEach)) {
+              await removeIntakeTempFiles(uploadedFiles);
+              return res.status(413).json({ message: "Each vibration file must be 5 MB or smaller.", persisted: false });
+            }
+            const unsupportedVibrationMime = vibrationFiles.find((file) => !ALLOWED_VIBRATION_MEDIA_TYPES.has(file.mimetype));
+            if (unsupportedVibrationMime) {
+              await removeIntakeTempFiles(uploadedFiles);
+              return res.status(415).json({
+                message: "A submitted vibration file has an unsupported type. Use application/json.",
+                code: "UNSUPPORTED_VIBRATION_MEDIA_TYPE",
+                persisted: false,
+              });
+            }
+            vibrationAttachments = await evidenceStore.saveVibrationFiles(responseBody.id, vibrationFiles);
+            input.vibrationEvidenceStatus = "Persisted";
+            input.vibrationFileNames = vibrationAttachments.map((a) => a.originalName);
+          }
+
+          // Merge mobile attachments into response attachments for truthful receipt
+          const mobileAttachments = [...audioAttachments, ...videoAttachments, ...vibrationAttachments];
+          if (mobileAttachments.length) {
+            responseBody.attachments = [...(responseBody.attachments ?? []), ...mobileAttachments];
           }
 
           if (!responseBody.evidencePersistence) {
@@ -2263,13 +2282,13 @@ if (photoFiles.length) {
         }
       }
 
-      const photoPersisted = responseBody.attachments?.length ?? 0;
+      const photoPersisted = (responseBody.attachments ?? []).filter((a) => a.kind === "photo").length;
       const audioProvided = mobileMediaFiles.audio?.length ?? 0;
       const videoProvided = mobileMediaFiles.video?.length ?? 0;
       const vibrationProvided = mobileMediaFiles.vibration?.length ?? 0;
-      const audioPersisted = storedR2Keys.audio?.length ?? 0;
-      const videoPersisted = storedR2Keys.video?.length ?? 0;
-      const vibrationPersisted = storedR2Keys.vibration?.length ?? 0;
+      const audioPersisted = (responseBody.attachments ?? []).filter((a) => a.kind === "audio").length;
+      const videoPersisted = (responseBody.attachments ?? []).filter((a) => a.kind === "video").length;
+      const vibrationPersisted = (responseBody.attachments ?? []).filter((a) => a.kind === "sensor_session").length;
       responseBody.evidenceSummary = {
         photos: {
           provided: photoFiles.length,
@@ -2296,8 +2315,7 @@ if (photoFiles.length) {
       if (usedPublicFallback) {
         const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, storedCase, authenticatedCaseOwnerId(req.drivableCustomer?.id));
         if (!dbResult.ok) {
-          if (photoFiles.length) await evidenceStore.deleteCase(responseBody.id);
-          if (hasMobileMedia) await deleteStoredEvidenceForCase(responseBody.id, storedR2Keys);
+          if (photoFiles.length || hasMobileMedia) await evidenceStore.deleteCase(responseBody.id);
           return res.status(503).json({ message: "The case was not saved to the case database. Please try again.", caseId: responseBody.id, persisted: false });
         }
         responseBody.casePersistence = { primary: "database", databaseMirror: "persisted" };
@@ -2350,10 +2368,10 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
       const diagnosisId = req.params.id;
 
       let vibrationStoredKeys: string[] = [];
-      if (files?.vibration?.length && isR2EvidenceStorageConfigured()) {
+      if (files?.vibration?.length) {
         try {
-          const vKeys = await storeEvidenceFiles(diagnosisId, { vibration: files.vibration });
-          vibrationStoredKeys = vKeys.vibration || [];
+          const vAttachments = await evidenceStore.saveVibrationFiles(diagnosisId, files.vibration);
+          vibrationStoredKeys = vAttachments.map((a) => a.storageKey);
         } catch (vError) {
           logEventError("api.follow_up_vibration_storage_failed", vError, { diagnosisId });
           await cleanupTemporaryFiles();

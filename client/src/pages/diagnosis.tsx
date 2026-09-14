@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,12 +9,14 @@ import { BottomNavigation } from "@/components/bottom-navigation";
 import { EvidenceCapture } from "@/components/EvidenceCapture";
 import { AnalysisProgress } from "@/components/analysis-progress";
 import { apiRequest } from "@/lib/queryClient";
+import { filterSubmittableEvidence, parseMediaCapabilities, MEDIA_UNAVAILABLE, type MediaCapabilities } from "@/lib/mediaAvailability";
 
 export default function Diagnosis() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [capabilities, setCapabilities] = useState<MediaCapabilities>(MEDIA_UNAVAILABLE);
   const [formData, setFormData] = useState({
     description: "",
     vehicleInfo: "",
@@ -24,6 +26,15 @@ export default function Diagnosis() {
     photoFiles: [] as File[],
     vibrationFiles: [] as File[],
   });
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/capabilities", { headers: { "Cache-Control": "no-store" } })
+      .then((r) => r.json())
+      .then((body) => { if (!cancelled) setCapabilities(parseMediaCapabilities(body)); })
+      .catch(() => { if (!cancelled) setCapabilities({ ...MEDIA_UNAVAILABLE }); });
+    return () => { cancelled = true; };
+  }, []);
 
   const createDiagnosisMutation = useMutation({
     mutationFn: async (data: FormData) => {
@@ -69,24 +80,30 @@ export default function Diagnosis() {
 
     setIsAnalyzing(true);
 
+    const filtered = filterSubmittableEvidence(
+      { photos: formData.photoFiles, audio: formData.audioFiles, video: formData.videoFiles, vibration: formData.vibrationFiles },
+      capabilities,
+    );
+    // Truthful gate: never submit files for unavailable modalities; stale recordings are dropped.
+
     const formDataToSend = new FormData();
     formDataToSend.append("description", formData.description);
     formDataToSend.append("vehicleInfo", formData.vehicleInfo);
     formDataToSend.append("timing", formData.timing);
 
-    formData.audioFiles.forEach((file) => {
+    filtered.audio.forEach((file) => {
       formDataToSend.append("audio", file);
     });
 
-    formData.videoFiles.forEach((file) => {
+    filtered.video.forEach((file) => {
       formDataToSend.append("video", file);
     });
 
-    formData.photoFiles.forEach((file) => {
+    filtered.photos.forEach((file) => {
       formDataToSend.append("photos", file);
     });
 
-    formData.vibrationFiles.forEach((file) => {
+    filtered.vibration.forEach((file) => {
       formDataToSend.append("vibration", file);
     });
 
@@ -138,7 +155,7 @@ export default function Diagnosis() {
               </div>
             </div>
 
-            <EvidenceCapture formData={formData} setFormData={setFormData} />
+            <EvidenceCapture formData={formData} setFormData={setFormData} capabilities={capabilities} />
 
             {/* Submit Button */}
             <div className="mt-8 pt-6 border-t border-gray-200">

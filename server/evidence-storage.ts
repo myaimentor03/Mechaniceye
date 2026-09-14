@@ -24,6 +24,11 @@ export const ALLOWED_VIDEO_MEDIA_TYPES = new Set([
   "video/mp4", "video/quicktime", "video/x-msvideo", "video/webm",
 ]);
 
+export const VIBRATION_LIMITS = { maxCount: 4, maxBytesEach: 5 * 1024 * 1024 } as const;
+export const ALLOWED_VIBRATION_MEDIA_TYPES = new Set([
+  "application/json", "application/octet-stream",
+]);
+
 type VerifiedMedia = { mimeType: string; extension: string };
 
 function verifiedImageType(buffer: Buffer): VerifiedMedia | null {
@@ -99,11 +104,32 @@ function verifiedVideoType(buffer: Buffer): VerifiedMedia | null {
   return null;
 }
 
+function verifiedVibrationType(buffer: Buffer): VerifiedMedia | null {
+  if (!buffer?.length || buffer.length > VIBRATION_LIMITS.maxBytesEach) return null;
+  const text = buffer.toString("utf8").trim();
+  if (!text.startsWith("[") && !text.startsWith("{")) return null;
+  try {
+    const parsed = JSON.parse(text);
+    const readings = Array.isArray(parsed) ? parsed : parsed.readings ?? null;
+    if (!Array.isArray(readings) || readings.length === 0) return null;
+    // Validate first few entries have numeric x,y,z,t
+    for (let i = 0; i < Math.min(readings.length, 5); i++) {
+      const r = readings[i] as Record<string, unknown>;
+      if (typeof r.x !== "number" || typeof r.y !== "number" || typeof r.z !== "number") return null;
+    }
+    if (readings.length > 20000) return null;
+    return { mimeType: "application/json", extension: ".json" };
+  } catch {
+    return null;
+  }
+}
+
 export interface EvidenceStore {
   readonly durability: "runtime_local" | "private_object_storage";
   savePhotos(caseId: string, files: Express.Multer.File[]): Promise<EvidenceAttachment[]>;
   saveAudioFiles(caseId: string, files: Express.Multer.File[]): Promise<EvidenceAttachment[]>;
   saveVideoFiles(caseId: string, files: Express.Multer.File[]): Promise<EvidenceAttachment[]>;
+  saveVibrationFiles(caseId: string, files: Express.Multer.File[]): Promise<EvidenceAttachment[]>;
   deleteCase(caseId: string): Promise<void>;
   getAttachment(caseId: string, attachmentId: string): Promise<{ attachment: EvidenceAttachment; bytes: Buffer } | null>;
 }
@@ -250,6 +276,54 @@ export class RuntimeFileEvidenceStore implements EvidenceStore {
         writtenPaths.push(target);
         attachments.push({
           id, caseId, kind: "video", originalName: path.basename(file.originalname),
+          mimeType: verified.mimeType, byteSize: file.size, status: "persisted",
+          serverAttachmentId: id, storageKey, createdAt: new Date().toISOString(),
+          provenance: "uploaded_media", analysisStatus: "uploaded_not_analyzed",
+        });
+      }
+
+      const manifestPath = path.join(caseRoot, "attachments.json");
+      let existing: EvidenceAttachment[] = [];
+      try {
+        existing = JSON.parse(await fs.readFile(manifestPath, "utf8"));
+      } catch {
+        // No existing manifest yet
+      }
+      const merged = [...existing, ...attachments];
+      await fs.writeFile(manifestPath, JSON.stringify(merged, null, 2), { encoding: "utf8" });
+      return attachments;
+    } catch (error) {
+      await Promise.all(writtenPaths.map((filePath) => fs.rm(filePath, { force: true })));
+      throw error;
+    }
+  }
+
+  async saveVibrationFiles(caseId: string, files: Express.Multer.File[]) {
+    if (files.length > VIBRATION_LIMITS.maxCount) throw new Error("Too many vibration files");
+    const caseRoot = this.caseRoot(caseId);
+    await fs.mkdir(caseRoot, { recursive: true });
+    const attachments: EvidenceAttachment[] = [];
+    const writtenPaths: string[] = [];
+
+    try {
+      for (const file of files) {
+        const buffer = await this.mediaBytes(file);
+        if (!buffer?.length || file.size <= 0) throw new Error("Empty vibration file rejected");
+        if (file.size > VIBRATION_LIMITS.maxBytesEach) throw new Error("Vibration file is too large");
+        const verified = verifiedVibrationType(buffer);
+        if (!verified) throw new Error("Vibration content is not a supported format");
+        if (!ALLOWED_VIBRATION_MEDIA_TYPES.has(file.mimetype)) {
+          throw new Error("Vibration MIME type does not match its content");
+        }
+        // Accept application/json or octet-stream carrying JSON; stored as normalized JSON
+        const id = randomUUID();
+        const storedName = `${id}${verified.extension}`;
+        const storageKey = path.posix.join("evidence", safeCaseSegment(caseId), "vibration", storedName);
+        const target = path.join(caseRoot, storedName);
+        await fs.writeFile(target, buffer, { flag: "wx" });
+        writtenPaths.push(target);
+        attachments.push({
+          id, caseId, kind: "sensor_session", originalName: path.basename(file.originalname),
           mimeType: verified.mimeType, byteSize: file.size, status: "persisted",
           serverAttachmentId: id, storageKey, createdAt: new Date().toISOString(),
           provenance: "uploaded_media", analysisStatus: "uploaded_not_analyzed",
@@ -468,6 +542,62 @@ export class S3PrivateEvidenceStore implements EvidenceStore {
         writtenKeys.push(storageKey);
         attachments.push({
           id, caseId: safeCaseId, kind: "video", originalName: path.basename(file.originalname),
+          mimeType: verified.mimeType, byteSize: file.size, status: "persisted",
+          serverAttachmentId: id, storageKey, createdAt: new Date().toISOString(),
+          provenance: "uploaded_media", analysisStatus: "uploaded_not_analyzed",
+        });
+      }
+      const key = manifestKey(safeCaseId);
+      let existing: EvidenceAttachment[] = [];
+      try {
+        const existingObj = await this.client.send(new GetObjectCommand({ Bucket: this.config.bucket, Key: key }));
+        existing = JSON.parse((await bodyToBuffer(existingObj.Body)).toString("utf8"));
+      } catch {
+        // No existing manifest yet
+      }
+      const merged = [...existing, ...attachments];
+      await this.client.send(new PutObjectCommand({
+        Bucket: this.config.bucket,
+        Key: key,
+        Body: Buffer.from(JSON.stringify(merged)),
+        ContentType: "application/json",
+        CacheControl: "private, no-store",
+        Metadata: evidenceObjectMetadata(safeCaseId, "application/json"),
+      }));
+      writtenKeys.push(key);
+      return attachments;
+    } catch (error) {
+      await Promise.allSettled(writtenKeys.map((Key) => this.client.send(new DeleteObjectCommand({ Bucket: this.config.bucket, Key }))));
+      throw error;
+    }
+  }
+
+  async saveVibrationFiles(caseId: string, files: Express.Multer.File[]) {
+    if (files.length > VIBRATION_LIMITS.maxCount) throw new Error("Too many vibration files");
+    const safeCaseId = safeCaseSegment(caseId);
+    const attachments: EvidenceAttachment[] = [];
+    const writtenKeys: string[] = [];
+    try {
+      for (const file of files) {
+        const buffer = file.buffer?.length ? file.buffer : await fs.readFile(file.path);
+        if (!buffer?.length || file.size <= 0) throw new Error("Empty vibration file rejected");
+        if (file.size > VIBRATION_LIMITS.maxBytesEach) throw new Error("Vibration file is too large");
+        const verified = verifiedVibrationType(buffer);
+        if (!verified) throw new Error("Vibration content is not a supported format");
+        if (!ALLOWED_VIBRATION_MEDIA_TYPES.has(file.mimetype)) throw new Error("Vibration MIME type does not match its content");
+        const id = randomUUID();
+        const storageKey = path.posix.join("evidence", safeCaseId, "vibration", `${id}${verified.extension}`);
+        await this.client.send(new PutObjectCommand({
+          Bucket: this.config.bucket,
+          Key: storageKey,
+          Body: buffer,
+          ContentType: verified.mimeType,
+          CacheControl: "private, no-store",
+          Metadata: evidenceObjectMetadata(safeCaseId, verified.mimeType),
+        }));
+        writtenKeys.push(storageKey);
+        attachments.push({
+          id, caseId: safeCaseId, kind: "sensor_session", originalName: path.basename(file.originalname),
           mimeType: verified.mimeType, byteSize: file.size, status: "persisted",
           serverAttachmentId: id, storageKey, createdAt: new Date().toISOString(),
           provenance: "uploaded_media", analysisStatus: "uploaded_not_analyzed",

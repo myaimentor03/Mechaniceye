@@ -10,6 +10,7 @@ import { Upload, Check, Camera, Mic, Video, Waves, Edit, Image, Trash2, Play, X,
 import { AudioRecorder } from "@/components/AudioRecorder";
 import { VideoRecorder } from "@/components/VideoRecorder";
 import { VibrationCapture } from "@/components/VibrationCapture";
+import { type MediaCapabilities, MEDIA_UNAVAILABLE, mediaUnavailableMessage } from "@/lib/mediaAvailability";
 
 const MAX_PHOTO_COUNT = 8;
 const MAX_PHOTO_BYTES = 12 * 1024 * 1024;
@@ -33,9 +34,10 @@ interface EvidenceCaptureProps {
     vibrationFiles: File[];
   };
   setFormData: (data: any) => void;
+  capabilities?: MediaCapabilities;
 }
 
-export function EvidenceCapture({ formData, setFormData }: EvidenceCaptureProps) {
+export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UNAVAILABLE }: EvidenceCaptureProps) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("description");
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -127,6 +129,14 @@ export function EvidenceCapture({ formData, setFormData }: EvidenceCaptureProps)
   const renderTabContent = () => {
     switch (activeTab) {
       case "audio":
+        if (!capabilities.audioUpload) {
+          return (
+            <div className="flex items-center gap-2 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{mediaUnavailableMessage("audio")}</span>
+            </div>
+          );
+        }
         return (
           <div className="space-y-4">
             <AudioRecorder
@@ -138,6 +148,14 @@ export function EvidenceCapture({ formData, setFormData }: EvidenceCaptureProps)
         );
 
       case "video":
+        if (!capabilities.videoUpload) {
+          return (
+            <div className="flex items-center gap-2 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{mediaUnavailableMessage("video")}</span>
+            </div>
+          );
+        }
         return (
           <div className="space-y-4">
             <VideoRecorder
@@ -149,6 +167,14 @@ export function EvidenceCapture({ formData, setFormData }: EvidenceCaptureProps)
         );
 
       case "vibration":
+        if (!capabilities.vibrationSensorCapture) {
+          return (
+            <div className="flex items-center gap-2 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{mediaUnavailableMessage("vibration")}</span>
+            </div>
+          );
+        }
         return (
           <div className="space-y-4">
             <VibrationCapture
@@ -160,6 +186,14 @@ export function EvidenceCapture({ formData, setFormData }: EvidenceCaptureProps)
         );
 
       case "photo":
+        if (!capabilities.photoUpload) {
+          return (
+            <div className="flex items-center gap-2 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{mediaUnavailableMessage("photos")}</span>
+            </div>
+          );
+        }
         return (
           <div className="space-y-4">
             <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-automotive-orange transition-colors">
