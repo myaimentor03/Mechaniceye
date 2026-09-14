@@ -132,6 +132,7 @@ export interface EvidenceStore {
   saveVibrationFiles(caseId: string, files: Express.Multer.File[]): Promise<EvidenceAttachment[]>;
   deleteCase(caseId: string): Promise<void>;
   getAttachment(caseId: string, attachmentId: string): Promise<{ attachment: EvidenceAttachment; bytes: Buffer } | null>;
+  listAttachments(caseId: string): Promise<EvidenceAttachment[]>;
 }
 
 function safeCaseSegment(value: string) {
@@ -357,6 +358,15 @@ export class RuntimeFileEvidenceStore implements EvidenceStore {
     if (!attachment) return null;
     const fileName = path.posix.basename(attachment.storageKey);
     return { attachment, bytes: await fs.readFile(path.join(caseRoot, fileName)) };
+  }
+
+  async listAttachments(caseId: string): Promise<EvidenceAttachment[]> {
+    const manifestPath = path.join(this.caseRoot(caseId), "attachments.json");
+    try {
+      return JSON.parse(await fs.readFile(manifestPath, "utf8")) as EvidenceAttachment[];
+    } catch {
+      return [];
+    }
   }
 }
 
@@ -640,6 +650,17 @@ export class S3PrivateEvidenceStore implements EvidenceStore {
       return { attachment, bytes: await bodyToBuffer(object.Body) };
     } catch (error: any) {
       if (error?.name === "NoSuchKey" || error?.$metadata?.httpStatusCode === 404) return null;
+      throw error;
+    }
+  }
+
+  async listAttachments(caseId: string): Promise<EvidenceAttachment[]> {
+    const safeCaseId = safeCaseSegment(caseId);
+    try {
+      const manifestObject = await this.client.send(new GetObjectCommand({ Bucket: this.config.bucket, Key: manifestKey(safeCaseId) }));
+      return JSON.parse((await bodyToBuffer(manifestObject.Body)).toString("utf8")) as EvidenceAttachment[];
+    } catch (error: any) {
+      if (error?.name === "NoSuchKey" || error?.$metadata?.httpStatusCode === 404) return [];
       throw error;
     }
   }

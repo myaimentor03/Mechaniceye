@@ -2054,6 +2054,96 @@ try {
     }
   });
 
+  // Customer-facing evidence list: returns the evidence manifest for the customer's own case.
+  app.get("/api/cases/:caseId/evidence", requireCustomer, async (req, res) => {
+    try {
+      const caseId = req.params.caseId;
+      if (!caseId || caseId.includes("..")) {
+        return res.status(400).json({ ok: false, error: "Invalid case ID." });
+      }
+      // Verify the case belongs to this customer
+      const diagnosis = await storage.getDiagnosis(caseId);
+      if (!diagnosis) {
+        return res.status(404).json({ ok: false, error: "Case not found." });
+      }
+      if (diagnosis.userId !== req.drivableCustomer!.id) {
+        return res.status(403).json({ ok: false, error: "You do not have access to this case." });
+      }
+      // Read evidence manifest
+      try {
+        const attachments = await evidenceStore.listAttachments(caseId);
+        const photos = attachments.filter((a) => a.kind === "photo");
+        const audio = attachments.filter((a) => a.kind === "audio");
+        const video = attachments.filter((a) => a.kind === "video");
+        const vibration = attachments.filter((a) => a.kind === "sensor_session");
+        res.json({
+          ok: true,
+          caseId,
+          evidenceSummary: {
+            photos: { count: photos.length, status: photos.length > 0 ? "stored" : "not_provided" as const },
+            audio: { count: audio.length, status: audio.length > 0 ? "stored" : "not_provided" as const },
+            video: { count: video.length, status: video.length > 0 ? "stored" : "not_provided" as const },
+            vibration: { count: vibration.length, status: vibration.length > 0 ? "stored" : "not_provided" as const },
+          },
+          attachments: attachments.map((a) => ({
+            id: a.id,
+            kind: a.kind,
+            originalName: a.originalName,
+            mimeType: a.mimeType,
+            byteSize: a.byteSize,
+            status: a.status,
+            createdAt: a.createdAt,
+          })),
+        });
+      } catch {
+        res.json({
+          ok: true,
+          caseId,
+          evidenceSummary: {
+            photos: { count: 0, status: "not_provided" as const },
+            audio: { count: 0, status: "not_provided" as const },
+            video: { count: 0, status: "not_provided" as const },
+            vibration: { count: 0, status: "not_provided" as const },
+          },
+          attachments: [],
+        });
+      }
+    } catch (error) {
+      logEventError("api.customer_evidence_list_failed", error);
+      res.status(500).json({ ok: false, error: "Could not retrieve evidence." });
+    }
+  });
+
+  // Customer-facing evidence file serving: streams a specific attachment to the authenticated customer.
+  app.get("/api/cases/:caseId/evidence/:attachmentId", requireCustomer, async (req, res) => {
+    try {
+      const caseId = req.params.caseId;
+      const attachmentId = req.params.attachmentId;
+      if (!caseId || caseId.includes("..") || !attachmentId || attachmentId.includes("..")) {
+        return res.status(400).json({ ok: false, error: "Invalid path." });
+      }
+      // Verify the case belongs to this customer
+      const diagnosis = await storage.getDiagnosis(caseId);
+      if (!diagnosis) {
+        return res.status(404).json({ ok: false, error: "Case not found." });
+      }
+      if (diagnosis.userId !== req.drivableCustomer!.id) {
+        return res.status(403).json({ ok: false, error: "You do not have access to this case." });
+      }
+      const result = await evidenceStore.getAttachment(caseId, attachmentId);
+      if (!result) return res.status(404).json({ ok: false, error: "Evidence attachment not found." });
+      res.setHeader("Content-Type", result.attachment.mimeType);
+      res.setHeader("Content-Length", String(result.bytes.length));
+      res.setHeader("Content-Disposition", `inline; filename="${result.attachment.originalName || result.attachment.id}"`);
+      res.setHeader("Cache-Control", "private, no-store");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      return res.send(result.bytes);
+    } catch (error) {
+      logEventError("api.customer_evidence_retrieval_failed", error);
+      return res.status(502).json({ ok: false, error: "Evidence could not be retrieved." });
+    }
+  });
+
   app.get("/api/internal/evidence/:caseId/:attachmentId", requireReviewer, async (req, res) => {
     try {
       const result = await evidenceStore.getAttachment(req.params.caseId, req.params.attachmentId);

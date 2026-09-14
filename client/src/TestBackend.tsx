@@ -29,6 +29,7 @@ import { RoadsideGuidancePreview } from "./components/RoadsideGuidancePreview";
 import { RoadsideSeverityGuide } from "./components/RoadsideSeverityGuide";
 import { SendSafetyGatePreview } from "./components/SendSafetyGatePreview";
 import { WhatHappensNext } from "./components/WhatHappensNext";
+import { EvidenceVerificationPanel } from "./components/EvidenceVerificationPanel";
 import { DrivablePublicHeader } from "./components/PublicHeaderNavigation";
 import { YEARS, VEHICLE_DATA, FALLBACK_MAKES, FALLBACK_MODELS, FALLBACK_ENGINES, TRANSMISSION_OPTIONS, DRIVETRAIN_OPTIONS } from "./data/vehicleData";
 import {
@@ -1666,6 +1667,7 @@ const endpoints = [PUBLIC_API_ENDPOINT];
                   a follow-up email.
                 </p>
               )}
+              <EvidenceVerificationPanel caseId={result.id} />
               <WhatHappensNext />
               <div style={{ marginTop: "12px" }}>
                 <button type="button" className="secondary-btn" onClick={() => {
