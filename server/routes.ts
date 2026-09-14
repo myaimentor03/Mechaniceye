@@ -61,7 +61,11 @@ import {
 import { drivableEvidenceIntakeSchema, type EvidenceAttachment } from "../shared/drivableEvidence";
 import {
   ALLOWED_PHOTO_MEDIA_TYPES,
+  ALLOWED_AUDIO_MEDIA_TYPES,
+  ALLOWED_VIDEO_MEDIA_TYPES,
   PHOTO_LIMITS,
+  AUDIO_LIMITS,
+  VIDEO_LIMITS,
   createEvidenceStoreFromEnvironment,
 } from "./evidence-storage";
 import { requireReviewer } from "./reviewer-auth";
@@ -1623,11 +1627,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const s3Configured = evidenceStore.durability === "private_object_storage";
     const isDevelopment = process.env.NODE_ENV !== "production";
     const localPhotoUpload = isDevelopment && evidenceStore.durability === "runtime_local";
+    const hasDurableStorage = s3Configured || r2Configured;
+    const hasAnyStorage = hasDurableStorage || evidenceStore.durability === "runtime_local";
     res.json({
-      photoUpload: (process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && (s3Configured || r2Configured)) || localPhotoUpload,
-      audioUpload: s3Configured || r2Configured,
-      videoUpload: s3Configured || r2Configured,
-      vibrationSensorCapture: s3Configured || r2Configured,
+      photoUpload: (process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && hasDurableStorage) || localPhotoUpload,
+      audioUpload: hasAnyStorage,
+      videoUpload: hasAnyStorage,
+      vibrationSensorCapture: hasDurableStorage,
     });
   });
 
@@ -2189,17 +2195,60 @@ if (photoFiles.length) {
 
       if (hasMobileMedia) {
         try {
-          storedR2Keys = await storeEvidenceFiles(responseBody.id, mobileMediaFiles);
-          if (storedR2Keys.audio?.length) input.audioFileNames = storedR2Keys.audio;
-          if (storedR2Keys.video?.length) input.videoFileNames = storedR2Keys.video;
-          if (storedR2Keys.vibration?.length) input.vibrationFileNames = storedR2Keys.vibration;
-          if (storedR2Keys.audio?.length) input.audioEvidenceStatus = "Persisted";
-          if (storedR2Keys.video?.length) input.videoEvidenceStatus = "Persisted";
-          if (storedR2Keys.vibration?.length) input.vibrationEvidenceStatus = "Persisted";
+          const audioFiles = mobileMediaFiles.audio || [];
+          const videoFiles = mobileMediaFiles.video || [];
+          let audioAttachments: import("../shared/drivableEvidence.js").EvidenceAttachment[] = [];
+          let videoAttachments: import("../shared/drivableEvidence.js").EvidenceAttachment[] = [];
+
+          if (audioFiles.length) {
+            if (audioFiles.some((file) => file.size > AUDIO_LIMITS.maxBytesEach)) {
+              await removeIntakeTempFiles(uploadedFiles);
+              return res.status(413).json({ message: "Each audio file must be 50 MB or smaller.", persisted: false });
+            }
+            const unsupportedAudioMime = audioFiles.find((file) => !ALLOWED_AUDIO_MEDIA_TYPES.has(file.mimetype));
+            if (unsupportedAudioMime) {
+              await removeIntakeTempFiles(uploadedFiles);
+              return res.status(415).json({
+                message: "A submitted audio file has an unsupported type. Supported types are MP3, WAV, M4A, WebM, and OGG.",
+                code: "UNSUPPORTED_AUDIO_MEDIA_TYPE",
+                persisted: false,
+              });
+            }
+            audioAttachments = await evidenceStore.saveAudioFiles(responseBody.id, audioFiles);
+            input.audioEvidenceStatus = "Persisted";
+            input.audioFileNames = audioAttachments.map((a) => a.originalName);
+          }
+
+          if (videoFiles.length) {
+            if (videoFiles.some((file) => file.size > VIDEO_LIMITS.maxBytesEach)) {
+              await removeIntakeTempFiles(uploadedFiles);
+              return res.status(413).json({ message: "Each video file must be 100 MB or smaller.", persisted: false });
+            }
+            const unsupportedVideoMime = videoFiles.find((file) => !ALLOWED_VIDEO_MEDIA_TYPES.has(file.mimetype));
+            if (unsupportedVideoMime) {
+              await removeIntakeTempFiles(uploadedFiles);
+              return res.status(415).json({
+                message: "A submitted video file has an unsupported type. Supported types are MP4, MOV, AVI, and WebM.",
+                code: "UNSUPPORTED_VIDEO_MEDIA_TYPE",
+                persisted: false,
+              });
+            }
+            videoAttachments = await evidenceStore.saveVideoFiles(responseBody.id, videoFiles);
+            input.videoEvidenceStatus = "Persisted";
+            input.videoFileNames = videoAttachments.map((a) => a.originalName);
+          }
+
+          const vibrationFiles = mobileMediaFiles.vibration || [];
+          if (vibrationFiles.length) {
+            storedR2Keys = await storeEvidenceFiles(responseBody.id, { vibration: vibrationFiles });
+            if (storedR2Keys.vibration?.length) input.vibrationEvidenceStatus = "Persisted";
+            if (storedR2Keys.vibration?.length) input.vibrationFileNames = storedR2Keys.vibration;
+          }
+
           if (!responseBody.evidencePersistence) {
             responseBody.evidencePersistence = {
-              durability: "private_object_storage",
-              durableStorageConfigured: true,
+              durability: evidenceStore.durability,
+              durableStorageConfigured: evidenceStore.durability === "private_object_storage",
               analysisStatus: "uploaded_not_analyzed",
             };
           }
