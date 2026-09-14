@@ -100,8 +100,8 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     const allowedMimes = [
       'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
-      'audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/x-m4a',
-      'video/mp4', 'video/quicktime', 'video/x-msvideo'
+      'audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/x-m4a', 'audio/webm', 'audio/ogg',
+      'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm'
     ];
     cb(null, allowedMimes.includes(file.mimetype));
   }
@@ -146,8 +146,8 @@ const diagnosisEvidenceUpload = multer({
   fileFilter: (_req, file, cb) => {
     const allowedMimes = [
       ...ALLOWED_PHOTO_MEDIA_TYPES,
-      'audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/x-m4a',
-      'video/mp4', 'video/quicktime', 'video/x-msvideo',
+      'audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/x-m4a', 'audio/webm', 'audio/ogg',
+      'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm',
       'application/octet-stream',
     ];
     if (!allowedMimes.includes(file.mimetype)) {

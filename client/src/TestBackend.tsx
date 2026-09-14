@@ -11,6 +11,9 @@ import { DrivablePreviewHub } from "./components/DrivablePreviewHub";
 import { DrivableReportEmailPreview } from "./components/DrivableReportEmailPreview";
 import { DrivableReportPreview } from "./components/DrivableReportPreview";
 import { EvidenceChecklist } from "./components/EvidenceChecklist";
+import { AudioRecorder } from "./components/AudioRecorder";
+import { VideoRecorder } from "./components/VideoRecorder";
+import { VibrationCapture } from "./components/VibrationCapture";
 import { InternalReviewCard } from "./components/InternalReviewCard";
 import { InternalReviewActionPanel } from "./components/InternalReviewActionPanel";
 import { CustomerAccountGate, type DrivableCustomer } from "./components/CustomerAccountGate";
@@ -1291,8 +1294,9 @@ const [manualEngine, setManualEngine] = useState("");
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
-    if (!serviceConsent || !humanReviewConsent || (photoFiles.length > 0 && !mediaConsent)) {
-      setError("Please accept service fulfillment and human review. Photo submissions also require media processing consent.");
+    const hasMediaFiles = photoFiles.length > 0 || audioFiles.length > 0 || videoFiles.length > 0 || vibrationFiles.length > 0;
+    if (!serviceConsent || !humanReviewConsent || (hasMediaFiles && !mediaConsent)) {
+      setError("Please accept service fulfillment and human review. Media submissions also require media processing consent.");
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
@@ -1461,7 +1465,7 @@ const endpoints = [PUBLIC_API_ENDPOINT];
             <button className="offer-card offer-card-primary" onClick={() => setPage("intake")}>
               <div className="offer-topline">Drivable Check</div>
               <div className="offer-title">Find Out What&apos;s Wrong</div>
-<div className="offer-copy">Capture written symptoms, timing, photos, and manual OBD codes before spending money on guesswork.</div>
+<div className="offer-copy">Capture written symptoms, timing, photos, audio, video, vibration, and manual OBD codes before spending money on guesswork.</div>
               <div className="offer-action">Start Drivable Check</div>
             </button>
 
@@ -1476,7 +1480,7 @@ const endpoints = [PUBLIC_API_ENDPOINT];
 
         <div className="feature-grid">
           <div className="feature-card"><h3>Structured Intake</h3><p>Year, make, model, timing, urgency, and symptom story gathered in a useful format.</p></div>
-<div className="feature-card"><h3>Evidence Support</h3><p>Written symptoms, manual OBD codes, vibration context, and photo attachments organized with the case. Current photos are not visually analyzed.</p></div>
+<div className="feature-card"><h3>Evidence Support</h3><p>Written symptoms, manual OBD codes, photos, audio recording, video recording, and vibration measurement organized with the case. Uploaded media is stored for human review.</p></div>
           <div className="feature-card"><h3>Practical Direction</h3><p>Designed to help you understand likely causes and prepare for the next real-world step.</p></div>
         </div>
 
@@ -1723,13 +1727,13 @@ const endpoints = [PUBLIC_API_ENDPOINT];
                       <div>
                         <h3>Diagnostic Evidence</h3>
                         <p className="section-intro">
-Add a clear written symptom description, manual OBD codes, vibration context, and relevant photos. Audio and video upload are not enabled in this photo-first release.
+Add a clear written symptom description, manual OBD codes, vibration context, and relevant photos. Record audio of unusual sounds or video of visible issues when it is safe to do so.
                         </p>
                       </div>
                     </div>
 
                     <div className="notice-strip evidence-reassurance">
-                      Send only what you can collect safely. Photos are stored as case evidence when persistence succeeds; the current AI path does not visually analyze them.
+                      Send only what you can collect safely. Photos, audio, video, and vibration data are stored as case evidence when persistence succeeds; the current AI path does not analyze uploaded media.
                     </div>
 
                     <div className="upload-grid">
@@ -1768,40 +1772,38 @@ Add a clear written symptom description, manual OBD codes, vibration context, an
 
                       <EvidenceCard
                         title="Video"
-                        helper="Video upload is not available in this photo-first release. Do not record while driving."
-                        badges={
-                          <>
-                            <EvidenceBadge>Not available</EvidenceBadge>
-                          </>
-                        }
-                      >
-<input type="file" multiple accept="video/*" capture="environment" onChange={(e) => setVideoFiles(Array.from(e.target.files || []))} />
-                        <FileNames files={videoFiles} />
-                      </EvidenceCard>
-
-                      <EvidenceCard
-                        title="Sound / Audio"
-                        helper="Audio upload is not available in this photo-first release. Describe the sound in Written Symptoms."
-                        badges={
-                          <>
-                            <EvidenceBadge>Not available</EvidenceBadge>
-                          </>
-                        }
-                      >
-<input type="file" multiple accept="audio/*" capture="user" onChange={(e) => setAudioFiles(Array.from(e.target.files || []))} />
-                        <FileNames files={audioFiles} />
-                      </EvidenceCard>
-
-                      <EvidenceCard
-                        title="Vibration / Motion"
-                        helper="Describe where you feel it, when it happens, speed/RPM, braking/turning/accelerating, and severity. No device reading is requested."
+                        helper="Record video of the vehicle issue. Do not record while driving."
                         badges={
                           <>
                             <EvidenceBadge>Optional</EvidenceBadge>
                           </>
                         }
                       >
-                        <div className="upload-note">Describe vibration context in Written Symptoms. No readings are simulated or inferred.</div>
+                        <VideoRecorder files={videoFiles} onChange={setVideoFiles} onError={setError} />
+                      </EvidenceCard>
+
+                      <EvidenceCard
+                        title="Sound / Audio"
+                        helper="I need to hear the noise. Record the sound your vehicle is making."
+                        badges={
+                          <>
+                            <EvidenceBadge>Optional</EvidenceBadge>
+                          </>
+                        }
+                      >
+                        <AudioRecorder files={audioFiles} onChange={setAudioFiles} onError={setError} />
+                      </EvidenceCard>
+
+                      <EvidenceCard
+                        title="Vibration / Motion"
+                        helper="Place the phone flat on the center console and measure vibration."
+                        badges={
+                          <>
+                            <EvidenceBadge>Optional</EvidenceBadge>
+                          </>
+                        }
+                      >
+                        <VibrationCapture files={vibrationFiles} onChange={setVibrationFiles} onError={setError} />
                       </EvidenceCard>
                     </div>
                   </div>
@@ -1815,7 +1817,7 @@ Add a clear written symptom description, manual OBD codes, vibration context, an
                     <p id="consent-help" className="section-intro">Required permissions are recorded with the current Terms, Privacy Notice, your account, and this case. Product-learning permission is optional and defaults off.</p>
                     <label className="checkbox-row"><input type="checkbox" checked={serviceConsent} onChange={(e) => setServiceConsent(e.target.checked)} /> I agree to use my submission to provide this Drivable service. <span className="required-marker">Required</span></label>
                     <label className="checkbox-row"><input type="checkbox" checked={humanReviewConsent} onChange={(e) => setHumanReviewConsent(e.target.checked)} /> I agree that an authorized human reviewer may review my case evidence. <span className="required-marker">Required</span></label>
-                    <label className="checkbox-row"><input type="checkbox" checked={mediaConsent} onChange={(e) => setMediaConsent(e.target.checked)} /> I agree to private processing and storage of photos I choose to submit. {photoFiles.length > 0 && <span className="required-marker">Required for photos</span>}</label>
+                    <label className="checkbox-row"><input type="checkbox" checked={mediaConsent} onChange={(e) => setMediaConsent(e.target.checked)} /> I agree to private processing and storage of photos, audio, video, and vibration data I choose to submit. {(photoFiles.length > 0 || audioFiles.length > 0 || videoFiles.length > 0 || vibrationFiles.length > 0) && <span className="required-marker">Required for media</span>}</label>
                     <label className="checkbox-row"><input type="checkbox" checked={learningConsent} onChange={(e) => setLearningConsent(e.target.checked)} /> Optional: allow de-identified case evidence to support future product improvement. This is not required for service.</label>
                     <div className="helper-text">Review the <button type="button" onClick={() => setPage("terms")}>Terms</button> and <button type="button" onClick={() => setPage("privacy")}>Privacy Notice</button> before submitting.</div>
                   </fieldset>
@@ -1871,7 +1873,7 @@ Add a clear written symptom description, manual OBD codes, vibration context, an
         </div>
         <div className="faq-grid">
           <div className="faq-card"><h3>What if I don’t know my engine?</h3><p>Use the I Don&apos;t Know option where available and keep going.</p></div>
-<div className="faq-card"><h3>What information helps most?</h3><p>Clear written symptoms, timing, manual OBD codes, vibration context, and relevant photos help organize the case. Current photos are not visually analyzed, and audio/video upload is unavailable.</p></div>
+<div className="faq-card"><h3>What information helps most?</h3><p>Clear written symptoms, timing, manual OBD codes, photos, audio recordings, video recordings, and vibration measurements help organize the case. Uploaded media is stored for human review.</p></div>
           <div className="faq-card"><h3>Can this replace a hands-on inspection?</h3><p>No. It improves clarity and direction, but some problems still require real testing.</p></div>
         </div>
       </div>
