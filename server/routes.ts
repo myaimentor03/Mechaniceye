@@ -101,7 +101,8 @@ const upload = multer({
     const allowedMimes = [
       'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
       'audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/x-m4a', 'audio/webm', 'audio/ogg',
-      'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm'
+      'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm',
+      'application/json', 'application/octet-stream'
     ];
     cb(null, allowedMimes.includes(file.mimetype));
   }
@@ -219,6 +220,12 @@ type DiagnosisCaseResponse = {
     durability: "runtime_local" | "private_object_storage";
     durableStorageConfigured: boolean;
     analysisStatus: "uploaded_not_analyzed";
+  };
+  evidenceSummary?: {
+    photos: { provided: number; persisted: number; status: "persisted" | "not_provided" | "failed" };
+    audio: { provided: number; persisted: number; status: "persisted" | "not_provided" | "failed" };
+    video: { provided: number; persisted: number; status: "persisted" | "not_provided" | "failed" };
+    vibration: { provided: number; persisted: number; status: "persisted" | "not_provided" | "failed" };
   };
   casePersistence?: {
     primary: "database" | "local_case_store";
@@ -2202,6 +2209,36 @@ if (photoFiles.length) {
         }
       }
 
+      const photoPersisted = responseBody.attachments?.length ?? 0;
+      const audioProvided = mobileMediaFiles.audio?.length ?? 0;
+      const videoProvided = mobileMediaFiles.video?.length ?? 0;
+      const vibrationProvided = mobileMediaFiles.vibration?.length ?? 0;
+      const audioPersisted = storedR2Keys.audio?.length ?? 0;
+      const videoPersisted = storedR2Keys.video?.length ?? 0;
+      const vibrationPersisted = storedR2Keys.vibration?.length ?? 0;
+      responseBody.evidenceSummary = {
+        photos: {
+          provided: photoFiles.length,
+          persisted: photoPersisted,
+          status: photoFiles.length === 0 ? "not_provided" : photoPersisted > 0 ? "persisted" : "failed",
+        },
+        audio: {
+          provided: audioProvided,
+          persisted: audioPersisted,
+          status: audioProvided === 0 ? "not_provided" : audioPersisted > 0 ? "persisted" : "failed",
+        },
+        video: {
+          provided: videoProvided,
+          persisted: videoPersisted,
+          status: videoProvided === 0 ? "not_provided" : videoPersisted > 0 ? "persisted" : "failed",
+        },
+        vibration: {
+          provided: vibrationProvided,
+          persisted: vibrationPersisted,
+          status: vibrationProvided === 0 ? "not_provided" : vibrationPersisted > 0 ? "persisted" : "failed",
+        },
+      };
+
       if (usedPublicFallback) {
         const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, storedCase, authenticatedCaseOwnerId(req.drivableCustomer?.id));
         if (!dbResult.ok) {
@@ -2247,7 +2284,8 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
   // Create follow-up request when previous fixes didn't work
   app.post("/api/diagnoses/:id/follow-up", requireReviewer, reviewerWriteLimit, upload.fields([
     { name: 'audio', maxCount: 1 },
-    { name: 'video', maxCount: 1 }
+    { name: 'video', maxCount: 1 },
+    { name: 'vibration', maxCount: 1 }
   ]), async (req, res) => {
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     const uploadedPaths = Object.values(files || {}).flat().map((file) => file.path).filter(Boolean);
@@ -2257,11 +2295,25 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
     try {
       const diagnosisId = req.params.id;
 
-      if (req.body.vibrationData) {
+      let vibrationStoredKeys: string[] = [];
+      if (files?.vibration?.length && isR2EvidenceStorageConfigured()) {
+        try {
+          const vKeys = await storeEvidenceFiles(diagnosisId, { vibration: files.vibration });
+          vibrationStoredKeys = vKeys.vibration || [];
+        } catch (vError) {
+          logEventError("api.follow_up_vibration_storage_failed", vError, { diagnosisId });
+          await cleanupTemporaryFiles();
+          return res.status(507).json({
+            message: "Vibration evidence could not be persisted. Please try again.",
+            code: "VIBRATION_PERSISTENCE_FAILED",
+            persisted: false,
+          });
+        }
+      } else if (req.body.vibrationData) {
         await cleanupTemporaryFiles();
         return res.status(422).json({
-          message: "Vibration capture is not available yet. No vibration readings were stored or analyzed.",
-          code: "VIBRATION_CAPTURE_UNAVAILABLE",
+          message: "Vibration JSON via vibrationData is deprecated. Please upload a vibration file via the 'vibration' field or describe the vibration in text.",
+          code: "VIBRATION_CAPTURE_DEPRECATED",
         });
       }
       
@@ -2273,13 +2325,14 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
       }
 
       // Create follow-up request
+      const followUpVibrationFile = vibrationStoredKeys[0] || files?.vibration?.[0]?.filename || null;
       const followUpData = {
         originalDiagnosisId: diagnosisId,
         userId: originalDiagnosis.userId!,
         additionalInfo: req.body.additionalInfo,
         newAudioFile: files?.audio?.[0]?.filename || null,
         newVideoFile: files?.video?.[0]?.filename || null,
-        newVibrationData: null,
+        newVibrationData: followUpVibrationFile,
       };
 
       const followUp = await storage.createFollowUp(followUpData);
