@@ -21,7 +21,7 @@ const MAX_VIBRATION_FILES = 4;
 const MAX_AUDIO_BYTES = 50 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
 
-const EVIDENCE_STATUS = "uploaded_not_analyzed" as const;
+type EvidenceModalityStatus = "persisted" | "not_provided" | "failed";
 
 interface EvidenceCaptureProps {
   formData: {
@@ -35,9 +35,15 @@ interface EvidenceCaptureProps {
   };
   setFormData: (data: any) => void;
   capabilities?: MediaCapabilities;
+  evidenceStatus?: {
+    photo: EvidenceModalityStatus;
+    audio: EvidenceModalityStatus;
+    video: EvidenceModalityStatus;
+    vibration: EvidenceModalityStatus;
+  };
 }
 
-export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UNAVAILABLE }: EvidenceCaptureProps) {
+export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UNAVAILABLE, evidenceStatus }: EvidenceCaptureProps) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("description");
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -82,7 +88,7 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
       }
       const nextFiles = [...formData.photoFiles, ...validFiles];
       setFormData((prev: any) => ({ ...prev, photoFiles: nextFiles }));
-      toast({ title: "Photos Saved", description: `${validFiles.length} photo(s) stored with your case. Status: ${EVIDENCE_STATUS}. Not analyzed yet.` });
+      toast({ title: "Photos Saved", description: `${validFiles.length} photo(s) stored with your case.` });
       if (validFiles[0]) {
         setPhotoPreview(URL.createObjectURL(validFiles[0]));
       }
@@ -120,6 +126,26 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
       return;
     }
     setFormData((prev: any) => ({ ...prev, vibrationFiles: files }));
+  }
+
+  function handleModalityRetry(modality: keyof EvidenceCaptureProps["evidenceStatus"]) {
+    setFormData((prev: any) => {
+      const next = { ...prev };
+      if (modality === "photo") {
+        next.photoFiles = [];
+        next.evidenceStatus = { ...next.evidenceStatus, photo: "not_provided" };
+      } else if (modality === "audio") {
+        next.audioFiles = [];
+        next.evidenceStatus = { ...next.evidenceStatus, audio: "not_provided" };
+      } else if (modality === "video") {
+        next.videoFiles = [];
+        next.evidenceStatus = { ...next.evidenceStatus, video: "not_provided" };
+      } else if (modality === "vibration") {
+        next.vibrationFiles = [];
+        next.evidenceStatus = { ...next.evidenceStatus, vibration: "not_provided" };
+      }
+      return next;
+    });
   }
 
   function handleError(message: string) {
@@ -316,7 +342,7 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
       {/* Evidence Status Bar */}
       <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm">
         <Shield className="w-4 h-4 text-blue-600" />
-        <span className="text-blue-800 font-medium">Evidence Status: {EVIDENCE_STATUS}</span>
+        <span className="text-blue-800 font-medium">Evidence Status: {formData.photoFiles.length > 0 ? "provided" : "not_provided"}</span>
         <span className="text-blue-600">|</span>
         <span className="text-blue-700">Photos: {formData.photoFiles.length}/8</span>
         <span className="text-blue-600">|</span>
@@ -335,6 +361,14 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
                           tab.id === "video" ? formData.videoFiles.length :
                           tab.id === "vibration" ? formData.vibrationFiles.length :
                           tab.id === "photo" ? formData.photoFiles.length : 0;
+            const modalityStatus = tab.id === "audio" ? evidenceStatus?.audio :
+                                   tab.id === "video" ? evidenceStatus?.video :
+                                   tab.id === "vibration" ? evidenceStatus?.vibration :
+                                   evidenceStatus?.photo;
+            const statusClass = modalityStatus === "persisted" ? "bg-green-100 text-green-800" :
+                               modalityStatus === "failed" ? "bg-red-100 text-red-800" :
+                               "bg-gray-100 text-gray-800";
+            const statusText = modalityStatus || "pending";
             return (
               <button
                 key={tab.id}
@@ -351,6 +385,20 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
                   <span className="bg-automotive-orange text-white text-xs px-1.5 py-0.5 rounded-full">
                     {count}
                   </span>
+                )}
+                {count > 0 && modalityStatus && (
+                  <span className={`ml-2 text-xs font-normal ${statusClass}`}>
+                    {statusText}
+                  </span>
+                )}
+                {modalityStatus === "failed" && (
+                  <button
+                    type="button"
+                    className="ml-2 text-xs font-medium text-red-600 hover:text-red-800"
+                    onClick={handleModalityRetry}
+                  >
+                    Retry
+                  </button>
                 )}
               </button>
             );
