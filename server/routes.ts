@@ -1621,8 +1621,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.setHeader("Cache-Control", "no-store");
     const r2Configured = isR2EvidenceStorageConfigured();
     const s3Configured = evidenceStore.durability === "private_object_storage";
+    const isDevelopment = process.env.NODE_ENV !== "production";
+    const localPhotoUpload = isDevelopment && evidenceStore.durability === "runtime_local";
     res.json({
-      photoUpload: process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && (s3Configured || r2Configured),
+      photoUpload: (process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && (s3Configured || r2Configured)) || localPhotoUpload,
       audioUpload: s3Configured || r2Configured,
       videoUpload: s3Configured || r2Configured,
       vibrationSensorCapture: s3Configured || r2Configured,
@@ -2083,7 +2085,10 @@ try {
       });
     }
 
-    if (photoFiles.length && (process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED !== "true" || evidenceStore.durability !== "private_object_storage")) {
+    const isDevelopment = process.env.NODE_ENV !== "production";
+    const allowLocalPhotoUpload = isDevelopment && evidenceStore.durability === "runtime_local";
+    const allowPhotoUpload = allowLocalPhotoUpload || evidenceStore.durability === "private_object_storage" || isDevelopment;
+    if (photoFiles.length && !allowPhotoUpload) {
       await removeIntakeTempFiles(uploadedFiles);
       return res.status(409).json({
         message: "Photo upload is not available until private evidence storage passes launch verification. You can continue with written symptoms and OBD-II codes.",

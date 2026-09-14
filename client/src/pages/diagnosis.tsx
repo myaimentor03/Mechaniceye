@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { AppHeader } from "@/components/app-header";
 import { BottomNavigation } from "@/components/bottom-navigation";
-import { UploadTabs } from "@/components/upload-tabs";
+import { EvidenceCapture } from "@/components/EvidenceCapture";
 import { AnalysisProgress } from "@/components/analysis-progress";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -19,10 +19,10 @@ export default function Diagnosis() {
     description: "",
     vehicleInfo: "",
     timing: "",
-    audioFile: null as File | null,
-    videoFile: null as File | null,
-    capturedPhoto: null as File | null,
-    vibrationFile: null as File | null,
+    audioFiles: [] as File[],
+    videoFiles: [] as File[],
+    photoFiles: [] as File[],
+    vibrationFiles: [] as File[],
   });
 
   const createDiagnosisMutation = useMutation({
@@ -74,21 +74,21 @@ export default function Diagnosis() {
     formDataToSend.append("vehicleInfo", formData.vehicleInfo);
     formDataToSend.append("timing", formData.timing);
 
-    if (formData.audioFile) {
-      formDataToSend.append("audio", formData.audioFile);
-    }
+    formData.audioFiles.forEach((file) => {
+      formDataToSend.append("audio", file);
+    });
 
-    if (formData.videoFile) {
-      formDataToSend.append("video", formData.videoFile);
-    }
+    formData.videoFiles.forEach((file) => {
+      formDataToSend.append("video", file);
+    });
 
-    if (formData.capturedPhoto) {
-      formDataToSend.append("photos", formData.capturedPhoto);
-    }
+    formData.photoFiles.forEach((file) => {
+      formDataToSend.append("photos", file);
+    });
 
-    if (formData.vibrationFile) {
-      formDataToSend.append("vibration", formData.vibrationFile);
-    }
+    formData.vibrationFiles.forEach((file) => {
+      formDataToSend.append("vibration", file);
+    });
 
     createDiagnosisMutation.mutate(formDataToSend);
   };
@@ -138,7 +138,7 @@ export default function Diagnosis() {
               </div>
             </div>
 
-            <UploadTabs formData={formData} setFormData={setFormData} />
+            <EvidenceCapture formData={formData} setFormData={setFormData} />
 
             {/* Submit Button */}
             <div className="mt-8 pt-6 border-t border-gray-200">
