@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,7 +19,8 @@ const MAX_AUDIO_FILES = 4;
 const MAX_VIDEO_FILES = 4;
 const MAX_VIBRATION_FILES = 4;
 const MAX_AUDIO_BYTES = 50 * 1024 * 1024;
-const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
+// Server VIDEO_LIMITS is 100 MB; client must match truthfully
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 
 type EvidenceModalityStatus = "persisted" | "not_provided" | "failed";
 
@@ -41,13 +42,23 @@ interface EvidenceCaptureProps {
     video: EvidenceModalityStatus;
     vibration: EvidenceModalityStatus;
   };
+  onRetry?: (modality: keyof NonNullable<EvidenceCaptureProps["evidenceStatus"]>) => void;
 }
 
-export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UNAVAILABLE, evidenceStatus }: EvidenceCaptureProps) {
+export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UNAVAILABLE, evidenceStatus, onRetry }: EvidenceCaptureProps) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("description");
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Stable object URLs for thumbnails — avoids creating new URLs on every render and cleans up on removal/unmount
+  const photoUrls = useMemo(() => formData.photoFiles.map((file) => URL.createObjectURL(file)), [formData.photoFiles]);
+  useEffect(() => {
+    return () => { photoUrls.forEach((url) => URL.revokeObjectURL(url)); };
+  }, [photoUrls]);
+  useEffect(() => {
+    return () => { if (photoPreview) URL.revokeObjectURL(photoPreview); };
+  }, [photoPreview]);
 
   const tabs = [
     { id: "audio", label: "Audio", icon: Mic },
@@ -128,24 +139,18 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
     setFormData((prev: any) => ({ ...prev, vibrationFiles: files }));
   }
 
-  function handleModalityRetry(modality: keyof EvidenceCaptureProps["evidenceStatus"]) {
+  function handleModalityRetry(modality: keyof NonNullable<EvidenceCaptureProps["evidenceStatus"]>) {
+    // Clear files for that modality; parent owns evidenceStatus so delegate reset via onRetry
     setFormData((prev: any) => {
       const next = { ...prev };
-      if (modality === "photo") {
-        next.photoFiles = [];
-        next.evidenceStatus = { ...next.evidenceStatus, photo: "not_provided" };
-      } else if (modality === "audio") {
-        next.audioFiles = [];
-        next.evidenceStatus = { ...next.evidenceStatus, audio: "not_provided" };
-      } else if (modality === "video") {
-        next.videoFiles = [];
-        next.evidenceStatus = { ...next.evidenceStatus, video: "not_provided" };
-      } else if (modality === "vibration") {
-        next.vibrationFiles = [];
-        next.evidenceStatus = { ...next.evidenceStatus, vibration: "not_provided" };
-      }
+      if (modality === "photo") next.photoFiles = [];
+      else if (modality === "audio") next.audioFiles = [];
+      else if (modality === "video") next.videoFiles = [];
+      else if (modality === "vibration") next.vibrationFiles = [];
       return next;
     });
+    if (onRetry) onRetry(modality);
+    toast({ title: "Cleared", description: `${modality} files cleared. Please re-add evidence and save again.` });
   }
 
   function handleError(message: string) {
@@ -254,7 +259,7 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
                   {formData.photoFiles.map((file, index) => (
                     <div key={`${file.name}-${index}`} className="relative aspect-square border rounded-lg overflow-hidden bg-gray-100">
                       <img
-                        src={URL.createObjectURL(file)}
+                        src={photoUrls[index]}
                         alt={file.name}
                         className="w-full h-full object-cover"
                       />
@@ -360,7 +365,7 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
       </div>
 
       <div className="border-b border-gray-200 mb-6">
-        <nav className="-mb-px flex space-x-8 overflow-x-auto pb-1">
+        <nav className="-mb-px flex space-x-8 overflow-x-auto pb-1" aria-label="Evidence sections">
           {tabs.map((tab) => {
             const IconComponent = tab.icon;
             const count = tab.id === "audio" ? formData.audioFiles.length :
@@ -375,38 +380,44 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
                                modalityStatus === "failed" ? "bg-red-100 text-red-800" :
                                "bg-gray-100 text-gray-800";
             const statusText = modalityStatus || "pending";
+            const modalityKey = (tab.id === "photo" ? "photo" : tab.id) as keyof NonNullable<EvidenceCaptureProps["evidenceStatus"]>;
+            const isFailed = modalityStatus === "failed";
             return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 transition-colors whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? "border-automotive-orange text-automotive-orange"
-                    : "border-transparent text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                <IconComponent className="w-4 h-4" />
-                <span>{tab.label}</span>
-                {count > 0 && (
-                  <span className="bg-automotive-orange text-white text-xs px-1.5 py-0.5 rounded-full">
-                    {count}
-                  </span>
-                )}
-                {count > 0 && modalityStatus && (
-                  <span className={`ml-2 text-xs font-normal ${statusClass}`}>
-                    {statusText}
-                  </span>
-                )}
-                {modalityStatus === "failed" && (
+              <div key={tab.id} className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 transition-colors whitespace-nowrap ${
+                    activeTab === tab.id
+                      ? "border-automotive-orange text-automotive-orange"
+                      : "border-transparent text-gray-500 hover:text-gray-700"
+                  }`}
+                  aria-selected={activeTab === tab.id}
+                >
+                  <IconComponent className="w-4 h-4" />
+                  <span>{tab.label}</span>
+                  {count > 0 && (
+                    <span className="bg-automotive-orange text-white text-xs px-1.5 py-0.5 rounded-full">
+                      {count}
+                    </span>
+                  )}
+                  {count > 0 && modalityStatus && (
+                    <span className={`ml-1 text-xs font-normal px-1 py-0.5 rounded ${statusClass}`}>
+                      {statusText}
+                    </span>
+                  )}
+                </button>
+                {isFailed && (
                   <button
                     type="button"
-                    className="ml-2 text-xs font-medium text-red-600 hover:text-red-800"
-                    onClick={handleModalityRetry}
+                    className="text-xs font-medium text-red-600 hover:text-red-800 px-1 py-1"
+                    onClick={(e) => { e.stopPropagation(); handleModalityRetry(modalityKey); }}
+                    aria-label={`Clear failed ${tab.label} and retry`}
                   >
                     Retry
                   </button>
                 )}
-              </button>
+              </div>
             );
           })}
         </nav>

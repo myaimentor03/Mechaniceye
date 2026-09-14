@@ -10,6 +10,7 @@ import { EvidenceCapture } from "@/components/EvidenceCapture";
 import { AnalysisProgress } from "@/components/analysis-progress";
 import { apiRequest } from "@/lib/queryClient";
 import { filterSubmittableEvidence, parseMediaCapabilities, MEDIA_UNAVAILABLE, type MediaCapabilities } from "@/lib/mediaAvailability";
+import { useEvidenceDraft } from "@/hooks/useEvidenceDraft";
 
 export default function Diagnosis() {
   const [, setLocation] = useLocation();
@@ -33,6 +34,8 @@ export default function Diagnosis() {
     vibrationFiles: [] as File[],
   });
 
+  const draft = useEvidenceDraft(formData);
+
   useEffect(() => {
     let cancelled = false;
     fetch("/api/capabilities", { headers: { "Cache-Control": "no-store" } })
@@ -48,6 +51,7 @@ export default function Diagnosis() {
       return response.json();
     },
     onSuccess: (diagnosis) => {
+      draft.clearAfterSubmit();
       queryClient.invalidateQueries({ queryKey: ["/api/diagnoses"] });
       const summary = diagnosis.evidenceSummary;
       if (summary) {
@@ -66,6 +70,13 @@ export default function Diagnosis() {
     },
     onError: (error: any) => {
       setIsAnalyzing(false);
+      // Truthful failed status so retry UI surfaces per modality that had files
+      setEvidenceStatus({
+        photo: formData.photoFiles.length > 0 ? "failed" : "not_provided",
+        audio: formData.audioFiles.length > 0 ? "failed" : "not_provided",
+        video: formData.videoFiles.length > 0 ? "failed" : "not_provided",
+        vibration: formData.vibrationFiles.length > 0 ? "failed" : "not_provided",
+      });
       toast({
         title: "Upload failed",
         description: error.message || "Could not save your evidence. Please try again.",
@@ -100,6 +111,25 @@ export default function Diagnosis() {
       capabilities,
     );
     // Truthful gate: never submit files for unavailable modalities; stale recordings are dropped.
+    const droppedCounts = {
+      photos: formData.photoFiles.length - filtered.photos.length,
+      audio: formData.audioFiles.length - filtered.audio.length,
+      video: formData.videoFiles.length - filtered.video.length,
+      vibration: formData.vibrationFiles.length - filtered.vibration.length,
+    };
+    const droppedTotal = droppedCounts.photos + droppedCounts.audio + droppedCounts.video + droppedCounts.vibration;
+    if (droppedTotal > 0) {
+      const parts: string[] = [];
+      if (droppedCounts.photos) parts.push(`${droppedCounts.photos} photo(s)`);
+      if (droppedCounts.audio) parts.push(`${droppedCounts.audio} audio file(s)`);
+      if (droppedCounts.video) parts.push(`${droppedCounts.video} video file(s)`);
+      if (droppedCounts.vibration) parts.push(`${droppedCounts.vibration} vibration file(s)`);
+      toast({
+        title: "Some files were not submitted",
+        description: `${parts.join(", ")} were held back because that upload type is temporarily unavailable. Your case will be saved without them. Describe the issue in words instead.`,
+        variant: "destructive",
+      });
+    }
 
     const formDataToSend = new FormData();
     formDataToSend.append("description", formData.description);
@@ -152,6 +182,38 @@ export default function Diagnosis() {
               </div>
             </div>
             
+            {/* Draft recovery banner */}
+            {draft.showBanner && draft.draftAvailable && (
+              <div className="mb-6 flex items-start justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                <div className="text-sm text-amber-900">
+                  <span className="font-semibold">Draft recovered</span> — your description, vehicle, and timing from {new Date(draft.draftAvailable.updatedAt).toLocaleString()} were restored. Photos, audio, video, and vibration files must be re-added after a reload.
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const restored = draft.restore();
+                      if (restored) {
+                        setFormData((prev) => ({
+                          ...prev,
+                          description: restored.description,
+                          vehicleInfo: restored.vehicleInfo,
+                          timing: restored.timing,
+                        }));
+                        toast({ title: "Draft restored", description: "Your previous text was restored. Re-add any media files, then save again." });
+                      }
+                    }}
+                  >
+                    Restore
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={draft.discard}>
+                    Discard
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* Progress Steps */}
             <div className="flex items-center space-x-4 mb-8">
               <div className="flex items-center">
@@ -170,7 +232,15 @@ export default function Diagnosis() {
               </div>
             </div>
 
-            <EvidenceCapture formData={formData} setFormData={setFormData} capabilities={capabilities} evidenceStatus={evidenceStatus} />
+            <EvidenceCapture
+              formData={formData}
+              setFormData={setFormData}
+              capabilities={capabilities}
+              evidenceStatus={evidenceStatus}
+              onRetry={(modality) => {
+                setEvidenceStatus((prev) => prev ? { ...prev, [modality]: "not_provided" } : undefined);
+              }}
+            />
 
             {/* Submit Button */}
             <div className="mt-8 pt-6 border-t border-gray-200">

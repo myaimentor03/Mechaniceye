@@ -6,7 +6,7 @@ interface VideoRecorderProps {
   onError: (message: string) => void;
 }
 
-const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 
 export function VideoRecorder({ files, onChange, onError }: VideoRecorderProps) {
   const [recording, setRecording] = useState(false);
