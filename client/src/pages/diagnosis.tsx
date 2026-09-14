@@ -22,7 +22,7 @@ export default function Diagnosis() {
     audioFile: null as File | null,
     videoFile: null as File | null,
     capturedPhoto: null as File | null,
-    vibrationData: null as any,
+    vibrationFile: null as File | null,
   });
 
   const createDiagnosisMutation = useMutation({
@@ -34,22 +34,21 @@ export default function Diagnosis() {
       queryClient.invalidateQueries({ queryKey: ["/api/diagnoses"] });
       setLocation(`/results/${diagnosis.id}`);
       toast({
-        title: "Analysis Complete",
-        description: "Your vehicle diagnosis is ready!",
+        title: "Case saved",
+        description: "Your evidence has been stored with your case. It has not been analyzed yet.",
       });
     },
     onError: (error: any) => {
       setIsAnalyzing(false);
       toast({
-        title: "Analysis Failed",
-        description: error.message || "Failed to analyze vehicle data",
+        title: "Upload failed",
+        description: error.message || "Could not save your evidence. Please try again.",
         variant: "destructive",
       });
     },
   });
 
   const handleAnalyze = async () => {
-    // Validate required fields
     if (!formData.description.trim() || !formData.vehicleInfo.trim() || !formData.timing) {
       toast({
         title: "Missing Information",
@@ -70,31 +69,27 @@ export default function Diagnosis() {
 
     setIsAnalyzing(true);
 
-    // Create FormData for file upload
     const formDataToSend = new FormData();
     formDataToSend.append("description", formData.description);
     formDataToSend.append("vehicleInfo", formData.vehicleInfo);
     formDataToSend.append("timing", formData.timing);
-    
+
     if (formData.audioFile) {
       formDataToSend.append("audio", formData.audioFile);
     }
-    
+
     if (formData.videoFile) {
       formDataToSend.append("video", formData.videoFile);
     }
-    
+
     if (formData.capturedPhoto) {
-      formDataToSend.append("photo", formData.capturedPhoto);
-    }
-    
-    if (formData.vibrationData) {
-      formDataToSend.append("vibrationData", JSON.stringify(formData.vibrationData));
+      formDataToSend.append("photos", formData.capturedPhoto);
     }
 
-    // Simulate analysis delay for better UX
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
+    if (formData.vibrationFile) {
+      formDataToSend.append("vibration", formData.vibrationFile);
+    }
+
     createDiagnosisMutation.mutate(formDataToSend);
   };
 
@@ -118,10 +113,10 @@ export default function Diagnosis() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Vehicle Diagnosis</h2>
+              <h2 className="text-2xl font-bold text-gray-900">Vehicle Evidence</h2>
               <div className="flex items-center space-x-2 text-sm text-automotive-gray">
-                <span className="text-automotive-orange">🛡️</span>
-                <span>Secure Analysis</span>
+                <span className="text-automotive-orange">&#128274;</span>
+                <span>Evidence Stored Privately</span>
               </div>
             </div>
             
@@ -129,17 +124,17 @@ export default function Diagnosis() {
             <div className="flex items-center space-x-4 mb-8">
               <div className="flex items-center">
                 <div className="w-8 h-8 bg-automotive-orange text-white rounded-full flex items-center justify-center text-sm font-semibold">1</div>
-                <span className="ml-2 text-automotive-orange font-medium">Upload Data</span>
+                <span className="ml-2 text-automotive-orange font-medium">Gather Evidence</span>
               </div>
               <div className="flex-1 h-0.5 bg-gray-200"></div>
               <div className="flex items-center">
                 <div className="w-8 h-8 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-sm font-semibold">2</div>
-                <span className="ml-2 text-gray-500">Analysis</span>
+                <span className="ml-2 text-gray-500">Case Saved</span>
               </div>
               <div className="flex-1 h-0.5 bg-gray-200"></div>
               <div className="flex items-center">
                 <div className="w-8 h-8 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-sm font-semibold">3</div>
-                <span className="ml-2 text-gray-500">Results</span>
+                <span className="ml-2 text-gray-500">Next Steps</span>
               </div>
             </div>
 
@@ -152,7 +147,7 @@ export default function Diagnosis() {
                 disabled={createDiagnosisMutation.isPending}
                 className="w-full bg-automotive-blue hover:bg-blue-800 text-white py-4 px-6 rounded-xl font-semibold text-lg"
               >
-                🔍 Analyze Vehicle Issue
+                Save Evidence to Case
               </Button>
             </div>
           </CardContent>

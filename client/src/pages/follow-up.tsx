@@ -29,7 +29,7 @@ export default function FollowUp() {
     audioFile: null as File | null,
     videoFile: null as File | null,
     capturedPhoto: null as File | null,
-    vibrationData: null as any,
+    vibrationFile: null as File | null,
   });
 
   const { data: originalDiagnosis, isLoading } = useQuery<Diagnosis>({
@@ -88,8 +88,8 @@ export default function FollowUp() {
       formDataToSend.append("photo", formData.capturedPhoto);
     }
     
-    if (formData.vibrationData) {
-      formDataToSend.append("vibrationData", JSON.stringify(formData.vibrationData));
+    if (formData.vibrationFile) {
+      formDataToSend.append("vibration", formData.vibrationFile);
     }
 
     followUpMutation.mutate(formDataToSend);

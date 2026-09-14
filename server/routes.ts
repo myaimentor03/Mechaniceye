@@ -1612,11 +1612,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/capabilities", (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
+    const r2Configured = isR2EvidenceStorageConfigured();
+    const s3Configured = evidenceStore.durability === "private_object_storage";
     res.json({
-      photoUpload: process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && evidenceStore.durability === "private_object_storage",
-      audioUpload: false,
-      videoUpload: false,
-      vibrationSensorCapture: false,
+      photoUpload: process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && (s3Configured || r2Configured),
+      audioUpload: s3Configured || r2Configured,
+      videoUpload: s3Configured || r2Configured,
+      vibrationSensorCapture: s3Configured || r2Configured,
     });
   });
 
@@ -2091,16 +2093,6 @@ try {
       return res.status(415).json({
         message: "A submitted photo has an unsupported file type. Supported types are JPEG, PNG, WebP, and HEIC.",
         code: "UNSUPPORTED_PHOTO_MEDIA_TYPE",
-        persisted: false,
-      });
-    }
-    if (hasMobileMedia) {
-      // Photo-first release: audio/video/vibration capture is not advertised, so
-      // those parts are rejected outright rather than silently dropped.
-      await removeIntakeTempFiles(uploadedFiles);
-      return res.status(415).json({
-        message: "Audio, video, and vibration capture are not supported yet. You can submit photos along with written symptoms and OBD-II codes.",
-        code: "UNSUPPORTED_MEDIA_TYPE",
         persisted: false,
       });
     }
