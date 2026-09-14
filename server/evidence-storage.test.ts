@@ -268,3 +268,49 @@ test("S3 private object storage persists and retrieves audio files", async () =>
   const retrieved = await store.getAttachment("CASE-S3-AUDIO", attachment.id);
   assert.deepEqual(retrieved?.bytes.subarray(0, 3), mp3.subarray(0, 3));
 });
+
+function vibrationUpload(readings: unknown, originalname = "vibration-1.json") {
+  return upload(Buffer.from(JSON.stringify(readings)), originalname, "application/json");
+}
+
+test("vibration sensor sessions from phone capture persist as sensor_session", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-vibration-"));
+  try {
+    const store = new RuntimeFileEvidenceStore(root);
+    const readings = [
+      { x: 0.12, y: -0.03, z: 9.81, t: 1726000000000 },
+      { x: 0.15, y: -0.02, z: 9.79, t: 1726000000016 },
+    ];
+    const [attachment] = await store.saveVibrationFiles("CASE-VIB-1", [vibrationUpload(readings)]);
+    assert.equal(attachment.caseId, "CASE-VIB-1");
+    assert.equal(attachment.kind, "sensor_session");
+    assert.equal(attachment.mimeType, "application/json");
+    assert.equal(attachment.analysisStatus, "uploaded_not_analyzed");
+    assert.match(attachment.storageKey, /^evidence\/CASE-VIB-1\/vibration\/[0-9a-f-]+\.json$/);
+    const retrieved = await store.getAttachment("CASE-VIB-1", attachment.id);
+    assert.deepEqual(JSON.parse(retrieved!.bytes.toString("utf8")), readings);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("malformed vibration payloads are rejected, never stored", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-vibration-reject-"));
+  try {
+    const store = new RuntimeFileEvidenceStore(root);
+    await assert.rejects(
+      () => store.saveVibrationFiles("CASE-VIB-BAD", [vibrationUpload({ not: "readings" })]),
+      /not a supported format/,
+    );
+    await assert.rejects(
+      () => store.saveVibrationFiles("CASE-VIB-NONNUMERIC", [vibrationUpload([{ x: "shaky", y: 0, z: 0, t: 1 }])]),
+      /not a supported format/,
+    );
+    await assert.rejects(
+      () => store.saveVibrationFiles("CASE-VIB-EMPTY", [vibrationUpload([])]),
+      /not a supported format/,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
