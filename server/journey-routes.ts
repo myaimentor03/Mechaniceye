@@ -155,9 +155,11 @@ export function registerJourneyRoutes(app: Express): void {
         return;
       }
 
-      const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTransition>>> = {
+const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTransition>>> = {
+        submit_intake: { intake: "submit_intake" },
         acknowledge_triage: { triage: "acknowledge_triage" },
         request_evidence: { triage: "request_evidence", evidence_requested: "request_evidence" },
+        submit_evidence: { triage: "submit_evidence", evidence_requested: "submit_evidence" },
         finish_evidence: { evidence_requested: "finish_evidence" },
         evaluate: { evidence_received: "evaluate" },
         ready_diagnosis: { evaluating: "ready_diagnosis" },
@@ -165,7 +167,7 @@ export function registerJourneyRoutes(app: Express): void {
         resolve: { diagnosis_ready: "resolve", escalation_required: "resolve", human_review: "resolve" },
         resolve_stop_driving: { triage: "resolve_stop_driving", evidence_requested: "resolve_stop_driving", evidence_received: "resolve_stop_driving", evaluating: "resolve_stop_driving", diagnosis_ready: "resolve_stop_driving", escalation_required: "resolve_stop_driving", human_review: "resolve_stop_driving" },
         request_human_review: { diagnosis_ready: "request_human_review", escalation_required: "request_human_review" },
-      };
+    };
 
       const mappedTransition = validTransitions[transition]?.[caseData.state];
       if (!mappedTransition) {

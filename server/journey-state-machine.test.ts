@@ -29,24 +29,24 @@ describe("journey-state-machine", () => {
   });
 
   describe("createJourneyCase", () => {
-    it("creates a case in triage state with basic info", () => {
-      const caseData = createJourneyCase({
-        vehicleInfo: "2018 Honda Civic",
-        description: "Car makes a grinding noise when braking at low speeds",
-        timing: "Braking",
-        urgency: "Safe to Drive",
-      });
+it("creates a case in intake state with basic info", () => {
+       const caseData = createJourneyCase({
+         vehicleInfo: "2018 Honda Civic",
+         description: "Car makes a grinding noise when braking at low speeds",
+         timing: "Braking",
+         urgency: "Safe to Drive",
+       });
 
-      assert.ok(caseData.id.startsWith("JRN-"));
-      assert.equal(caseData.state, "triage");
-      assert.equal(caseData.vehicleInfo, "2018 Honda Civic");
-      assert.equal(caseData.description, "Car makes a grinding noise when braking at low speeds");
-      assert.equal(caseData.timing, "Braking");
-      assert.equal(caseData.urgency, "Safe to Drive");
-      assert.equal(caseData.safetyTriggered, false);
-      assert.equal(caseData.evidence.length, 0);
-      assert.equal(caseData.humanReviewRequested, false);
-    });
+       assert.ok(caseData.id.startsWith("JRN-"));
+       assert.equal(caseData.state, "intake");
+       assert.equal(caseData.vehicleInfo, "2018 Honda Civic");
+       assert.equal(caseData.description, "Car makes a grinding noise when braking at low speeds");
+       assert.equal(caseData.timing, "Braking");
+       assert.equal(caseData.urgency, "Safe to Drive");
+       assert.equal(caseData.safetyTriggered, false);
+       assert.equal(caseData.evidence.length, 0);
+       assert.equal(caseData.humanReviewRequested, false);
+     });
 
     it("escalates to escalation_required when safety trigger detected", () => {
       const caseData = createJourneyCase({
@@ -156,30 +156,45 @@ describe("journey-state-machine", () => {
     });
   });
 
-  describe("advanceJourney", () => {
-    it("advances from triage to evidence_requested", () => {
-      const caseData = createJourneyCase({
-        vehicleInfo: "2018 Honda Civic",
-        description: "Car makes a grinding noise when braking at low speeds",
-      });
+describe("advanceJourney", () => {
+     it("advances from intake to triage via submit_intake", () => {
+       const caseData = createJourneyCase({
+         vehicleInfo: "2018 Honda Civic",
+         description: "Car makes a grinding noise when braking at low speeds",
+       });
 
-      const updated = advanceJourney(caseData, "request_evidence");
-      assert.equal(updated.state, "evidence_requested");
-      assert.ok(updated.updatedAt >= caseData.updatedAt);
-    });
+       assert.equal(caseData.state, "intake");
+       const updated = advanceJourney(caseData, "submit_intake");
+       assert.equal(updated.state, "triage");
+     });
 
-    it("advances through full happy path: triage -> evidence_requested -> evidence_received -> evaluating -> diagnosis_ready -> resolved", () => {
-      let caseData = createJourneyCase({
-        vehicleInfo: "2020 Toyota RAV4",
-        description: "Check engine light is on, car runs a little rough",
-        timing: "Constantly",
-        urgency: "Safe to Drive",
-      });
+     it("advances from triage to evidence_requested", () => {
+       let caseData = createJourneyCase({
+         vehicleInfo: "2018 Honda Civic",
+         description: "Car makes a grinding noise when braking at low speeds",
+       });
+       caseData = advanceJourney(caseData, "submit_intake");
+       assert.equal(caseData.state, "triage");
 
-      assert.equal(caseData.state, "triage");
+       const updated = advanceJourney(caseData, "request_evidence");
+       assert.equal(updated.state, "evidence_requested");
+       assert.ok(updated.updatedAt >= caseData.updatedAt);
+     });
 
-      caseData = advanceJourney(caseData, "request_evidence");
-      assert.equal(caseData.state, "evidence_requested");
+     it("advances through full happy path: intake -> triage -> evidence_requested -> evidence_received -> evaluating -> diagnosis_ready -> resolved", () => {
+       let caseData = createJourneyCase({
+         vehicleInfo: "2020 Toyota RAV4",
+         description: "Check engine light is on, car runs a little rough",
+         timing: "Constantly",
+         urgency: "Safe to Drive",
+       });
+
+       assert.equal(caseData.state, "intake");
+       caseData = advanceJourney(caseData, "submit_intake");
+       assert.equal(caseData.state, "triage");
+
+       caseData = advanceJourney(caseData, "request_evidence");
+       assert.equal(caseData.state, "evidence_requested");
 
       caseData = advanceJourney(caseData, "submit_evidence", {
         evidence: [{ kind: "photo", description: "Check engine light photo" }],
@@ -206,70 +221,72 @@ describe("journey-state-machine", () => {
         description: "Car makes a grinding noise when braking at low speeds",
       });
 
-      assert.equal(caseData.state, "triage");
-      caseData = advanceJourney(caseData, "submit_evidence", {
-        evidence: [{ kind: "photo", description: "Brake rotor photo" }],
-      });
+assert.equal(caseData.state, "intake");
+       caseData = advanceJourney(caseData, "submit_intake");
+       assert.equal(caseData.state, "triage");
+       caseData = advanceJourney(caseData, "submit_evidence", {
+         evidence: [{ kind: "photo", description: "Brake rotor photo" }],
+       });
 
       assert.equal(caseData.state, "evidence_received");
       assert.equal(caseData.evidence.length, 1);
     });
 
-    it("resolves stop-driving directly from evidence_requested", () => {
-      let caseData = createJourneyCase({
-        vehicleInfo: "2018 Honda Civic",
-        description: "Car makes a grinding noise when braking at low speeds",
-      });
+it("resolves stop-driving directly from evidence_requested", () => {
+       let caseData = createJourneyCase({
+         vehicleInfo: "2018 Honda Civic",
+         description: "Car makes a grinding noise when braking at low speeds",
+       });
+       caseData = advanceJourney(caseData, "submit_intake");
+       caseData = advanceJourney(caseData, "request_evidence");
+       assert.equal(caseData.state, "evidence_requested");
+       caseData = advanceJourney(caseData, "resolve_stop_driving");
+       assert.equal(caseData.state, "resolved");
+       assert.equal(caseData.outcome, "stop_driving");
+     });
 
-      caseData = advanceJourney(caseData, "request_evidence");
-      assert.equal(caseData.state, "evidence_requested");
-      caseData = advanceJourney(caseData, "resolve_stop_driving");
+it("request_human_review transitions from escalation_required to human_review", () => {
+       let caseData = createJourneyCase({
+         vehicleInfo: "2018 Honda Civic",
+         description: "Car makes a grinding noise when braking at low speeds",
+       });
+       caseData = advanceJourney(caseData, "submit_intake");
 
-      assert.equal(caseData.state, "resolved");
-      assert.equal(caseData.outcome, "stop_driving");
-    });
+       caseData = advanceJourney(caseData, "escalate", {
+         escalationReason: "Reviewer should double-check",
+       });
+       assert.equal(caseData.state, "escalation_required");
+       caseData = advanceJourney(caseData, "request_human_review");
 
-    it("request_human_review transitions from escalation_required to human_review", () => {
-      let caseData = createJourneyCase({
-        vehicleInfo: "2018 Honda Civic",
-        description: "Car makes a grinding noise when braking at low speeds",
-      });
+       assert.equal(caseData.state, "human_review");
+     });
 
-      caseData = advanceJourney(caseData, "escalate", {
-        escalationReason: "Reviewer should double-check",
-      });
-      assert.equal(caseData.state, "escalation_required");
-      caseData = advanceJourney(caseData, "request_human_review");
+it("acknowledge_triage transitions from intake to evidence_requested", () => {
+       let caseData = createJourneyCase({
+         vehicleInfo: "2018 Honda Civic",
+         description: "Car makes a grinding noise when braking at low speeds",
+       });
+       caseData = advanceJourney(caseData, "submit_intake");
+       assert.equal(caseData.state, "triage");
+       caseData = advanceJourney(caseData, "acknowledge_triage");
+       assert.equal(caseData.state, "evidence_requested");
+       assert.ok(caseData.nextAction === "submit_evidence" || caseData.nextAction === "finish_evidence");
+       assert.ok(caseData.nextActionPrompt.length > 0);
+     });
 
-      assert.equal(caseData.state, "human_review");
-    });
-
-    it("acknowledge_triage transitions from triage to evidence_requested", () => {
-      let caseData = createJourneyCase({
-        vehicleInfo: "2018 Honda Civic",
-        description: "Car makes a grinding noise when braking at low speeds",
-      });
-
-      assert.equal(caseData.state, "triage");
-      caseData = advanceJourney(caseData, "acknowledge_triage");
-      assert.equal(caseData.state, "evidence_requested");
-      assert.ok(caseData.nextAction === "submit_evidence" || caseData.nextAction === "finish_evidence");
-      assert.ok(caseData.nextActionPrompt.length > 0);
-    });
-
-    it("finish_evidence transitions from evidence_requested to evidence_received", () => {
-      let caseData = createJourneyCase({
-        vehicleInfo: "2018 Honda Civic",
-        description: "Car makes a grinding noise when braking at low speeds",
-      });
-
-      caseData = advanceJourney(caseData, "request_evidence");
-      assert.equal(caseData.state, "evidence_requested");
-      caseData = advanceJourney(caseData, "finish_evidence");
-      assert.equal(caseData.state, "evidence_received");
-      assert.equal(caseData.nextAction, "evaluate");
-      assert.ok(caseData.nextActionPrompt.length > 0);
-    });
+it("finish_evidence transitions from evidence_requested to evidence_received", () => {
+       let caseData = createJourneyCase({
+         vehicleInfo: "2018 Honda Civic",
+         description: "Car makes a grinding noise when braking at low speeds",
+       });
+       caseData = advanceJourney(caseData, "submit_intake");
+       caseData = advanceJourney(caseData, "request_evidence");
+       assert.equal(caseData.state, "evidence_requested");
+       caseData = advanceJourney(caseData, "finish_evidence");
+       assert.equal(caseData.state, "evidence_received");
+       assert.equal(caseData.nextAction, "evaluate");
+       assert.ok(caseData.nextActionPrompt.length > 0);
+     });
 
     it("rejects invalid transitions with an error", () => {
       const caseData = createJourneyCase({
@@ -283,68 +300,71 @@ describe("journey-state-machine", () => {
       );
     });
 
-    it("adds evidence on submit_evidence transition", () => {
-      let caseData = createJourneyCase({
-        vehicleInfo: "2018 Honda Civic",
-        description: "Car makes a grinding noise when braking at low speeds",
-      });
+it("adds evidence on submit_evidence transition", () => {
+       let caseData = createJourneyCase({
+         vehicleInfo: "2018 Honda Civic",
+         description: "Car makes a grinding noise when braking at low speeds",
+       });
+       caseData = advanceJourney(caseData, "submit_intake");
+       caseData = advanceJourney(caseData, "request_evidence");
+       caseData = advanceJourney(caseData, "submit_evidence", {
+         evidence: [
+           { kind: "photo", description: "Brake rotor photo" },
+           { kind: "text", description: "Grinding noise happens at low speed only" },
+         ],
+       });
 
-      caseData = advanceJourney(caseData, "request_evidence");
-      caseData = advanceJourney(caseData, "submit_evidence", {
-        evidence: [
-          { kind: "photo", description: "Brake rotor photo" },
-          { kind: "text", description: "Grinding noise happens at low speed only" },
-        ],
-      });
+       assert.equal(caseData.evidence.length, 2);
+       assert.equal(caseData.evidence[0].kind, "photo");
+       assert.equal(caseData.evidence[1].kind, "text");
+     });
 
-      assert.equal(caseData.evidence.length, 2);
-      assert.equal(caseData.evidence[0].kind, "photo");
-      assert.equal(caseData.evidence[1].kind, "text");
-    });
+it("escalates when requested", () => {
+       let caseData = createJourneyCase({
+         vehicleInfo: "2018 Honda Civic",
+         description: "Car makes a grinding noise when braking at low speeds",
+       });
+       caseData = advanceJourney(caseData, "submit_intake");
 
-    it("escalates when requested", () => {
-      let caseData = createJourneyCase({
-        vehicleInfo: "2018 Honda Civic",
-        description: "Car makes a grinding noise when braking at low speeds",
-      });
+       caseData = advanceJourney(caseData, "escalate", {
+         escalationReason: "Confidence too low for automated path",
+       });
 
-      caseData = advanceJourney(caseData, "escalate", {
-        escalationReason: "Confidence too low for automated path",
-      });
+       assert.equal(caseData.state, "escalation_required");
+       assert.equal(caseData.escalationReason, "Confidence too low for automated path");
+       assert.equal(caseData.humanReviewRequested, true);
+     });
 
-      assert.equal(caseData.state, "escalation_required");
-      assert.equal(caseData.escalationReason, "Confidence too low for automated path");
-      assert.equal(caseData.humanReviewRequested, true);
-    });
+it("resolves with resolve_stop_driving", () => {
+       let caseData = createJourneyCase({
+         vehicleInfo: "2020 Ford F-150",
+         description: "Brakes failed completely, cannot stop the truck",
+         urgency: "Not Safe to Drive",
+       });
+       assert.equal(caseData.state, "escalation_required");
 
-    it("resolves with resolve_stop_driving", () => {
-      let caseData = createJourneyCase({
-        vehicleInfo: "2020 Ford F-150",
-        description: "Brakes failed completely, cannot stop the truck",
-        urgency: "Not Safe to Drive",
-      });
+       caseData = advanceJourney(caseData, "resolve_stop_driving");
+       assert.equal(caseData.state, "resolved");
+       assert.equal(caseData.outcome, "stop_driving");
+     });
 
-      caseData = advanceJourney(caseData, "resolve_stop_driving");
-      assert.equal(caseData.state, "resolved");
-      assert.equal(caseData.outcome, "stop_driving");
-    });
+     it("request_human_review transitions to human_review state", () => {
+       let caseData = createJourneyCase({
+         vehicleInfo: "2018 Honda Civic",
+         description: "Car makes a grinding noise when braking at low speeds",
+       });
+       caseData = advanceJourney(caseData, "submit_intake");
 
-    it("request_human_review transitions to human_review state", () => {
-      let caseData = createJourneyCase({
-        vehicleInfo: "2018 Honda Civic",
-        description: "Car makes a grinding noise when braking at low speeds",
-      });
+       caseData = advanceJourney(caseData, "request_evidence");
+       caseData = advanceJourney(caseData, "submit_evidence", {
+         evidence: [{ kind: "photo", description: "Photo" }],
+       });
+       caseData = advanceJourney(caseData, "evaluate");
+       caseData = advanceJourney(caseData, "ready_diagnosis");
+       caseData = advanceJourney(caseData, "request_human_review");
 
-      caseData = advanceJourney(caseData, "request_evidence");
-      caseData = advanceJourney(caseData, "submit_evidence", {
-        evidence: [{ kind: "photo", description: "Photo" }],
-      });
-      caseData = advanceJourney(caseData, "evaluate");
-      caseData = advanceJourney(caseData, "ready_diagnosis");
-      caseData = advanceJourney(caseData, "request_human_review");
-
-      assert.equal(caseData.state, "human_review");
-    });
+       assert.equal(caseData.state, "human_review");
+     });
   });
 
   describe("evaluateSafetyFlags", () => {

@@ -102,6 +102,18 @@ export function GuidedJourney() {
       if (!res.ok) throw new Error(data.error || "Could not start journey.");
       setCaseData(data);
       window.localStorage.setItem(STORAGE_KEY, data.id);
+      if (data.state === "intake") {
+        try {
+          const adv = await fetch(`/api/journey/${data.id}/advance`, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ transition: "submit_intake" }),
+          });
+          const advData = await adv.json();
+          if (adv.ok) setCaseData(advData);
+        } catch { /* will remain in intake; user can retry */ }
+      }
       await fetchMyCases();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Start failed.");
@@ -312,8 +324,8 @@ export function GuidedJourney() {
             {caseData.state === "evidence_requested" && <button className="primary-btn" disabled={loading} onClick={() => handleAdvance("finish_evidence")}>I am done adding evidence</button>}
             {caseData.state === "evidence_received" && <button className="primary-btn" disabled={loading} onClick={() => handleAdvance("evaluate")}>Review my evidence</button>}
             {caseData.state === "evaluating" && <button className="primary-btn" disabled={loading} onClick={() => handleAdvance("ready_diagnosis")}>Show my results</button>}
+            {caseData.state === "intake" && <button className="primary-btn" disabled={loading} onClick={() => handleAdvance("submit_intake")}>Continue to next step</button>}
             {caseData.state === "diagnosis_ready" && caseData.outcome !== "stop_driving" && <button className="primary-btn" disabled={loading} onClick={() => handleAdvance("resolve")}>Finish — show FIX / SELL / MONITOR plan</button>}
-            {caseData.state === "diagnation_ready" as any && null}
             {caseData.state === "diagnosis_ready" && caseData.outcome === "stop_driving" && <button className="primary-btn" disabled={loading} onClick={() => handleAdvance("resolve_stop_driving")}>Finish — STOP DRIVING plan</button>}
             {caseData.state === "diagnosis_ready" && <button className="secondary-btn" disabled={loading} onClick={() => handleAdvance("request_human_review")}>Ask for human review instead</button>}
             {caseData.state === "escalation_required" && <button className="primary-btn" disabled={loading} onClick={() => handleAdvance("request_human_review")}>Flag for human review (safety valve)</button>}
@@ -322,7 +334,7 @@ export function GuidedJourney() {
             {caseData.state === "resolved" && <span className="helper-text">Resolved. Outcome: {outcomeCopy(caseData.outcome)}</span>}
           </div>
 
-          {(caseData.state === "triage" || caseData.state === "evidence_requested") && (
+          {(caseData.state === "intake" || caseData.state === "triage" || caseData.state === "evidence_requested") && (
             <form onSubmit={handleAddEvidence} className="top-gap">
               <div className="field-grid">
                 <div className="field"><label>Evidence type</label><select value={evidenceKind} onChange={(e) => setEvidenceKind(e.target.value)}><option value="text">Text detail</option><option value="photo">Photo (describe)</option><option value="audio">Audio (describe)</option><option value="video">Video (describe)</option><option value="vibration">Vibration (describe)</option></select></div>

@@ -389,7 +389,7 @@ export function createJourneyCase(input: {
 
   const partialCase: JourneyCase = {
     id: generateJourneyCaseId(),
-    state: "triage",
+    state: "intake",
     createdAt: now,
     updatedAt: now,
     vehicleInfo: input.vehicleInfo,
