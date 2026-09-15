@@ -195,6 +195,7 @@ export function calculateConfidence(caseData: JourneyCase): {
   score += Math.min(textCount * 5, 15);
 
   if (caseData.evidence.some((e) => e.kind === "audio")) score += 5;
+  if (caseData.evidence.some((e) => e.kind === "video")) score += 5;
   if (caseData.evidence.some((e) => e.kind === "vibration")) score += 5;
 
   score = Math.min(score, 100);

@@ -21,8 +21,10 @@ import { drivableSeedSymptomCategories, drivableSeedEvidenceItems } from "../sha
 import {
   ALLOWED_AUDIO_MEDIA_TYPES,
   ALLOWED_PHOTO_MEDIA_TYPES,
+  ALLOWED_VIDEO_MEDIA_TYPES,
   AUDIO_LIMITS,
   PHOTO_LIMITS,
+  VIDEO_LIMITS,
   createEvidenceStoreFromEnvironment,
 } from "./evidence-storage";
 import { requireReviewer } from "./reviewer-auth";
@@ -81,6 +83,37 @@ const journeyAudioUploadMiddleware = (req: any, res: any, next: any) => {
       error: isLimitError
         ? `Audio upload exceeds the limit of ${AUDIO_LIMITS.maxCount} files and 12 MB per file.`
         : error instanceof Error ? error.message : "Audio upload was rejected.",
+    });
+  });
+};
+
+const journeyVideoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: VIDEO_LIMITS.maxBytesEach, files: VIDEO_LIMITS.maxCount },
+  fileFilter: (_req, file, cb) => {
+    if (!ALLOWED_VIDEO_MEDIA_TYPES.has(file.mimetype)) {
+      return cb(new Error(`Unsupported video type: ${file.mimetype || "unknown"}`));
+    }
+    cb(null, true);
+  },
+});
+
+const journeyVideoUploadMiddleware = (req: any, res: any, next: any) => {
+  journeyVideoUpload.array("video", VIDEO_LIMITS.maxCount)(req, res, (error: unknown) => {
+    if (!error) return next();
+    const multerError = error instanceof multer.MulterError ? error : null;
+    if (multerError?.code === "LIMIT_UNEXPECTED_FILE") {
+      return res.status(415).json({
+        ok: false,
+        error: `Journey evidence accepts only video under the "video" field.`,
+      });
+    }
+    const isLimitError = Boolean(multerError);
+    return res.status(isLimitError ? 413 : 415).json({
+      ok: false,
+      error: isLimitError
+        ? `Video upload exceeds the limit of ${VIDEO_LIMITS.maxCount} files and 50 MB per file.`
+        : error instanceof Error ? error.message : "Video upload was rejected.",
     });
   });
 };
@@ -612,7 +645,102 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
     }
   );
 
-  // Retrieve persisted photo/audio evidence (belongs to case, customer-scoped)
+  // Video evidence upload — reliable file persistence belonging to vehicle/case, reusable for FIX/SELL
+  // Truthful boundary: stored durably, uploaded_not_analyzed (no automated video diagnosis claimed).
+  app.post(
+    "/api/journey/:caseId/evidence/video",
+    requireCustomer,
+    journeyLimit,
+    journeyVideoUploadMiddleware,
+    async (req: any, res) => {
+      try {
+        const caseData = getJourneyCase(req.params.caseId);
+        if (!caseData) {
+          res.status(404).json({ ok: false, error: "Journey case not found." });
+          return;
+        }
+        if (!assertOwner(caseData, req.drivableCustomer!.id)) {
+          res.status(404).json({ ok: false, error: "Journey case not found." });
+          return;
+        }
+        if (caseData.state !== "evidence_requested" && caseData.state !== "triage") {
+          res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested or during triage." });
+          return;
+        }
+
+        const files: Express.Multer.File[] = req.files || [];
+        if (!files.length) {
+          res.status(400).json({ ok: false, error: "At least one video clip is required under the 'video' field." });
+          return;
+        }
+
+        let attachments: any[] = [];
+        try {
+          attachments = await journeyEvidenceStore.saveVideo(caseData.id, files);
+        } catch (storeErr: any) {
+          const msg = storeErr instanceof Error ? storeErr.message : "Video could not be saved.";
+          if (msg.includes("Too many") || msg.includes("too large") || msg.includes("limit")) {
+            res.status(413).json({ ok: false, error: msg });
+            return;
+          }
+          if (msg.includes("Unsupported") || msg.includes("not a supported") || msg.includes("MIME")) {
+            res.status(415).json({ ok: false, error: msg });
+            return;
+          }
+          throw storeErr;
+        }
+
+        const evidenceRecords: EvidenceRecord[] = attachments.map((att) => ({
+          id: `ev-${att.id.slice(0, 8)}`,
+          kind: "video" as const,
+          addedAt: att.createdAt,
+          description: att.originalName,
+          originalName: att.originalName,
+          mimeType: att.mimeType,
+          byteSize: att.byteSize,
+          storageKey: att.storageKey,
+          attachmentId: att.id,
+          status: "persisted" as const,
+        }));
+
+        let evidenceItems: any[] = [];
+        try {
+          evidenceItems = await db.select().from(drivableSeedEvidenceItems);
+        } catch {
+          // Seed tables may not exist yet; fall back to empty
+        }
+
+        const updated = advanceJourney(caseData, "submit_evidence", {
+          evidence: evidenceRecords,
+          evidenceItems,
+        });
+
+        setJourneyCase(updated);
+
+        logEvent("journey.video_evidence_added", {
+          caseId: updated.id,
+          persistedCount: attachments.length,
+          confidenceScore: updated.confidenceScore,
+          evidenceCount: updated.evidence.length,
+        });
+
+        res.json({
+          ...safeJourneyResponse(updated),
+          persistedAttachments: attachments,
+          evidencePersistence: {
+            durability: journeyEvidenceStore.durability,
+            persisted: true,
+            analysisStatus: "uploaded_not_analyzed",
+          },
+        });
+      } catch (error) {
+        logEventError("journey.video_evidence_failed", error, { caseId: req.params.caseId });
+        journeyError(res, error);
+      }
+    }
+  );
+
+  // Retrieve persisted photo/audio/video evidence (belongs to case, customer-scoped)
   app.get("/api/journey/:caseId/evidence/:attachmentId", requireCustomer, async (req, res) => {
     try {
       const caseData = getJourneyCase(req.params.caseId);

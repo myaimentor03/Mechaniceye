@@ -17,6 +17,10 @@ export const AUDIO_LIMITS = { maxCount: 4, maxBytesEach: 12 * 1024 * 1024 } as c
 export const ALLOWED_AUDIO_MEDIA_TYPES = new Set([
   "audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp4", "audio/x-m4a", "audio/ogg", "audio/webm",
 ]);
+export const VIDEO_LIMITS = { maxCount: 2, maxBytesEach: 50 * 1024 * 1024 } as const;
+export const ALLOWED_VIDEO_MEDIA_TYPES = new Set([
+  "video/mp4", "video/quicktime", "video/webm", "video/x-msvideo",
+]);
 
 type VerifiedImage = { mimeType: string; extension: string };
 
@@ -63,10 +67,34 @@ export function verifiedAudioType(buffer: Buffer): VerifiedAudio | null {
   return null;
 }
 
+export type VerifiedVideo = { mimeType: string; extension: string };
+
+export function verifiedVideoType(buffer: Buffer): VerifiedVideo | null {
+  // EBML — webm / mkv
+  if (buffer.length >= 4 && buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3) {
+    return { mimeType: "video/webm", extension: ".webm" };
+  }
+  // ftyp box — mp4 / quicktime / hevc variants. Prefer video/mp4 for ftyp, allow quicktime compatible check upstream.
+  if (buffer.length >= 12 && buffer.toString("ascii", 4, 8) === "ftyp") {
+    const brand = buffer.toString("ascii", 8, 12);
+    if (["qt  ", "moov"].includes(brand)) {
+      return { mimeType: "video/quicktime", extension: ".mov" };
+    }
+    // Common mp4 brands: isom, iso2, avc1, mp41, mp42, dash ...
+    return { mimeType: "video/mp4", extension: ".mp4" };
+  }
+  // AVI — RIFF + AVI
+  if (buffer.length >= 12 && buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "AVI ") {
+    return { mimeType: "video/x-msvideo", extension: ".avi" };
+  }
+  return null;
+}
+
 export interface EvidenceStore {
   readonly durability: "runtime_local" | "private_object_storage";
   savePhotos(caseId: string, files: Express.Multer.File[]): Promise<EvidenceAttachment[]>;
   saveAudio(caseId: string, files: Express.Multer.File[]): Promise<EvidenceAttachment[]>;
+  saveVideo(caseId: string, files: Express.Multer.File[]): Promise<EvidenceAttachment[]>;
   deleteCase(caseId: string): Promise<void>;
   getAttachment(caseId: string, attachmentId: string): Promise<{ attachment: EvidenceAttachment; bytes: Buffer } | null>;
 }
@@ -176,6 +204,70 @@ export class RuntimeFileEvidenceStore implements EvidenceStore {
 
       // Merge with any existing manifest (e.g. photo evidence) so audio belongs
       // to the same vehicle/case without discarding earlier evidence.
+      let existing: EvidenceAttachment[] = [];
+      try {
+        existing = JSON.parse(await fs.readFile(path.join(caseRoot, "attachments.json"), "utf8")) as EvidenceAttachment[];
+        if (!Array.isArray(existing)) existing = [];
+      } catch {
+        existing = [];
+      }
+      const merged = [...existing, ...attachments];
+      await fs.writeFile(path.join(caseRoot, "attachments.json"), JSON.stringify(merged, null, 2), "utf8");
+      return attachments;
+    } catch (error) {
+      await Promise.all(writtenPaths.map((filePath) => fs.rm(filePath, { force: true })));
+      throw error;
+    }
+  }
+
+  async saveVideo(caseId: string, files: Express.Multer.File[]) {
+    if (files.length > VIDEO_LIMITS.maxCount) throw new Error("Too many videos");
+    if (files.length === 0) throw new Error("Empty video rejected");
+    const caseRoot = this.caseRoot(caseId);
+    await fs.mkdir(caseRoot, { recursive: true });
+    const attachments: EvidenceAttachment[] = [];
+    const writtenPaths: string[] = [];
+
+    const videoBytes = async (file: Express.Multer.File): Promise<Buffer> => {
+      if (file.buffer?.length) return file.buffer;
+      if (file.path) return fs.readFile(file.path);
+      throw new Error("Video has no readable content");
+    };
+
+    try {
+      for (const file of files) {
+        const buffer = await videoBytes(file);
+        if (!buffer?.length || file.size <= 0) throw new Error("Empty video rejected");
+        if (file.size > VIDEO_LIMITS.maxBytesEach) throw new Error("Video is too large");
+        const verified = verifiedVideoType(buffer);
+        if (!verified) throw new Error("Video content is not a supported video type");
+        const mp4Compatible = verified.mimeType === "video/mp4" && ["video/mp4"].includes(file.mimetype);
+        const quicktimeCompatible = verified.mimeType === "video/quicktime" && ["video/quicktime", "video/mp4"].includes(file.mimetype);
+        const webmCompatible = verified.mimeType === "video/webm" && ["video/webm"].includes(file.mimetype);
+        const aviCompatible = verified.mimeType === "video/x-msvideo" && ["video/x-msvideo"].includes(file.mimetype);
+        if (file.mimetype !== verified.mimeType && !mp4Compatible && !quicktimeCompatible && !webmCompatible && !aviCompatible) {
+          // Allow mp4 container reported as quicktime and vice versa loosely, but require verified type present
+          if (!ALLOWED_VIDEO_MEDIA_TYPES.has(file.mimetype)) {
+            throw new Error("Video MIME type does not match its content");
+          }
+          // Still accept if the content is a valid video but mimetype is in allowed set (cover generic clients)
+        }
+
+        const id = randomUUID();
+        const storedName = `${id}${verified.extension}`;
+        const storageKey = path.posix.join("evidence", safeCaseSegment(caseId), storedName);
+        const target = path.join(caseRoot, storedName);
+        await fs.writeFile(target, buffer, { flag: "wx" });
+        writtenPaths.push(target);
+        attachments.push({
+          id, caseId, kind: "video", originalName: path.basename(file.originalname),
+          mimeType: verified.mimeType, byteSize: file.size, status: "persisted",
+          serverAttachmentId: id, storageKey, createdAt: new Date().toISOString(),
+          provenance: "uploaded_media", analysisStatus: "uploaded_not_analyzed",
+        });
+      }
+
+      // Merge with existing manifest so video coexists with photo/audio evidence on the case.
       let existing: EvidenceAttachment[] = [];
       try {
         existing = JSON.parse(await fs.readFile(path.join(caseRoot, "attachments.json"), "utf8")) as EvidenceAttachment[];
@@ -343,6 +435,67 @@ export class S3PrivateEvidenceStore implements EvidenceStore {
         });
       }
       // Merge with existing manifest so audio coexists with photo evidence on the case.
+      let existing: EvidenceAttachment[] = [];
+      try {
+        const manifestObject = await this.client.send(new GetObjectCommand({ Bucket: this.config.bucket, Key: manifestKey(safeCaseId) }));
+        existing = JSON.parse((await bodyToBuffer(manifestObject.Body)).toString("utf8"));
+        if (!Array.isArray(existing)) existing = [];
+      } catch (error: any) {
+        if (error?.name !== "NoSuchKey" && error?.$metadata?.httpStatusCode !== 404) throw error;
+      }
+      const merged = [...existing, ...attachments];
+      const key = manifestKey(safeCaseId);
+      await this.client.send(new PutObjectCommand({
+        Bucket: this.config.bucket,
+        Key: key,
+        Body: Buffer.from(JSON.stringify(merged)),
+        ContentType: "application/json",
+        CacheControl: "no-store",
+        Metadata: evidenceObjectMetadata(safeCaseId, "application/json"),
+      }));
+      writtenKeys.push(key);
+      return attachments;
+    } catch (error) {
+      await Promise.allSettled(writtenKeys.map((Key) => this.client.send(new DeleteObjectCommand({ Bucket: this.config.bucket, Key }))));
+      throw error;
+    }
+  }
+
+  async saveVideo(caseId: string, files: Express.Multer.File[]) {
+    if (files.length > VIDEO_LIMITS.maxCount) throw new Error("Too many videos");
+    if (files.length === 0) throw new Error("Empty video rejected");
+    const safeCaseId = safeCaseSegment(caseId);
+    const attachments: EvidenceAttachment[] = [];
+    const writtenKeys: string[] = [];
+    try {
+      for (const file of files) {
+        const buffer = file.buffer?.length ? file.buffer : await fs.readFile(file.path);
+        if (!buffer?.length || file.size <= 0) throw new Error("Empty video rejected");
+        if (file.size > VIDEO_LIMITS.maxBytesEach) throw new Error("Video is too large");
+        const verified = verifiedVideoType(buffer);
+        if (!verified) throw new Error("Video content is not a supported video type");
+        if (!ALLOWED_VIDEO_MEDIA_TYPES.has(file.mimetype) && file.mimetype !== verified.mimeType) {
+          throw new Error("Video MIME type does not match its content");
+        }
+        const id = randomUUID();
+        const storageKey = path.posix.join("evidence", safeCaseId, `${id}${verified.extension}`);
+        await this.client.send(new PutObjectCommand({
+          Bucket: this.config.bucket,
+          Key: storageKey,
+          Body: buffer,
+          ContentType: verified.mimeType,
+          CacheControl: "no-store",
+          Metadata: evidenceObjectMetadata(safeCaseId, verified.mimeType),
+        }));
+        writtenKeys.push(storageKey);
+        attachments.push({
+          id, caseId: safeCaseId, kind: "video", originalName: path.basename(file.originalname),
+          mimeType: verified.mimeType, byteSize: file.size, status: "persisted",
+          serverAttachmentId: id, storageKey, createdAt: new Date().toISOString(),
+          provenance: "uploaded_media", analysisStatus: "uploaded_not_analyzed",
+        });
+      }
+      // Merge with existing manifest so video coexists with photo/audio evidence on the case.
       let existing: EvidenceAttachment[] = [];
       try {
         const manifestObject = await this.client.send(new GetObjectCommand({ Bucket: this.config.bucket, Key: manifestKey(safeCaseId) }));

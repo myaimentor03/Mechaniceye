@@ -74,6 +74,7 @@ export function GuidedJourney() {
   const [evidenceDesc, setEvidenceDesc] = useState("");
   const [photoFiles, setPhotoFiles] = useState<FileList | null>(null);
   const [audioFiles, setAudioFiles] = useState<FileList | null>(null);
+  const [videoFiles, setVideoFiles] = useState<FileList | null>(null);
 
   // intake form state
   const [vehicleInfo, setVehicleInfo] = useState("");
@@ -266,6 +267,38 @@ export function GuidedJourney() {
       await fetchMyCases();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Audio upload failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVideoUpload(e: React.FormEvent) {
+    e.preventDefault();
+    if (!caseData || !videoFiles || videoFiles.length === 0) {
+      setError("Select at least one video clip (mp4/mov/webm/avi, max 50 MB each, up to 2).");
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      const form = new FormData();
+      for (let i = 0; i < videoFiles.length; i++) {
+        form.append("video", videoFiles[i]);
+      }
+      const res = await fetch(`/api/journey/${caseData.id}/evidence/video`, {
+        method: "POST",
+        credentials: "include",
+        body: form,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Video evidence not accepted.");
+      setCaseData(data);
+      setVideoFiles(null);
+      const el = document.getElementById("journey-video-input") as HTMLInputElement | null;
+      if (el) el.value = "";
+      await fetchMyCases();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Video upload failed.");
     } finally {
       setLoading(false);
     }
@@ -505,6 +538,13 @@ export function GuidedJourney() {
                   <div className="field"><span className="helper-text">Validated: mp3/wav/m4a/ogg/webm, max 12 MB each, up to 4. Stored durably with your vehicle case — reusable for Mechanic Match / ClearSale. Stored, not auto-diagnosed.</span></div>
                 </div>
                 <div className="step-actions"><button className="secondary-btn" type="submit" disabled={loading || !audioFiles || audioFiles.length === 0}>Upload audio evidence</button><span className="helper-text">{audioFiles ? `${audioFiles.length} selected` : "No file selected"}</span></div>
+              </form>
+              <form onSubmit={handleVideoUpload} className="top-gap" style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "12px", marginTop: "12px" }}>
+                <div className="field-grid">
+                  <div className="field"><label>Video evidence (reliable capture)</label><input id="journey-video-input" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-msvideo" multiple onChange={(e) => setVideoFiles(e.target.files)} /></div>
+                  <div className="field"><span className="helper-text">Validated: mp4/mov/webm/avi, max 50 MB each, up to 2. Stored durably with your vehicle case — reusable for Mechanic Match / ClearSale. Stored, not auto-diagnosed (truthful boundary).</span></div>
+                </div>
+                <div className="step-actions"><button className="secondary-btn" type="submit" disabled={loading || !videoFiles || videoFiles.length === 0}>Upload video evidence</button><span className="helper-text">{videoFiles ? `${videoFiles.length} selected` : "No file selected"}</span></div>
               </form>
               {caseData.evidence && caseData.evidence.length > 0 && (
                 <div className="step-card" style={{ marginTop: "12px", background: "rgba(255,255,255,0.04)" }}>
