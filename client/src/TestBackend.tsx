@@ -26,6 +26,7 @@ import { RoadsideGuidancePreview } from "./components/RoadsideGuidancePreview";
 import { RoadsideSeverityGuide } from "./components/RoadsideSeverityGuide";
 import { SendSafetyGatePreview } from "./components/SendSafetyGatePreview";
 import { WhatHappensNext } from "./components/WhatHappensNext";
+import { GuidedJourney } from "./components/GuidedJourney";
 import { DrivablePublicHeader } from "./components/PublicHeaderNavigation";
 import { YEARS, VEHICLE_DATA, FALLBACK_MAKES, FALLBACK_MODELS, FALLBACK_ENGINES, TRANSMISSION_OPTIONS, DRIVETRAIN_OPTIONS } from "./data/vehicleData";
 import {
@@ -1099,6 +1100,10 @@ export default function TestBackend() {
 
   if (routePath.startsWith("/mechanic-match")) {
     return <MechanicMatchFlow />;
+  }
+
+  if (routePath === "/journey" || routePath === "/guided-journey") {
+    return <GuidedJourney />;
   }
 
 type PublicPage = "home" | "intake" | "sell" | "help" | "disclaimer" | "terms" | "privacy";

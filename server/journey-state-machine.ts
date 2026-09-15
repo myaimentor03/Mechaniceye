@@ -48,6 +48,7 @@ export type JourneyCase = {
   timing?: string;
   urgency?: string;
   canDrive?: string;
+  customerId?: string;
   customerEmail?: string;
   evidence: EvidenceRecord[];
   safetyFlags: SafetyFlag[];
@@ -328,6 +329,7 @@ export function createJourneyCase(input: {
   timing?: string;
   urgency?: string;
   canDrive?: string;
+  customerId?: string;
   customerEmail?: string;
 }): JourneyCase {
   const now = new Date().toISOString();
@@ -344,6 +346,7 @@ export function createJourneyCase(input: {
     timing: input.timing,
     urgency: input.urgency,
     canDrive: input.canDrive,
+    customerId: input.customerId,
     customerEmail: input.customerEmail,
     evidence: [],
     safetyFlags,
@@ -375,7 +378,7 @@ export function advanceJourney(
   caseData: JourneyCase,
   transition: JourneyTransition,
   additionalData?: {
-    evidence?: Evidence[];
+    evidence?: (Evidence | EvidenceRecord)[];
     outcome?: OwnerOutcome;
     resolutionNote?: string;
     escalationReason?: string;
@@ -390,7 +393,13 @@ export function advanceJourney(
   updated.updatedAt = now;
 
   if (transition === "submit_evidence" && additionalData?.evidence) {
-    updated.evidence = [...updated.evidence, ...additionalData.evidence];
+    const normalized: EvidenceRecord[] = additionalData.evidence.map((e: any) => ({
+      id: e.id || `ev-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      kind: e.kind,
+      addedAt: e.addedAt || new Date().toISOString(),
+      description: e.description,
+    }));
+    updated.evidence = [...updated.evidence, ...normalized];
   }
 
   updated.confidenceScore = calculateConfidence(updated).score;

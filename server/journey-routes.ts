@@ -4,8 +4,6 @@ import {
   advanceJourney,
   evaluateSafetyFlags,
   calculateConfidence,
-  determineOutcome,
-  generateJourneyCaseId,
   type JourneyCase,
   type JourneyState,
   type JourneyTransition,
@@ -14,9 +12,8 @@ import {
 } from "./journey-state-machine";
 import { requireCustomer } from "./customer-auth";
 import { createRateLimit } from "./rate-limit";
+import { getJourneyCase, setJourneyCase, listJourneyCasesByCustomer } from "./journey-store";
 import { logEvent, logEventError } from "./observability/safe-log";
-
-const journeyCases = new Map<string, JourneyCase>();
 
 const journeyLimit = createRateLimit({
   scope: "journey",
@@ -66,7 +63,23 @@ function safeJourneyResponse(caseData: JourneyCase) {
   };
 }
 
+function assertOwner(caseData: JourneyCase, customerId: string): boolean {
+  if (!caseData.customerId) return true;
+  return caseData.customerId === customerId;
+}
+
 export function registerJourneyRoutes(app: Express): void {
+  app.get("/api/journey/my-cases", requireCustomer, async (req, res) => {
+    try {
+      const customerId = req.drivableCustomer!.id;
+      const cases = listJourneyCasesByCustomer(customerId);
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ ok: true, cases: cases.map(safeJourneyResponse) });
+    } catch (error) {
+      journeyError(res, error);
+    }
+  });
+
   app.post("/api/journey/start", requireCustomer, journeyLimit, async (req, res) => {
     try {
       const { vehicleInfo, description, timing, urgency, canDrive, customerEmail } = req.body || {};
@@ -86,10 +99,11 @@ export function registerJourneyRoutes(app: Express): void {
         timing: typeof timing === "string" ? timing.trim() : undefined,
         urgency: typeof urgency === "string" ? urgency.trim() : undefined,
         canDrive: typeof canDrive === "string" ? canDrive.trim() : undefined,
+        customerId: req.drivableCustomer!.id,
         customerEmail: req.drivableCustomer?.email || (typeof customerEmail === "string" ? customerEmail.trim() : undefined),
       });
 
-      journeyCases.set(caseData.id, caseData);
+      setJourneyCase(caseData);
 
       logEvent("journey.case_started", {
         caseId: caseData.id,
@@ -107,11 +121,16 @@ export function registerJourneyRoutes(app: Express): void {
 
   app.get("/api/journey/:caseId/status", requireCustomer, async (req, res) => {
     try {
-      const caseData = journeyCases.get(req.params.caseId);
+      const caseData = getJourneyCase(req.params.caseId);
       if (!caseData) {
         res.status(404).json({ ok: false, error: "Journey case not found." });
         return;
       }
+      if (!assertOwner(caseData, req.drivableCustomer!.id)) {
+        res.status(404).json({ ok: false, error: "Journey case not found." });
+        return;
+      }
+      res.setHeader("Cache-Control", "no-store");
       res.json(safeJourneyResponse(caseData));
     } catch (error) {
       journeyError(res, error);
@@ -120,8 +139,12 @@ export function registerJourneyRoutes(app: Express): void {
 
   app.post("/api/journey/:caseId/advance", requireCustomer, journeyLimit, async (req, res) => {
     try {
-      const caseData = journeyCases.get(req.params.caseId);
+      const caseData = getJourneyCase(req.params.caseId);
       if (!caseData) {
+        res.status(404).json({ ok: false, error: "Journey case not found." });
+        return;
+      }
+      if (!assertOwner(caseData, req.drivableCustomer!.id)) {
         res.status(404).json({ ok: false, error: "Journey case not found." });
         return;
       }
@@ -164,7 +187,7 @@ export function registerJourneyRoutes(app: Express): void {
         escalationReason: typeof escalationReason === "string" ? escalationReason : undefined,
       });
 
-      journeyCases.set(updated.id, updated);
+      setJourneyCase(updated);
 
       logEvent("journey.advanced", {
         caseId: updated.id,
@@ -185,8 +208,12 @@ export function registerJourneyRoutes(app: Express): void {
 
   app.post("/api/journey/:caseId/evidence", requireCustomer, journeyLimit, async (req, res) => {
     try {
-      const caseData = journeyCases.get(req.params.caseId);
+      const caseData = getJourneyCase(req.params.caseId);
       if (!caseData) {
+        res.status(404).json({ ok: false, error: "Journey case not found." });
+        return;
+      }
+      if (!assertOwner(caseData, req.drivableCustomer!.id)) {
         res.status(404).json({ ok: false, error: "Journey case not found." });
         return;
       }
@@ -213,7 +240,7 @@ export function registerJourneyRoutes(app: Express): void {
         evidence: [evidenceRecord],
       });
 
-      journeyCases.set(updated.id, updated);
+      setJourneyCase(updated);
 
       logEvent("journey.evidence_added", {
         caseId: updated.id,
@@ -231,8 +258,12 @@ export function registerJourneyRoutes(app: Express): void {
 
   app.post("/api/journey/:caseId/re-evaluate", requireCustomer, journeyLimit, async (req, res) => {
     try {
-      const caseData = journeyCases.get(req.params.caseId);
+      const caseData = getJourneyCase(req.params.caseId);
       if (!caseData) {
+        res.status(404).json({ ok: false, error: "Journey case not found." });
+        return;
+      }
+      if (!assertOwner(caseData, req.drivableCustomer!.id)) {
         res.status(404).json({ ok: false, error: "Journey case not found." });
         return;
       }
@@ -260,12 +291,12 @@ export function registerJourneyRoutes(app: Express): void {
         const escalated = advanceJourney(updated, "escalate", {
           escalationReason: "Safety re-evaluation triggered during case progression",
         });
-        journeyCases.set(escalated.id, escalated);
+        setJourneyCase(escalated);
         res.json(safeJourneyResponse(escalated));
         return;
       }
 
-      journeyCases.set(updated.id, updated);
+      setJourneyCase(updated);
       res.json(safeJourneyResponse(updated));
     } catch (error) {
       logEventError("journey.re-evaluate_failed", error, { caseId: req.params.caseId });
