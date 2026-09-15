@@ -14,12 +14,8 @@ import { VideoRecorder } from "@/components/VideoRecorder";
 import { VibrationCapture } from "@/components/VibrationCapture";
 import { type MediaCapabilities, MEDIA_UNAVAILABLE, mediaUnavailableMessage } from "@/lib/mediaAvailability";
 import { MAX_PHOTO_COUNT, validatePhotoFiles } from "@/lib/photoValidation";
-const MAX_AUDIO_FILES = 4;
-const MAX_VIDEO_FILES = 4;
+import { MAX_AUDIO_COUNT as MAX_AUDIO_FILES, MAX_VIDEO_COUNT as MAX_VIDEO_FILES } from "@/lib/mediaValidation";
 const MAX_VIBRATION_FILES = 4;
-const MAX_AUDIO_BYTES = 50 * 1024 * 1024;
-// Server VIDEO_LIMITS is 100 MB; client must match truthfully
-const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 
 type EvidenceModalityStatus = "persisted" | "not_provided" | "failed";
 

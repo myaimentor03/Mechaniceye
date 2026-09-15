@@ -2,14 +2,18 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X, Video, FileVideo } from "lucide-react";
+import {
+  VIDEO_ACCEPT,
+  baseMimeType,
+  extensionForVideoMime,
+  validateVideoFiles,
+} from "@/lib/mediaValidation";
 
 interface VideoRecorderProps {
   files: File[];
   onChange: (files: File[]) => void;
   onError: (message: string) => void;
 }
-
-const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 
 export function VideoRecorder({ files, onChange, onError }: VideoRecorderProps) {
   const [recording, setRecording] = useState(false);
@@ -59,14 +63,20 @@ export function VideoRecorder({ files, onChange, onError }: VideoRecorderProps) 
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "video/webm" });
-        const ext = blob.type.includes("mp4") ? "mp4" : "webm";
-        const file = new File([blob], `video-${Date.now()}.${ext}`, { type: blob.type });
-        if (file.size > MAX_VIDEO_BYTES) {
-          onError("Video file is too large. Try a shorter recording.");
+        // MediaRecorder MIME types carry codec params (e.g.
+        // "video/webm;codecs=vp9") which the server's strict allowlist
+        // rejects with 415. Store under the base MIME so the recording can
+        // actually persist end-to-end.
+        const baseType = baseMimeType(recorder.mimeType || "video/webm") || "video/webm";
+        const blob = new Blob(chunksRef.current, { type: baseType });
+        const file = new File([blob], `video-${Date.now()}${extensionForVideoMime(baseType)}`, { type: baseType });
+        const { validFiles, errors } = validateVideoFiles([file], files.length);
+        if (errors.length > 0) {
+          onError(errors.join("\n"));
           return;
         }
-        onChange([...files, file]);
+        if (validFiles.length === 0) return;
+        onChange([...files, ...validFiles]);
         setPreviewUrl(URL.createObjectURL(blob));
       };
       recorder.start();
@@ -90,19 +100,18 @@ export function VideoRecorder({ files, onChange, onError }: VideoRecorderProps) 
   }
 
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("video/")) {
-      onError("Please select a video file.");
-      return;
+    const picked = Array.from(e.target.files || []);
+    if (picked.length === 0) return;
+    const { validFiles, errors } = validateVideoFiles(picked, files.length);
+    if (errors.length > 0) {
+      onError(errors.join("\n"));
+    } else {
+      onError("");
     }
-    if (file.size > MAX_VIDEO_BYTES) {
-      onError("Video file is too large (max 100 MB).");
-      return;
+    if (validFiles.length > 0) {
+      onChange([...files, ...validFiles]);
+      setPreviewUrl(URL.createObjectURL(validFiles[validFiles.length - 1]));
     }
-    onError("");
-    onChange([...files, file]);
-    setPreviewUrl(URL.createObjectURL(file));
     e.target.value = "";
   }
 
@@ -136,7 +145,8 @@ export function VideoRecorder({ files, onChange, onError }: VideoRecorderProps) 
       <Input
         ref={fileInputRef}
         type="file"
-        accept="video/*"
+        accept={VIDEO_ACCEPT}
+        multiple
         capture="environment"
         className="hidden"
         onChange={handleFileUpload}

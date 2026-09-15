@@ -2,14 +2,18 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X, Mic, FileAudio } from "lucide-react";
+import {
+  AUDIO_ACCEPT,
+  baseMimeType,
+  extensionForAudioMime,
+  validateAudioFiles,
+} from "@/lib/mediaValidation";
 
 interface AudioRecorderProps {
   files: File[];
   onChange: (files: File[]) => void;
   onError: (message: string) => void;
 }
-
-const MAX_AUDIO_BYTES = 50 * 1024 * 1024;
 
 export function AudioRecorder({ files, onChange, onError }: AudioRecorderProps) {
   const [recording, setRecording] = useState(false);
@@ -49,13 +53,20 @@ export function AudioRecorder({ files, onChange, onError }: AudioRecorderProps) 
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
-        const file = new File([blob], `audio-${Date.now()}.webm`, { type: blob.type });
-        if (file.size > MAX_AUDIO_BYTES) {
-          onError("Audio file is too large. Try a shorter recording.");
+        // MediaRecorder MIME types carry codec params (e.g.
+        // "audio/webm;codecs=opus") which the server's strict allowlist
+        // rejects with 415. Store under the base MIME so the recording can
+        // actually persist end-to-end.
+        const baseType = baseMimeType(recorder.mimeType || "audio/webm") || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type: baseType });
+        const file = new File([blob], `audio-${Date.now()}${extensionForAudioMime(baseType)}`, { type: baseType });
+        const { validFiles, errors } = validateAudioFiles([file], files.length);
+        if (errors.length > 0) {
+          onError(errors.join("\n"));
           return;
         }
-        onChange([...files, file]);
+        if (validFiles.length === 0) return;
+        onChange([...files, ...validFiles]);
         setPreviewUrl(URL.createObjectURL(blob));
       };
       recorder.start();
@@ -79,19 +90,18 @@ export function AudioRecorder({ files, onChange, onError }: AudioRecorderProps) 
   }
 
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("audio/")) {
-      onError("Please select an audio file.");
-      return;
+    const picked = Array.from(e.target.files || []);
+    if (picked.length === 0) return;
+    const { validFiles, errors } = validateAudioFiles(picked, files.length);
+    if (errors.length > 0) {
+      onError(errors.join("\n"));
+    } else {
+      onError("");
     }
-    if (file.size > MAX_AUDIO_BYTES) {
-      onError("Audio file is too large (max 50 MB).");
-      return;
+    if (validFiles.length > 0) {
+      onChange([...files, ...validFiles]);
+      setPreviewUrl(URL.createObjectURL(validFiles[validFiles.length - 1]));
     }
-    onError("");
-    onChange([...files, file]);
-    setPreviewUrl(URL.createObjectURL(file));
     e.target.value = "";
   }
 
@@ -125,7 +135,8 @@ export function AudioRecorder({ files, onChange, onError }: AudioRecorderProps) 
       <Input
         ref={fileInputRef}
         type="file"
-        accept="audio/*"
+        accept={AUDIO_ACCEPT}
+        multiple
         className="hidden"
         onChange={handleFileUpload}
       />
