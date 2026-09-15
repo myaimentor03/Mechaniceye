@@ -73,6 +73,7 @@ export function GuidedJourney() {
   const [evidenceKind, setEvidenceKind] = useState("text");
   const [evidenceDesc, setEvidenceDesc] = useState("");
   const [photoFiles, setPhotoFiles] = useState<FileList | null>(null);
+  const [audioFiles, setAudioFiles] = useState<FileList | null>(null);
 
   // intake form state
   const [vehicleInfo, setVehicleInfo] = useState("");
@@ -233,6 +234,38 @@ export function GuidedJourney() {
       await fetchMyCases();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Photo upload failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleAudioUpload(e: React.FormEvent) {
+    e.preventDefault();
+    if (!caseData || !audioFiles || audioFiles.length === 0) {
+      setError("Select at least one audio clip (mp3/wav/m4a/ogg/webm, max 12 MB each, up to 4).");
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      const form = new FormData();
+      for (let i = 0; i < audioFiles.length; i++) {
+        form.append("audio", audioFiles[i]);
+      }
+      const res = await fetch(`/api/journey/${caseData.id}/evidence/audio`, {
+        method: "POST",
+        credentials: "include",
+        body: form,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Audio evidence not accepted.");
+      setCaseData(data);
+      setAudioFiles(null);
+      const el = document.getElementById("journey-audio-input") as HTMLInputElement | null;
+      if (el) el.value = "";
+      await fetchMyCases();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Audio upload failed.");
     } finally {
       setLoading(false);
     }
@@ -454,7 +487,7 @@ export function GuidedJourney() {
             <>
               <form onSubmit={handleAddEvidence} className="top-gap">
                 <div className="field-grid">
-                  <div className="field"><label>Evidence type</label><select value={evidenceKind} onChange={(e) => setEvidenceKind(e.target.value)}><option value="text">Text detail</option><option value="photo">Photo (describe)</option><option value="audio">Audio (describe)</option><option value="video">Video (describe)</option><option value="vibration">Vibration (describe)</option></select></div>
+                  <div className="field"><label>Evidence type</label><select value={evidenceKind} onChange={(e) => setEvidenceKind(e.target.value)}><option value="text">Text detail</option><option value="photo">Photo (describe — or upload below)</option><option value="audio">Audio (describe — or upload below)</option><option value="video">Video (describe)</option><option value="vibration">Vibration (describe)</option></select></div>
                   <div className="field"><label>Describe this evidence</label><input value={evidenceDesc} onChange={(e) => setEvidenceDesc(e.target.value)} placeholder="Example: photo of dashboard warning light" /></div>
                 </div>
                 <div className="step-actions"><button className="secondary-btn" type="submit" disabled={loading}>Add this evidence (text)</button><span className="helper-text">One at a time, safely. You can add multiple items before finishing.</span></div>
@@ -465,6 +498,13 @@ export function GuidedJourney() {
                   <div className="field"><span className="helper-text">Validated: jpeg/png/webp/heic, max 12 MB each, up to 8. Stored durably with your vehicle case — reusable for Mechanic Match / ClearSale. Evidence belongs to the case, not just this screen.</span></div>
                 </div>
                 <div className="step-actions"><button className="secondary-btn" type="submit" disabled={loading || !photoFiles || photoFiles.length === 0}>Upload photo evidence</button><span className="helper-text">{photoFiles ? `${photoFiles.length} selected` : "No file selected"} — persisted to {caseData.evidencePersistence ? `${caseData.evidencePersistence.persistedCount} persisted` : "case"}</span></div>
+              </form>
+              <form onSubmit={handleAudioUpload} className="top-gap" style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "12px", marginTop: "12px" }}>
+                <div className="field-grid">
+                  <div className="field"><label>Audio evidence (reliable capture)</label><input id="journey-audio-input" type="file" accept="audio/mpeg,audio/wav,audio/x-wav,audio/mp4,audio/x-m4a,audio/ogg,audio/webm" multiple onChange={(e) => setAudioFiles(e.target.files)} /></div>
+                  <div className="field"><span className="helper-text">Validated: mp3/wav/m4a/ogg/webm, max 12 MB each, up to 4. Stored durably with your vehicle case — reusable for Mechanic Match / ClearSale. Stored, not auto-diagnosed.</span></div>
+                </div>
+                <div className="step-actions"><button className="secondary-btn" type="submit" disabled={loading || !audioFiles || audioFiles.length === 0}>Upload audio evidence</button><span className="helper-text">{audioFiles ? `${audioFiles.length} selected` : "No file selected"}</span></div>
               </form>
               {caseData.evidence && caseData.evidence.length > 0 && (
                 <div className="step-card" style={{ marginTop: "12px", background: "rgba(255,255,255,0.04)" }}>

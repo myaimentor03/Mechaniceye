@@ -19,7 +19,9 @@ import { planEvidence, getNextEvidenceToRequest } from "./journey-evidence-plann
 import { db } from "./db";
 import { drivableSeedSymptomCategories, drivableSeedEvidenceItems } from "../shared/schema";
 import {
+  ALLOWED_AUDIO_MEDIA_TYPES,
   ALLOWED_PHOTO_MEDIA_TYPES,
+  AUDIO_LIMITS,
   PHOTO_LIMITS,
   createEvidenceStoreFromEnvironment,
 } from "./evidence-storage";
@@ -43,6 +45,37 @@ const journeyPhotoUpload = multer({
     cb(null, true);
   },
 });
+
+const journeyAudioUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: AUDIO_LIMITS.maxBytesEach, files: AUDIO_LIMITS.maxCount },
+  fileFilter: (_req, file, cb) => {
+    if (!ALLOWED_AUDIO_MEDIA_TYPES.has(file.mimetype)) {
+      return cb(new Error(`Unsupported audio type: ${file.mimetype || "unknown"}`));
+    }
+    cb(null, true);
+  },
+});
+
+const journeyAudioUploadMiddleware = (req: any, res: any, next: any) => {
+  journeyAudioUpload.array("audio", AUDIO_LIMITS.maxCount)(req, res, (error: unknown) => {
+    if (!error) return next();
+    const multerError = error instanceof multer.MulterError ? error : null;
+    if (multerError?.code === "LIMIT_UNEXPECTED_FILE") {
+      return res.status(415).json({
+        ok: false,
+        error: `Journey evidence accepts only audio under the "audio" field.`,
+      });
+    }
+    const isLimitError = Boolean(multerError);
+    return res.status(isLimitError ? 413 : 415).json({
+      ok: false,
+      error: isLimitError
+        ? `Audio upload exceeds the limit of ${AUDIO_LIMITS.maxCount} files and 12 MB per file.`
+        : error instanceof Error ? error.message : "Audio upload was rejected.",
+    });
+  });
+};
 
 const journeyPhotoUploadMiddleware = (req: any, res: any, next: any) => {
   journeyPhotoUpload.array("photos", PHOTO_LIMITS.maxCount)(req, res, (error: unknown) => {
@@ -480,7 +513,110 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
     }
   );
 
-  // Retrieve persisted photo evidence (belongs to case, customer-scoped)
+  // Audio evidence upload — reliable file persistence belonging to vehicle/case, reusable for FIX/SELL
+  // Truthful boundary: stored durably, uploaded_not_analyzed (no automated audio diagnosis claimed).
+  app.post(
+    "/api/journey/:caseId/evidence/audio",
+    requireCustomer,
+    journeyLimit,
+    journeyAudioUploadMiddleware,
+    async (req: any, res) => {
+      try {
+        const caseData = getJourneyCase(req.params.caseId);
+        if (!caseData) {
+          res.status(404).json({ ok: false, error: "Journey case not found." });
+          return;
+        }
+        if (!assertOwner(caseData, req.drivableCustomer!.id)) {
+          res.status(404).json({ ok: false, error: "Journey case not found." });
+          return;
+        }
+        if (caseData.state !== "evidence_requested" && caseData.state !== "triage") {
+          res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested or during triage." });
+          return;
+        }
+
+        const files: Express.Multer.File[] = req.files || [];
+        if (!files.length) {
+          res.status(400).json({ ok: false, error: "At least one audio clip is required under the 'audio' field." });
+          return;
+        }
+
+        // Persist via EvidenceStore (validates type/size/content, supports R2 or local)
+        let attachments: any[] = [];
+        try {
+          attachments = await journeyEvidenceStore.saveAudio(caseData.id, files);
+        } catch (storeErr: any) {
+          const msg = storeErr instanceof Error ? storeErr.message : "Audio could not be saved.";
+          if (msg.includes("Too many") || msg.includes("too large") || msg.includes("limit")) {
+            res.status(413).json({ ok: false, error: msg });
+            return;
+          }
+          if (msg.includes("Unsupported") || msg.includes("not a supported") || msg.includes("MIME")) {
+            res.status(415).json({ ok: false, error: msg });
+            return;
+          }
+          throw storeErr;
+        }
+
+        const evidenceRecords: EvidenceRecord[] = attachments.map((att) => ({
+          id: `ev-${att.id.slice(0, 8)}`,
+          kind: "audio" as const,
+          addedAt: att.createdAt,
+          description: att.originalName,
+          originalName: att.originalName,
+          mimeType: att.mimeType,
+          byteSize: att.byteSize,
+          storageKey: att.storageKey,
+          attachmentId: att.id,
+          status: "persisted" as const,
+        }));
+
+        const updated = advanceJourney(caseData, "submit_evidence", {
+          evidence: evidenceRecords,
+        });
+
+        // Refresh planned evidence if possible (fresh suggestions after providing evidence)
+        try {
+          const evidenceItems = await db.select().from(drivableSeedEvidenceItems);
+          if (caseData.matchedSymptomCategories.length > 0 && evidenceItems.length > 0) {
+            updated.plannedEvidence = planEvidence(
+              updated.matchedSymptomCategories,
+              evidenceItems,
+              updated.evidence,
+              5
+            );
+          }
+        } catch {
+          // Ignore refresh errors; case still durably updated
+        }
+
+        setJourneyCase(updated);
+
+        logEvent("journey.audio_evidence_added", {
+          caseId: updated.id,
+          persistedCount: attachments.length,
+          confidenceScore: updated.confidenceScore,
+          evidenceCount: updated.evidence.length,
+        });
+
+        res.json({
+          ...safeJourneyResponse(updated),
+          persistedAttachments: attachments,
+          evidencePersistence: {
+            durability: journeyEvidenceStore.durability,
+            persisted: true,
+            analysisStatus: "uploaded_not_analyzed",
+          },
+        });
+      } catch (error) {
+        logEventError("journey.audio_evidence_failed", error, { caseId: req.params.caseId });
+        journeyError(res, error);
+      }
+    }
+  );
+
+  // Retrieve persisted photo/audio evidence (belongs to case, customer-scoped)
   app.get("/api/journey/:caseId/evidence/:attachmentId", requireCustomer, async (req, res) => {
     try {
       const caseData = getJourneyCase(req.params.caseId);

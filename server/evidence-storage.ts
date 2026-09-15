@@ -13,6 +13,10 @@ export const PHOTO_LIMITS = { maxCount: 8, maxBytesEach: 12 * 1024 * 1024 } as c
 export const ALLOWED_PHOTO_MEDIA_TYPES = new Set([
   "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif",
 ]);
+export const AUDIO_LIMITS = { maxCount: 4, maxBytesEach: 12 * 1024 * 1024 } as const;
+export const ALLOWED_AUDIO_MEDIA_TYPES = new Set([
+  "audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp4", "audio/x-m4a", "audio/ogg", "audio/webm",
+]);
 
 type VerifiedImage = { mimeType: string; extension: string };
 
@@ -35,9 +39,34 @@ function verifiedImageType(buffer: Buffer): VerifiedImage | null {
   return null;
 }
 
+export type VerifiedAudio = { mimeType: string; extension: string };
+
+export function verifiedAudioType(buffer: Buffer): VerifiedAudio | null {
+  if (buffer.length >= 3 && buffer.toString("ascii", 0, 3) === "ID3") {
+    return { mimeType: "audio/mpeg", extension: ".mp3" };
+  }
+  if (buffer.length >= 2 && buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0) {
+    return { mimeType: "audio/mpeg", extension: ".mp3" };
+  }
+  if (buffer.length >= 12 && buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WAVE") {
+    return { mimeType: "audio/wav", extension: ".wav" };
+  }
+  if (buffer.length >= 12 && buffer.toString("ascii", 4, 8) === "ftyp") {
+    return { mimeType: "audio/mp4", extension: ".m4a" };
+  }
+  if (buffer.length >= 4 && buffer.toString("ascii", 0, 4) === "OggS") {
+    return { mimeType: "audio/ogg", extension: ".ogg" };
+  }
+  if (buffer.length >= 4 && buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3) {
+    return { mimeType: "audio/webm", extension: ".webm" };
+  }
+  return null;
+}
+
 export interface EvidenceStore {
   readonly durability: "runtime_local" | "private_object_storage";
   savePhotos(caseId: string, files: Express.Multer.File[]): Promise<EvidenceAttachment[]>;
+  saveAudio(caseId: string, files: Express.Multer.File[]): Promise<EvidenceAttachment[]>;
   deleteCase(caseId: string): Promise<void>;
   getAttachment(caseId: string, attachmentId: string): Promise<{ attachment: EvidenceAttachment; bytes: Buffer } | null>;
 }
@@ -100,6 +129,65 @@ export class RuntimeFileEvidenceStore implements EvidenceStore {
     } catch (error) {
       await Promise.all(writtenPaths.map((filePath) => fs.rm(filePath, { force: true })));
       await fs.rm(caseRoot, { recursive: true, force: true });
+      throw error;
+    }
+  }
+
+  async saveAudio(caseId: string, files: Express.Multer.File[]) {
+    if (files.length > AUDIO_LIMITS.maxCount) throw new Error("Too many audio clips");
+    if (files.length === 0) throw new Error("Empty audio rejected");
+    const caseRoot = this.caseRoot(caseId);
+    await fs.mkdir(caseRoot, { recursive: true });
+    const attachments: EvidenceAttachment[] = [];
+    const writtenPaths: string[] = [];
+
+    const audioBytes = async (file: Express.Multer.File): Promise<Buffer> => {
+      if (file.buffer?.length) return file.buffer;
+      if (file.path) return fs.readFile(file.path);
+      throw new Error("Audio has no readable content");
+    };
+
+    try {
+      for (const file of files) {
+        const buffer = await audioBytes(file);
+        if (!buffer?.length || file.size <= 0) throw new Error("Empty audio rejected");
+        if (file.size > AUDIO_LIMITS.maxBytesEach) throw new Error("Audio is too large");
+        const verified = verifiedAudioType(buffer);
+        if (!verified) throw new Error("Audio content is not a supported audio type");
+        const wavCompatible = verified.mimeType === "audio/wav" && ["audio/wav", "audio/x-wav"].includes(file.mimetype);
+        const m4aCompatible = verified.mimeType === "audio/mp4" && ["audio/mp4", "audio/x-m4a"].includes(file.mimetype);
+        if (file.mimetype !== verified.mimeType && !wavCompatible && !m4aCompatible) {
+          throw new Error("Audio MIME type does not match its content");
+        }
+
+        const id = randomUUID();
+        const storedName = `${id}${verified.extension}`;
+        const storageKey = path.posix.join("evidence", safeCaseSegment(caseId), storedName);
+        const target = path.join(caseRoot, storedName);
+        await fs.writeFile(target, buffer, { flag: "wx" });
+        writtenPaths.push(target);
+        attachments.push({
+          id, caseId, kind: "audio", originalName: path.basename(file.originalname),
+          mimeType: verified.mimeType, byteSize: file.size, status: "persisted",
+          serverAttachmentId: id, storageKey, createdAt: new Date().toISOString(),
+          provenance: "uploaded_media", analysisStatus: "uploaded_not_analyzed",
+        });
+      }
+
+      // Merge with any existing manifest (e.g. photo evidence) so audio belongs
+      // to the same vehicle/case without discarding earlier evidence.
+      let existing: EvidenceAttachment[] = [];
+      try {
+        existing = JSON.parse(await fs.readFile(path.join(caseRoot, "attachments.json"), "utf8")) as EvidenceAttachment[];
+        if (!Array.isArray(existing)) existing = [];
+      } catch {
+        existing = [];
+      }
+      const merged = [...existing, ...attachments];
+      await fs.writeFile(path.join(caseRoot, "attachments.json"), JSON.stringify(merged, null, 2), "utf8");
+      return attachments;
+    } catch (error) {
+      await Promise.all(writtenPaths.map((filePath) => fs.rm(filePath, { force: true })));
       throw error;
     }
   }
@@ -206,6 +294,69 @@ export class S3PrivateEvidenceStore implements EvidenceStore {
         Bucket: this.config.bucket,
         Key: key,
         Body: Buffer.from(JSON.stringify(attachments)),
+        ContentType: "application/json",
+        CacheControl: "no-store",
+        Metadata: evidenceObjectMetadata(safeCaseId, "application/json"),
+      }));
+      writtenKeys.push(key);
+      return attachments;
+    } catch (error) {
+      await Promise.allSettled(writtenKeys.map((Key) => this.client.send(new DeleteObjectCommand({ Bucket: this.config.bucket, Key }))));
+      throw error;
+    }
+  }
+
+  async saveAudio(caseId: string, files: Express.Multer.File[]) {
+    if (files.length > AUDIO_LIMITS.maxCount) throw new Error("Too many audio clips");
+    if (files.length === 0) throw new Error("Empty audio rejected");
+    const safeCaseId = safeCaseSegment(caseId);
+    const attachments: EvidenceAttachment[] = [];
+    const writtenKeys: string[] = [];
+    try {
+      for (const file of files) {
+        const buffer = file.buffer?.length ? file.buffer : await fs.readFile(file.path);
+        if (!buffer?.length || file.size <= 0) throw new Error("Empty audio rejected");
+        if (file.size > AUDIO_LIMITS.maxBytesEach) throw new Error("Audio is too large");
+        const verified = verifiedAudioType(buffer);
+        if (!verified) throw new Error("Audio content is not a supported audio type");
+        const wavCompatible = verified.mimeType === "audio/wav" && ["audio/wav", "audio/x-wav"].includes(file.mimetype);
+        const m4aCompatible = verified.mimeType === "audio/mp4" && ["audio/mp4", "audio/x-m4a"].includes(file.mimetype);
+        if (file.mimetype !== verified.mimeType && !wavCompatible && !m4aCompatible) {
+          throw new Error("Audio MIME type does not match its content");
+        }
+        const id = randomUUID();
+        const storageKey = path.posix.join("evidence", safeCaseId, `${id}${verified.extension}`);
+        await this.client.send(new PutObjectCommand({
+          Bucket: this.config.bucket,
+          Key: storageKey,
+          Body: buffer,
+          ContentType: verified.mimeType,
+          CacheControl: "no-store",
+          Metadata: evidenceObjectMetadata(safeCaseId, verified.mimeType),
+        }));
+        writtenKeys.push(storageKey);
+        attachments.push({
+          id, caseId: safeCaseId, kind: "audio", originalName: path.basename(file.originalname),
+          mimeType: verified.mimeType, byteSize: file.size, status: "persisted",
+          serverAttachmentId: id, storageKey, createdAt: new Date().toISOString(),
+          provenance: "uploaded_media", analysisStatus: "uploaded_not_analyzed",
+        });
+      }
+      // Merge with existing manifest so audio coexists with photo evidence on the case.
+      let existing: EvidenceAttachment[] = [];
+      try {
+        const manifestObject = await this.client.send(new GetObjectCommand({ Bucket: this.config.bucket, Key: manifestKey(safeCaseId) }));
+        existing = JSON.parse((await bodyToBuffer(manifestObject.Body)).toString("utf8"));
+        if (!Array.isArray(existing)) existing = [];
+      } catch (error: any) {
+        if (error?.name !== "NoSuchKey" && error?.$metadata?.httpStatusCode !== 404) throw error;
+      }
+      const merged = [...existing, ...attachments];
+      const key = manifestKey(safeCaseId);
+      await this.client.send(new PutObjectCommand({
+        Bucket: this.config.bucket,
+        Key: key,
+        Body: Buffer.from(JSON.stringify(merged)),
         ContentType: "application/json",
         CacheControl: "no-store",
         Metadata: evidenceObjectMetadata(safeCaseId, "application/json"),
