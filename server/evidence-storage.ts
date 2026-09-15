@@ -21,6 +21,10 @@ export const VIDEO_LIMITS = { maxCount: 2, maxBytesEach: 50 * 1024 * 1024 } as c
 export const ALLOWED_VIDEO_MEDIA_TYPES = new Set([
   "video/mp4", "video/quicktime", "video/webm", "video/x-msvideo",
 ]);
+export const VIBRATION_LIMITS = { maxCount: 2, maxBytesEach: 2 * 1024 * 1024 } as const;
+export const ALLOWED_VIBRATION_MEDIA_TYPES = new Set([
+  "application/json",
+]);
 
 type VerifiedImage = { mimeType: string; extension: string };
 
@@ -69,6 +73,44 @@ export function verifiedAudioType(buffer: Buffer): VerifiedAudio | null {
 
 export type VerifiedVideo = { mimeType: string; extension: string };
 
+export type VerifiedVibration = { mimeType: string; extension: string; sampleCount: number };
+
+const VIBRATION_MIN_SAMPLES = 2;
+const VIBRATION_MAX_SAMPLES = 20_000;
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+// Vibration evidence is a real phone motion-sensor session submitted as JSON.
+// Never synthesize values: verify the payload actually contains sensor samples.
+export function verifiedVibrationType(buffer: Buffer): VerifiedVibration | null {
+  if (!buffer?.length || buffer.length > VIBRATION_LIMITS.maxBytesEach) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(buffer.toString("utf8"));
+  } catch {
+    return null;
+  }
+  const samples = Array.isArray(parsed)
+    ? parsed
+    : (parsed as { samples?: unknown })?.samples;
+  if (!Array.isArray(samples)) return null;
+  if (samples.length < VIBRATION_MIN_SAMPLES || samples.length > VIBRATION_MAX_SAMPLES) return null;
+  for (const sample of samples) {
+    if (!sample || typeof sample !== "object") return null;
+    const s = sample as Record<string, unknown>;
+    // Accept {x,y,z} with optional t (timestamp). All present axes must be finite numbers.
+    const axes = ["x", "y", "z"].filter((axis) => s[axis] !== undefined);
+    if (axes.length === 0) return null;
+    for (const axis of axes) {
+      if (!isFiniteNumber(s[axis])) return null;
+    }
+    if (s.t !== undefined && !isFiniteNumber(s.t)) return null;
+  }
+  return { mimeType: "application/json", extension: ".json", sampleCount: samples.length };
+}
+
 export function verifiedVideoType(buffer: Buffer): VerifiedVideo | null {
   // EBML — webm / mkv
   if (buffer.length >= 4 && buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3) {
@@ -95,6 +137,7 @@ export interface EvidenceStore {
   savePhotos(caseId: string, files: Express.Multer.File[]): Promise<EvidenceAttachment[]>;
   saveAudio(caseId: string, files: Express.Multer.File[]): Promise<EvidenceAttachment[]>;
   saveVideo(caseId: string, files: Express.Multer.File[]): Promise<EvidenceAttachment[]>;
+  saveVibration(caseId: string, files: Express.Multer.File[]): Promise<EvidenceAttachment[]>;
   deleteCase(caseId: string): Promise<void>;
   getAttachment(caseId: string, attachmentId: string): Promise<{ attachment: EvidenceAttachment; bytes: Buffer } | null>;
 }
@@ -204,6 +247,62 @@ export class RuntimeFileEvidenceStore implements EvidenceStore {
 
       // Merge with any existing manifest (e.g. photo evidence) so audio belongs
       // to the same vehicle/case without discarding earlier evidence.
+      let existing: EvidenceAttachment[] = [];
+      try {
+        existing = JSON.parse(await fs.readFile(path.join(caseRoot, "attachments.json"), "utf8")) as EvidenceAttachment[];
+        if (!Array.isArray(existing)) existing = [];
+      } catch {
+        existing = [];
+      }
+      const merged = [...existing, ...attachments];
+      await fs.writeFile(path.join(caseRoot, "attachments.json"), JSON.stringify(merged, null, 2), "utf8");
+      return attachments;
+    } catch (error) {
+      await Promise.all(writtenPaths.map((filePath) => fs.rm(filePath, { force: true })));
+      throw error;
+    }
+  }
+
+  async saveVibration(caseId: string, files: Express.Multer.File[]) {
+    if (files.length > VIBRATION_LIMITS.maxCount) throw new Error("Too many vibration recordings");
+    if (files.length === 0) throw new Error("Empty vibration rejected");
+    const caseRoot = this.caseRoot(caseId);
+    await fs.mkdir(caseRoot, { recursive: true });
+    const attachments: EvidenceAttachment[] = [];
+    const writtenPaths: string[] = [];
+
+    const vibrationBytes = async (file: Express.Multer.File): Promise<Buffer> => {
+      if (file.buffer?.length) return file.buffer;
+      if (file.path) return fs.readFile(file.path);
+      throw new Error("Vibration has no readable content");
+    };
+
+    try {
+      for (const file of files) {
+        const buffer = await vibrationBytes(file);
+        if (!buffer?.length || file.size <= 0) throw new Error("Empty vibration rejected");
+        if (file.size > VIBRATION_LIMITS.maxBytesEach) throw new Error("Vibration is too large");
+        const verified = verifiedVibrationType(buffer);
+        if (!verified) throw new Error("Vibration content is not a supported vibration format");
+        if (file.mimetype !== verified.mimeType) {
+          throw new Error("Vibration MIME type does not match its content");
+        }
+
+        const id = randomUUID();
+        const storedName = `${id}${verified.extension}`;
+        const storageKey = path.posix.join("evidence", safeCaseSegment(caseId), storedName);
+        const target = path.join(caseRoot, storedName);
+        await fs.writeFile(target, buffer, { flag: "wx" });
+        writtenPaths.push(target);
+        attachments.push({
+          id, caseId, kind: "vibration", originalName: path.basename(file.originalname),
+          mimeType: verified.mimeType, byteSize: file.size, status: "persisted",
+          serverAttachmentId: id, storageKey, createdAt: new Date().toISOString(),
+          provenance: "uploaded_media", analysisStatus: "uploaded_not_analyzed",
+        });
+      }
+
+      // Merge with existing manifest so vibration coexists with photo/audio/video evidence on the case.
       let existing: EvidenceAttachment[] = [];
       try {
         existing = JSON.parse(await fs.readFile(path.join(caseRoot, "attachments.json"), "utf8")) as EvidenceAttachment[];
@@ -435,6 +534,67 @@ export class S3PrivateEvidenceStore implements EvidenceStore {
         });
       }
       // Merge with existing manifest so audio coexists with photo evidence on the case.
+      let existing: EvidenceAttachment[] = [];
+      try {
+        const manifestObject = await this.client.send(new GetObjectCommand({ Bucket: this.config.bucket, Key: manifestKey(safeCaseId) }));
+        existing = JSON.parse((await bodyToBuffer(manifestObject.Body)).toString("utf8"));
+        if (!Array.isArray(existing)) existing = [];
+      } catch (error: any) {
+        if (error?.name !== "NoSuchKey" && error?.$metadata?.httpStatusCode !== 404) throw error;
+      }
+      const merged = [...existing, ...attachments];
+      const key = manifestKey(safeCaseId);
+      await this.client.send(new PutObjectCommand({
+        Bucket: this.config.bucket,
+        Key: key,
+        Body: Buffer.from(JSON.stringify(merged)),
+        ContentType: "application/json",
+        CacheControl: "no-store",
+        Metadata: evidenceObjectMetadata(safeCaseId, "application/json"),
+      }));
+      writtenKeys.push(key);
+      return attachments;
+    } catch (error) {
+      await Promise.allSettled(writtenKeys.map((Key) => this.client.send(new DeleteObjectCommand({ Bucket: this.config.bucket, Key }))));
+      throw error;
+    }
+  }
+
+  async saveVibration(caseId: string, files: Express.Multer.File[]) {
+    if (files.length > VIBRATION_LIMITS.maxCount) throw new Error("Too many vibration recordings");
+    if (files.length === 0) throw new Error("Empty vibration rejected");
+    const safeCaseId = safeCaseSegment(caseId);
+    const attachments: EvidenceAttachment[] = [];
+    const writtenKeys: string[] = [];
+    try {
+      for (const file of files) {
+        const buffer = file.buffer?.length ? file.buffer : await fs.readFile(file.path);
+        if (!buffer?.length || file.size <= 0) throw new Error("Empty vibration rejected");
+        if (file.size > VIBRATION_LIMITS.maxBytesEach) throw new Error("Vibration is too large");
+        const verified = verifiedVibrationType(buffer);
+        if (!verified) throw new Error("Vibration content is not a supported vibration format");
+        if (file.mimetype !== verified.mimeType) {
+          throw new Error("Vibration MIME type does not match its content");
+        }
+        const id = randomUUID();
+        const storageKey = path.posix.join("evidence", safeCaseId, `${id}${verified.extension}`);
+        await this.client.send(new PutObjectCommand({
+          Bucket: this.config.bucket,
+          Key: storageKey,
+          Body: buffer,
+          ContentType: verified.mimeType,
+          CacheControl: "no-store",
+          Metadata: evidenceObjectMetadata(safeCaseId, verified.mimeType),
+        }));
+        writtenKeys.push(storageKey);
+        attachments.push({
+          id, caseId: safeCaseId, kind: "vibration", originalName: path.basename(file.originalname),
+          mimeType: verified.mimeType, byteSize: file.size, status: "persisted",
+          serverAttachmentId: id, storageKey, createdAt: new Date().toISOString(),
+          provenance: "uploaded_media", analysisStatus: "uploaded_not_analyzed",
+        });
+      }
+      // Merge with existing manifest so vibration coexists with photo/audio/video evidence on the case.
       let existing: EvidenceAttachment[] = [];
       try {
         const manifestObject = await this.client.send(new GetObjectCommand({ Bucket: this.config.bucket, Key: manifestKey(safeCaseId) }));

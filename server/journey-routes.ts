@@ -22,9 +22,11 @@ import {
   ALLOWED_AUDIO_MEDIA_TYPES,
   ALLOWED_PHOTO_MEDIA_TYPES,
   ALLOWED_VIDEO_MEDIA_TYPES,
+  ALLOWED_VIBRATION_MEDIA_TYPES,
   AUDIO_LIMITS,
   PHOTO_LIMITS,
   VIDEO_LIMITS,
+  VIBRATION_LIMITS,
   createEvidenceStoreFromEnvironment,
 } from "./evidence-storage";
 import { requireReviewer } from "./reviewer-auth";
@@ -114,6 +116,37 @@ const journeyVideoUploadMiddleware = (req: any, res: any, next: any) => {
       error: isLimitError
         ? `Video upload exceeds the limit of ${VIDEO_LIMITS.maxCount} files and 50 MB per file.`
         : error instanceof Error ? error.message : "Video upload was rejected.",
+    });
+  });
+};
+
+const journeyVibrationUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: VIBRATION_LIMITS.maxBytesEach, files: VIBRATION_LIMITS.maxCount },
+  fileFilter: (_req, file, cb) => {
+    if (!ALLOWED_VIBRATION_MEDIA_TYPES.has(file.mimetype)) {
+      return cb(new Error(`Unsupported vibration type: ${file.mimetype || "unknown"}`));
+    }
+    cb(null, true);
+  },
+});
+
+const journeyVibrationUploadMiddleware = (req: any, res: any, next: any) => {
+  journeyVibrationUpload.array("vibration", VIBRATION_LIMITS.maxCount)(req, res, (error: unknown) => {
+    if (!error) return next();
+    const multerError = error instanceof multer.MulterError ? error : null;
+    if (multerError?.code === "LIMIT_UNEXPECTED_FILE") {
+      return res.status(415).json({
+        ok: false,
+        error: `Journey evidence accepts only vibration under the "vibration" field.`,
+      });
+    }
+    const isLimitError = Boolean(multerError);
+    return res.status(isLimitError ? 413 : 415).json({
+      ok: false,
+      error: isLimitError
+        ? `Vibration upload exceeds the limit of ${VIBRATION_LIMITS.maxCount} files and ${VIBRATION_LIMITS.maxBytesEach / 1024 / 1024} MB per file.`
+        : error instanceof Error ? error.message : "Vibration upload was rejected.",
     });
   });
 };
