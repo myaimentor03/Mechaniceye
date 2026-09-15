@@ -24,6 +24,29 @@ type JourneyCaseResponse = {
   nextActionPrompt?: string;
   evidenceCount: number;
   evidenceTypes: string[];
+  matchedSymptomCategories: {
+    symptomCategoryId: string;
+    label: string;
+    confidence: number;
+    matchedPhrases: string[];
+    possibleRiskLevel: string;
+    safetyNote: string | null;
+    humanReviewRecommended: boolean;
+    recommendedInitialPath: string | null;
+    commonEvidenceNeeded: string | null;
+  }[];
+  plannedEvidence: {
+    evidenceId: string;
+    label: string;
+    description: string | null;
+    evidenceType: string | null;
+    safeCaptureInstructions: string | null;
+    unsafeCaptureWarning: string | null;
+    priority: string;
+    customerPromptText: string | null;
+    relevanceScore: number;
+  }[];
+  currentEvidencePrompt?: string;
 };
 
 const STORAGE_KEY = "drivable.journey.caseId";
@@ -304,6 +327,52 @@ export function GuidedJourney() {
           </p>
           {caseData.outcome && <p><strong>Outcome:</strong> {outcomeCopy(caseData.outcome)} {caseData.decisionPath && <em>({caseData.decisionPath})</em>}</p>}
         </div>
+
+        {caseData.matchedSymptomCategories.length > 0 && (
+          <div className="step-card" style={{ borderColor: "rgba(100,180,255,0.4)", background: "rgba(20,50,80,0.3)" }}>
+            <div className="step-header">
+              <div>
+                <div className="eyebrow">Detected Issue Pattern</div>
+                <h2>{caseData.matchedSymptomCategories.length === 1
+                  ? caseData.matchedSymptomCategories[0].label
+                  : `Possible issues: ${caseData.matchedSymptomCategories.slice(0, 3).map((m) => m.label).join(", ")}`
+                }</h2>
+                <p>
+                  {caseData.matchedSymptomCategories[0]?.humanReviewRecommended
+                    ? "This pattern may benefit from human review for extra safety."
+                    : "We matched your description to known symptom patterns to guide evidence collection."
+                  }
+                </p>
+              </div>
+            </div>
+            {caseData.matchedSymptomCategories[0]?.commonEvidenceNeeded && (
+              <div className="notice-strip">
+                <strong>Suggested evidence:</strong> {caseData.matchedSymptomCategories[0].commonEvidenceNeeded}
+              </div>
+            )}
+          </div>
+        )}
+
+        {caseData.plannedEvidence.length > 0 && (caseData.state === "triage" || caseData.state === "evidence_requested") && (
+          <div className="step-card" style={{ borderColor: "rgba(100,220,150,0.4)", background: "rgba(20,60,40,0.3)" }}>
+            <div className="step-header">
+              <div>
+                <div className="eyebrow">Suggested Evidence — One at a Time</div>
+                <h2>Choose the easiest thing to capture safely</h2>
+                <p>{caseData.currentEvidencePrompt || "Pick one of these evidence items to help us understand your issue better."}</p>
+              </div>
+            </div>
+            <div className="pill-grid">
+              {caseData.plannedEvidence.map((ev) => (
+                <div key={ev.evidenceId} className="pill" style={{ textAlign: "left", width: "100%", maxWidth: "400px", whiteSpace: "normal" }}>
+                  <strong>{ev.label}</strong>
+                  {ev.safeCaptureInstructions && <span style={{ display: "block", fontSize: "0.85em", opacity: 0.8, marginTop: "4px" }}>{ev.safeCaptureInstructions}</span>}
+                  {ev.unsafeCaptureWarning && <span style={{ display: "block", fontSize: "0.8em", color: "rgba(255,150,100,0.9)", marginTop: "2px" }}>⚠ {ev.unsafeCaptureWarning}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="step-card">
           <div className="step-header">

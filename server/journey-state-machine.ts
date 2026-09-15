@@ -6,6 +6,8 @@ import {
   type RiskLevel,
   type ConfidenceLevel,
 } from "../shared/drivableDecisionEngine";
+import { type MatchedSymptom, classifySymptoms, getTopSymptomCategory } from "./journey-symptom-classifier";
+import { type PlannedEvidenceItem } from "./journey-evidence-planner";
 
 export const JOURNEY_STATES = [
   "intake",
@@ -63,6 +65,9 @@ export type JourneyCase = {
   escalationReason?: string;
   nextAction?: string;
   nextActionPrompt?: string;
+  matchedSymptomCategories: MatchedSymptom[];
+  plannedEvidence: PlannedEvidenceItem[];
+  currentEvidencePrompt?: string;
 };
 
 export type JourneyTransition =
@@ -293,6 +298,7 @@ export function determineDecisionPath(outcome: OwnerOutcome, confidenceLevel: Co
 export function buildNextAction(state: JourneyState, caseData: JourneyCase): {
   action: string;
   prompt: string;
+  evidencePrompt?: string;
 } {
   switch (state) {
     case "intake":
@@ -307,15 +313,32 @@ export function buildNextAction(state: JourneyState, caseData: JourneyCase): {
           prompt: "Based on what you described, this may not be safe to drive. Please stop driving and seek in-person help. We can connect you with next steps.",
         };
       }
+      if (caseData.matchedSymptomCategories.length > 0) {
+        const top = getTopSymptomCategory(caseData.matchedSymptomCategories);
+        return {
+          action: "request_evidence",
+          prompt: `We detected a possible issue: ${top?.label || "vehicle problem"}. Can you share one piece of evidence that would help us understand it better? Pick the easiest thing to capture safely.`,
+          evidencePrompt: top?.commonEvidenceNeeded || "Share a photo or description of what you observe.",
+        };
+      }
       return {
         action: "request_evidence",
         prompt: "Can you share one photo or one more detail that would help us understand the issue better? Pick the easiest thing to capture safely.",
       };
-    case "evidence_requested":
+    case "evidence_requested": {
+      const hasPlanned = caseData.plannedEvidence.length > 0;
+      if (hasPlanned) {
+        return {
+          action: "submit_evidence",
+          prompt: "Upload one piece of evidence when you can. When you are ready, let us know you are done.",
+          evidencePrompt: "See the suggested evidence items below — choose the easiest one to capture safely.",
+        };
+      }
       return {
         action: "submit_evidence",
         prompt: "Upload one photo or describe one more detail when you can. When you are ready, let us know you are done.",
       };
+    }
     case "evidence_received":
       return {
         action: "evaluate",
@@ -382,10 +405,20 @@ export function createJourneyCase(input: {
   canDrive?: string;
   customerId?: string;
   customerEmail?: string;
+  symptomCategories?: any[];
+  evidenceItems?: any[];
 }): JourneyCase {
   const now = new Date().toISOString();
   const safetyFlags = evaluateSafetyFlags(input);
   const safetyTriggered = hasSafetyTrigger(safetyFlags);
+
+  const matchedSymptoms = classifySymptoms(
+    input.description,
+    input.timing,
+    input.urgency,
+    input.canDrive,
+    input.symptomCategories
+  );
 
   const partialCase: JourneyCase = {
     id: generateJourneyCaseId(),
@@ -406,6 +439,8 @@ export function createJourneyCase(input: {
     confidenceLevel: "insufficient_information",
     riskLevel: "unknown",
     humanReviewRequested: false,
+    matchedSymptomCategories: matchedSymptoms,
+    plannedEvidence: [],
   };
 
   const conf = calculateConfidence(partialCase);
@@ -421,6 +456,7 @@ export function createJourneyCase(input: {
   const next = buildNextAction(partialCase.state, partialCase);
   partialCase.nextAction = next.action;
   partialCase.nextActionPrompt = next.prompt;
+  partialCase.currentEvidencePrompt = next.evidencePrompt;
 
   return partialCase;
 }
@@ -480,6 +516,7 @@ export function advanceJourney(
   const next = buildNextAction(updated.state, updated);
   updated.nextAction = next.action;
   updated.nextActionPrompt = next.prompt;
+  updated.currentEvidencePrompt = next.evidencePrompt;
 
   return updated;
 }

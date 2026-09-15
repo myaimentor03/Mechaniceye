@@ -14,6 +14,9 @@ import { requireCustomer } from "./customer-auth";
 import { createRateLimit } from "./rate-limit";
 import { getJourneyCase, setJourneyCase, listJourneyCasesByCustomer } from "./journey-store";
 import { logEvent, logEventError } from "./observability/safe-log";
+import { planEvidence, getNextEvidenceToRequest } from "./journey-evidence-planner";
+import { db } from "./db";
+import { drivableSeedSymptomCategories, drivableSeedEvidenceItems } from "../shared/schema";
 
 const journeyLimit = createRateLimit({
   scope: "journey",
@@ -60,6 +63,29 @@ function safeJourneyResponse(caseData: JourneyCase) {
     nextActionPrompt: caseData.nextActionPrompt,
     evidenceCount: caseData.evidence.length,
     evidenceTypes: [...new Set(caseData.evidence.map((e) => e.kind))],
+    matchedSymptomCategories: caseData.matchedSymptomCategories.map((m) => ({
+      symptomCategoryId: m.symptomCategoryId,
+      label: m.label,
+      confidence: m.confidence,
+      matchedPhrases: m.matchedPhrases,
+      possibleRiskLevel: m.possibleRiskLevel,
+      safetyNote: m.safetyNote,
+      humanReviewRecommended: m.humanReviewRecommended,
+      recommendedInitialPath: m.recommendedInitialPath,
+      commonEvidenceNeeded: m.commonEvidenceNeeded,
+    })),
+    plannedEvidence: caseData.plannedEvidence.map((e) => ({
+      evidenceId: e.evidenceId,
+      label: e.label,
+      description: e.description,
+      evidenceType: e.evidenceType,
+      safeCaptureInstructions: e.safeCaptureInstructions,
+      unsafeCaptureWarning: e.unsafeCaptureWarning,
+      priority: e.priority,
+      customerPromptText: e.customerPromptText,
+      relevanceScore: e.relevanceScore,
+    })),
+    currentEvidencePrompt: caseData.currentEvidencePrompt,
   };
 }
 
@@ -93,6 +119,15 @@ export function registerJourneyRoutes(app: Express): void {
         return;
       }
 
+      let symptomCategories: any[] = [];
+      let evidenceItems: any[] = [];
+      try {
+        symptomCategories = await db.select().from(drivableSeedSymptomCategories);
+        evidenceItems = await db.select().from(drivableSeedEvidenceItems);
+      } catch {
+        // Seed tables may not exist yet; fall back to empty
+      }
+
       const caseData = createJourneyCase({
         vehicleInfo: vehicleInfo.trim(),
         description: description.trim(),
@@ -101,7 +136,18 @@ export function registerJourneyRoutes(app: Express): void {
         canDrive: typeof canDrive === "string" ? canDrive.trim() : undefined,
         customerId: req.drivableCustomer!.id,
         customerEmail: req.drivableCustomer?.email || (typeof customerEmail === "string" ? customerEmail.trim() : undefined),
+        symptomCategories,
+        evidenceItems,
       });
+
+      if (caseData.matchedSymptomCategories.length > 0 && evidenceItems.length > 0) {
+        caseData.plannedEvidence = planEvidence(
+          caseData.matchedSymptomCategories,
+          evidenceItems,
+          caseData.evidence,
+          5
+        );
+      }
 
       setJourneyCase(caseData);
 
@@ -110,6 +156,7 @@ export function registerJourneyRoutes(app: Express): void {
         state: caseData.state,
         safetyTriggered: caseData.safetyTriggered,
         confidenceScore: caseData.confidenceScore,
+        symptomMatchCount: caseData.matchedSymptomCategories.length,
       });
 
       res.status(201).json(safeJourneyResponse(caseData));
@@ -302,6 +349,47 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       res.json(safeJourneyResponse(updated));
     } catch (error) {
       logEventError("journey.re-evaluate_failed", error, { caseId: req.params.caseId });
+      journeyError(res, error);
+    }
+  });
+
+  app.get("/api/journey/:caseId/evidence-suggestions", requireCustomer, async (req, res) => {
+    try {
+      const caseData = getJourneyCase(req.params.caseId);
+      if (!caseData) {
+        res.status(404).json({ ok: false, error: "Journey case not found." });
+        return;
+      }
+      if (!assertOwner(caseData, req.drivableCustomer!.id)) {
+        res.status(404).json({ ok: false, error: "Journey case not found." });
+        return;
+      }
+
+      let evidenceItems: any[] = [];
+      try {
+        evidenceItems = await db.select().from(drivableSeedEvidenceItems);
+      } catch {
+        // Fall back to empty
+      }
+
+      const planned = planEvidence(
+        caseData.matchedSymptomCategories,
+        evidenceItems,
+        caseData.evidence,
+        5
+      );
+
+      const nextEvidence = getNextEvidenceToRequest(planned, caseData.evidence);
+
+      res.setHeader("Cache-Control", "no-store");
+      res.json({
+        ok: true,
+        plannedEvidence: planned,
+        nextEvidence: nextEvidence || null,
+        matchedSymptoms: caseData.matchedSymptomCategories,
+      });
+    } catch (error) {
+      logEventError("journey.evidence-suggestions_failed", error, { caseId: req.params.caseId });
       journeyError(res, error);
     }
   });
