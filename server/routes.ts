@@ -78,6 +78,7 @@ import { evaluateLaunchReadiness } from "./launch-readiness";
 import { buildFollowUpEvidenceBoundary } from "./follow-up-evidence-boundary";
 import { registerDurableReviewRoutes } from "./review/review-routes";
 import { requireVerifiedLaunchControlRuntime } from "./review/launch-control-runtime";
+import { persistEvidenceAttachments, listEvidenceAttachmentsFromDb } from "./evidence-db";
 import { IntakeConsentError, recordConsentRevocation, persistAndAuthorizeIntakeConsent } from "./consent/intake-consent";
 import {
   isR2EvidenceStorageConfigured,
@@ -2060,30 +2061,41 @@ try {
   });
 
   // Get specific diagnosis with evidence status
+  // Reads evidence from DB first (durable SQL records), falls back to filesystem manifest.
   app.get("/api/diagnoses/:id", requireReviewer, async (req, res) => {
     try {
       const diagnosis = await storage.getDiagnosis(req.params.id);
       if (!diagnosis) {
         return res.status(404).json({ message: "Diagnosis not found" });
       }
-      // Attach evidence status from local evidence manifest for truthful display
+      // Attach evidence status: prefer DB records, fall back to manifest file
       try {
         const caseId = req.params.id;
-        const manifestKey = path.join(process.cwd(), "uploads", "evidence", caseId, "attachments.json");
-        const manifest = JSON.parse((await fs.promises.readFile(manifestKey, "utf8"))) as EvidenceAttachment[];
-        const photos = manifest.filter((a) => a.kind === "photo");
-        const audio = manifest.filter((a) => a.kind === "audio");
-        const video = manifest.filter((a) => a.kind === "video");
-        const vibration = manifest.filter((a) => a.kind === "sensor_session");
-        diagnosis.attachments = manifest;
-        diagnosis.evidenceSummary = {
-          photos: { provided: photos.length, persisted: photos.length, status: photos.length > 0 ? "persisted" : "not_provided" },
-          audio: { provided: audio.length, persisted: audio.length, status: audio.length > 0 ? "persisted" : "not_provided" },
-          video: { provided: video.length, persisted: video.length, status: video.length > 0 ? "persisted" : "not_provided" },
-          vibration: { provided: vibration.length, persisted: vibration.length, status: vibration.length > 0 ? "persisted" : "not_provided" },
-        };
+        let manifest: EvidenceAttachment[] = [];
+        try {
+          manifest = await listEvidenceAttachmentsFromDb(caseId);
+        } catch { /* DB not available */ }
+        if (manifest.length === 0) {
+          try {
+            const manifestKey = path.join(process.cwd(), "uploads", "evidence", caseId, "attachments.json");
+            manifest = JSON.parse((await fs.promises.readFile(manifestKey, "utf8"))) as EvidenceAttachment[];
+          } catch { /* no manifest */ }
+        }
+        if (manifest.length > 0) {
+          const photos = manifest.filter((a) => a.kind === "photo");
+          const audio = manifest.filter((a) => a.kind === "audio");
+          const video = manifest.filter((a) => a.kind === "video");
+          const vibration = manifest.filter((a) => a.kind === "sensor_session");
+          diagnosis.attachments = manifest;
+          diagnosis.evidenceSummary = {
+            photos: { provided: photos.length, persisted: photos.length, status: photos.length > 0 ? "persisted" : "not_provided" },
+            audio: { provided: audio.length, persisted: audio.length, status: audio.length > 0 ? "persisted" : "not_provided" },
+            video: { provided: video.length, persisted: video.length, status: video.length > 0 ? "persisted" : "not_provided" },
+            vibration: { provided: vibration.length, persisted: vibration.length, status: vibration.length > 0 ? "persisted" : "not_provided" },
+          };
+        }
       } catch {
-        // No evidence manifest for this case
+        // No evidence for this case
       }
       res.json(diagnosis);
     } catch (error) {
@@ -2092,6 +2104,7 @@ try {
   });
 
   // Customer-facing evidence list: returns the evidence manifest for the customer's own case.
+  // Reads from the database first (durable SQL records), falls back to filesystem manifest.
   app.get("/api/cases/:caseId/evidence", requireCustomer, async (req, res) => {
     try {
       const caseId = req.params.caseId;
@@ -2106,45 +2119,39 @@ try {
       if (diagnosis.userId !== req.drivableCustomer!.id) {
         return res.status(403).json({ ok: false, error: "You do not have access to this case." });
       }
-      // Read evidence manifest
+      // Read evidence: prefer DB records, fall back to manifest file
+      let attachments: EvidenceAttachment[] = [];
       try {
-        const attachments = await evidenceStore.listAttachments(caseId);
-        const photos = attachments.filter((a) => a.kind === "photo");
-        const audio = attachments.filter((a) => a.kind === "audio");
-        const video = attachments.filter((a) => a.kind === "video");
-        const vibration = attachments.filter((a) => a.kind === "sensor_session");
-        res.json({
-          ok: true,
-          caseId,
-          evidenceSummary: {
-            photos: { count: photos.length, status: photos.length > 0 ? "stored" : "not_provided" as const },
-            audio: { count: audio.length, status: audio.length > 0 ? "stored" : "not_provided" as const },
-            video: { count: video.length, status: video.length > 0 ? "stored" : "not_provided" as const },
-            vibration: { count: vibration.length, status: vibration.length > 0 ? "stored" : "not_provided" as const },
-          },
-          attachments: attachments.map((a) => ({
-            id: a.id,
-            kind: a.kind,
-            originalName: a.originalName,
-            mimeType: a.mimeType,
-            byteSize: a.byteSize,
-            status: a.status,
-            createdAt: a.createdAt,
-          })),
-        });
-      } catch {
-        res.json({
-          ok: true,
-          caseId,
-          evidenceSummary: {
-            photos: { count: 0, status: "not_provided" as const },
-            audio: { count: 0, status: "not_provided" as const },
-            video: { count: 0, status: "not_provided" as const },
-            vibration: { count: 0, status: "not_provided" as const },
-          },
-          attachments: [],
-        });
+        attachments = await listEvidenceAttachmentsFromDb(caseId);
+      } catch { /* DB not available */ }
+      if (attachments.length === 0) {
+        try {
+          attachments = await evidenceStore.listAttachments(caseId);
+        } catch { /* manifest not available */ }
       }
+      const photos = attachments.filter((a) => a.kind === "photo");
+      const audio = attachments.filter((a) => a.kind === "audio");
+      const video = attachments.filter((a) => a.kind === "video");
+      const vibration = attachments.filter((a) => a.kind === "sensor_session");
+      res.json({
+        ok: true,
+        caseId,
+        evidenceSummary: {
+          photos: { count: photos.length, status: photos.length > 0 ? "stored" : "not_provided" as const },
+          audio: { count: audio.length, status: audio.length > 0 ? "stored" : "not_provided" as const },
+          video: { count: video.length, status: video.length > 0 ? "stored" : "not_provided" as const },
+          vibration: { count: vibration.length, status: vibration.length > 0 ? "stored" : "not_provided" as const },
+        },
+        attachments: attachments.map((a) => ({
+          id: a.id,
+          kind: a.kind,
+          originalName: a.originalName,
+          mimeType: a.mimeType,
+          byteSize: a.byteSize,
+          status: a.status,
+          createdAt: a.createdAt,
+        })),
+      });
     } catch (error) {
       logEventError("api.customer_evidence_list_failed", error);
       res.status(500).json({ ok: false, error: "Could not retrieve evidence." });
@@ -2458,6 +2465,14 @@ if (photoFiles.length) {
         },
       };
 
+      // Persist evidence attachment metadata to the database as durable SQL records.
+      // This is fire-and-forget: file storage already succeeded, and a DB failure
+      // should not block the case response. The manifest file is the fallback.
+      const allAttachments = responseBody.attachments ?? [];
+      if (allAttachments.length > 0) {
+        void persistEvidenceAttachments(allAttachments);
+      }
+
       if (usedPublicFallback) {
         const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, storedCase, authenticatedCaseOwnerId(req.drivableCustomer?.id));
         if (!dbResult.ok) {
@@ -2664,6 +2679,12 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
       };
 
       const followUp = await storage.createFollowUp(followUpData);
+
+      // Persist follow-up evidence attachment metadata to the database.
+      const followUpAttachments = [...photoAttachments, ...audioAttachments, ...videoAttachments, ...vibrationAttachments];
+      if (followUpAttachments.length > 0) {
+        void persistEvidenceAttachments(followUpAttachments);
+      }
 
       // Get previously attempted fixes
       const previousFollowUps = await storage.getFollowUpsByDiagnosis(diagnosisId);
