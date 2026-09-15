@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -84,7 +84,6 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
       ? "text-automotive-orange"
       : "text-green-600";
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Object URLs are a side effect: create them in an effect so every
   // created URL is revoked exactly once (on change or unmount).
@@ -95,6 +94,73 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
     return () => { urls.forEach((url) => URL.revokeObjectURL(url)); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.photoFiles]);
+
+  // Camera-first capture state and functions
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [capturedPhoto, setCapturedPhoto] = useState<File | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const startCamera = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setCameraActive(true);
+    } catch {
+      toast({ title: "Camera Unavailable", description: "Could not access your camera. Try choosing a photo from your files instead.", variant: "destructive" });
+    }
+  }, [toast]);
+
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    setCameraActive(false);
+  }, []);
+
+  const capturePhoto = useCallback(() => {
+    if (!videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const file = new File([blob], `photo-${Date.now()}.jpg`, { type: "image/jpeg" });
+      const { validFiles, errors } = validatePhotoFiles([file], formData.photoFiles.length);
+      if (errors.length > 0) {
+        toast({ title: "Photo Error", description: errors.join("\n"), variant: "destructive" });
+        return;
+      }
+      if (validFiles.length === 0) return;
+      setFormData((prev: any) => ({ ...prev, photoFiles: [...prev.photoFiles, ...validFiles] }));
+      toast({ title: "Photo Captured", description: "Photo taken from camera and stored with your case." });
+    }, "image/jpeg");
+    stopCamera();
+  }, [formData.photoFiles.length, toast, stopCamera]);
+
+  // Cleanup camera on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, []);
+
+  // Reset captured photo when formData.photoFiles changes externally
+  useEffect(() => {
+    setCapturedPhoto(null);
+  }, [formData.photoFiles.length > 0]);
 
   const tabs = [
     { id: "audio", label: "Audio", icon: Mic },
@@ -252,36 +318,33 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
                 <span className="text-xs text-gray-500">Max 8 photos, 12 MB each. JPEG, PNG, WebP, HEIC.</span>
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                <Button
-                  onClick={() => cameraInputRef.current?.click()}
-                  className="bg-automotive-orange hover:bg-orange-600 text-white"
-                >
-                  <Camera className="w-4 h-4 mr-2" /> Take Photo
-                </Button>
-                <Button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300"
-                >
-                  <Upload className="w-4 h-4 mr-2" /> Choose Photos
-                </Button>
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-                multiple
-                hidden
-                onChange={handlePhotoUpload}
-              />
-              <input
-                ref={cameraInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                hidden
-                onChange={handlePhotoUpload}
-              />
+              {cameraActive && (
+                <div className="mb-4 space-y-3">
+                  <video ref={videoRef} className="w-full max-h-48 object-contain rounded-lg bg-black" autoPlay muted playsInline />
+                  <canvas ref={canvasRef} className="hidden" />
+                  <div className="flex gap-2 justify-center">
+                    <Button onClick={capturePhoto} className="bg-automotive-orange hover:bg-orange-600 text-white">
+                      <Camera className="w-4 h-4 mr-2" /> Capture Photo
+                    </Button>
+                    <Button variant="outline" onClick={stopCamera} className="flex-1 sm:flex-none">
+                      <X className="w-4 h-4 mr-2" /> Cancel Camera
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {!cameraActive && (
+                <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                  <Button onClick={startCamera} className="bg-automotive-orange hover:bg-orange-600 text-white">
+                    <Camera className="w-4 h-4 mr-2" /> Take Photo
+                  </Button>
+                  <Button onClick={() => fileInputRef.current?.click()} className="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300">
+                    <Upload className="w-4 h-4 mr-2" /> Choose Photos
+                  </Button>
+                </div>
+              )}
+
+              <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple hidden onChange={handlePhotoUpload} />
             </div>
 
             {formData.photoFiles.length > 0 && (
@@ -290,17 +353,8 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   {formData.photoFiles.map((file, index) => (
                     <div key={`${file.name}-${index}`} className="relative aspect-square border rounded-lg overflow-hidden bg-gray-100">
-                      <img
-                        src={photoUrls[index]}
-                        alt={file.name}
-                        className="w-full h-full object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removePhoto(index)}
-                        className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600"
-                        aria-label="Remove photo"
-                      >
+                      <img src={photoUrls[index]} alt={file.name} className="w-full h-full object-cover" />
+                      <button type="button" onClick={() => removePhoto(index)} className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600" aria-label="Remove photo">
                         <X className="w-3 h-3" />
                       </button>
                     </div>
