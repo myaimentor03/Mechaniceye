@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - integration/drivable-beta-0902
+      - candidate/**
   workflow_dispatch:
 
 concurrency:
@@ -45,6 +46,9 @@ jobs:
 
       - name: Security tests
         run: npm run test:security
+
+      - name: Safe contract test suite
+        run: npm run test:safe-contracts
 
       - name: Whitespace / conflict-marker check
         run: git diff --check HEAD^ HEAD
