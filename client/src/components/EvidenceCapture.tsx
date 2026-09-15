@@ -61,11 +61,18 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
       ? "Describe the vehicle issue"
       : journey.step === "evidence"
       ? formData.photoFiles.length + formData.audioFiles.length + formData.videoFiles.length + formData.vibrationFiles.length > 0
-        ? "Add evidence for the issue"
+        ? `Evidence: ${formData.photoFiles.length} photo${formData.photoFiles.length !== 1 ? "s" : ""}, ${formData.audioFiles.length} audio${formData.audioFiles.length !== 1 ? "s" : ""}, ${formData.videoFiles.length} video${formData.videoFiles.length !== 1 ? "s" : ""}, ${formData.vibrationFiles.length} vibration${formData.vibrationFiles.length !== 1 ? "s" : ""}`
         : "Add evidence (photo, audio, video, or vibration)"
       : journey.step === "review"
-      ? "Review your evidence before saving"
+      ? `Review evidence${formData.photoFiles.length + formData.audioFiles.length + formData.videoFiles.length + formData.vibrationFiles.length > 0 ? " (${formData.photoFiles.length + formData.audioFiles.length + formData.videoFiles.length + formData.vibrationFiles.length} file(s))" : ""} before saving`
       : "Your case has been saved";
+
+  const getModalityStatus = (modality: "photo" | "audio" | "video" | "vibration") => {
+    const status = evidenceStatus?.[modality];
+    if (status === "persisted") return "stored";
+    if (status === "failed") return "failed";
+    return "not provided";
+  };
 
   const evidenceStatusColor = journey.step === "describe"
       ? "text-gray-600"
@@ -373,13 +380,13 @@ return (
           Evidence: {evidenceStatusText}
         </span>
         <span className="text-blue-600">|</span>
-        <span className="text-blue-700">Photos: {formData.photoFiles.length}/{MAX_PHOTO_COUNT}{evidenceStatus?.photo === "persisted" ? " ✓" : ""}</span>
+        <span className="text-blue-700">Photos: {formData.photoFiles.length}/{MAX_PHOTO_COUNT}{evidenceStatus?.photo === "persisted" ? " ✓" : ""}{evidenceStatus?.photo === "failed" ? " ✕" : ""}{evidenceStatus?.photo === "not_provided" ? " —" : ""}</span>
         <span className="text-blue-600">|</span>
-        <span className="text-blue-700">Audio: {formData.audioFiles.length}/{MAX_AUDIO_FILES}{evidenceStatus?.audio === "persisted" ? " ✓" : ""}</span>
+        <span className="text-blue-700">Audio: {formData.audioFiles.length}/{MAX_AUDIO_FILES}{evidenceStatus?.audio === "persisted" ? " ✓" : ""}{evidenceStatus?.audio === "failed" ? " ✕" : ""}{evidenceStatus?.audio === "not_provided" ? " —" : ""}</span>
         <span className="text-blue-600">|</span>
-        <span className="text-blue-700">Video: {formData.videoFiles.length}/{MAX_VIDEO_FILES}{evidenceStatus?.video === "persisted" ? " ✓" : ""}</span>
+        <span className="text-blue-700">Video: {formData.videoFiles.length}/{MAX_VIDEO_FILES}{evidenceStatus?.video === "persisted" ? " ✓" : ""}{evidenceStatus?.video === "failed" ? " ✕" : ""}{evidenceStatus?.video === "not_provided" ? " —" : ""}</span>
         <span className="text-blue-600">|</span>
-        <span className="text-blue-700">Vibration: {formData.vibrationFiles.length}/{MAX_VIBRATION_FILES}{evidenceStatus?.vibration === "persisted" ? " ✓" : ""}</span>
+        <span className="text-blue-700">Vibration: {formData.vibrationFiles.length}/{MAX_VIBRATION_FILES}{evidenceStatus?.vibration === "persisted" ? " ✓" : ""}{evidenceStatus?.vibration === "failed" ? " ✕" : ""}{evidenceStatus?.vibration === "not_provided" ? " —" : ""}</span>
       </div>
 
       {/* Journey Step Controls */}
