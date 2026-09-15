@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { useJourneyState } from "@/hooks/useJourneyState";
+import { type JourneyStep } from "@/hooks/useJourneyState";
 import { Upload, Check, Camera, Mic, Video, Waves, Edit, Image, Trash2, Play, X, Shield, AlertCircle } from "lucide-react";
 import { AudioRecorder } from "@/components/AudioRecorder";
 import { VideoRecorder } from "@/components/VideoRecorder";
@@ -40,11 +42,34 @@ interface EvidenceCaptureProps {
     vibration: EvidenceModalityStatus;
   };
   onRetry?: (modality: keyof NonNullable<EvidenceCaptureProps["evidenceStatus"]>) => void;
+  journeyStep?: JourneyStep;
+  onStepChange?: (step: JourneyStep) => void;
 }
 
 export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UNAVAILABLE, evidenceStatus, onRetry }: EvidenceCaptureProps) {
   const { toast } = useToast();
+  const journey = useJourneyState();
   const [activeTab, setActiveTab] = useState("description");
+
+  const evidenceStatusText = journey.step === "describe"
+      ? "Describe the vehicle issue"
+      : journey.step === "evidence"
+      ? formData.photoFiles.length + formData.audioFiles.length + formData.videoFiles.length + formData.vibrationFiles.length > 0
+        ? "Add evidence for the issue"
+        : "Add evidence (photo, audio, video, or vibration)"
+      : journey.step === "review"
+      ? "Review your evidence before saving"
+      : "Your case has been saved";
+
+  const evidenceStatusColor = journey.step === "describe"
+      ? "text-gray-600"
+      : journey.step === "evidence"
+      ? formData.photoFiles.length + formData.audioFiles.length + formData.videoFiles.length + formData.vibrationFiles.length > 0
+        ? "text-automotive-orange"
+        : "text-gray-400"
+      : journey.step === "review"
+      ? "text-automotive-orange"
+      : "text-green-600";
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -333,17 +358,13 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
     }
   };
 
-  return (
+return (
     <>
       {/* Evidence Status Bar */}
       <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm">
         <Shield className="w-4 h-4 text-blue-600" />
-        <span className="text-blue-800 font-medium">
-          Evidence: {evidenceStatus?.photo === "persisted" || evidenceStatus?.audio === "persisted" || evidenceStatus?.video === "persisted" || evidenceStatus?.vibration === "persisted"
-            ? "Stored privately — awaiting review"
-            : formData.photoFiles.length + formData.audioFiles.length + formData.videoFiles.length + formData.vibrationFiles.length > 0
-            ? "Pending save"
-            : "No evidence captured"}
+        <span className={evidenceStatusColor}>
+          Evidence: {evidenceStatusText}
         </span>
         <span className="text-blue-600">|</span>
         <span className="text-blue-700">Photos: {formData.photoFiles.length}/{MAX_PHOTO_COUNT}{evidenceStatus?.photo === "persisted" ? " ✓" : ""}</span>
@@ -353,6 +374,50 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
         <span className="text-blue-700">Video: {formData.videoFiles.length}/{MAX_VIDEO_FILES}{evidenceStatus?.video === "persisted" ? " ✓" : ""}</span>
         <span className="text-blue-600">|</span>
         <span className="text-blue-700">Vibration: {formData.vibrationFiles.length}/{MAX_VIBRATION_FILES}{evidenceStatus?.vibration === "persisted" ? " ✓" : ""}</span>
+      </div>
+
+      {/* Journey Step Controls */}
+      <div className="flex items-center gap-2 mb-6">
+        <Button
+          variant="outline"
+          onClick={() => journey.resetToDescribe()}
+          disabled={journey.step === "describe"}
+          className="flex-1 sm:flex-none text-sm text-gray-500 hover:text-gray-700"
+        >
+          <Edit className="w-3 h-3 mr-1" /> Describe
+        </Button>
+        {journey.step !== "describe" && (
+          <Button
+            variant="outline"
+            onClick={() => journey.proceedToEvidence()}
+            disabled={!(
+              formData.description.trim() &&
+              formData.vehicleInfo.trim() &&
+              formData.timing.trim()
+            )}
+            className="flex-1 sm:flex-none bg-automotive-orange hover:bg-orange-600 text-white"
+          >
+            <Mic className="w-3 h-3 mr-1" /> Add Evidence
+          </Button>
+        )}
+        {journey.step === "evidence" && (
+          <Button
+            variant="outline"
+            onClick={() => journey.proceedToReview()}
+            disabled={formData.photoFiles.length + formData.audioFiles.length + formData.videoFiles.length + formData.vibrationFiles.length === 0}
+            className="flex-1 sm:flex-none bg-automotive-orange hover:bg-orange-600 text-white"
+          >
+            <Video className="w-3 h-3 mr-1" /> Review
+          </Button>
+        )}
+        {journey.step === "review" && (
+          <Button
+            onClick={() => journey.goToComplete()}
+            className="flex-1 sm:flex-none bg-automotive-orange hover:bg-orange-600 text-white"
+          >
+            <Shield className="w-3 h-3 mr-1" /> Save Case
+          </Button>
+        )}
       </div>
 
       <div className="border-b border-gray-200 mb-6">

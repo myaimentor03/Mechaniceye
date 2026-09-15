@@ -11,6 +11,7 @@ import { AnalysisProgress } from "@/components/analysis-progress";
 import { apiRequest } from "@/lib/queryClient";
 import { filterSubmittableEvidence, parseMediaCapabilities, MEDIA_UNAVAILABLE, type MediaCapabilities } from "@/lib/mediaAvailability";
 import { useEvidenceDraft } from "@/hooks/useEvidenceDraft";
+import { useJourneyState } from "@/hooks/useJourneyState";
 
 export default function Diagnosis() {
   const [, setLocation] = useLocation();
@@ -24,6 +25,7 @@ export default function Diagnosis() {
     video: "persisted" | "not_provided" | "failed";
     vibration: "persisted" | "not_provided" | "failed";
   } | undefined>(undefined);
+  const journey = useJourneyState();
   const [formData, setFormData] = useState({
     description: "",
     vehicleInfo: "",
@@ -62,6 +64,7 @@ export default function Diagnosis() {
           vibration: summary.vibration?.status as "persisted" | "not_provided" | "failed" ?? "not_provided",
         });
       }
+      journey.goToComplete();
       setLocation(`/results/${diagnosis.id}`);
       toast({
         title: "Case saved",
@@ -77,6 +80,7 @@ export default function Diagnosis() {
         video: formData.videoFiles.length > 0 ? "failed" : "not_provided",
         vibration: formData.vibrationFiles.length > 0 ? "failed" : "not_provided",
       });
+      journey.resetToDescribe();
       toast({
         title: "Upload failed",
         description: error.message || "Could not save your evidence. Please try again.",
@@ -216,20 +220,45 @@ export default function Diagnosis() {
 
             {/* Progress Steps */}
             <div className="flex items-center space-x-4 mb-8">
-              <div className="flex items-center">
-                <div className="w-8 h-8 bg-automotive-orange text-white rounded-full flex items-center justify-center text-sm font-semibold">1</div>
-                <span className="ml-2 text-automotive-orange font-medium">Gather Evidence</span>
-              </div>
-              <div className="flex-1 h-0.5 bg-gray-200"></div>
-              <div className="flex items-center">
-                <div className="w-8 h-8 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-sm font-semibold">2</div>
-                <span className="ml-2 text-gray-500">Case Saved</span>
-              </div>
-              <div className="flex-1 h-0.5 bg-gray-200"></div>
-              <div className="flex items-center">
-                <div className="w-8 h-8 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-sm font-semibold">3</div>
-                <span className="ml-2 text-gray-500">Next Steps</span>
-              </div>
+              {journey.step !== "complete" && (
+                <div className="flex items-center space-x-1">
+                  <div className={`w-8 h-8 rounded-full border-2 ${
+                    journey.step === "describe" ? "border-automotive-orange" : journey.step === "evidence" ? "border-automotive-orange" : journey.step === "review" ? "border-automotive-orange" : "border-gray-200"
+                  } bg-${
+                    journey.step === "describe"
+                      ? "automotive-orange"
+                      : journey.step === "evidence"
+                      ? "automotive-orange"
+                      : journey.step === "review"
+                      ? "automotive-orange"
+                      : "gray-200"
+                  } text-white text-sm font-semibold`}
+                    >{journey.step === "describe" ? "1" : journey.step === "evidence" ? "2" : journey.step === "review" ? "3" : ""}</div>
+                  <span className="text-automotive-orange font-medium text-sm">{journey.step === "describe" ? "Describe Issue" : journey.step === "evidence" ? "Add Evidence" : journey.step === "review" ? "Review" : "Complete"}</span>
+                </div>
+              )}
+              {journey.step !== "describe" && journey.step !== "complete" && (
+                <div className="flex items-center space-x-1">
+                  <div className={`w-8 h-8 rounded-full border-2 bg-${
+                    journey.step === "evidence" || journey.step === "review" || journey.step === "describe"
+                      ? "automotive-orange"
+                      : "gray-200"
+                  } text-white text-sm font-semibold`}
+                    >{journey.step === "evidence" || journey.step === "review" || journey.step === "describe" ? "2" : "3"}</div>
+                  <span className="text-gray-500 text-sm">{journey.step === "evidence" ? "Add Evidence" : journey.step === "review" ? "Review Evidence" : journey.step === "describe" ? "Describe Issue" : "Next Steps"}</span>
+                </div>
+              )}
+              {journey.step !== "describe" && journey.step !== "complete" && (
+                <div className="flex items-center space-x-1">
+                  <div className={`w-8 h-8 rounded-full border-2 bg-${
+                    journey.step === "review" || journey.step === "evidence" || journey.step === "describe"
+                      ? "automotive-orange"
+                      : "gray-200"
+                  } text-white text-sm font-semibold`}
+                    >{journey.step === "review" || journey.step === "evidence" || journey.step === "describe" ? "3" : "4"}</div>
+                  <span className="text-gray-500 text-sm">{journey.step === "review" ? "Prepare Submission" : journey.step === "evidence" ? "Add Evidence" : journey.step === "describe" ? "Describe Issue" : "Complete"}</span>
+                </div>
+              )}
             </div>
 
             <EvidenceCapture
@@ -240,6 +269,8 @@ export default function Diagnosis() {
               onRetry={(modality) => {
                 setEvidenceStatus((prev) => prev ? { ...prev, [modality]: "not_provided" } : undefined);
               }}
+              journeyStep={journey.step}
+              onStepChange={journey.setStep}
             />
 
             {/* Submit Button */}
