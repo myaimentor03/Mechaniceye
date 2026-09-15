@@ -163,9 +163,46 @@ const diagnosisEvidenceUpload = multer({
 const diagnosisEvidenceUploadMiddleware = (req: any, res: any, next: any) => {
   diagnosisEvidenceUpload.fields([
     { name: "photos", maxCount: PHOTO_LIMITS.maxCount },
-    { name: "audio", maxCount: 4 },
-    { name: "video", maxCount: 4 },
-    { name: "vibration", maxCount: 4 }
+    { name: "audio", maxCount: AUDIO_LIMITS.maxCount },
+    { name: "video", maxCount: VIDEO_LIMITS.maxCount },
+    { name: "vibration", maxCount: VIBRATION_LIMITS.maxCount }
+  ])(req, res, (error: unknown) => {
+    if (!error) return next();
+    const isLimitError = error instanceof multer.MulterError;
+    return res.status(isLimitError ? 413 : 415).json({
+      message: isLimitError
+        ? "Evidence upload exceeds the allowed limits (8 photos max, 12 MB per file, 20 files max)."
+        : error instanceof Error ? error.message : "Evidence upload was rejected.",
+      persisted: false,
+    });
+  });
+};
+
+const followUpEvidenceUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: VIDEO_LIMITS.maxBytesEach,
+    files: PHOTO_LIMITS.maxCount + AUDIO_LIMITS.maxCount + VIDEO_LIMITS.maxCount + VIBRATION_LIMITS.maxCount,
+  },
+  fileFilter: (_req, file, cb) => {
+    const allowedMimes = [
+      ...ALLOWED_PHOTO_MEDIA_TYPES,
+      ...ALLOWED_AUDIO_MEDIA_TYPES,
+      ...ALLOWED_VIDEO_MEDIA_TYPES,
+      ...ALLOWED_VIBRATION_MEDIA_TYPES,
+    ];
+    if (!allowedMimes.includes(file.mimetype)) {
+      return cb(new Error(`Unsupported evidence type: ${file.mimetype || "unknown"}`));
+    }
+    cb(null, true);
+  },
+});
+const followUpEvidenceUploadMiddleware = (req: any, res: any, next: any) => {
+  followUpEvidenceUpload.fields([
+    { name: "photos", maxCount: PHOTO_LIMITS.maxCount },
+    { name: "audio", maxCount: AUDIO_LIMITS.maxCount },
+    { name: "video", maxCount: VIDEO_LIMITS.maxCount },
+    { name: "vibration", maxCount: VIBRATION_LIMITS.maxCount }
   ])(req, res, (error: unknown) => {
     if (!error) return next();
     const isLimitError = error instanceof multer.MulterError;
@@ -2463,22 +2500,19 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
   });
 
   // Create follow-up request when previous fixes didn't work
-  app.post("/api/diagnoses/:id/follow-up", requireReviewer, reviewerWriteLimit, upload.fields([
-    { name: 'photos', maxCount: PHOTO_LIMITS.maxCount },
-    { name: 'audio', maxCount: 1 },
-    { name: 'video', maxCount: 1 },
-    { name: 'vibration', maxCount: 1 }
-  ]), async (req, res) => {
-    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-    const photoFiles = files?.photos || [];
-    const uploadedPaths = Object.values(files || {}).flat().map((file) => file.path).filter(Boolean);
+  app.post("/api/diagnoses/:id/follow-up", requireReviewer, reviewerWriteLimit, followUpEvidenceUploadMiddleware, async (req, res) => {
+    const uploadedFiles = (req.files || {}) as UploadedEvidenceFiles;
+    const photoFiles = uploadedFiles.photos || [];
+    const audioFiles = uploadedFiles.audio || [];
+    const videoFiles = uploadedFiles.video || [];
+    const vibrationFiles = uploadedFiles.vibration || [];
     const cleanupTemporaryFiles = async () => {
-      await Promise.all(uploadedPaths.map((filePath) => fs.promises.unlink(filePath).catch(() => undefined)));
+      await removeIntakeTempFiles(uploadedFiles);
     };
     try {
       const diagnosisId = req.params.id;
 
-      // Validate photo uploads if present
+      // Truthful gate: photo upload requires durable storage or local dev
       if (photoFiles.length > 0) {
         const isDevelopment = process.env.NODE_ENV !== "production";
         const allowPhotoUpload = isDevelopment && evidenceStore.durability === "runtime_local";
@@ -2494,34 +2528,53 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
             await cleanupTemporaryFiles();
             return res.status(413).json({ message: "Each photo must be 12 MB or smaller.", persisted: false });
           }
-          const unsupportedPhotoMime = photoFiles.find((f) => !ALLOWED_PHOTO_MEDIA_TYPES.has(f.mimetype));
-          if (unsupportedPhotoMime) {
-            await cleanupTemporaryFiles();
-            return res.status(415).json({
-              message: "A submitted photo has an unsupported file type. Supported types are JPEG, PNG, WebP, and HEIC.",
-              code: "UNSUPPORTED_PHOTO_MEDIA_TYPE",
-              persisted: false,
-            });
-          }
         }
-      }
-
-      let vibrationStoredKeys: string[] = [];
-      let photoAttachments: EvidenceAttachment[] = [];
-      if (files?.vibration?.length) {
-        try {
-          const vAttachments = await evidenceStore.saveVibrationFiles(diagnosisId, files.vibration);
-          vibrationStoredKeys = vAttachments.map((a) => a.storageKey);
-        } catch (vError) {
-          logEventError("api.follow_up_vibration_storage_failed", vError, { diagnosisId });
+        const unsupportedPhotoMime = photoFiles.find((f) => !ALLOWED_PHOTO_MEDIA_TYPES.has(f.mimetype));
+        if (unsupportedPhotoMime) {
           await cleanupTemporaryFiles();
-          return res.status(507).json({
-            message: "Vibration evidence could not be persisted. Please try again.",
-            code: "VIBRATION_PERSISTENCE_FAILED",
+          return res.status(415).json({
+            message: "A submitted photo has an unsupported file type. Supported types are JPEG, PNG, WebP, and HEIC.",
+            code: "UNSUPPORTED_PHOTO_MEDIA_TYPE",
             persisted: false,
           });
         }
-      } else if (req.body.vibrationData) {
+      }
+
+      // Validate audio / video / vibration per-type limits truthfully before persistence
+      if (audioFiles.length > 0) {
+        if (audioFiles.some((f) => f.size > AUDIO_LIMITS.maxBytesEach)) {
+          await cleanupTemporaryFiles();
+          return res.status(413).json({ message: "Each audio file must be 50 MB or smaller.", persisted: false });
+        }
+        const badAudio = audioFiles.find((f) => !ALLOWED_AUDIO_MEDIA_TYPES.has(f.mimetype));
+        if (badAudio) {
+          await cleanupTemporaryFiles();
+          return res.status(415).json({ message: "A submitted audio file has an unsupported type. Supported types are MP3, WAV, M4A, WebM, and OGG.", code: "UNSUPPORTED_AUDIO_MEDIA_TYPE", persisted: false });
+        }
+      }
+      if (videoFiles.length > 0) {
+        if (videoFiles.some((f) => f.size > VIDEO_LIMITS.maxBytesEach)) {
+          await cleanupTemporaryFiles();
+          return res.status(413).json({ message: "Each video file must be 100 MB or smaller.", persisted: false });
+        }
+        const badVideo = videoFiles.find((f) => !ALLOWED_VIDEO_MEDIA_TYPES.has(f.mimetype));
+        if (badVideo) {
+          await cleanupTemporaryFiles();
+          return res.status(415).json({ message: "A submitted video file has an unsupported type. Supported types are MP4, MOV, AVI, and WebM.", code: "UNSUPPORTED_VIDEO_MEDIA_TYPE", persisted: false });
+        }
+      }
+      if (vibrationFiles.length > 0) {
+        if (vibrationFiles.some((f) => f.size > VIBRATION_LIMITS.maxBytesEach)) {
+          await cleanupTemporaryFiles();
+          return res.status(413).json({ message: "Each vibration file must be 5 MB or smaller.", persisted: false });
+        }
+        const badVib = vibrationFiles.find((f) => !ALLOWED_VIBRATION_MEDIA_TYPES.has(f.mimetype));
+        if (badVib) {
+          await cleanupTemporaryFiles();
+          return res.status(415).json({ message: "A submitted vibration file has an unsupported type. Use application/json.", code: "UNSUPPORTED_VIBRATION_MEDIA_TYPE", persisted: false });
+        }
+      }
+      if (req.body.vibrationData) {
         await cleanupTemporaryFiles();
         return res.status(422).json({
           message: "Vibration JSON via vibrationData is deprecated. Please upload a vibration file via the 'vibration' field or describe the vibration in text.",
@@ -2529,7 +2582,13 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
         });
       }
 
-      // Save photo attachments if present
+      let vibrationStoredKeys: string[] = [];
+      let photoAttachments: EvidenceAttachment[] = [];
+      let audioAttachments: EvidenceAttachment[] = [];
+      let videoAttachments: EvidenceAttachment[] = [];
+      let vibrationAttachments: EvidenceAttachment[] = [];
+
+      // Persist each modality via EvidenceStore with honest 500-level failure handling
       if (photoFiles.length > 0) {
         try {
           photoAttachments = await evidenceStore.savePhotos(diagnosisId, photoFiles);
@@ -2543,6 +2602,46 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
           });
         }
       }
+      if (audioFiles.length > 0) {
+        try {
+          audioAttachments = await evidenceStore.saveAudioFiles(diagnosisId, audioFiles);
+        } catch (storageError) {
+          logEventError("api.follow_up_audio_storage_failed", storageError, { diagnosisId });
+          await cleanupTemporaryFiles();
+          return res.status(507).json({
+            message: "Audio evidence could not be persisted. Please try again.",
+            code: "AUDIO_PERSISTENCE_FAILED",
+            persisted: false,
+          });
+        }
+      }
+      if (videoFiles.length > 0) {
+        try {
+          videoAttachments = await evidenceStore.saveVideoFiles(diagnosisId, videoFiles);
+        } catch (storageError) {
+          logEventError("api.follow_up_video_storage_failed", storageError, { diagnosisId });
+          await cleanupTemporaryFiles();
+          return res.status(507).json({
+            message: "Video evidence could not be persisted. Please try again.",
+            code: "VIDEO_PERSISTENCE_FAILED",
+            persisted: false,
+          });
+        }
+      }
+      if (vibrationFiles.length > 0) {
+        try {
+          vibrationAttachments = await evidenceStore.saveVibrationFiles(diagnosisId, vibrationFiles);
+          vibrationStoredKeys = vibrationAttachments.map((a) => a.storageKey);
+        } catch (vError) {
+          logEventError("api.follow_up_vibration_storage_failed", vError, { diagnosisId });
+          await cleanupTemporaryFiles();
+          return res.status(507).json({
+            message: "Vibration evidence could not be persisted. Please try again.",
+            code: "VIBRATION_PERSISTENCE_FAILED",
+            persisted: false,
+          });
+        }
+      }
       
       // Get original diagnosis
       const originalDiagnosis = await storage.getDiagnosis(diagnosisId);
@@ -2551,9 +2650,9 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
         return res.status(404).json({ message: "Original diagnosis not found" });
       }
 
-      // Create follow-up request
-      const audioFile = files?.audio?.[0]?.filename || null;
-      const videoFile = files?.video?.[0]?.filename || null;
+      // Create follow-up request - store first storageKey for legacy single-field, but evidence is via EvidenceStore attachments
+      const audioFile = audioAttachments[0]?.storageKey || null;
+      const videoFile = videoAttachments[0]?.storageKey || null;
       const followUpData = {
         originalDiagnosisId: diagnosisId,
         userId: originalDiagnosis.userId!,
@@ -2589,9 +2688,9 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
       // Create new diagnosis with follow-up results
       const evidenceBoundary = buildFollowUpEvidenceBoundary({
         photoStored: photoAttachments.length > 0,
-        audioStored: Boolean(followUpData.newAudioFile),
-        videoStored: Boolean(followUpData.newVideoFile),
-        vibrationStored: Boolean(followUpData.newVibrationData),
+        audioStored: audioAttachments.length > 0,
+        videoStored: videoAttachments.length > 0,
+        vibrationStored: vibrationAttachments.length > 0,
       });
       const newDiagnosis = await storage.createDiagnosis({
         userId: originalDiagnosis.userId,

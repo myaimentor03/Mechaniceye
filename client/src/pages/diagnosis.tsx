@@ -218,45 +218,33 @@ export default function Diagnosis() {
               </div>
             )}
 
-            {/* Progress Steps */}
+            {/* Progress Steps - truthful journey state */}
             <div className="flex items-center space-x-4 mb-8">
-              {journey.step !== "complete" && (
+              {journey.step !== "complete" ? (
+                <>
+                  <div className="flex items-center space-x-1">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${journey.step === "describe" ? "border-automotive-orange bg-automotive-orange" : "border-automotive-orange bg-automotive-orange"} text-white text-sm font-semibold`}>
+                      1
+                    </div>
+                    <span className={`font-medium text-sm ${journey.step === "describe" ? "text-automotive-orange" : "text-automotive-orange"}`}>Describe Issue</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${journey.step === "evidence" || journey.step === "review" ? "border-automotive-orange bg-automotive-orange" : "border-gray-200 bg-gray-200"} text-white text-sm font-semibold`}>
+                      2
+                    </div>
+                    <span className={`text-sm ${journey.step === "evidence" ? "text-automotive-orange font-medium" : "text-gray-500"}`}>Add Evidence</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${journey.step === "review" ? "border-automotive-orange bg-automotive-orange" : "border-gray-200 bg-gray-200"} text-white text-sm font-semibold`}>
+                      3
+                    </div>
+                    <span className={`text-sm ${journey.step === "review" ? "text-automotive-orange font-medium" : "text-gray-500"}`}>Review</span>
+                  </div>
+                </>
+              ) : (
                 <div className="flex items-center space-x-1">
-                  <div className={`w-8 h-8 rounded-full border-2 ${
-                    journey.step === "describe" ? "border-automotive-orange" : journey.step === "evidence" ? "border-automotive-orange" : journey.step === "review" ? "border-automotive-orange" : "border-gray-200"
-                  } bg-${
-                    journey.step === "describe"
-                      ? "automotive-orange"
-                      : journey.step === "evidence"
-                      ? "automotive-orange"
-                      : journey.step === "review"
-                      ? "automotive-orange"
-                      : "gray-200"
-                  } text-white text-sm font-semibold`}
-                    >{journey.step === "describe" ? "1" : journey.step === "evidence" ? "2" : journey.step === "review" ? "3" : ""}</div>
-                  <span className="text-automotive-orange font-medium text-sm">{journey.step === "describe" ? "Describe Issue" : journey.step === "evidence" ? "Add Evidence" : journey.step === "review" ? "Review" : "Complete"}</span>
-                </div>
-              )}
-              {journey.step !== "describe" && journey.step !== "complete" && (
-                <div className="flex items-center space-x-1">
-                  <div className={`w-8 h-8 rounded-full border-2 bg-${
-                    journey.step === "evidence" || journey.step === "review" || journey.step === "describe"
-                      ? "automotive-orange"
-                      : "gray-200"
-                  } text-white text-sm font-semibold`}
-                    >{journey.step === "evidence" || journey.step === "review" || journey.step === "describe" ? "2" : "3"}</div>
-                  <span className="text-gray-500 text-sm">{journey.step === "evidence" ? "Add Evidence" : journey.step === "review" ? "Review Evidence" : journey.step === "describe" ? "Describe Issue" : "Next Steps"}</span>
-                </div>
-              )}
-              {journey.step !== "describe" && journey.step !== "complete" && (
-                <div className="flex items-center space-x-1">
-                  <div className={`w-8 h-8 rounded-full border-2 bg-${
-                    journey.step === "review" || journey.step === "evidence" || journey.step === "describe"
-                      ? "automotive-orange"
-                      : "gray-200"
-                  } text-white text-sm font-semibold`}
-                    >{journey.step === "review" || journey.step === "evidence" || journey.step === "describe" ? "3" : "4"}</div>
-                  <span className="text-gray-500 text-sm">{journey.step === "review" ? "Prepare Submission" : journey.step === "evidence" ? "Add Evidence" : journey.step === "describe" ? "Describe Issue" : "Complete"}</span>
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center border-2 border-green-500 bg-green-500 text-white text-sm font-semibold">✓</div>
+                  <span className="text-green-600 font-medium text-sm">Complete</span>
                 </div>
               )}
             </div>

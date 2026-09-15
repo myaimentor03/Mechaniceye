@@ -46,9 +46,19 @@ interface EvidenceCaptureProps {
   onStepChange?: (step: JourneyStep) => void;
 }
 
-export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UNAVAILABLE, evidenceStatus, onRetry }: EvidenceCaptureProps) {
+export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UNAVAILABLE, evidenceStatus, onRetry, journeyStep, onStepChange }: EvidenceCaptureProps) {
   const { toast } = useToast();
-  const journey = useJourneyState();
+  const internalJourney = useJourneyState();
+  const journey = journeyStep && onStepChange
+    ? {
+        step: journeyStep,
+        setStep: onStepChange,
+        proceedToEvidence: () => onStepChange("evidence"),
+        proceedToReview: () => onStepChange("review"),
+        goToComplete: () => onStepChange("complete"),
+        resetToDescribe: () => onStepChange("describe"),
+      } as ReturnType<typeof useJourneyState>
+    : internalJourney;
   const [activeTab, setActiveTab] = useState("description");
 
   const evidenceStatusText = journey.step === "describe"
