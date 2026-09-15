@@ -10,6 +10,7 @@ import { ComingSoon } from "./coming-soon";
 import { StepByStepRepair } from "./step-by-step-repair";
 import { FixHistoryLogComponent } from "./fix-history-log";
 import { ChatExport } from "./chat-export";
+import { EvidenceVerificationPanel } from "./EvidenceVerificationPanel";
 import type { Diagnosis } from "@shared/schema";
 
 const EVIDENCE_STATUS = "uploaded_not_analyzed";
@@ -91,8 +92,9 @@ export function DiagnosisResults({ diagnosis }: DiagnosisResultsProps) {
 
       {/* Main Tabbed Interface */}
       <Tabs defaultValue="diagnosis" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="diagnosis">Diagnosis</TabsTrigger>
+          <TabsTrigger value="evidence">Evidence</TabsTrigger>
           <TabsTrigger value="repair">Step-by-Step{!featureFlags.stepByStepRepair ? " (Soon)" : ""}</TabsTrigger>
           <TabsTrigger value="history">Fix History{!featureFlags.fixHistory ? " (Soon)" : ""}</TabsTrigger>
           <TabsTrigger value="export">Export{!featureFlags.chatExport ? " (Soon)" : ""}</TabsTrigger>
@@ -173,6 +175,10 @@ export function DiagnosisResults({ diagnosis }: DiagnosisResultsProps) {
               ) : null}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="evidence" className="space-y-6 mt-6">
+          <EvidenceVerificationPanel caseId={diagnosis.id} />
         </TabsContent>
 
         <TabsContent value="repair" className="space-y-6 mt-6">
