@@ -11,6 +11,9 @@ import { DrivablePreviewHub } from "./components/DrivablePreviewHub";
 import { DrivableReportEmailPreview } from "./components/DrivableReportEmailPreview";
 import { DrivableReportPreview } from "./components/DrivableReportPreview";
 import { EvidenceChecklist } from "./components/EvidenceChecklist";
+import { AudioRecorder } from "./components/AudioRecorder";
+import { VideoRecorder } from "./components/VideoRecorder";
+import { VibrationCapture } from "./components/VibrationCapture";
 import { InternalReviewCard } from "./components/InternalReviewCard";
 import { InternalReviewActionPanel } from "./components/InternalReviewActionPanel";
 import { CustomerAccountGate, type DrivableCustomer } from "./components/CustomerAccountGate";
@@ -26,6 +29,7 @@ import { RoadsideGuidancePreview } from "./components/RoadsideGuidancePreview";
 import { RoadsideSeverityGuide } from "./components/RoadsideSeverityGuide";
 import { SendSafetyGatePreview } from "./components/SendSafetyGatePreview";
 import { WhatHappensNext } from "./components/WhatHappensNext";
+import { EvidenceVerificationPanel } from "./components/EvidenceVerificationPanel";
 import { DrivablePublicHeader } from "./components/PublicHeaderNavigation";
 import { YEARS, VEHICLE_DATA, FALLBACK_MAKES, FALLBACK_MODELS, FALLBACK_ENGINES, TRANSMISSION_OPTIONS, DRIVETRAIN_OPTIONS } from "./data/vehicleData";
 import {
@@ -33,6 +37,13 @@ import {
   type IntakeScenario
 } from "../../shared/drivableDecisionEngine";
 import type { DrivableEvidenceIntake } from "../../shared/drivableEvidence";
+import {
+  MEDIA_UNAVAILABLE,
+  filterSubmittableEvidence,
+  mediaUnavailableMessage,
+  parseMediaCapabilities,
+  type MediaCapabilities,
+} from "./lib/mediaAvailability";
 import {
   getFrontendRoutePath,
   getFrontendSearchParams,
@@ -1163,6 +1174,58 @@ const [manualEngine, setManualEngine] = useState("");
   const [customer, setCustomer] = useState<DrivableCustomer | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [photoUploadEnabled, setPhotoUploadEnabled] = useState(false);
+  const [mediaCapabilities, setMediaCapabilities] = useState<MediaCapabilities>({ ...MEDIA_UNAVAILABLE });
+  const [draftRestored, setDraftRestored] = useState(false);
+
+  const DRAFT_KEY = "drivable-intake-draft-v1";
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw) as Record<string, unknown>;
+      if (typeof d.year === "string" && d.year) setYear(d.year);
+      if (typeof d.make === "string" && d.make) setMake(d.make);
+      if (typeof d.model === "string" && d.model) setModel(d.model);
+      if (typeof d.engine === "string" && d.engine) setEngine(d.engine);
+      if (typeof d.manualMake === "string") setManualMake(d.manualMake);
+      if (typeof d.manualModel === "string") setManualModel(d.manualModel);
+      if (typeof d.manualEngine === "string") setManualEngine(d.manualEngine);
+      if (typeof d.mileage === "string") setMileage(d.mileage);
+      if (typeof d.vin === "string") setVin(d.vin);
+      if (typeof d.obdCodes === "string") setObdCodes(d.obdCodes);
+      if (typeof d.transmission === "string") setTransmission(d.transmission);
+      if (typeof d.drivetrain === "string") setDrivetrain(d.drivetrain);
+      if (typeof d.problemCategory === "string" && d.problemCategory) setProblemCategory(d.problemCategory);
+      if (typeof d.description === "string" && d.description) setDescription(d.description);
+      if (typeof d.recentRepairs === "string") setRecentRepairs(d.recentRepairs);
+      if (typeof d.otherTiming === "string") setOtherTiming(d.otherTiming);
+      if (Array.isArray(d.timingSelections)) setTimingSelections(d.timingSelections as string[]);
+      if (typeof d.urgency === "string" && d.urgency) setUrgency(d.urgency);
+      if (d.step === 1 || d.step === 2) setStep(d.step as 1 | 2);
+      setDraftRestored(true);
+    } catch {
+      // ignore corrupt draft
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!authChecked) return;
+    if (result) return;
+    try {
+      const draft = {
+        year, make, model, engine, manualMake, manualModel, manualEngine,
+        mileage, vin, obdCodes, transmission, drivetrain,
+        problemCategory, description, recentRepairs, otherTiming, timingSelections, urgency, step
+      };
+      const hasContent = Object.values(draft).some((v) => {
+        if (Array.isArray(v)) return v.length > 0;
+        return typeof v === "string" && v.length > 0;
+      });
+      if (hasContent) window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    } catch {
+      // storage unavailable
+    }
+  }, [year, make, model, engine, manualMake, manualModel, manualEngine, mileage, vin, obdCodes, transmission, drivetrain, problemCategory, description, recentRepairs, otherTiming, timingSelections, urgency, step, authChecked, result]);
 
   useEffect(() => {
     let active = true;
@@ -1181,8 +1244,21 @@ const [manualEngine, setManualEngine] = useState("");
   useEffect(() => {
     fetch("/api/capabilities")
       .then((response) => response.json())
-      .then((body) => setPhotoUploadEnabled(body.photoUpload === true))
-      .catch(() => setPhotoUploadEnabled(false));
+      .then((body) => {
+        const parsed = parseMediaCapabilities(body);
+        setMediaCapabilities(parsed);
+        setPhotoUploadEnabled(parsed.photoUpload);
+        // Drop stale selections the server cannot persist so a good case
+        // cannot turn into a 507 because storage went away mid-draft.
+        setPhotoFiles((current) => (parsed.photoUpload ? current : []));
+        setAudioFiles((current) => (parsed.audioUpload ? current : []));
+        setVideoFiles((current) => (parsed.videoUpload ? current : []));
+        setVibrationFiles((current) => (parsed.vibrationSensorCapture ? current : []));
+      })
+      .catch(() => {
+        setMediaCapabilities({ ...MEDIA_UNAVAILABLE });
+        setPhotoUploadEnabled(false);
+      });
   }, []);
 
   const availableMakes = useMemo(() => {
@@ -1224,7 +1300,8 @@ const [manualEngine, setManualEngine] = useState("");
   setManualEngine("");
 }
 
-  function buildDescriptionBlock() {
+  function buildDescriptionBlock(files?: { photos: File[]; audio: File[]; video: File[]; vibration: File[] }) {
+    const selected = files || { photos: photoFiles, audio: audioFiles, video: videoFiles, vibration: vibrationFiles };
     return [
       `Problem Category: ${problemCategory || "Not provided"}`,
       `Vehicle: ${year} ${make === "Other Make" ? manualMake : make} ${model === "Other Model" ? manualModel : model}`,
@@ -1244,10 +1321,10 @@ const [manualEngine, setManualEngine] = useState("");
       description || "Not provided",
       "",
       "Selected evidence files:",
-      `Photos: ${photoFiles.length ? photoFiles.map((f) => f.name).join(", ") : "None"}`,
-      `Audio: ${audioFiles.length ? audioFiles.map((f) => f.name).join(", ") : "None"}`,
-      `Video: ${videoFiles.length ? videoFiles.map((f) => f.name).join(", ") : "None"}`,
-      `Vibration / Motion: ${vibrationFiles.length ? vibrationFiles.map((f) => f.name).join(", ") : "None"}`,
+      `Photos: ${selected.photos.length ? selected.photos.map((f) => f.name).join(", ") : "None"}`,
+      `Audio: ${selected.audio.length ? selected.audio.map((f) => f.name).join(", ") : "None"}`,
+      `Video: ${selected.video.length ? selected.video.map((f) => f.name).join(", ") : "None"}`,
+      `Vibration / Motion: ${selected.vibration.length ? selected.vibration.map((f) => f.name).join(", ") : "None"}`,
       "",
       "Note: uploaded media is received for human review and is not analyzed by AI."
     ].join("\n");
@@ -1291,8 +1368,13 @@ const [manualEngine, setManualEngine] = useState("");
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
-    if (!serviceConsent || !humanReviewConsent || (photoFiles.length > 0 && !mediaConsent)) {
-      setError("Please accept service fulfillment and human review. Photo submissions also require media processing consent.");
+    const submittable = filterSubmittableEvidence(
+      { photos: photoFiles, audio: audioFiles, video: videoFiles, vibration: vibrationFiles },
+      mediaCapabilities,
+    );
+    const hasMediaFiles = submittable.photos.length > 0 || submittable.audio.length > 0 || submittable.video.length > 0 || submittable.vibration.length > 0;
+    if (!serviceConsent || !humanReviewConsent || (hasMediaFiles && !mediaConsent)) {
+      setError("Please accept service fulfillment and human review. Media submissions also require media processing consent.");
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
@@ -1314,11 +1396,11 @@ const [manualEngine, setManualEngine] = useState("");
     setError("");
     setResult(null);
 
-    const photoFileNames = photoFiles.map((file) => file.name);
+    const photoFileNames = submittable.photos.map((file) => file.name);
     const payload = {
       clientRequestId,
       problemCategory,
-      description: buildDescriptionBlock(),
+      description: buildDescriptionBlock(submittable),
       vehicleInfo: `${year} ${resolvedMake} ${resolvedModel} | Engine: ${resolvedEngine || "N/A"} | Mileage: ${mileage || "N/A"} | Transmission: ${transmission || "N/A"} | Drivetrain: ${drivetrain || "N/A"}`,
       unsupportedVehicle,
       manualVehicleEntryUsed: usedManualVehicleEntry,
@@ -1383,10 +1465,10 @@ const endpoints = [PUBLIC_API_ENDPOINT];
             human_review_sharing: humanReviewConsent,
             optional_product_learning: learningConsent,
           }));
-          photoFiles.forEach((file) => requestBody.append("photos", file, file.name));
-          audioFiles.forEach((file) => requestBody.append("audio", file, file.name));
-          videoFiles.forEach((file) => requestBody.append("video", file, file.name));
-          vibrationFiles.forEach((file) => requestBody.append("vibration", file, file.name));
+          submittable.photos.forEach((file) => requestBody.append("photos", file, file.name));
+          submittable.audio.forEach((file) => requestBody.append("audio", file, file.name));
+          submittable.video.forEach((file) => requestBody.append("video", file, file.name));
+          submittable.vibration.forEach((file) => requestBody.append("vibration", file, file.name));
 
           const res = await fetch(endpoint, {
             method: "POST",
@@ -1413,6 +1495,8 @@ const endpoints = [PUBLIC_API_ENDPOINT];
             continue;
           }
 
+          try { window.localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+          setDraftRestored(false);
           setResult(data);
           setError("");
           window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1461,7 +1545,7 @@ const endpoints = [PUBLIC_API_ENDPOINT];
             <button className="offer-card offer-card-primary" onClick={() => setPage("intake")}>
               <div className="offer-topline">Drivable Check</div>
               <div className="offer-title">Find Out What&apos;s Wrong</div>
-<div className="offer-copy">Capture written symptoms, timing, photos, and manual OBD codes before spending money on guesswork.</div>
+<div className="offer-copy">Capture written symptoms, timing, photos, audio, video, vibration, and manual OBD codes before spending money on guesswork.</div>
               <div className="offer-action">Start Drivable Check</div>
             </button>
 
@@ -1476,7 +1560,7 @@ const endpoints = [PUBLIC_API_ENDPOINT];
 
         <div className="feature-grid">
           <div className="feature-card"><h3>Structured Intake</h3><p>Year, make, model, timing, urgency, and symptom story gathered in a useful format.</p></div>
-<div className="feature-card"><h3>Evidence Support</h3><p>Written symptoms, manual OBD codes, vibration context, and photo attachments organized with the case. Current photos are not visually analyzed.</p></div>
+<div className="feature-card"><h3>Evidence Support</h3><p>Written symptoms, manual OBD codes, photos, audio recording, video recording, and vibration measurement organized with the case. Uploaded media is stored for human review.</p></div>
           <div className="feature-card"><h3>Practical Direction</h3><p>Designed to help you understand likely causes and prepare for the next real-world step.</p></div>
         </div>
 
@@ -1543,17 +1627,54 @@ const endpoints = [PUBLIC_API_ENDPOINT];
 
           {error && <div className="alert-card warning">{error}</div>}
 
+          {draftRestored && !result && (
+            <div className="alert-card" style={{ background: "#eef6ff", borderColor: "#c2d9f5" }}>
+              <h3>Draft restored</h3>
+              <p>We restored your previous vehicle and symptom details from this device. Evidence files need to be re-selected after a refresh. <button type="button" className="secondary-btn" onClick={() => { try { window.localStorage.removeItem(DRAFT_KEY); } catch {} setDraftRestored(false); }}>Clear draft</button></p>
+            </div>
+          )}
+
           {result && (
             <div className="alert-card success">
               <h3>Case Received</h3>
               <p><strong>Status:</strong> {result.status}</p>
               <p><strong>Case ID:</strong> {result.id}</p>
-              <p>
-                Your case was recorded and sent to review. Save your Case ID in case you want
-                to reference this submission later. Keep an eye on your inbox if you provided
-                a follow-up email.
-              </p>
+              {result.casePersistence && (
+                <p><strong>Case persistence:</strong> {result.casePersistence.primary} / {result.casePersistence.databaseMirror}</p>
+              )}
+              {result.evidencePersistence && (
+                <p><strong>Evidence storage:</strong> {result.evidencePersistence.durability} — all uploaded media is stored for human review and is not analyzed by AI.</p>
+              )}
+              {result.evidenceSummary && (
+                <div style={{ marginTop: "12px", borderTop: "1px solid #cfe8d8", paddingTop: "12px" }}>
+                  <strong>Evidence attached to this case:</strong>
+                  <ul style={{ margin: "8px 0 0", paddingLeft: "18px", lineHeight: "1.6" }}>
+                    <li>Photos: {result.evidenceSummary.photos.persisted}/{result.evidenceSummary.photos.provided} {result.evidenceSummary.photos.status === "persisted" ? "stored" : result.evidenceSummary.photos.status === "not_provided" ? "not provided" : "failed to persist"}</li>
+                    <li>Audio: {result.evidenceSummary.audio.persisted}/{result.evidenceSummary.audio.provided} {result.evidenceSummary.audio.status === "persisted" ? "stored for human review" : result.evidenceSummary.audio.status === "not_provided" ? "not provided" : "failed to persist"}</li>
+                    <li>Video: {result.evidenceSummary.video.persisted}/{result.evidenceSummary.video.provided} {result.evidenceSummary.video.status === "persisted" ? "stored for human review" : result.evidenceSummary.video.status === "not_provided" ? "not provided" : "failed to persist"}</li>
+                    <li>Vibration: {result.evidenceSummary.vibration.persisted}/{result.evidenceSummary.vibration.provided} {result.evidenceSummary.vibration.status === "persisted" ? "stored for human review" : result.evidenceSummary.vibration.status === "not_provided" ? "not provided" : "failed to persist"}</li>
+                  </ul>
+                  {result.attachments?.length > 0 && (
+                    <p style={{ marginTop: "8px", fontSize: "0.9em", color: "#1a4730" }}>Photo attachments: {result.attachments.map((a: any) => a.originalName).join(", ")}</p>
+                  )}
+                  <p style={{ marginTop: "8px", fontSize: "0.85em", color: "#5a6d60" }}>Truthful status: uploaded media is evidence for human review and is not analyzed automatically. Save your Case ID — this case and its evidence belong to your vehicle and can be referenced for follow-up.</p>
+                </div>
+              )}
+              {!result.evidenceSummary && (
+                <p>
+                  Your case was recorded and sent to review. Save your Case ID in case you want
+                  to reference this submission later. Keep an eye on your inbox if you provided
+                  a follow-up email.
+                </p>
+              )}
+              <EvidenceVerificationPanel caseId={result.id} />
               <WhatHappensNext />
+              <div style={{ marginTop: "12px" }}>
+                <button type="button" className="secondary-btn" onClick={() => {
+                  setResult(null);
+                  setPhotoFiles([]); setAudioFiles([]); setVideoFiles([]); setVibrationFiles([]);
+                }}>Start another Drivable Check</button>
+              </div>
             </div>
           )}
 
@@ -1723,13 +1844,13 @@ const endpoints = [PUBLIC_API_ENDPOINT];
                       <div>
                         <h3>Diagnostic Evidence</h3>
                         <p className="section-intro">
-Add a clear written symptom description, manual OBD codes, vibration context, and relevant photos. Audio and video upload are not enabled in this photo-first release.
+Add a clear written symptom description, manual OBD codes, vibration context, and relevant photos. Record audio of unusual sounds or video of visible issues when it is safe to do so.
                         </p>
                       </div>
                     </div>
 
                     <div className="notice-strip evidence-reassurance">
-                      Send only what you can collect safely. Photos are stored as case evidence when persistence succeeds; the current AI path does not visually analyze them.
+                      Send only what you can collect safely. Photos, audio, video, and vibration data are stored as case evidence when persistence succeeds; the current AI path does not analyze uploaded media.
                     </div>
 
                     <div className="upload-grid">
@@ -1768,40 +1889,44 @@ Add a clear written symptom description, manual OBD codes, vibration context, an
 
                       <EvidenceCard
                         title="Video"
-                        helper="Video upload is not available in this photo-first release. Do not record while driving."
-                        badges={
-                          <>
-                            <EvidenceBadge>Not available</EvidenceBadge>
-                          </>
-                        }
-                      >
-<input type="file" multiple accept="video/*" capture="environment" onChange={(e) => setVideoFiles(Array.from(e.target.files || []))} />
-                        <FileNames files={videoFiles} />
-                      </EvidenceCard>
-
-                      <EvidenceCard
-                        title="Sound / Audio"
-                        helper="Audio upload is not available in this photo-first release. Describe the sound in Written Symptoms."
-                        badges={
-                          <>
-                            <EvidenceBadge>Not available</EvidenceBadge>
-                          </>
-                        }
-                      >
-<input type="file" multiple accept="audio/*" capture="user" onChange={(e) => setAudioFiles(Array.from(e.target.files || []))} />
-                        <FileNames files={audioFiles} />
-                      </EvidenceCard>
-
-                      <EvidenceCard
-                        title="Vibration / Motion"
-                        helper="Describe where you feel it, when it happens, speed/RPM, braking/turning/accelerating, and severity. No device reading is requested."
+                        helper="Record video of the vehicle issue. Do not record while driving."
                         badges={
                           <>
                             <EvidenceBadge>Optional</EvidenceBadge>
                           </>
                         }
                       >
-                        <div className="upload-note">Describe vibration context in Written Symptoms. No readings are simulated or inferred.</div>
+                        {mediaCapabilities.videoUpload
+                          ? <VideoRecorder files={videoFiles} onChange={setVideoFiles} onError={setError} />
+                          : <div className="upload-note">{mediaUnavailableMessage("video")}</div>}
+                      </EvidenceCard>
+
+                      <EvidenceCard
+                        title="Sound / Audio"
+                        helper="I need to hear the noise. Record the sound your vehicle is making."
+                        badges={
+                          <>
+                            <EvidenceBadge>Optional</EvidenceBadge>
+                          </>
+                        }
+                      >
+                        {mediaCapabilities.audioUpload
+                          ? <AudioRecorder files={audioFiles} onChange={setAudioFiles} onError={setError} />
+                          : <div className="upload-note">{mediaUnavailableMessage("audio")}</div>}
+                      </EvidenceCard>
+
+                      <EvidenceCard
+                        title="Vibration / Motion"
+                        helper="Place the phone flat on the center console and measure vibration."
+                        badges={
+                          <>
+                            <EvidenceBadge>Optional</EvidenceBadge>
+                          </>
+                        }
+                      >
+                        {mediaCapabilities.vibrationSensorCapture
+                          ? <VibrationCapture files={vibrationFiles} onChange={setVibrationFiles} onError={setError} />
+                          : <div className="upload-note">{mediaUnavailableMessage("vibration")}</div>}
                       </EvidenceCard>
                     </div>
                   </div>
@@ -1815,7 +1940,7 @@ Add a clear written symptom description, manual OBD codes, vibration context, an
                     <p id="consent-help" className="section-intro">Required permissions are recorded with the current Terms, Privacy Notice, your account, and this case. Product-learning permission is optional and defaults off.</p>
                     <label className="checkbox-row"><input type="checkbox" checked={serviceConsent} onChange={(e) => setServiceConsent(e.target.checked)} /> I agree to use my submission to provide this Drivable service. <span className="required-marker">Required</span></label>
                     <label className="checkbox-row"><input type="checkbox" checked={humanReviewConsent} onChange={(e) => setHumanReviewConsent(e.target.checked)} /> I agree that an authorized human reviewer may review my case evidence. <span className="required-marker">Required</span></label>
-                    <label className="checkbox-row"><input type="checkbox" checked={mediaConsent} onChange={(e) => setMediaConsent(e.target.checked)} /> I agree to private processing and storage of photos I choose to submit. {photoFiles.length > 0 && <span className="required-marker">Required for photos</span>}</label>
+                    <label className="checkbox-row"><input type="checkbox" checked={mediaConsent} onChange={(e) => setMediaConsent(e.target.checked)} /> I agree to private processing and storage of photos, audio, video, and vibration data I choose to submit. {(photoFiles.length > 0 || audioFiles.length > 0 || videoFiles.length > 0 || vibrationFiles.length > 0) && <span className="required-marker">Required for media</span>}</label>
                     <label className="checkbox-row"><input type="checkbox" checked={learningConsent} onChange={(e) => setLearningConsent(e.target.checked)} /> Optional: allow de-identified case evidence to support future product improvement. This is not required for service.</label>
                     <div className="helper-text">Review the <button type="button" onClick={() => setPage("terms")}>Terms</button> and <button type="button" onClick={() => setPage("privacy")}>Privacy Notice</button> before submitting.</div>
                   </fieldset>
@@ -1871,7 +1996,7 @@ Add a clear written symptom description, manual OBD codes, vibration context, an
         </div>
         <div className="faq-grid">
           <div className="faq-card"><h3>What if I don’t know my engine?</h3><p>Use the I Don&apos;t Know option where available and keep going.</p></div>
-<div className="faq-card"><h3>What information helps most?</h3><p>Clear written symptoms, timing, manual OBD codes, vibration context, and relevant photos help organize the case. Current photos are not visually analyzed, and audio/video upload is unavailable.</p></div>
+<div className="faq-card"><h3>What information helps most?</h3><p>Clear written symptoms, timing, manual OBD codes, photos, audio recordings, video recordings, and vibration measurements help organize the case. Uploaded media is stored for human review.</p></div>
           <div className="faq-card"><h3>Can this replace a hands-on inspection?</h3><p>No. It improves clarity and direction, but some problems still require real testing.</p></div>
         </div>
       </div>
