@@ -7,7 +7,12 @@ import {
   type ConfidenceLevel,
 } from "../shared/drivableDecisionEngine";
 import { type MatchedSymptom, classifySymptoms, getTopSymptomCategory } from "./journey-symptom-classifier";
-import { type PlannedEvidenceItem } from "./journey-evidence-planner";
+import {
+  type PlannedEvidenceItem,
+  planEvidence,
+  getNextEvidenceToRequest,
+  buildEvidencePrompt,
+} from "./journey-evidence-planner";
 
 export const JOURNEY_STATES = [
   "intake",
@@ -460,10 +465,25 @@ export function createJourneyCase(input: {
     partialCase.escalationReason = "Safety trigger detected during intake";
   }
 
+  if (input.evidenceItems && input.evidenceItems.length > 0 && matchedSymptoms.length > 0 && !safetyTriggered) {
+    partialCase.plannedEvidence = planEvidence(
+      matchedSymptoms,
+      input.evidenceItems,
+      partialCase.evidence,
+      5
+    );
+    const nextEvidence = getNextEvidenceToRequest(partialCase.plannedEvidence, partialCase.evidence);
+    if (nextEvidence) {
+      partialCase.currentEvidencePrompt = buildEvidencePrompt(nextEvidence, safetyTriggered);
+    }
+  }
+
   const next = buildNextAction(partialCase.state, partialCase);
   partialCase.nextAction = next.action;
   partialCase.nextActionPrompt = next.prompt;
-  partialCase.currentEvidencePrompt = next.evidencePrompt;
+  if (!partialCase.currentEvidencePrompt) {
+    partialCase.currentEvidencePrompt = next.evidencePrompt;
+  }
 
   return partialCase;
 }
@@ -476,6 +496,7 @@ export function advanceJourney(
     outcome?: OwnerOutcome;
     resolutionNote?: string;
     escalationReason?: string;
+    evidenceItems?: any[];
   }
 ): JourneyCase {
   if (!isValidTransition(caseData.state, transition)) {
@@ -506,6 +527,7 @@ export function advanceJourney(
   updated.confidenceLevel = calculateConfidence(updated).level;
   updated.riskLevel = calculateConfidence(updated).riskLevel;
 
+  const previousState = updated.state;
   updated.state = transitionTarget(transition);
 
   if (transition === "escalate") {
@@ -526,10 +548,39 @@ export function advanceJourney(
     updated.decisionPath = determineDecisionPath(updated.outcome, updated.confidenceLevel);
   }
 
+  const evidenceItems = additionalData?.evidenceItems;
+  const entersEvidenceRequested =
+    updated.state === "evidence_requested" &&
+    (transition === "acknowledge_triage" || transition === "request_evidence" || (transition === "submit_evidence" && previousState === "triage"));
+
+  if (entersEvidenceRequested && evidenceItems && evidenceItems.length > 0 && updated.matchedSymptomCategories.length > 0) {
+    updated.plannedEvidence = planEvidence(
+      updated.matchedSymptomCategories,
+      evidenceItems,
+      updated.evidence,
+      5
+    );
+  }
+
+  if (transition === "submit_evidence" && evidenceItems && evidenceItems.length > 0 && updated.matchedSymptomCategories.length > 0) {
+    updated.plannedEvidence = planEvidence(
+      updated.matchedSymptomCategories,
+      evidenceItems,
+      updated.evidence,
+      5
+    );
+  }
+
   const next = buildNextAction(updated.state, updated);
   updated.nextAction = next.action;
   updated.nextActionPrompt = next.prompt;
-  updated.currentEvidencePrompt = next.evidencePrompt;
+
+  const nextEvidence = getNextEvidenceToRequest(updated.plannedEvidence, updated.evidence);
+  if (nextEvidence) {
+    updated.currentEvidencePrompt = buildEvidencePrompt(nextEvidence, updated.safetyTriggered);
+  } else {
+    updated.currentEvidencePrompt = next.evidencePrompt;
+  }
 
   return updated;
 }

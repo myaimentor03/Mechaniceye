@@ -229,15 +229,6 @@ export function registerJourneyRoutes(app: Express): void {
         evidenceItems,
       });
 
-      if (caseData.matchedSymptomCategories.length > 0 && evidenceItems.length > 0) {
-        caseData.plannedEvidence = planEvidence(
-          caseData.matchedSymptomCategories,
-          evidenceItems,
-          caseData.evidence,
-          5
-        );
-      }
-
       setJourneyCase(caseData);
 
       logEvent("journey.case_started", {
@@ -319,10 +310,18 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         return;
       }
 
+      let evidenceItems: any[] = [];
+      try {
+        evidenceItems = await db.select().from(drivableSeedEvidenceItems);
+      } catch {
+        // Seed tables may not exist yet; fall back to empty
+      }
+
       const updated = advanceJourney(caseData, mappedTransition, {
         outcome: outcome as OwnerOutcome | undefined,
         resolutionNote: typeof resolutionNote === "string" ? resolutionNote : undefined,
         escalationReason: typeof escalationReason === "string" ? escalationReason : undefined,
+        evidenceItems,
       });
 
       setJourneyCase(updated);
@@ -375,24 +374,17 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         status: "text_only",
       };
 
+      let evidenceItems: any[] = [];
+      try {
+        evidenceItems = await db.select().from(drivableSeedEvidenceItems);
+      } catch {
+        // Seed tables may not exist yet; fall back to empty
+      }
+
       const updated = advanceJourney(caseData, "submit_evidence", {
         evidence: [evidenceRecord],
+        evidenceItems,
       });
-
-      // Refresh planned evidence suggestions after text evidence as well
-      try {
-        const evidenceItems = await db.select().from(drivableSeedEvidenceItems);
-        if (updated.matchedSymptomCategories.length > 0 && evidenceItems.length > 0) {
-          updated.plannedEvidence = planEvidence(
-            updated.matchedSymptomCategories,
-            evidenceItems,
-            updated.evidence,
-            5
-          );
-        }
-      } catch {
-        // ignore refresh errors
-      }
 
       setJourneyCase(updated);
 
@@ -469,24 +461,17 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           status: "persisted" as const,
         }));
 
+        let evidenceItems: any[] = [];
+        try {
+          evidenceItems = await db.select().from(drivableSeedEvidenceItems);
+        } catch {
+          // Seed tables may not exist yet; fall back to empty
+        }
+
         const updated = advanceJourney(caseData, "submit_evidence", {
           evidence: evidenceRecords,
+          evidenceItems,
         });
-
-        // Refresh planned evidence if possible (fresh suggestions after providing evidence)
-        try {
-          const evidenceItems = await db.select().from(drivableSeedEvidenceItems);
-          if (caseData.matchedSymptomCategories.length > 0 && evidenceItems.length > 0) {
-            updated.plannedEvidence = planEvidence(
-              updated.matchedSymptomCategories,
-              evidenceItems,
-              updated.evidence,
-              5
-            );
-          }
-        } catch {
-          // Ignore refresh errors; case still durably updated
-        }
 
         setJourneyCase(updated);
 
@@ -572,24 +557,17 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           status: "persisted" as const,
         }));
 
+        let evidenceItems: any[] = [];
+        try {
+          evidenceItems = await db.select().from(drivableSeedEvidenceItems);
+        } catch {
+          // Seed tables may not exist yet; fall back to empty
+        }
+
         const updated = advanceJourney(caseData, "submit_evidence", {
           evidence: evidenceRecords,
+          evidenceItems,
         });
-
-        // Refresh planned evidence if possible (fresh suggestions after providing evidence)
-        try {
-          const evidenceItems = await db.select().from(drivableSeedEvidenceItems);
-          if (caseData.matchedSymptomCategories.length > 0 && evidenceItems.length > 0) {
-            updated.plannedEvidence = planEvidence(
-              updated.matchedSymptomCategories,
-              evidenceItems,
-              updated.evidence,
-              5
-            );
-          }
-        } catch {
-          // Ignore refresh errors; case still durably updated
-        }
 
         setJourneyCase(updated);
 
