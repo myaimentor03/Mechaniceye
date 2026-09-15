@@ -146,6 +146,14 @@ describe("journey-state-machine", () => {
     it("allows human review request from escalation_required", () => {
       assert.equal(isValidTransition("escalation_required", "request_human_review"), true);
     });
+
+    it("allows acknowledge_triage from triage", () => {
+      assert.equal(isValidTransition("triage", "acknowledge_triage"), true);
+    });
+
+    it("allows finish_evidence from evidence_requested", () => {
+      assert.equal(isValidTransition("evidence_requested", "finish_evidence"), true);
+    });
   });
 
   describe("advanceJourney", () => {
@@ -234,6 +242,33 @@ describe("journey-state-machine", () => {
       caseData = advanceJourney(caseData, "request_human_review");
 
       assert.equal(caseData.state, "human_review");
+    });
+
+    it("acknowledge_triage transitions from triage to evidence_requested", () => {
+      let caseData = createJourneyCase({
+        vehicleInfo: "2018 Honda Civic",
+        description: "Car makes a grinding noise when braking at low speeds",
+      });
+
+      assert.equal(caseData.state, "triage");
+      caseData = advanceJourney(caseData, "acknowledge_triage");
+      assert.equal(caseData.state, "evidence_requested");
+      assert.ok(caseData.nextAction === "submit_evidence" || caseData.nextAction === "finish_evidence");
+      assert.ok(caseData.nextActionPrompt.length > 0);
+    });
+
+    it("finish_evidence transitions from evidence_requested to evidence_received", () => {
+      let caseData = createJourneyCase({
+        vehicleInfo: "2018 Honda Civic",
+        description: "Car makes a grinding noise when braking at low speeds",
+      });
+
+      caseData = advanceJourney(caseData, "request_evidence");
+      assert.equal(caseData.state, "evidence_requested");
+      caseData = advanceJourney(caseData, "finish_evidence");
+      assert.equal(caseData.state, "evidence_received");
+      assert.equal(caseData.nextAction, "evaluate");
+      assert.ok(caseData.nextActionPrompt.length > 0);
     });
 
     it("rejects invalid transitions with an error", () => {
