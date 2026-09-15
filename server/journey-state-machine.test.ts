@@ -134,6 +134,18 @@ describe("journey-state-machine", () => {
       assert.equal(isValidTransition("evaluating", "escalate"), true);
       assert.equal(isValidTransition("diagnosis_ready", "escalate"), true);
     });
+
+    it("allows evidence submit directly from triage", () => {
+      assert.equal(isValidTransition("triage", "submit_evidence"), true);
+    });
+
+    it("allows stop-driving resolution from evidence_requested", () => {
+      assert.equal(isValidTransition("evidence_requested", "resolve_stop_driving"), true);
+    });
+
+    it("allows human review request from escalation_required", () => {
+      assert.equal(isValidTransition("escalation_required", "request_human_review"), true);
+    });
   });
 
   describe("advanceJourney", () => {
@@ -178,6 +190,50 @@ describe("journey-state-machine", () => {
       assert.equal(caseData.state, "resolved");
       assert.ok(caseData.outcome);
       assert.ok(caseData.decisionPath || caseData.outcome === "stop_driving");
+    });
+
+    it("accepts evidence directly from triage without a separate request step", () => {
+      let caseData = createJourneyCase({
+        vehicleInfo: "2018 Honda Civic",
+        description: "Car makes a grinding noise when braking at low speeds",
+      });
+
+      assert.equal(caseData.state, "triage");
+      caseData = advanceJourney(caseData, "submit_evidence", {
+        evidence: [{ kind: "photo", description: "Brake rotor photo" }],
+      });
+
+      assert.equal(caseData.state, "evidence_received");
+      assert.equal(caseData.evidence.length, 1);
+    });
+
+    it("resolves stop-driving directly from evidence_requested", () => {
+      let caseData = createJourneyCase({
+        vehicleInfo: "2018 Honda Civic",
+        description: "Car makes a grinding noise when braking at low speeds",
+      });
+
+      caseData = advanceJourney(caseData, "request_evidence");
+      assert.equal(caseData.state, "evidence_requested");
+      caseData = advanceJourney(caseData, "resolve_stop_driving");
+
+      assert.equal(caseData.state, "resolved");
+      assert.equal(caseData.outcome, "stop_driving");
+    });
+
+    it("request_human_review transitions from escalation_required to human_review", () => {
+      let caseData = createJourneyCase({
+        vehicleInfo: "2018 Honda Civic",
+        description: "Car makes a grinding noise when braking at low speeds",
+      });
+
+      caseData = advanceJourney(caseData, "escalate", {
+        escalationReason: "Reviewer should double-check",
+      });
+      assert.equal(caseData.state, "escalation_required");
+      caseData = advanceJourney(caseData, "request_human_review");
+
+      assert.equal(caseData.state, "human_review");
     });
 
     it("rejects invalid transitions with an error", () => {
@@ -446,6 +502,94 @@ describe("journey-state-machine", () => {
       assert.equal(determineOutcome(caseData), "monitor");
     });
 
+    it("returns sell when the owner expresses sell intent", () => {
+      const caseData: JourneyCase = {
+        id: "test",
+        state: "evaluating",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        vehicleInfo: "2012 Nissan Altima",
+        description: "Transmission slips badly, thinking about selling the car as-is since repairs cost too much",
+        urgency: "Safe to Drive",
+        evidence: [],
+        safetyFlags: [],
+        safetyTriggered: false,
+        confidenceScore: 60,
+        confidenceLevel: "moderate",
+        riskLevel: "medium",
+        humanReviewRequested: false,
+      };
+
+      assert.equal(determineOutcome(caseData), "sell");
+    });
+
+    it("returns sell for catastrophic damage with sufficient confidence", () => {
+      const caseData: JourneyCase = {
+        id: "test",
+        state: "evaluating",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        vehicleInfo: "2010 Ford Explorer",
+        description: "Mechanic says the engine is seized and it needs a new engine, high mileage and rust everywhere",
+        timing: "Constantly",
+        urgency: "Will Not Start",
+        canDrive: "No",
+        evidence: [
+          { id: "1", kind: "photo", addedAt: new Date().toISOString() },
+          { id: "2", kind: "text", addedAt: new Date().toISOString() },
+        ],
+        safetyFlags: [],
+        safetyTriggered: false,
+        confidenceScore: 70,
+        confidenceLevel: "high",
+        riskLevel: "low",
+        humanReviewRequested: false,
+      };
+
+      assert.equal(determineOutcome(caseData), "sell");
+    });
+
+    it("does not sell catastrophic damage on low confidence — asks for more evidence first", () => {
+      const caseData: JourneyCase = {
+        id: "test",
+        state: "evaluating",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        vehicleInfo: "Car",
+        description: "Blown engine maybe",
+        evidence: [],
+        safetyFlags: [],
+        safetyTriggered: false,
+        confidenceScore: 10,
+        confidenceLevel: "low",
+        riskLevel: "high",
+        humanReviewRequested: false,
+      };
+
+      assert.equal(determineOutcome(caseData), "monitor");
+    });
+
+    it("safety takes precedence over sell intent", () => {
+      const caseData: JourneyCase = {
+        id: "test",
+        state: "evaluating",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        vehicleInfo: "2020 Ford F-150",
+        description: "Brakes failed completely, I want to sell it",
+        urgency: "Not Safe to Drive",
+        evidence: [],
+        safetyFlags: [],
+        safetyTriggered: true,
+        confidenceScore: 60,
+        confidenceLevel: "moderate",
+        riskLevel: "critical",
+        humanReviewRequested: false,
+      };
+
+      assert.equal(determineOutcome(caseData), "stop_driving");
+    });
+
     it("returns fix for moderate confidence", () => {
       const caseData: JourneyCase = {
         id: "test",
@@ -453,7 +597,7 @@ describe("journey-state-machine", () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         vehicleInfo: "2020 Toyota RAV4",
-        description: "Check engine light, runs rough at idle",
+        description: "Check engine light, runs rough at idle, no mention of parting with the vehicle",
         timing: "Idle",
         urgency: "Safe to Drive",
         evidence: [

@@ -80,8 +80,8 @@ export type JourneyTransition =
 
 const VALID_TRANSITIONS: Record<JourneyState, JourneyTransition[]> = {
   intake: ["submit_intake"],
-  triage: ["acknowledge_triage", "request_evidence", "escalate", "resolve_stop_driving"],
-  evidence_requested: ["submit_evidence", "finish_evidence", "escalate"],
+  triage: ["acknowledge_triage", "request_evidence", "submit_evidence", "escalate", "resolve_stop_driving"],
+  evidence_requested: ["submit_evidence", "finish_evidence", "escalate", "resolve_stop_driving"],
   evidence_received: ["evaluate", "escalate", "resolve_stop_driving"],
   evaluating: ["ready_diagnosis", "escalate", "resolve_stop_driving"],
   diagnosis_ready: ["resolve", "request_human_review", "escalate"],
@@ -197,8 +197,59 @@ export function calculateConfidence(caseData: JourneyCase): {
   return { score, level, riskLevel };
 }
 
+const SELL_INTENT_PHRASES = [
+  "sell the car",
+  "sell the vehicle",
+  "sell it",
+  "selling",
+  "trade in",
+  "trade-in",
+  "get rid of",
+  "not worth fixing",
+  "not worth repairing",
+  "not worth it",
+  "junk it",
+  "scrap it",
+];
+
+const CATASTROPHIC_REPAIR_PHRASES = [
+  "blown engine",
+  "seized engine",
+  "cracked engine block",
+  "needs a new engine",
+  "needs new engine",
+  "needs a new transmission",
+  "needs new transmission",
+  "transmission failed",
+  "transmission failure",
+  "frame damage",
+  "bent frame",
+  "flood damage",
+  "flooded",
+  "salvage title",
+  "totaled",
+];
+
 export function determineOutcome(caseData: JourneyCase): OwnerOutcome {
   if (caseData.safetyTriggered) return "stop_driving";
+
+  const combined = [caseData.description || "", caseData.urgency || "", caseData.canDrive || ""]
+    .join(" ")
+    .toLowerCase();
+
+  // Explicit owner sell intent wins over fix/monitor (safety already handled above).
+  if (SELL_INTENT_PHRASES.some((phrase) => combined.includes(phrase))) {
+    return "sell";
+  }
+
+  // Catastrophic / uneconomical damage signals sell only when we have enough
+  // confidence to be useful; otherwise monitor and ask for more evidence.
+  if (
+    (caseData.confidenceLevel === "moderate" || caseData.confidenceLevel === "high") &&
+    CATASTROPHIC_REPAIR_PHRASES.some((phrase) => combined.includes(phrase))
+  ) {
+    return "sell";
+  }
 
   const urgency = (caseData.urgency || "").toLowerCase();
   const canDrive = (caseData.canDrive || "").toLowerCase();

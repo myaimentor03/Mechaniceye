@@ -163,8 +163,8 @@ export function registerJourneyRoutes(app: Express): void {
         ready_diagnosis: { evaluating: "ready_diagnosis" },
         escalate: { triage: "escalate", evidence_requested: "escalate", evidence_received: "escalate", evaluating: "escalate", diagnosis_ready: "escalate" },
         resolve: { diagnosis_ready: "resolve", escalation_required: "resolve", human_review: "resolve" },
-        resolve_stop_driving: { triage: "resolve_stop_driving", evidence_received: "resolve_stop_driving", evaluating: "resolve_stop_driving", diagnosis_ready: "resolve_stop_driving", escalation_required: "resolve_stop_driving", human_review: "resolve_stop_driving" },
-        request_human_review: { diagnosis_ready: "request_human_review" },
+        resolve_stop_driving: { triage: "resolve_stop_driving", evidence_requested: "resolve_stop_driving", evidence_received: "resolve_stop_driving", evaluating: "resolve_stop_driving", diagnosis_ready: "resolve_stop_driving", escalation_required: "resolve_stop_driving", human_review: "resolve_stop_driving" },
+        request_human_review: { diagnosis_ready: "request_human_review", escalation_required: "request_human_review" },
       };
 
       const mappedTransition = validTransitions[transition]?.[caseData.state];
