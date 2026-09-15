@@ -2464,11 +2464,13 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
 
   // Create follow-up request when previous fixes didn't work
   app.post("/api/diagnoses/:id/follow-up", requireReviewer, reviewerWriteLimit, upload.fields([
+    { name: 'photos', maxCount: PHOTO_LIMITS.maxCount },
     { name: 'audio', maxCount: 1 },
     { name: 'video', maxCount: 1 },
     { name: 'vibration', maxCount: 1 }
   ]), async (req, res) => {
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    const photoFiles = files?.photos || [];
     const uploadedPaths = Object.values(files || {}).flat().map((file) => file.path).filter(Boolean);
     const cleanupTemporaryFiles = async () => {
       await Promise.all(uploadedPaths.map((filePath) => fs.promises.unlink(filePath).catch(() => undefined)));
@@ -2476,7 +2478,36 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
     try {
       const diagnosisId = req.params.id;
 
+      // Validate photo uploads if present
+      if (photoFiles.length > 0) {
+        const isDevelopment = process.env.NODE_ENV !== "production";
+        const allowPhotoUpload = isDevelopment && evidenceStore.durability === "runtime_local";
+        if (!allowPhotoUpload && evidenceStore.durability !== "private_object_storage") {
+          await cleanupTemporaryFiles();
+          return res.status(409).json({
+            message: "Photo upload is not available until private evidence storage passes launch verification.",
+            persisted: false,
+          });
+        }
+        for (const file of photoFiles) {
+          if (file.size > PHOTO_LIMITS.maxBytesEach) {
+            await cleanupTemporaryFiles();
+            return res.status(413).json({ message: "Each photo must be 12 MB or smaller.", persisted: false });
+          }
+          const unsupportedPhotoMime = photoFiles.find((f) => !ALLOWED_PHOTO_MEDIA_TYPES.has(f.mimetype));
+          if (unsupportedPhotoMime) {
+            await cleanupTemporaryFiles();
+            return res.status(415).json({
+              message: "A submitted photo has an unsupported file type. Supported types are JPEG, PNG, WebP, and HEIC.",
+              code: "UNSUPPORTED_PHOTO_MEDIA_TYPE",
+              persisted: false,
+            });
+          }
+        }
+      }
+
       let vibrationStoredKeys: string[] = [];
+      let photoAttachments: EvidenceAttachment[] = [];
       if (files?.vibration?.length) {
         try {
           const vAttachments = await evidenceStore.saveVibrationFiles(diagnosisId, files.vibration);
@@ -2497,6 +2528,21 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
           code: "VIBRATION_CAPTURE_DEPRECATED",
         });
       }
+
+      // Save photo attachments if present
+      if (photoFiles.length > 0) {
+        try {
+          photoAttachments = await evidenceStore.savePhotos(diagnosisId, photoFiles);
+        } catch (storageError) {
+          logEventError("api.follow_up_photo_storage_failed", storageError, { diagnosisId });
+          await cleanupTemporaryFiles();
+          return res.status(507).json({
+            message: "Photo evidence could not be persisted. Please try again.",
+            code: "PHOTO_PERSISTENCE_FAILED",
+            persisted: false,
+          });
+        }
+      }
       
       // Get original diagnosis
       const originalDiagnosis = await storage.getDiagnosis(diagnosisId);
@@ -2506,14 +2552,16 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
       }
 
       // Create follow-up request
-      const followUpVibrationFile = vibrationStoredKeys[0] || files?.vibration?.[0]?.filename || null;
+      const audioFile = files?.audio?.[0]?.filename || null;
+      const videoFile = files?.video?.[0]?.filename || null;
       const followUpData = {
         originalDiagnosisId: diagnosisId,
         userId: originalDiagnosis.userId!,
         additionalInfo: req.body.additionalInfo,
-        newAudioFile: files?.audio?.[0]?.filename || null,
-        newVideoFile: files?.video?.[0]?.filename || null,
-        newVibrationData: followUpVibrationFile,
+        newAudioFile: audioFile,
+        newVideoFile: videoFile,
+        newVibrationData: vibrationStoredKeys[0] || null,
+        photoAttachmentIds: photoAttachments.map((a) => a.id),
       };
 
       const followUp = await storage.createFollowUp(followUpData);
@@ -2540,6 +2588,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
 
       // Create new diagnosis with follow-up results
       const evidenceBoundary = buildFollowUpEvidenceBoundary({
+        photoStored: photoAttachments.length > 0,
         audioStored: Boolean(followUpData.newAudioFile),
         videoStored: Boolean(followUpData.newVideoFile),
         vibrationStored: Boolean(followUpData.newVibrationData),
@@ -2552,6 +2601,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
         audioFile: followUpData.newAudioFile,
         videoFile: followUpData.newVideoFile,
         vibrationData: followUpData.newVibrationData,
+        photoAttachmentIds: followUpData.photoAttachmentIds,
         confidenceScore: analysisResults.primaryDiagnosis?.confidence || 0,
         confidenceLevel: analysisResults.primaryDiagnosis?.confidence >= 80 ? "high" : 
                        analysisResults.primaryDiagnosis?.confidence >= 60 ? "medium" : "low",

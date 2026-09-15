@@ -22,6 +22,7 @@ export function mapDiagnosisRowToRecord(row: DiagnosisRow): DiagnosisRecord {
     audioFile: row.audioFile ?? null,
     videoFile: row.videoFile ?? null,
     vibrationData: row.vibrationData ?? null,
+    photoAttachmentIds: [],
     confidenceScore: row.confidenceScore ?? 0,
     confidenceLevel: row.confidenceLevel ?? "low",
     inputTypes: Array.isArray(row.inputTypes) ? row.inputTypes : [],
@@ -42,16 +43,17 @@ type DiagnosisRecord = {
   audioFile?: string | null;
   videoFile?: string | null;
   vibrationData?: unknown;
+  photoAttachmentIds?: string[];
   confidenceScore?: number;
   confidenceLevel?: string;
   inputTypes?: string[];
   iterationCount?: number;
-  createdAt: string;
-  status?: string;
   primaryDiagnosis?: { title?: string; confidence?: number } | null;
   alternativeScenarios?: Array<{ title?: string }>;
+  status?: string;
   attachments?: EvidenceAttachment[];
   evidenceSummary?: Record<string, { provided: number; persisted: number; status: string }>;
+  createdAt: string;
 };
 
 type FollowUpRecord = {
@@ -62,6 +64,7 @@ type FollowUpRecord = {
   newAudioFile?: string | null;
   newVideoFile?: string | null;
   newVibrationData?: unknown;
+  photoAttachmentIds?: string[];
   createdAt: string;
 };
 
@@ -190,6 +193,7 @@ class LocalStorage {
       audioFile: data.audioFile ?? null,
       videoFile: data.videoFile ?? null,
       vibrationData: data.vibrationData ?? null,
+      photoAttachmentIds: data.photoAttachmentIds ?? [],
       confidenceScore: data.confidenceScore || 0,
       confidenceLevel: data.confidenceLevel || "low",
       inputTypes: data.inputTypes || [],
@@ -213,6 +217,7 @@ class LocalStorage {
       newAudioFile: data.newAudioFile ?? null,
       newVideoFile: data.newVideoFile ?? null,
       newVibrationData: data.newVibrationData ?? null,
+      photoAttachmentIds: data.photoAttachmentIds ?? [],
       createdAt: new Date().toISOString()
     };
 
