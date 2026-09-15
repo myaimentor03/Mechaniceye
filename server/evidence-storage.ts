@@ -188,11 +188,18 @@ export class RuntimeFileEvidenceStore implements EvidenceStore {
         });
       }
 
-      await fs.writeFile(path.join(caseRoot, "attachments.json"), JSON.stringify(attachments, null, 2), { encoding: "utf8", flag: "wx" });
+      const manifestPath = path.join(caseRoot, "attachments.json");
+      let existing: EvidenceAttachment[] = [];
+      try {
+        existing = JSON.parse(await fs.readFile(manifestPath, "utf8"));
+      } catch {
+        // No existing manifest yet
+      }
+      const merged = [...existing, ...attachments];
+      await fs.writeFile(manifestPath, JSON.stringify(merged, null, 2), { encoding: "utf8" });
       return attachments;
     } catch (error) {
       await Promise.all(writtenPaths.map((filePath) => fs.rm(filePath, { force: true })));
-      await fs.rm(caseRoot, { recursive: true, force: true });
       throw error;
     }
   }
@@ -454,10 +461,18 @@ export class S3PrivateEvidenceStore implements EvidenceStore {
         });
       }
       const key = manifestKey(safeCaseId);
+      let existing: EvidenceAttachment[] = [];
+      try {
+        const existingObj = await this.client.send(new GetObjectCommand({ Bucket: this.config.bucket, Key: key }));
+        existing = JSON.parse((await bodyToBuffer(existingObj.Body)).toString("utf8"));
+      } catch {
+        // No existing manifest yet
+      }
+      const merged = [...existing, ...attachments];
       await this.client.send(new PutObjectCommand({
         Bucket: this.config.bucket,
         Key: key,
-        Body: Buffer.from(JSON.stringify(attachments)),
+        Body: Buffer.from(JSON.stringify(merged)),
         ContentType: "application/json",
         CacheControl: "no-store",
         Metadata: evidenceObjectMetadata(safeCaseId, "application/json"),
