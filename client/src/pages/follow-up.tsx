@@ -14,6 +14,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { RefreshCw, AlertCircle } from "lucide-react";
 import type { Diagnosis } from "@shared/schema";
 import { MEDIA_UNAVAILABLE, parseMediaCapabilities, filterSubmittableEvidence, type MediaCapabilities } from "@/lib/mediaAvailability";
+import { failedUploadStatus, followUpProcessingToStatus } from "@/lib/evidenceStatus";
 import { EvidenceAttachment } from "@shared/drivableEvidence";
 
 export default function FollowUp() {
@@ -64,6 +65,9 @@ export default function FollowUp() {
     },
     onSuccess: (newDiagnosis) => {
       queryClient.invalidateQueries({ queryKey: ["/api/diagnoses"] });
+      // Truthful per-modality status so the capture UI reflects what was
+      // actually persisted before leaving (parity with diagnosis intake).
+      setEvidenceStatus(followUpProcessingToStatus(newDiagnosis.evidenceProcessing));
       setLocation(`/results/${newDiagnosis.id}`);
       const ep = newDiagnosis.evidenceProcessing;
       const parts: string[] = [];
@@ -78,6 +82,15 @@ export default function FollowUp() {
     },
     onError: (error: any) => {
       setIsAnalyzing(false);
+      // Truthful failed status so Retry UI surfaces for modalities that had
+      // files (parity with diagnosis intake); the customer stays on this
+      // page and can clear/re-add evidence and submit again.
+      setEvidenceStatus(failedUploadStatus({
+        photo: formData.photoFiles.length,
+        audio: formData.audioFiles.length,
+        video: formData.videoFiles.length,
+        vibration: formData.vibrationFiles.length,
+      }));
       toast({
         title: "Follow-up Failed",
         description: error.message || "Could not submit your follow-up. Please try again.",
