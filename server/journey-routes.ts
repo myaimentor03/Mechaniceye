@@ -13,7 +13,7 @@ import {
 import multer from "multer";
 import { requireCustomer } from "./customer-auth";
 import { createRateLimit } from "./rate-limit";
-import { getJourneyCase, setJourneyCase, listJourneyCasesByCustomer } from "./journey-store";
+import { getJourneyCase, setJourneyCase, listJourneyCasesByCustomer, listAllJourneyCases } from "./journey-store";
 import { logEvent, logEventError } from "./observability/safe-log";
 import { planEvidence, getNextEvidenceToRequest } from "./journey-evidence-planner";
 import { db } from "./db";
@@ -25,6 +25,13 @@ import {
   PHOTO_LIMITS,
   createEvidenceStoreFromEnvironment,
 } from "./evidence-storage";
+import { requireReviewer } from "./reviewer-auth";
+import { buildFollowUpEvidenceBoundary } from "./follow-up-evidence-boundary";
+import { InMemoryReviewRepository } from "./review/in-memory-review-repository";
+import { HumanReviewReleaseGate } from "./review/release-gate";
+import type { ReviewRepository } from "./review/types";
+import { requireVerifiedLaunchControlRuntime } from "./review/launch-control-runtime";
+import { JourneyReviewBridge } from "./journey-review-bridge";
 
 const journeyLimit = createRateLimit({
   scope: "journey",
@@ -34,6 +41,7 @@ const journeyLimit = createRateLimit({
 });
 
 const journeyEvidenceStore = createEvidenceStoreFromEnvironment();
+const journeyReviewBridge = new JourneyReviewBridge();
 
 const journeyPhotoUpload = multer({
   storage: multer.memoryStorage(),
@@ -231,6 +239,11 @@ export function registerJourneyRoutes(app: Express): void {
 
       setJourneyCase(caseData);
 
+      // When safety triggers at intake, automatically create a review draft
+      if (caseData.state === "escalation_required") {
+        journeyReviewBridge.createReviewForCase(caseData);
+      }
+
       logEvent("journey.case_started", {
         caseId: caseData.id,
         state: caseData.state,
@@ -325,6 +338,11 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       });
 
       setJourneyCase(updated);
+
+      // When a case enters human_review, automatically create a review draft
+      if (updated.state === "human_review" && caseData.state !== "human_review") {
+        journeyReviewBridge.createReviewForCase(updated);
+      }
 
       logEvent("journey.advanced", {
         caseId: updated.id,
@@ -662,6 +680,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         const escalated = advanceJourney(updated, "escalate", {
           escalationReason: "Safety re-evaluation triggered during case progression",
         });
+        journeyReviewBridge.createReviewForCase(escalated);
         setJourneyCase(escalated);
         res.json(safeJourneyResponse(escalated));
         return;
@@ -712,6 +731,235 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       });
     } catch (error) {
       logEventError("journey.evidence-suggestions_failed", error, { caseId: req.params.caseId });
+      journeyError(res, error);
+    }
+  });
+
+  // ── Reviewer-facing journey review routes ──────────────────────────────────
+  // Human review is a safety valve, not the default. These endpoints allow a
+  // reviewer to list cases pending human review and submit review decisions
+  // with proper audit trail via the review infrastructure.
+
+  app.get("/api/journey/review/pending", requireReviewer, async (_req, res) => {
+    try {
+      const allCases = listAllJourneyCases();
+      const pendingCases = allCases.filter(
+        (c) => c.state === "human_review" || c.state === "escalation_required"
+      );
+
+      const reviewStatuses = pendingCases.map((c) => {
+        const reviewStatus = journeyReviewBridge.getReviewStatus(c.id);
+        return {
+          id: c.id,
+          state: c.state,
+          vehicleInfo: c.vehicleInfo,
+          description: c.description,
+          outcome: c.outcome,
+          confidenceLevel: c.confidenceLevel,
+          riskLevel: c.riskLevel,
+          safetyTriggered: c.safetyTriggered,
+          escalationReason: c.escalationReason,
+          evidenceCount: c.evidence.length,
+          createdAt: c.createdAt,
+          updatedAt: c.updatedAt,
+          reviewStatus: reviewStatus?.reviewStatus,
+          reviewVersionId: reviewStatus?.reviewVersionId,
+        };
+      });
+
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ ok: true, cases: reviewStatuses });
+    } catch (error) {
+      logEventError("journey.review.pending_failed", error);
+      journeyError(res, error);
+    }
+  });
+
+  app.get("/api/journey/review/:caseId", requireReviewer, async (req, res) => {
+    try {
+      const caseData = getJourneyCase(req.params.caseId);
+      if (!caseData) {
+        res.status(404).json({ ok: false, error: "Journey case not found." });
+        return;
+      }
+
+      const reviewStatus = journeyReviewBridge.getReviewStatus(caseData.id);
+      const evidenceBoundary = journeyReviewBridge.buildEvidenceBoundary(caseData);
+
+      res.setHeader("Cache-Control", "no-store");
+      res.json({
+        ok: true,
+        case: safeJourneyResponse(caseData),
+        reviewStatus: reviewStatus || null,
+        evidenceBoundary,
+      });
+    } catch (error) {
+      logEventError("journey.review.get_failed", error, { caseId: req.params.caseId });
+      journeyError(res, error);
+    }
+  });
+
+  app.post("/api/journey/review/:caseId/finalize", requireReviewer, async (req, res) => {
+    try {
+      const caseData = getJourneyCase(req.params.caseId);
+      if (!caseData) {
+        res.status(404).json({ ok: false, error: "Journey case not found." });
+        return;
+      }
+      if (caseData.state !== "human_review" && caseData.state !== "escalation_required") {
+        res.status(409).json({ ok: false, error: "Case is not in a reviewable state." });
+        return;
+      }
+
+      const version = journeyReviewBridge.createReviewForCase(caseData);
+      if (!version) {
+        res.status(409).json({ ok: false, error: "Could not create review record." });
+        return;
+      }
+
+      const finalized = journeyReviewBridge.finalizeReviewForCase(caseData);
+
+      res.setHeader("Cache-Control", "no-store");
+      res.json({
+        ok: true,
+        versionId: finalized?.versionId || version.versionId,
+        status: finalized ? "review_required" : "draft",
+      });
+    } catch (error) {
+      logEventError("journey.review.finalize_failed", error, { caseId: req.params.caseId });
+      journeyError(res, error);
+    }
+  });
+
+  app.post("/api/journey/review/:caseId/approve", requireReviewer, async (req, res) => {
+    try {
+      const caseData = getJourneyCase(req.params.caseId);
+      if (!caseData) {
+        res.status(404).json({ ok: false, error: "Journey case not found." });
+        return;
+      }
+      if (caseData.state !== "human_review" && caseData.state !== "escalation_required") {
+        res.status(409).json({ ok: false, error: "Case is not in a reviewable state." });
+        return;
+      }
+
+      const reviewerRef = req.drivableReviewer!.ref;
+      const highRiskAcknowledged = req.body?.highRiskAcknowledged === true;
+
+      // Ensure a review draft exists, create if needed
+      let reviewStatus = journeyReviewBridge.getReviewStatus(caseData.id);
+      if (!reviewStatus) {
+        journeyReviewBridge.createReviewForCase(caseData);
+        journeyReviewBridge.finalizeReviewForCase(caseData);
+      }
+
+      const approval = journeyReviewBridge.approveReview(
+        caseData.id,
+        reviewerRef,
+        highRiskAcknowledged
+      );
+
+      // Now resolve the journey case
+      let updated = advanceJourney(caseData, "resolve", {
+        resolutionNote: `Approved by reviewer ${reviewerRef}`,
+      });
+
+      // Build evidence boundary for audit
+      const evidenceBoundary = journeyReviewBridge.buildEvidenceBoundary(caseData);
+
+      setJourneyCase(updated);
+
+      logEvent("journey.review_approved_and_resolved", {
+        caseId: updated.id,
+        approvalId: approval.approvalId,
+        reviewerRef,
+        outcome: updated.outcome,
+        evidenceBoundary: evidenceBoundary.analysisBoundary,
+      });
+
+      res.setHeader("Cache-Control", "no-store");
+      res.json({
+        ok: true,
+        case: safeJourneyResponse(updated),
+        approval,
+        evidenceBoundary,
+      });
+    } catch (error) {
+      logEventError("journey.review.approve_failed", error, { caseId: req.params.caseId });
+      journeyError(res, error);
+    }
+  });
+
+  app.post("/api/journey/review/:caseId/reject", requireReviewer, async (req, res) => {
+    try {
+      const caseData = getJourneyCase(req.params.caseId);
+      if (!caseData) {
+        res.status(404).json({ ok: false, error: "Journey case not found." });
+        return;
+      }
+      if (caseData.state !== "human_review" && caseData.state !== "escalation_required") {
+        res.status(409).json({ ok: false, error: "Case is not in a reviewable state." });
+        return;
+      }
+
+      const reviewerRef = req.drivableReviewer!.ref;
+      const reasonCode = req.body?.reasonCode;
+      if (!reasonCode || !["insufficient_evidence", "policy_mismatch", "unsafe_content", "other"].includes(reasonCode)) {
+        res.status(400).json({ ok: false, error: "A valid reason code is required: insufficient_evidence, policy_mismatch, unsafe_content, other." });
+        return;
+      }
+
+      // Ensure a review draft exists, create if needed
+      let reviewStatus = journeyReviewBridge.getReviewStatus(caseData.id);
+      if (!reviewStatus) {
+        journeyReviewBridge.createReviewForCase(caseData);
+        journeyReviewBridge.finalizeReviewForCase(caseData);
+      }
+
+      const rejection = journeyReviewBridge.rejectReview(
+        caseData.id,
+        reviewerRef,
+        reasonCode
+      );
+
+      logEvent("journey.review_rejected", {
+        caseId: caseData.id,
+        rejectionId: rejection.rejectionId,
+        reviewerRef,
+        reasonCode,
+      });
+
+      res.setHeader("Cache-Control", "no-store");
+      res.json({
+        ok: true,
+        rejection,
+        message: "Review rejected. Case remains in review state. Customer may provide additional evidence.",
+      });
+    } catch (error) {
+      logEventError("journey.review.reject_failed", error, { caseId: req.params.caseId });
+      journeyError(res, error);
+    }
+  });
+
+  app.get("/api/journey/review/:caseId/release-check", requireReviewer, async (req, res) => {
+    try {
+      const caseData = getJourneyCase(req.params.caseId);
+      if (!caseData) {
+        res.status(404).json({ ok: false, error: "Journey case not found." });
+        return;
+      }
+
+      const decision = journeyReviewBridge.checkReleaseAllowed(caseData);
+      const evidenceBoundary = journeyReviewBridge.buildEvidenceBoundary(caseData);
+
+      res.setHeader("Cache-Control", "no-store");
+      res.json({
+        ok: true,
+        ...decision,
+        evidenceBoundary,
+      });
+    } catch (error) {
+      logEventError("journey.review.release-check_failed", error, { caseId: req.params.caseId });
       journeyError(res, error);
     }
   });

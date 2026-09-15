@@ -69,6 +69,12 @@ export function listJourneyCasesByCustomer(customerId: string): JourneyCase[] {
   return out;
 }
 
+export function listAllJourneyCases(): JourneyCase[] {
+  const out: JourneyCase[] = Array.from(cache.values());
+  out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  return out;
+}
+
 export function journeyStoreSize(): number {
   return cache.size;
 }
