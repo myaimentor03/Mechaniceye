@@ -38,6 +38,13 @@ export type EvidenceRecord = {
   kind: "photo" | "audio" | "video" | "vibration" | "text";
   addedAt: string;
   description?: string;
+  // File-persisted evidence (photo path) — belongs to vehicle/case, reusable across FIX/SELL flows
+  originalName?: string;
+  mimeType?: string;
+  byteSize?: number;
+  storageKey?: string;
+  attachmentId?: string;
+  status?: "persisted" | "text_only";
 };
 
 export type JourneyCase = {
@@ -485,6 +492,12 @@ export function advanceJourney(
       kind: e.kind,
       addedAt: e.addedAt || new Date().toISOString(),
       description: e.description,
+      originalName: e.originalName,
+      mimeType: e.mimeType,
+      byteSize: e.byteSize,
+      storageKey: e.storageKey,
+      attachmentId: e.attachmentId,
+      status: e.status || (e.storageKey ? "persisted" : "text_only"),
     }));
     updated.evidence = [...updated.evidence, ...normalized];
   }

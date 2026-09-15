@@ -24,6 +24,19 @@ type JourneyCaseResponse = {
   nextActionPrompt?: string;
   evidenceCount: number;
   evidenceTypes: string[];
+  evidence?: {
+    id: string;
+    kind: string;
+    addedAt: string;
+    description?: string;
+    originalName?: string;
+    mimeType?: string;
+    byteSize?: number;
+    storageKey?: string;
+    attachmentId?: string;
+    status?: string;
+  }[];
+  evidencePersistence?: { persistedCount: number; textOnlyCount: number };
   matchedSymptomCategories: {
     symptomCategoryId: string;
     label: string;
@@ -59,6 +72,7 @@ export function GuidedJourney() {
   const [loading, setLoading] = useState(false);
   const [evidenceKind, setEvidenceKind] = useState("text");
   const [evidenceDesc, setEvidenceDesc] = useState("");
+  const [photoFiles, setPhotoFiles] = useState<FileList | null>(null);
 
   // intake form state
   const [vehicleInfo, setVehicleInfo] = useState("");
@@ -186,6 +200,39 @@ export function GuidedJourney() {
       await fetchMyCases();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Evidence failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handlePhotoUpload(e: React.FormEvent) {
+    e.preventDefault();
+    if (!caseData || !photoFiles || photoFiles.length === 0) {
+      setError("Select at least one photo (jpeg/png/webp/heic, max 12 MB each, up to 8).");
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      const form = new FormData();
+      for (let i = 0; i < photoFiles.length; i++) {
+        form.append("photos", photoFiles[i]);
+      }
+      const res = await fetch(`/api/journey/${caseData.id}/evidence/photo`, {
+        method: "POST",
+        credentials: "include",
+        body: form,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Photo evidence not accepted.");
+      setCaseData(data);
+      setPhotoFiles(null);
+      // reset file input
+      const el = document.getElementById("journey-photo-input") as HTMLInputElement | null;
+      if (el) el.value = "";
+      await fetchMyCases();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Photo upload failed.");
     } finally {
       setLoading(false);
     }
@@ -404,13 +451,35 @@ export function GuidedJourney() {
           </div>
 
           {(caseData.state === "intake" || caseData.state === "triage" || caseData.state === "evidence_requested") && (
-            <form onSubmit={handleAddEvidence} className="top-gap">
-              <div className="field-grid">
-                <div className="field"><label>Evidence type</label><select value={evidenceKind} onChange={(e) => setEvidenceKind(e.target.value)}><option value="text">Text detail</option><option value="photo">Photo (describe)</option><option value="audio">Audio (describe)</option><option value="video">Video (describe)</option><option value="vibration">Vibration (describe)</option></select></div>
-                <div className="field"><label>Describe this evidence</label><input value={evidenceDesc} onChange={(e) => setEvidenceDesc(e.target.value)} placeholder="Example: photo of dashboard warning light" /></div>
-              </div>
-              <div className="step-actions"><button className="secondary-btn" type="submit" disabled={loading}>Add this evidence</button><span className="helper-text">One at a time, safely. You can add multiple items before finishing.</span></div>
-            </form>
+            <>
+              <form onSubmit={handleAddEvidence} className="top-gap">
+                <div className="field-grid">
+                  <div className="field"><label>Evidence type</label><select value={evidenceKind} onChange={(e) => setEvidenceKind(e.target.value)}><option value="text">Text detail</option><option value="photo">Photo (describe)</option><option value="audio">Audio (describe)</option><option value="video">Video (describe)</option><option value="vibration">Vibration (describe)</option></select></div>
+                  <div className="field"><label>Describe this evidence</label><input value={evidenceDesc} onChange={(e) => setEvidenceDesc(e.target.value)} placeholder="Example: photo of dashboard warning light" /></div>
+                </div>
+                <div className="step-actions"><button className="secondary-btn" type="submit" disabled={loading}>Add this evidence (text)</button><span className="helper-text">One at a time, safely. You can add multiple items before finishing.</span></div>
+              </form>
+              <form onSubmit={handlePhotoUpload} className="top-gap" style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "12px", marginTop: "12px" }}>
+                <div className="field-grid">
+                  <div className="field"><label>Photo evidence (reliable capture)</label><input id="journey-photo-input" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onChange={(e) => setPhotoFiles(e.target.files)} /></div>
+                  <div className="field"><span className="helper-text">Validated: jpeg/png/webp/heic, max 12 MB each, up to 8. Stored durably with your vehicle case — reusable for Mechanic Match / ClearSale. Evidence belongs to the case, not just this screen.</span></div>
+                </div>
+                <div className="step-actions"><button className="secondary-btn" type="submit" disabled={loading || !photoFiles || photoFiles.length === 0}>Upload photo evidence</button><span className="helper-text">{photoFiles ? `${photoFiles.length} selected` : "No file selected"} — persisted to {caseData.evidencePersistence ? `${caseData.evidencePersistence.persistedCount} persisted` : "case"}</span></div>
+              </form>
+              {caseData.evidence && caseData.evidence.length > 0 && (
+                <div className="step-card" style={{ marginTop: "12px", background: "rgba(255,255,255,0.04)" }}>
+                  <h3>Evidence on this case ({caseData.evidenceCount})</h3>
+                  <div className="pill-grid">
+                    {caseData.evidence.map((ev) => (
+                      <div key={ev.id} className="pill" style={{ textAlign: "left", maxWidth: "360px", whiteSpace: "normal" }}>
+                        <strong>{ev.kind}</strong> — {ev.description || ev.originalName || ev.id} {ev.status === "persisted" ? "✓ persisted" : "(text)"}
+                        {ev.attachmentId && <span style={{ display: "block", fontSize: "0.8em", opacity: 0.7 }}>{ev.mimeType} · {ev.byteSize ? `${Math.round(ev.byteSize / 1024)} KB` : ""} {ev.attachmentId ? <a href={`/api/journey/${caseData.id}/evidence/${ev.attachmentId}`} target="_blank" rel="noreferrer" style={{ marginLeft: 6 }}>view</a> : null}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {(caseData.state === "escalation_required" || caseData.state === "human_review") && (

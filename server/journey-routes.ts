@@ -10,6 +10,7 @@ import {
   type OwnerOutcome,
   type EvidenceRecord,
 } from "./journey-state-machine";
+import multer from "multer";
 import { requireCustomer } from "./customer-auth";
 import { createRateLimit } from "./rate-limit";
 import { getJourneyCase, setJourneyCase, listJourneyCasesByCustomer } from "./journey-store";
@@ -17,6 +18,11 @@ import { logEvent, logEventError } from "./observability/safe-log";
 import { planEvidence, getNextEvidenceToRequest } from "./journey-evidence-planner";
 import { db } from "./db";
 import { drivableSeedSymptomCategories, drivableSeedEvidenceItems } from "../shared/schema";
+import {
+  ALLOWED_PHOTO_MEDIA_TYPES,
+  PHOTO_LIMITS,
+  createEvidenceStoreFromEnvironment,
+} from "./evidence-storage";
 
 const journeyLimit = createRateLimit({
   scope: "journey",
@@ -24,6 +30,39 @@ const journeyLimit = createRateLimit({
   max: 30,
   key: (req) => req.drivableCustomer?.id || req.ip || "unknown",
 });
+
+const journeyEvidenceStore = createEvidenceStoreFromEnvironment();
+
+const journeyPhotoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: PHOTO_LIMITS.maxBytesEach, files: PHOTO_LIMITS.maxCount },
+  fileFilter: (_req, file, cb) => {
+    if (!ALLOWED_PHOTO_MEDIA_TYPES.has(file.mimetype)) {
+      return cb(new Error(`Unsupported photo type: ${file.mimetype || "unknown"}`));
+    }
+    cb(null, true);
+  },
+});
+
+const journeyPhotoUploadMiddleware = (req: any, res: any, next: any) => {
+  journeyPhotoUpload.array("photos", PHOTO_LIMITS.maxCount)(req, res, (error: unknown) => {
+    if (!error) return next();
+    const multerError = error instanceof multer.MulterError ? error : null;
+    if (multerError?.code === "LIMIT_UNEXPECTED_FILE") {
+      return res.status(415).json({
+        ok: false,
+        error: `Journey evidence accepts only photos under the "photos" field.`,
+      });
+    }
+    const isLimitError = Boolean(multerError);
+    return res.status(isLimitError ? 413 : 415).json({
+      ok: false,
+      error: isLimitError
+        ? `Photo upload exceeds the limit of ${PHOTO_LIMITS.maxCount} files and 12 MB per file.`
+        : error instanceof Error ? error.message : "Photo upload was rejected.",
+    });
+  });
+};
 
 function journeyError(res: Response, error: unknown): void {
   res.setHeader("Cache-Control", "no-store");
@@ -63,6 +102,23 @@ function safeJourneyResponse(caseData: JourneyCase) {
     nextActionPrompt: caseData.nextActionPrompt,
     evidenceCount: caseData.evidence.length,
     evidenceTypes: [...new Set(caseData.evidence.map((e) => e.kind))],
+    evidence: caseData.evidence.map((e) => ({
+      id: e.id,
+      kind: e.kind,
+      addedAt: e.addedAt,
+      description: e.description,
+      originalName: e.originalName,
+      mimeType: e.mimeType,
+      byteSize: e.byteSize,
+      storageKey: e.storageKey,
+      attachmentId: e.attachmentId,
+      status: e.status,
+    })),
+    // Evidence durability: belongs to vehicle/case, reusable for FIX/SELL
+    evidencePersistence: {
+      persistedCount: caseData.evidence.filter((e) => e.status === "persisted").length,
+      textOnlyCount: caseData.evidence.filter((e) => e.status === "text_only").length,
+    },
     matchedSymptomCategories: caseData.matchedSymptomCategories.map((m) => ({
       symptomCategoryId: m.symptomCategoryId,
       label: m.label,
@@ -283,11 +339,27 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         kind,
         addedAt: new Date().toISOString(),
         description: typeof description === "string" ? description.trim() : undefined,
+        status: "text_only",
       };
 
       const updated = advanceJourney(caseData, "submit_evidence", {
         evidence: [evidenceRecord],
       });
+
+      // Refresh planned evidence suggestions after text evidence as well
+      try {
+        const evidenceItems = await db.select().from(drivableSeedEvidenceItems);
+        if (updated.matchedSymptomCategories.length > 0 && evidenceItems.length > 0) {
+          updated.plannedEvidence = planEvidence(
+            updated.matchedSymptomCategories,
+            evidenceItems,
+            updated.evidence,
+            5
+          );
+        }
+      } catch {
+        // ignore refresh errors
+      }
 
       setJourneyCase(updated);
 
@@ -301,6 +373,142 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       res.json(safeJourneyResponse(updated));
     } catch (error) {
       logEventError("journey.evidence_failed", error, { caseId: req.params.caseId });
+      journeyError(res, error);
+    }
+  });
+
+  // Photo evidence upload — reliable file persistence belonging to vehicle/case, reusable for FIX/SELL
+  app.post(
+    "/api/journey/:caseId/evidence/photo",
+    requireCustomer,
+    journeyLimit,
+    journeyPhotoUploadMiddleware,
+    async (req: any, res) => {
+      try {
+        const caseData = getJourneyCase(req.params.caseId);
+        if (!caseData) {
+          res.status(404).json({ ok: false, error: "Journey case not found." });
+          return;
+        }
+        if (!assertOwner(caseData, req.drivableCustomer!.id)) {
+          res.status(404).json({ ok: false, error: "Journey case not found." });
+          return;
+        }
+        if (caseData.state !== "evidence_requested" && caseData.state !== "triage") {
+          res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested or during triage." });
+          return;
+        }
+
+        const files: Express.Multer.File[] = req.files || [];
+        if (!files.length) {
+          res.status(400).json({ ok: false, error: "At least one photo is required under the 'photos' field." });
+          return;
+        }
+
+        // Persist via EvidenceStore (validates type/size/content, supports R2 or local)
+        let attachments: any[] = [];
+        try {
+          attachments = await journeyEvidenceStore.savePhotos(caseData.id, files);
+        } catch (storeErr: any) {
+          const msg = storeErr instanceof Error ? storeErr.message : "Photo could not be saved.";
+          // Map validation errors to 415/413 where appropriate
+          if (msg.includes("Too many") || msg.includes("too large") || msg.includes("limit")) {
+            res.status(413).json({ ok: false, error: msg });
+            return;
+          }
+          if (msg.includes("Unsupported") || msg.includes("not a supported") || msg.includes("MIME")) {
+            res.status(415).json({ ok: false, error: msg });
+            return;
+          }
+          throw storeErr;
+        }
+
+        const evidenceRecords: EvidenceRecord[] = attachments.map((att) => ({
+          id: `ev-${att.id.slice(0, 8)}`,
+          kind: "photo" as const,
+          addedAt: att.createdAt,
+          description: att.originalName,
+          originalName: att.originalName,
+          mimeType: att.mimeType,
+          byteSize: att.byteSize,
+          storageKey: att.storageKey,
+          attachmentId: att.id,
+          status: "persisted" as const,
+        }));
+
+        const updated = advanceJourney(caseData, "submit_evidence", {
+          evidence: evidenceRecords,
+        });
+
+        // Refresh planned evidence if possible (fresh suggestions after providing evidence)
+        try {
+          const evidenceItems = await db.select().from(drivableSeedEvidenceItems);
+          if (caseData.matchedSymptomCategories.length > 0 && evidenceItems.length > 0) {
+            updated.plannedEvidence = planEvidence(
+              updated.matchedSymptomCategories,
+              evidenceItems,
+              updated.evidence,
+              5
+            );
+          }
+        } catch {
+          // Ignore refresh errors; case still durably updated
+        }
+
+        setJourneyCase(updated);
+
+        logEvent("journey.photo_evidence_added", {
+          caseId: updated.id,
+          persistedCount: attachments.length,
+          confidenceScore: updated.confidenceScore,
+          evidenceCount: updated.evidence.length,
+        });
+
+        res.json({
+          ...safeJourneyResponse(updated),
+          persistedAttachments: attachments,
+          evidencePersistence: {
+            durability: journeyEvidenceStore.durability,
+            persisted: true,
+            analysisStatus: "uploaded_not_analyzed",
+          },
+        });
+      } catch (error) {
+        logEventError("journey.photo_evidence_failed", error, { caseId: req.params.caseId });
+        journeyError(res, error);
+      }
+    }
+  );
+
+  // Retrieve persisted photo evidence (belongs to case, customer-scoped)
+  app.get("/api/journey/:caseId/evidence/:attachmentId", requireCustomer, async (req, res) => {
+    try {
+      const caseData = getJourneyCase(req.params.caseId);
+      if (!caseData) {
+        res.status(404).json({ ok: false, error: "Journey case not found." });
+        return;
+      }
+      if (!assertOwner(caseData, req.drivableCustomer!.id)) {
+        res.status(404).json({ ok: false, error: "Journey case not found." });
+        return;
+      }
+      const attachmentId = req.params.attachmentId;
+      const record = caseData.evidence.find((e) => e.attachmentId === attachmentId);
+      if (!record || !record.storageKey) {
+        res.status(404).json({ ok: false, error: "Evidence attachment not found for this case." });
+        return;
+      }
+      const result = await journeyEvidenceStore.getAttachment(caseData.id, attachmentId);
+      if (!result) {
+        res.status(404).json({ ok: false, error: "Attachment not found in storage." });
+        return;
+      }
+      res.setHeader("Content-Type", result.attachment.mimeType);
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Content-Disposition", `inline; filename="${result.attachment.originalName || attachmentId}"`);
+      res.send(result.bytes);
+    } catch (error) {
+      logEventError("journey.evidence_retrieve_failed", error, { caseId: req.params.caseId });
       journeyError(res, error);
     }
   });
