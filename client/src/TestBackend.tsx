@@ -1416,6 +1416,23 @@ const endpoints = [PUBLIC_API_ENDPOINT];
               setLoading(false);
               return;
             }
+            if (res.status === 429) {
+              const retryAfter = res.headers.get("Retry-After");
+              const retryHint = retryAfter ? ` Please wait ${retryAfter} seconds and try again.` : " Please wait a minute and try again.";
+              lastError = `Too many requests.${retryHint}`;
+              continue;
+            }
+            try {
+              const errorText = await res.text();
+              if (errorText) {
+                const parsed = JSON.parse(errorText) as any;
+                const serverMsg = parsed?.message || parsed?.error;
+                if (typeof serverMsg === "string" && serverMsg.trim()) {
+                  lastError = serverMsg;
+                  continue;
+                }
+              }
+            } catch {}
             lastError = `We couldn't record your request (HTTP ${res.status}). Please try again.`;
             continue;
           }

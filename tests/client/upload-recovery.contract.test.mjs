@@ -94,3 +94,27 @@ test("case recovery from sessionStorage requires authChecked guard", () => {
   assert.match(backend, /\[authChecked\]/, "case restoration useEffect must depend on authChecked");
   assert.match(backend, /!result && authChecked/, "case restoration must check authChecked before restoring");
 });
+
+test("submission handles 429 rate-limit with Retry-After hint and friendly message", () => {
+  assert.match(backend, /if \(res\.status === 429\)/);
+  assert.match(backend, /res\.headers\.get\("Retry-After"\)/);
+  assert.match(backend, /Too many requests\./);
+  assert.match(backend, /Please wait.*seconds and try again/);
+  assert.match(backend, /Please wait a minute and try again/);
+});
+
+test("submission surfaces server-provided error message for non-OK responses before fallback", () => {
+  assert.match(backend, /const errorText = await res\.text\(\)/);
+  assert.match(backend, /JSON\.parse\(errorText\)/);
+  assert.match(backend, /serverMsg/);
+  assert.match(backend, /parsed\?\.message \|\| parsed\?\.error/);
+});
+
+test("rate-limit error preserves form state for mobile retry — no reset of description or evidence", () => {
+  // 429 branch must use `continue` (not clearing form) and retain generic retry preservation.
+  assert.match(backend, /Too many requests\./);
+  assert.match(backend, /continue;/);
+  // Failed submission generic test already asserts no reset; 429 must not introduce a reset.
+  assert.doesNotMatch(backend, /if \(res\.status === 429\)[\s\S]*?setDescription\(""\)/);
+  assert.doesNotMatch(backend, /if \(res\.status === 429\)[\s\S]*?setPhotoFiles\(\[\]\)/);
+});
