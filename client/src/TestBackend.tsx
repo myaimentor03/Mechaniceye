@@ -1,5 +1,6 @@
 ﻿import { useMemo, useState } from "react";
 import { useEffect, useRef } from "react";
+import { toast } from "./hooks/use-toast";
 import "./app.css";
 import Marketplace from "./marketplace/Marketplace";
 import { BuyerCheckPreview } from "./components/BuyerCheckPreview";
@@ -1179,6 +1180,17 @@ const [manualEngine, setManualEngine] = useState("");
   }, []);
 
   useEffect(() => {
+    if (!result) {
+      try {
+        const savedCaseId = sessionStorage.getItem("drivable-last-case-id");
+        if (savedCaseId) {
+          setResult({ id: savedCaseId, status: "received" });
+        }
+      } catch {}
+    }
+  }, []);
+
+  useEffect(() => {
     fetch("/api/capabilities")
       .then((response) => response.json())
       .then((body) => setPhotoUploadEnabled(body.photoUpload === true))
@@ -1395,6 +1407,12 @@ const endpoints = [PUBLIC_API_ENDPOINT];
           });
 
           if (!res.ok) {
+            if (res.status === 401) {
+              setCustomer(null);
+              setError("Your session expired. Please sign in again to submit your case.");
+              setLoading(false);
+              return;
+            }
             lastError = `We couldn't record your request (HTTP ${res.status}). Please try again.`;
             continue;
           }
@@ -1415,6 +1433,9 @@ const endpoints = [PUBLIC_API_ENDPOINT];
 
           setResult(data);
           setError("");
+          if (data?.id) {
+            try { sessionStorage.setItem("drivable-last-case-id", data.id); } catch {}
+          }
           window.scrollTo({ top: 0, behavior: "smooth" });
           return;
         } catch (err: any) {
@@ -1553,6 +1574,18 @@ const endpoints = [PUBLIC_API_ENDPOINT];
                 to reference this submission later. Keep an eye on your inbox if you provided
                 a follow-up email.
               </p>
+              <button
+                type="button"
+                className="secondary-btn"
+                style={{ marginTop: "0.5rem" }}
+                onClick={() => {
+                  navigator.clipboard.writeText(result.id).then(() => {
+                    toast({ title: "Copied", description: "Case ID copied to clipboard." });
+                  }).catch(() => {});
+                }}
+              >
+                Copy Case ID
+              </button>
               <WhatHappensNext />
             </div>
           )}

@@ -2244,6 +2244,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
       return res.json(buildDiagnosisApiResponse(responseBody, webhookDebug, dbResult.ok));
     } catch (error) {
       logEventError("api.diagnosis_creation_failed", error);
+      await removeIntakeTempFiles(uploadedFiles);
 
       return res.status(500).json({
         message: "The diagnosis case was not confirmed as persisted. Please try again.",
@@ -2342,6 +2343,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
       });
     } catch (error: any) {
       logEventError("api.follow_up_creation_failed", error);
+      await cleanupTemporaryFiles();
 
       res.status(400).json({ 
         message: "Failed to create follow-up. Please try again."

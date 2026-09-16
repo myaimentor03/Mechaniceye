@@ -72,8 +72,8 @@ export function UploadTabs({ formData, setFormData }: UploadTabsProps) {
     }));
 
     toast({
-      title: "File Uploaded",
-      description: `${file.name} is selected as reviewer evidence. It has not been uploaded or analyzed yet.`,
+      title: "File Selected",
+      description: `${file.name} is staged as reviewer evidence. It will be uploaded when you submit the case.`,
     });
   };
 
