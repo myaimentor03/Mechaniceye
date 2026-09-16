@@ -10,12 +10,25 @@ export type FollowUpEvidenceBoundary = Readonly<{
 
 export function buildFollowUpEvidenceBoundary(input: { audioStored: boolean; videoStored: boolean; vibrationStored: boolean }): FollowUpEvidenceBoundary {
   const inputTypes: string[] = ["description"];
-  if (input.vibrationStored) inputTypes.push("vibration");
-  if (input.audioStored) inputTypes.push("audio");
-  if (input.videoStored) inputTypes.push("video");
+  const storedTypes: string[] = [];
+  if (input.vibrationStored) {
+    inputTypes.push("vibration");
+    storedTypes.push("vibration");
+  }
+  if (input.audioStored) {
+    inputTypes.push("audio");
+    storedTypes.push("audio");
+  }
+  if (input.videoStored) {
+    inputTypes.push("video");
+    storedTypes.push("video");
+  }
 
+  const typeList = storedTypes.length > 0
+    ? storedTypes.map((t) => t).join(", ").replace(/,([^,]*)$/, ", and$1")
+    : "";
   const analysisBoundary = inputTypes.length > 1
-    ? "Text details were processed. Audio, video, and vibration were processed as reviewer evidence."
+    ? `Text details were processed. ${typeList} were processed as reviewer evidence.`
     : "Text details were processed.";
 
   return Object.freeze({
