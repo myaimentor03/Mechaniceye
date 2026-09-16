@@ -56,9 +56,10 @@ test("active customer copy does not imply unavailable or unperformed media analy
   assert.match(backend, /No readings are simulated or inferred/);
 });
 
-test("vibration sensor stop uses sensorRef and navigator, not window.gyroscope", () => {
+test("photo-first upload-tabs removes vibration sensor code and never uses window.gyroscope", () => {
   assert.doesNotMatch(uploadTabs, /window\.as any\)\.gyroscope|window\.as any\)\.accelerometer/);
-  assert.match(uploadTabs, /sensorRef\.current\.stop\(\)/);
-  assert.match(uploadTabs, /sensorRef\.current\s*=\s*sensor/);
-  assert.match(uploadTabs, /sensorRef\.current\s*=\s*null/);
+  assert.doesNotMatch(uploadTabs, /sensorRef\.current/);
+  assert.doesNotMatch(uploadTabs, /vibrationRecording/);
+  assert.doesNotMatch(uploadTabs, /Vibration Data/);
+  assert.match(uploadTabs, /Audio, video, and vibration uploads will be available in a future release/);
 });
