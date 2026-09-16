@@ -1321,6 +1321,11 @@ const [manualEngine, setManualEngine] = useState("");
       setError(`${invalidObdCode} is not a standard five-character OBD-II code.`);
       return;
     }
+    if (audioFiles.length || videoFiles.length || vibrationFiles.length) {
+      setError("Audio, video, and vibration uploads are not available in this photo-first release. Please remove those files and submit photos plus written details only.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -1396,9 +1401,6 @@ const endpoints = [PUBLIC_API_ENDPOINT];
             optional_product_learning: learningConsent,
           }));
           photoFiles.forEach((file) => requestBody.append("photos", file, file.name));
-          audioFiles.forEach((file) => requestBody.append("audio", file, file.name));
-          videoFiles.forEach((file) => requestBody.append("video", file, file.name));
-          vibrationFiles.forEach((file) => requestBody.append("vibration", file, file.name));
 
           const res = await fetch(endpoint, {
             method: "POST",
@@ -1808,8 +1810,7 @@ Add a clear written symptom description, manual OBD codes, vibration context, an
                           </>
                         }
                       >
-<input type="file" multiple accept="video/*" capture="environment" onChange={(e) => setVideoFiles(Array.from(e.target.files || []))} />
-                        <FileNames files={videoFiles} />
+                        <div className="upload-note">Video upload will be available in a future release. For now, describe what you see in Written Symptoms and photos.</div>
                       </EvidenceCard>
 
                       <EvidenceCard
@@ -1821,8 +1822,7 @@ Add a clear written symptom description, manual OBD codes, vibration context, an
                           </>
                         }
                       >
-<input type="file" multiple accept="audio/*" capture="user" onChange={(e) => setAudioFiles(Array.from(e.target.files || []))} />
-                        <FileNames files={audioFiles} />
+                        <div className="upload-note">Audio upload will be available in a future release. For now, describe the sound in Written Symptoms.</div>
                       </EvidenceCard>
 
                       <EvidenceCard
