@@ -26,7 +26,7 @@ async function withServer(
     DRIVABLE_BETA_INVITE_CODE: TEST_BETA_INVITE,
     ...env
   };
-  
+
   for (const key of Object.keys(requiredEnv)) {
     priorEnv[key] = process.env[key];
     if (requiredEnv[key] === undefined) {
@@ -41,7 +41,7 @@ async function withServer(
   app.use(express.urlencoded({ extended: true }));
   const server = await registerRoutes(app);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  
+
   const address = server.address();
   assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
@@ -64,7 +64,6 @@ async function withServer(
 
 function validDiagnosisBody(overrides: Record<string, unknown> = {}) {
   return {
-    clientRequestId: "req-test-123",
     problemCategory: "Engine running rough",
     description: "Engine runs rough at idle, check engine light on",
     vehicleInfo: "2015 Honda Civic 1.5L",
@@ -186,7 +185,7 @@ test("diagnosis intake accepts authenticated request without photos when storage
         headers: { cookie: sessionCookie },
         body: formData,
       });
-      
+
       // Without DB, the case can't be persisted - returns 503
       // This is the expected fail-closed behavior
       assert.equal(response.status, 503);
@@ -219,7 +218,7 @@ test("diagnosis intake rejects photos when DRIVABLE_PHOTO_UPLOAD_ENABLED is fals
         headers: { cookie: sessionCookie },
         body: formData,
       });
-      
+
       assert.equal(response.status, 409);
       const body = await response.json();
       assert.match(body.message, /Photo upload is not available/);
@@ -247,7 +246,7 @@ test("diagnosis intake rejects photos when evidence storage is not durable", asy
         headers: { cookie: sessionCookie },
         body: formData,
       });
-      
+
       assert.equal(response.status, 409);
       const body = await response.json();
       assert.match(body.message, /Photo upload is not available/);
@@ -277,7 +276,7 @@ test("diagnosis intake rate limits customer intake", async () => {
         Object.entries(validDiagnosisBody({ clientRequestId: `req-${i}` })).forEach(([key, value]) => {
           formData.append(key, typeof value === "string" ? value : JSON.stringify(value));
         });
-        
+
         const response = await fetch(`${origin}/api/diagnoses`, {
           method: "POST",
           headers: { cookie: sessionCookie },
@@ -285,7 +284,7 @@ test("diagnosis intake rate limits customer intake", async () => {
         });
         lastStatus = response.status;
       }
-      
+
       // Should be rate limited
       assert.equal(lastStatus, 429);
     }
@@ -338,7 +337,7 @@ test("diagnosis intake cleans up temp files on validation failure", async () => 
         headers: { cookie: sessionCookie },
         body: formData,
       });
-      
+
       // Validation should fail before persistence
       assert.ok([400, 415].includes(response.status));
     }
@@ -366,7 +365,7 @@ test("diagnosis intake returns case ID and stores in sessionStorage flow", async
         headers: { cookie: sessionCookie },
         body: formData,
       });
-      
+
       // Should return a case ID even without photos
       if (response.status === 200) {
         const body = await response.json();
@@ -399,7 +398,7 @@ test("diagnosis intake handles storage failure gracefully", async () => {
         headers: { cookie: sessionCookie },
         body: formData,
       });
-      
+
       // Without DB, the case can't be persisted - returns 503
       assert.equal(response.status, 503);
       const body = await response.json();
@@ -453,7 +452,7 @@ test("diagnosis intake validates VIN format", async () => {
         headers: { cookie: sessionCookie },
         body: formData,
       });
-      
+
       assert.equal(response.status, 400);
       const body = await response.json();
       assert.match(body.message, /validation/);
@@ -505,7 +504,7 @@ test("diagnosis intake validates OBD code format", async () => {
         headers: { cookie: sessionCookie },
         body: formData,
       });
-      
+
       assert.equal(response.status, 400);
       const body = await response.json();
       assert.match(body.message, /validation/);
@@ -557,7 +556,7 @@ test("diagnosis intake validates mileage is non-negative integer", async () => {
         headers: { cookie: sessionCookie },
         body: formData,
       });
-      
+
       assert.equal(response.status, 400);
       const body = await response.json();
       assert.match(body.message, /validation/);
@@ -587,7 +586,7 @@ test("diagnosis intake does not leak internal errors to client", async () => {
         headers: { cookie: sessionCookie },
         body: formData,
       });
-      
+
       // Even on failure, should not expose internal error details
       if (!response.ok) {
         const body = await response.json();
@@ -808,4 +807,113 @@ test("diagnosis intake rejects malformed multipart body gracefully", async () =>
       assert.ok(text.length > 0);
     }
   );
+});
+
+// QA: duplicate clientRequestId must NOT be deduped — each submission gets a distinct case
+// (beta E2E contract: "duplicate clientRequestId is never idempotently collapsed or replayed at intake")
+test("diagnosis intake does not dedupe duplicate clientRequestId — distinct cases", async () => {
+  await withServer(
+    {
+      DRIVABLE_PHOTO_UPLOAD_ENABLED: "true",
+      DRIVABLE_EVIDENCE_S3_BUCKET: "test-bucket",
+      DRIVABLE_EVIDENCE_S3_REGION: "us-east-1",
+      DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID: "test",
+      DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "test",
+    },
+    async (origin, close, sessionCookie) => {
+      const clientRequestId = "req-dedupe-test-123";
+
+      const formData1 = new FormData();
+      Object.entries(validDiagnosisBody({ clientRequestId })).forEach(([key, value]) => {
+        formData1.append(key, typeof value === "string" ? value : JSON.stringify(value));
+      });
+      const response1 = await fetch(`${origin}/api/diagnoses`, {
+        method: "POST",
+        headers: { cookie: sessionCookie },
+        body: formData1,
+      });
+      assert.equal(response1.status, 503);
+      const body1 = await response1.json();
+      assert.ok(body1.caseId, "First request should return a case ID");
+      assert.equal(body1.persisted, false);
+
+      const formData2 = new FormData();
+      Object.entries(validDiagnosisBody({ clientRequestId })).forEach(([key, value]) => {
+        formData2.append(key, typeof value === "string" ? value : JSON.stringify(value));
+      });
+      const response2 = await fetch(`${origin}/api/diagnoses`, {
+        method: "POST",
+        headers: { cookie: sessionCookie },
+        body: formData2,
+      });
+      assert.equal(response2.status, 503);
+      const body2 = await response2.json();
+      assert.ok(body2.caseId, "Second request should return a case ID");
+      assert.notEqual(body2.caseId, body1.caseId, "Duplicate clientRequestId must create distinct case IDs — no idempotency guard");
+      assert.equal(body2.persisted, false);
+    }
+  );
+});
+
+test("diagnosis intake creates distinct case for different clientRequestId", async () => {
+  await withServer(
+    {
+      DRIVABLE_PHOTO_UPLOAD_ENABLED: "true",
+      DRIVABLE_EVIDENCE_S3_BUCKET: "test-bucket",
+      DRIVABLE_EVIDENCE_S3_REGION: "us-east-1",
+      DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID: "test",
+      DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "test",
+    },
+    async (origin, close, sessionCookie) => {
+      const formData1 = new FormData();
+      Object.entries(validDiagnosisBody({ clientRequestId: "req-diff-1" })).forEach(([key, value]) => {
+        formData1.append(key, typeof value === "string" ? value : JSON.stringify(value));
+      });
+      const response1 = await fetch(`${origin}/api/diagnoses`, {
+        method: "POST",
+        headers: { cookie: sessionCookie },
+        body: formData1,
+      });
+      assert.equal(response1.status, 503);
+      const body1 = await response1.json();
+      assert.ok(body1.caseId);
+
+      const formData2 = new FormData();
+      Object.entries(validDiagnosisBody({ clientRequestId: "req-diff-2" })).forEach(([key, value]) => {
+        formData2.append(key, typeof value === "string" ? value : JSON.stringify(value));
+      });
+      const response2 = await fetch(`${origin}/api/diagnoses`, {
+        method: "POST",
+        headers: { cookie: sessionCookie },
+        body: formData2,
+      });
+      assert.equal(response2.status, 503);
+      const body2 = await response2.json();
+      assert.ok(body2.caseId, "Different clientRequestId should create a case");
+      assert.notEqual(body2.caseId, body1.caseId, "Different clientRequestId should create different case");
+      assert.equal(body2.persisted, false);
+    }
+  );
+});
+
+test("case-storage getStoredDiagnosisCase round-trips local case for resume", async () => {
+  const { createStoredDiagnosisCase, getStoredDiagnosisCase } = await import("./case-storage.js");
+  const input = {
+    description: "Customer Email: test@example.com\nVIN: 1HGCM82633A004352\nMileage: 142500\nEngine runs rough",
+    vehicleInfo: "2015 Honda Civic 1.5L",
+    rawVehicleSelection: { year: "2015", make: "Honda", model: "Civic", engine: "1.5L" },
+  };
+  const stored = createStoredDiagnosisCase(input);
+  assert.ok(stored.id.startsWith("CASE-"));
+  const retrieved = getStoredDiagnosisCase(stored.id);
+  assert.ok(retrieved, "getStoredDiagnosisCase should return stored case");
+  assert.equal(retrieved!.id, stored.id);
+  assert.equal(retrieved!.description, input.description);
+  const missing = getStoredDiagnosisCase("CASE-99999999999999999-deadbeef");
+  assert.equal(missing, undefined);
+  // cleanup local ops artifact
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  try { fs.rmSync(stored.caseFolder, { recursive: true, force: true }); } catch {}
+  // remove tracker row header if needed — leave file
 });

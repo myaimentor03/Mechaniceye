@@ -309,3 +309,17 @@ export function createStoredDiagnosisCase(input: IncomingDiagnosisCase): StoredD
 
   return stored;
 }
+
+export function getStoredDiagnosisCase(caseId: string): StoredDiagnosisCase | undefined {
+  const caseFolder = path.join(casesRoot, safeFileName(caseId));
+  const caseJsonPath = path.join(caseFolder, "case.json");
+  if (!fs.existsSync(caseJsonPath)) {
+    return undefined;
+  }
+  try {
+    const content = fs.readFileSync(caseJsonPath, "utf8");
+    return JSON.parse(content) as StoredDiagnosisCase;
+  } catch {
+    return undefined;
+  }
+}

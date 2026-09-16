@@ -2224,7 +2224,7 @@ if (photoFiles.length) {
         return res.json(buildDiagnosisApiResponse(responseBody, webhookDebug, dbResult.ok));
       }
 
-const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, storedCase, authenticatedCaseOwnerId(req.drivableCustomer?.id));
+      const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, storedCase, authenticatedCaseOwnerId(req.drivableCustomer?.id));
       responseBody.casePersistence = {
         primary: "local_case_store",
         databaseMirror: dbResult.ok ? "persisted" : "unavailable",
