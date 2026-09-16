@@ -2281,12 +2281,13 @@ if (photoFiles.length) {
       if (!dbResult.ok) {
         const dbError = dbResult.error ?? "unknown error";
         logEventError("db.local_case_mirror_failed", undefined, { caseId: responseBody.id, reason: dbError });
-        const partialResponse = buildDiagnosisApiResponse(responseBody, {
-          webhookConfigured: false,
-          webhookForwarded: false,
-        }, false);
-        partialResponse.message = "Diagnosis case saved to local ops storage, but the case database write failed.";
-        return res.status(202).json({ ...partialResponse, persisted: false });
+        if (photoFiles.length) await evidenceStore.deleteCase(responseBody.id);
+        if (hasMobileMedia) await deleteStoredEvidenceForCase(responseBody.id, storedR2Keys);
+        return res.status(503).json({
+          message: "The case was not saved to the case database. Please try again.",
+          caseId: responseBody.id,
+          persisted: false,
+        });
       }
       const webhookDebug = await forwardMasterDiagnosisIntakeWebhook(responseBody, input);
       await deliverDiagnosisWebhook(responseBody, input, storedCase);
