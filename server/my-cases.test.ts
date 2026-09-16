@@ -40,12 +40,17 @@ async function withServer(
   const address = server.address();
   assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
+  let closed = false;
+  const closeServer = async () => {
+    if (closed) return;
+    closed = true;
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  };
 
   try {
-    await work(origin, async () => {
-      await new Promise<void>((resolve) => server.close(() => resolve()));
-    });
+    await work(origin, closeServer);
   } finally {
+    await closeServer();
     if (priorSessionSecret === undefined) delete process.env.DRIVABLE_SESSION_SECRET;
     else process.env.DRIVABLE_SESSION_SECRET = priorSessionSecret;
     if (priorBetaInvite === undefined) delete process.env.DRIVABLE_BETA_INVITE_CODE;
@@ -171,5 +176,50 @@ test("customer resume treats an ownerless legacy case as not found (fail-closed)
     assert.equal(response.status, 404);
     const body = await response.json();
     assert.equal(body.code, "CASE_NOT_FOUND");
+  });
+});
+
+test("customer resume returns minimal payload for case with evidence attachments (no evidence leakage)", async () => {
+  const caseId = generateCaseId();
+  await storage.createDiagnosis({
+    id: caseId,
+    userId: OWNER.id,
+    vehicleInfo: "2015 Honda Civic",
+    description: "Customer Email: owner@example.com\nEngine runs rough with photos",
+    timing: "Idle",
+    attachments: [
+      {
+        id: "att-1",
+        caseId,
+        kind: "photo",
+        originalName: "engine.jpg",
+        mimeType: "image/jpeg",
+        byteSize: 1024,
+        status: "persisted",
+        serverAttachmentId: "srv-1",
+        storageKey: "evidence/case-1/engine.jpg",
+        createdAt: new Date().toISOString(),
+        provenance: "customer_observation",
+        analysisStatus: "uploaded_not_analyzed",
+      },
+    ],
+  });
+
+  await withServer(async (origin) => {
+    const response = await fetch(`${origin}/api/my-cases/${caseId}`, {
+      headers: { cookie: cookieFor(OWNER) },
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.id, caseId);
+    assert.ok(typeof body.status === "string" && body.status.length > 0);
+    assert.ok(typeof body.createdAt === "string" && body.createdAt.length > 0);
+    assert.equal(body.persisted, true);
+    // Must not leak evidence metadata in resume payload
+    assert.ok(!("attachments" in body), "resume payload must not include attachments");
+    assert.ok(!("evidence" in body), "resume payload must not include evidence");
+    assert.ok(!("photos" in body), "resume payload must not include photos");
+    assert.match(response.headers.get("cache-control") || "", /no-store/);
   });
 });
