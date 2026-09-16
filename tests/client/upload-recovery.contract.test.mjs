@@ -88,3 +88,9 @@ test("case recovery uses sessionStorage not localStorage for mobile safety", () 
   assert.match(backend, /sessionStorage\.setItem\("drivable-last-case-id"/);
   assert.doesNotMatch(backend, /localStorage\.setItem\("drivable-last-case-id"/);
 });
+
+test("case recovery from sessionStorage requires authChecked guard", () => {
+  assert.match(backend, /useEffect\(\(\) => \{/, "case restoration useEffect must exist");
+  assert.match(backend, /\[authChecked\]/, "case restoration useEffect must depend on authChecked");
+  assert.match(backend, /!result && authChecked/, "case restoration must check authChecked before restoring");
+});

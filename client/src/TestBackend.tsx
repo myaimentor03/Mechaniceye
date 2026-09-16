@@ -1180,7 +1180,7 @@ const [manualEngine, setManualEngine] = useState("");
   }, []);
 
   useEffect(() => {
-    if (!result) {
+    if (!result && authChecked) {
       try {
         const savedCaseId = sessionStorage.getItem("drivable-last-case-id");
         if (savedCaseId) {
@@ -1189,7 +1189,7 @@ const [manualEngine, setManualEngine] = useState("");
         }
       } catch {}
     }
-  }, []);
+  }, [authChecked]);
 
   useEffect(() => {
     fetch("/api/capabilities")
