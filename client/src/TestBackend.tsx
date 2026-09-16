@@ -1185,6 +1185,7 @@ const [manualEngine, setManualEngine] = useState("");
         const savedCaseId = sessionStorage.getItem("drivable-last-case-id");
         if (savedCaseId) {
           setResult({ id: savedCaseId, status: "received" });
+          toast({ title: "Case Restored", description: "Your previous case has been restored." });
         }
       } catch {}
     }

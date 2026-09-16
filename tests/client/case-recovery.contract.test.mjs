@@ -31,3 +31,8 @@ test("case recovery exposes a Copy Case ID action backed by the clipboard", () =
   assert.match(backend, /Copy Case ID/);
   assert.match(backend, /navigator\.clipboard\.writeText\(result\.id\)/);
 });
+
+test("case recovery shows toast on restored case from sessionStorage", () => {
+  assert.match(backend, /toast\(/);
+  assert.match(backend, /Case Restored/);
+});
