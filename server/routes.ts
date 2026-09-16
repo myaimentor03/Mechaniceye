@@ -2266,11 +2266,13 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
     try {
       const diagnosisId = req.params.id;
 
-      if (req.body.vibrationData) {
+      const hasMobileMedia = ["audio", "video"].some((field) => files[field]?.length) || Boolean(req.body.vibrationData);
+      if (hasMobileMedia) {
         await cleanupTemporaryFiles();
-        return res.status(422).json({
-          message: "Vibration capture is not available yet. No vibration readings were stored or analyzed.",
-          code: "VIBRATION_CAPTURE_UNAVAILABLE",
+        return res.status(415).json({
+          message: "Audio, video, and vibration capture are not supported yet. You can submit photos along with written symptoms and OBD-II codes.",
+          code: "UNSUPPORTED_MEDIA_TYPE",
+          persisted: false,
         });
       }
       
