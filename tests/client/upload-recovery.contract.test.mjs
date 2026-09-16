@@ -78,9 +78,13 @@ test("submission handles JSON parse failure gracefully", () => {
   assert.match(backend, /catch \{[\s\S]*lastError = "We received a response we couldn't read/);
 });
 
-test("case recovery restores from sessionStorage on mount", () => {
+test("case recovery verifies from the server on mount instead of fabricating status", () => {
+  // Server-verified restore (Nov 2 paid beta): the sessionStorage pointer
+  // must be verified via GET /api/my-cases/:id; status comes from the server.
   assert.match(backend, /sessionStorage\.getItem\("drivable-last-case-id"\)/);
-  assert.match(backend, /setResult\(\{ id: savedCaseId, status: "received" \}\)/);
+  assert.match(backend, /fetch\(`\/api\/my-cases\/\$\{encodeURIComponent\(savedCaseId\)\}`/);
+  assert.match(backend, /setResult\(\{ id: body\.id, status: body\.status/);
+  assert.doesNotMatch(backend, /setResult\(\{ id: savedCaseId, status: "received" \}\)/);
   assert.match(backend, /Case Restored/);
 });
 
@@ -91,8 +95,8 @@ test("case recovery uses sessionStorage not localStorage for mobile safety", () 
 
 test("case recovery from sessionStorage requires authChecked guard", () => {
   assert.match(backend, /useEffect\(\(\) => \{/, "case restoration useEffect must exist");
-  assert.match(backend, /\[authChecked\]/, "case restoration useEffect must depend on authChecked");
-  assert.match(backend, /!result && authChecked/, "case restoration must check authChecked before restoring");
+  assert.match(backend, /\[authChecked, customer, result\]/, "case restoration useEffect must depend on authChecked");
+  assert.match(backend, /!result && authChecked && customer/, "case restoration must check authChecked and customer before verifying");
 });
 
 test("submission handles 429 rate-limit with Retry-After hint and friendly message", () => {

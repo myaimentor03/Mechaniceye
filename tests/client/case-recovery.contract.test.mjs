@@ -16,9 +16,37 @@ test("case recovery persists the case id to sessionStorage on successful intake"
   assert.doesNotMatch(backend, /localStorage\.setItem\("drivable-last-case-id"/);
 });
 
-test("case recovery restores the saved case id on mount instead of losing it", () => {
+test("case recovery verifies the saved case id server-side instead of fabricating status", () => {
+  // Launch blocker (Nov 2 paid beta): the client must never invent a
+  // "received" status from a sessionStorage pointer. Restore must verify via
+  // the customer-scoped GET /api/my-cases/:id endpoint and use the server's
+  // id/status in the restored result.
   assert.match(backend, /sessionStorage\.getItem\("drivable-last-case-id"\)/);
-  assert.match(backend, /setResult\(\{ id: savedCaseId, status: "received" \}\)/);
+  assert.match(backend, /fetch\(`\/api\/my-cases\/\$\{encodeURIComponent\(savedCaseId\)\}`/);
+  assert.match(backend, /setResult\(\{ id: body\.id, status: body\.status/);
+  assert.doesNotMatch(backend, /setResult\(\{ id: savedCaseId, status: "received" \}\)/);
+});
+
+test("case recovery requires an authenticated customer before verifying a saved case", () => {
+  assert.match(backend, /if \(!result && authChecked && customer\)/);
+});
+
+test("case recovery drops a stale saved id when the server reports 404", () => {
+  assert.match(backend, /if \(res\.status === 404\)/);
+  assert.match(backend, /sessionStorage\.removeItem\("drivable-last-case-id"\)/);
+});
+
+test("case recovery on 401 prompts re-auth without restoring a case", () => {
+  const restoreBlock = backend.slice(backend.indexOf("server-verified case restore"));
+  assert.match(restoreBlock, /if \(res\.status === 401\)/);
+  assert.match(restoreBlock, /setCustomer\(null\)/);
+  assert.match(restoreBlock, /Your session expired\. Please sign in again to view your case\./);
+});
+
+test("case recovery on network failure preserves the saved id for retry without claiming status", () => {
+  const restoreBlock = backend.slice(backend.indexOf("server-verified case restore"));
+  assert.match(restoreBlock, /Couldn't verify your saved case \(network issue\)/);
+  assert.doesNotMatch(restoreBlock, /setResult\(\{ id: savedCaseId/);
 });
 
 test("expired session on submit prompts re-auth instead of a generic error", () => {

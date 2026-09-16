@@ -1181,17 +1181,51 @@ const [manualEngine, setManualEngine] = useState("");
     return () => { active = false; };
   }, []);
 
+  // QA lane (Nov 2 paid beta): server-verified case restore. The saved case
+  // id in sessionStorage is only a pointer — status must come from
+  // GET /api/my-cases/:id (customer-scoped, enumeration-safe) so we never
+  // fabricate a "received" case, never show another customer's case, and
+  // never leave a stale id restoring forever. Offline/network failure keeps
+  // the saved id for retry without claiming a verified status.
   useEffect(() => {
-    if (!result && authChecked) {
+    if (!result && authChecked && customer) {
+      let savedCaseId: string | null = null;
       try {
-        const savedCaseId = sessionStorage.getItem("drivable-last-case-id");
-        if (savedCaseId) {
-          setResult({ id: savedCaseId, status: "received" });
-          toast({ title: "Case Restored", description: "Your previous case has been restored." });
-        }
+        savedCaseId = sessionStorage.getItem("drivable-last-case-id");
       } catch {}
+      if (!savedCaseId) return;
+      let cancelled = false;
+      fetch(`/api/my-cases/${encodeURIComponent(savedCaseId)}`, { credentials: "same-origin" })
+        .then(async (res) => {
+          if (cancelled) return;
+          if (res.ok) {
+            const body = await res.json().catch(() => null);
+            if (!cancelled && body && typeof body.id === "string") {
+              setResult({ id: body.id, status: body.status || "received" });
+              toast({ title: "Case Restored", description: "Your previous case has been restored." });
+            }
+            return;
+          }
+          if (res.status === 401) {
+            setCustomer(null);
+            setError("Your session expired. Please sign in again to view your case.");
+            return;
+          }
+          // 400 malformed / 404 unknown-or-foreign / 500 unavailable:
+          // only 404 for a well-formed id means the saved pointer is stale,
+          // so drop it instead of restoring a case that is not ours.
+          if (res.status === 404) {
+            try { sessionStorage.removeItem("drivable-last-case-id"); } catch {}
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setError("Couldn't verify your saved case (network issue). Your Case ID is preserved for retry.");
+          }
+        });
+      return () => { cancelled = true; };
     }
-  }, [authChecked]);
+  }, [authChecked, customer, result]);
 
   useEffect(() => {
     fetch("/api/capabilities")
