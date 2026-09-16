@@ -1577,18 +1577,30 @@ const endpoints = [PUBLIC_API_ENDPOINT];
                 to reference this submission later. Keep an eye on your inbox if you provided
                 a follow-up email.
               </p>
-              <button
-                type="button"
-                className="secondary-btn"
-                style={{ marginTop: "0.5rem" }}
-                onClick={() => {
-                  navigator.clipboard.writeText(result.id).then(() => {
-                    toast({ title: "Copied", description: "Case ID copied to clipboard." });
-                  }).catch(() => {});
-                }}
-              >
-                Copy Case ID
-              </button>
+              <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={() => {
+                    navigator.clipboard.writeText(result.id).then(() => {
+                      toast({ title: "Copied", description: "Case ID copied to clipboard." });
+                    }).catch(() => {});
+                  }}
+                >
+                  Copy Case ID
+                </button>
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={() => {
+                    try { sessionStorage.removeItem("drivable-last-case-id"); } catch {}
+                    setResult(null);
+                    toast({ title: "Cleared", description: "Ready for a new check." });
+                  }}
+                >
+                  Dismiss
+                </button>
+              </div>
               <WhatHappensNext />
             </div>
           )}
