@@ -12,6 +12,7 @@ const marketplace = source("client/src/marketplace/Marketplace.tsx");
 const navigation = source("client/src/components/PublicHeaderNavigation.tsx");
 const reviewPage = source("client/src/components/MechanicsEyeReviewPage.tsx");
 const css = source("client/src/app.css");
+const uploadTabs = source("client/src/components/upload-tabs.tsx");
 
 test("both public headers use one review route that is distinct from legal pages", () => {
   assert.match(navigation, /PUBLIC_REVIEW_PATH\s*=\s*"\/mechanics-eye-review"/);
@@ -53,4 +54,11 @@ test("active customer copy does not imply unavailable or unperformed media analy
   assert.match(backend, /Photos are stored as case evidence when persistence succeeds/);
   assert.match(backend, /Audio and video upload are not enabled in this photo-first release/);
   assert.match(backend, /No readings are simulated or inferred/);
+});
+
+test("vibration sensor stop uses sensorRef and navigator, not window.gyroscope", () => {
+  assert.doesNotMatch(uploadTabs, /window\.as any\)\.gyroscope|window\.as any\)\.accelerometer/);
+  assert.match(uploadTabs, /sensorRef\.current\.stop\(\)/);
+  assert.match(uploadTabs, /sensorRef\.current\s*=\s*sensor/);
+  assert.match(uploadTabs, /sensorRef\.current\s*=\s*null/);
 });

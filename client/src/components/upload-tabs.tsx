@@ -31,7 +31,8 @@ export function UploadTabs({ formData, setFormData }: UploadTabsProps) {
   const { toast } = useToast();
   const audioInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
-  const photoCaptureRef = useRef<HTMLInputElement>(null);
+  const sensorRef = useRef<any>(null);
+    const photoCaptureRef = useRef<HTMLInputElement>(null);
 
   const tabs = [
     { id: "audio", label: "Audio", icon: Mic },
@@ -78,11 +79,17 @@ export function UploadTabs({ formData, setFormData }: UploadTabsProps) {
 
   
 
-  const startVibrationRecording = async () => {
+const startVibrationRecording = async () => {
     setVibrationRecording(true);
     try {
-if (typeof (navigator as any).gyroscope !== "undefined") {
-        const sensor: any = (navigator as any).gyroscope;
+      let sensor: any;
+      if (typeof (navigator as any).gyroscope !== "undefined") {
+        sensor = (navigator as any).gyroscope;
+      } else if (typeof (navigator as any).accelerometer !== "undefined") {
+        sensor = (navigator as any).accelerometer;
+      }
+      if (sensor) {
+        sensorRef.current = sensor;
         sensor.addEventListener("reading", () => {
           const data = {
             x: sensor.x,
@@ -93,10 +100,10 @@ if (typeof (navigator as any).gyroscope !== "undefined") {
           setVibrationData(data);
         });
         sensor.addEventListener("error", (err: any) => {
-          console.error("Gyroscope error:", err);
+          console.error("Vibration sensor error:", err);
           toast({
             title: "Vibration Capture Error",
-            description: "Could not access gyroscope sensor.",
+            description: "Could not access motion sensor.",
             variant: "destructive",
           });
         });
@@ -105,32 +112,6 @@ if (typeof (navigator as any).gyroscope !== "undefined") {
         toast({
           title: "Vibration Capture Active",
           description: "Recording real motion sensor data. Place your vehicle on a stable surface.",
-          variant: "default",
-        });
-      } else if (typeof (navigator as any).accelerometer !== "undefined") {
-        const sensor: any = (navigator as any).accelerometer;
-        sensor.addEventListener("reading", () => {
-          const data = {
-            x: sensor.x,
-            y: sensor.y,
-            z: sensor.z,
-            timestamp: sensor.timestamp,
-          };
-          setVibrationData(data);
-        });
-        sensor.addEventListener("error", (err: any) => {
-          console.error("Accelerometer error:", err);
-          toast({
-            title: "Vibration Capture Error",
-            description: "Could not access accelerometer sensor.",
-            variant: "destructive",
-          });
-        });
-        sensor.start();
-        setVibrationRecording(true);
-        toast({
-          title: "Vibration Capture Active",
-          description: "Recording real acceleration sensor data.",
           variant: "default",
         });
       } else {
@@ -154,8 +135,10 @@ if (typeof (navigator as any).gyroscope !== "undefined") {
 
   const stopVibrationRecording = () => {
     setVibrationRecording(false);
-    if ((window as any).gyroscope) (window as any).gyroscope.stop();
-    if ((window as any).accelerometer) (window as any).accelerometer.stop();
+    if (sensorRef.current) {
+      sensorRef.current.stop();
+      sensorRef.current = null;
+    }
     if (vibrationData) {
       toast({
         title: "Vibration Data Captured",
