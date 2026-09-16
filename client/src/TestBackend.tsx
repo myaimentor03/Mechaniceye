@@ -1117,15 +1117,17 @@ type PublicPage = "home" | "intake" | "sell" | "help" | "disclaimer" | "terms" |
 
   const [clientRequestId] = useState(() => {
     const storageKey = "drivable-client-request-id";
-    const existing = window.sessionStorage.getItem(storageKey);
-
-    if (existing) {
-      return existing;
+    const fallbackId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    try {
+      const existing = window.sessionStorage.getItem(storageKey);
+      if (existing) {
+        return existing;
+      }
+      try { window.sessionStorage.setItem(storageKey, fallbackId); } catch {}
+      return fallbackId;
+    } catch {
+      return fallbackId;
     }
-
-    const generated = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-    window.sessionStorage.setItem(storageKey, generated);
-    return generated;
   });
 
   const [year, setYear] = useState("");
@@ -1599,9 +1601,37 @@ const endpoints = [PUBLIC_API_ENDPOINT];
                   type="button"
                   className="secondary-btn"
                   onClick={() => {
-                    navigator.clipboard.writeText(result.id).then(() => {
-                      toast({ title: "Copied", description: "Case ID copied to clipboard." });
-                    }).catch(() => {});
+                    const fallbackCopy = () => {
+                      try {
+                        const ta = document.createElement("textarea");
+                        ta.value = result.id;
+                        ta.setAttribute("readonly", "");
+                        ta.style.position = "fixed";
+                        ta.style.opacity = "0";
+                        document.body.appendChild(ta);
+                        ta.select();
+                        const ok = document.execCommand("copy");
+                        document.body.removeChild(ta);
+                        if (ok) {
+                          toast({ title: "Copied", description: "Case ID copied to clipboard." });
+                        } else {
+                          toast({ title: "Copy failed", description: `Long-press to copy: ${result.id}` });
+                        }
+                      } catch {
+                        toast({ title: "Copy failed", description: `Long-press to copy: ${result.id}` });
+                      }
+                    };
+                    try {
+                      if (navigator.clipboard?.writeText) {
+                        navigator.clipboard.writeText(result.id).then(() => {
+                          toast({ title: "Copied", description: "Case ID copied to clipboard." });
+                        }).catch(() => { fallbackCopy(); });
+                      } else {
+                        fallbackCopy();
+                      }
+                    } catch {
+                      fallbackCopy();
+                    }
                   }}
                 >
                   Copy Case ID
