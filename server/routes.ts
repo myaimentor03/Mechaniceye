@@ -2018,6 +2018,55 @@ try {
     }
   });
 
+  // Customer resume/status: a signed-in customer can verify their own case
+  // (mobile recovery, Copy Case ID flow, cross-device resume). Reviewer-only
+  // GET /api/diagnoses/:id never serves customers, and client sessionStorage
+  // restore alone cannot verify a case server-side — this closes that gap.
+  // Fail-closed + enumeration-safe: missing, foreign, and ownerless cases all
+  // answer the identical 404 so one customer can never read another's case
+  // or probe for its existence. Success returns a minimal payload (no
+  // description/symptom PII) with no-store.
+  app.get("/api/my-cases/:id", requireCustomer, async (req, res) => {
+    try {
+      res.setHeader("Cache-Control", "no-store");
+      const rawId = typeof req.params.id === "string" ? req.params.id.trim() : "";
+      if (!rawId || rawId.length > 128 || !/^CASE-\d{17}-[0-9a-f]{8}$/.test(rawId)) {
+        return res.status(400).json({
+          ok: false,
+          error: "That case ID does not look valid. Check the copied value and try again.",
+          code: "INVALID_CASE_ID",
+          persisted: false,
+        });
+      }
+      const diagnosis = await storage.getDiagnosis(rawId);
+      const ownerId = typeof diagnosis?.userId === "string" ? diagnosis.userId.trim() : "";
+      const requesterId = req.drivableCustomer?.id || "";
+      if (!diagnosis || !ownerId || ownerId !== requesterId) {
+        return res.status(404).json({
+          ok: false,
+          error: "Case not found.",
+          code: "CASE_NOT_FOUND",
+          persisted: false,
+        });
+      }
+      return res.json({
+        ok: true,
+        id: diagnosis.id,
+        status: diagnosis.status || "received",
+        createdAt: diagnosis.createdAt,
+        persisted: true,
+      });
+    } catch (error) {
+      logEventError("api.customer_case_resume_failed", error);
+      return res.status(500).json({
+        ok: false,
+        error: "Case status is temporarily unavailable. Please try again.",
+        code: "CASE_STATUS_UNAVAILABLE",
+        persisted: false,
+      });
+    }
+  });
+
   app.get("/api/internal/evidence/:caseId/:attachmentId", requireReviewer, async (req, res) => {
     try {
       const result = await evidenceStore.getAttachment(req.params.caseId, req.params.attachmentId);
