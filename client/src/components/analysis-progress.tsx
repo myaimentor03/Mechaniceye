@@ -7,8 +7,8 @@ export function AnalysisProgress() {
   const [currentStep, setCurrentStep] = useState(0);
 
   const steps = [
-    { label: "Processing audio data", completed: false },
-    { label: "Matching sound patterns", completed: false },
+    { label: "Processing photo evidence", completed: false },
+    { label: "Analyzing vehicle condition", completed: false },
     { label: "Generating diagnosis", completed: false },
   ];
 
