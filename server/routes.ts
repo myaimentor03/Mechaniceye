@@ -176,7 +176,7 @@ const diagnosisEvidenceUploadMiddleware = (req: any, res: any, next: any) => {
 const removeIntakeTempFiles = async (files: UploadedEvidenceFiles) => {
   await Promise.all(Object.values(files || {}).flat().map(async (file) => {
     if (file?.path) {
-      await fs.promises.rm(file.path, { force: true });
+      await fs.promises.rm(file.path, { force: true }).catch(() => undefined);
     }
   }));
 };
