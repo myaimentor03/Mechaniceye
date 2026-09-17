@@ -156,17 +156,32 @@ export async function storeEvidenceFiles(
   }
 }
 
+export const EVIDENCE_KEY_PATTERN = /^evidence\/[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9])\/(?:photos|audio|video|vibration)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[a-z0-9]{1,8}$/;
+
+export function isSafeEvidenceKey(key: string): boolean {
+  if (key.includes("..")) return false;
+  return EVIDENCE_KEY_PATTERN.test(key);
+}
+
+export async function deleteEvidenceKeysWithClient(
+  keys: string[],
+  store: ObjectStoreClient
+): Promise<void> {
+  const safeKeys = keys.filter(isSafeEvidenceKey);
+  if (!safeKeys.length) return;
+  await Promise.allSettled(
+    safeKeys.map((key) => store.send(new DeleteObjectCommand({ Bucket: store.bucket, Key: key })))
+  );
+}
+
 export async function deleteEvidenceKeys(
   keys: string[]
 ): Promise<void> {
-  if (!keys.length) return;
-  const safeKeys = keys.filter((key) => /^evidence\/[A-Za-z0-9_-]+\/[a-z]+\//.test(key));
+  const safeKeys = keys.filter(isSafeEvidenceKey);
   if (!safeKeys.length) return;
   const { bucket, client } = createR2Client();
   try {
-    await Promise.allSettled(
-      safeKeys.map((key) => client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key })))
-    );
+    await deleteEvidenceKeysWithClient(safeKeys, { bucket, send: (command) => client.send(command) });
   } finally {
     client.destroy();
   }
