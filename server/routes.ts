@@ -1870,10 +1870,10 @@ res.status(400).json({ message: "Update step completion could not be processed."
 
     const yearNumber = Number.parseInt(vehicleYear, 10);
 
-    if (!Number.isInteger(yearNumber)) {
+    if (!Number.isInteger(yearNumber) || yearNumber < 1886 || yearNumber > 2100) {
       return res.status(400).json({
         found: false,
-        message: "Vehicle year must be a valid number"
+        message: "Vehicle year must be a valid integer between 1886 and 2100"
       });
     }
 

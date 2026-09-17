@@ -34,6 +34,7 @@
     "test:delivery": "tsx --test server/jobs/delivery-outbox.contract.test.ts",
     "test:observability": "tsx --test server/observability/observability.test.ts",
     "test:media-contract": "tsx --test server/media/private-object-storage.contract.test.ts",
+    "test:buyer-risk": "tsx --test server/buyer-risk-vehicle-knowledge.test.ts",
     "test:load-cert": "node --test tests/load/load-cert.test.mjs",
     "test:production-smoke": "node --test tests/production-smoke.test.mjs",
     "smoke": "node scripts/production-smoke.mjs",
