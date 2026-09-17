@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { NeedHelpPanel } from "../components/NeedHelpPanel";
 import { toast } from "../hooks/use-toast";
 import {
@@ -314,6 +314,16 @@ function SellPage() {
 function SellerIntakePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [restoredCaseId, setRestoredCaseId] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const savedCaseId = sessionStorage.getItem("drivable-last-case-id");
+      if (savedCaseId) {
+        setRestoredCaseId(savedCaseId);
+      }
+    } catch {}
+  }, []);
 
   const [clientRequestId, setClientRequestId] = useState(() => {
     const storageKey = "drivable-client-request-id";
@@ -486,7 +496,7 @@ function SellerIntakePage() {
 
   return (
     <MarketplaceLayout>
-      <section className="mp-page-heading"><div className="mp-eyebrow">ClearSale intake</div><h1>Start a ClearSale listing request</h1><p>Submit your seller and vehicle details for ClearSale review. Mechanic's Eye uses this information to prepare the listing request handoff.</p></section>
+      <section className="mp-page-heading"><div className="mp-eyebrow">ClearSale intake</div><h1>Start a ClearSale listing request</h1><p>Submit your seller and vehicle details for ClearSale review. Mechanic's Eye uses this information to prepare the listing request handoff.</p>{restoredCaseId && <p><strong>Reference:</strong> {restoredCaseId}</p>}</section>
       <section className="mp-card"><h2>Before you submit</h2><p>Use the seller checklist if you need a quick gut check on title, lien, mileage, known issues, photos, and state-specific paperwork questions. ClearSale is a listing platform, not a legal or title service.</p><div className="mp-actions"><a className="mp-btn mp-btn-secondary" href="/marketplace/guides/seller-checklist">Seller Checklist</a><a className="mp-btn mp-btn-secondary" href="/marketplace/guides/selling-info">Prepare Listing Info</a></div></section>
       <NeedHelpPanel topic="Help listing a vehicle" compact />
       <form className="mp-intake-form" onSubmit={submit}>
@@ -506,6 +516,17 @@ function BuyerInterestPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [restoredCaseId, setRestoredCaseId] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const savedCaseId = sessionStorage.getItem("drivable-last-case-id");
+      if (savedCaseId) {
+        setRestoredCaseId(savedCaseId);
+        setSubmitted(true);
+      }
+    } catch {}
+  }, []);
 
   const [clientRequestId, setClientRequestId] = useState(() => {
     const storageKey = "drivable-client-request-id";
@@ -632,6 +653,7 @@ function BuyerInterestPage() {
 
       if (data?.id) {
         try { sessionStorage.setItem("drivable-last-case-id", data.id); } catch {}
+        setRestoredCaseId(data.id);
       }
 
       // Rotate clientRequestId after successful intake so next submission is not collapsed as duplicate
@@ -661,7 +683,7 @@ function BuyerInterestPage() {
   return (
     <MarketplaceLayout>
       <section className="mp-page-heading"><div className="mp-eyebrow">Buyer Check</div><h1>Submit buyer interest</h1><p>Send interest in a ClearSale listing. This does not reserve the vehicle, approve a sale, verify the seller, verify title, or handle payment.</p></section>
-      {submitted && <section className="mp-card"><h2>Interest received</h2><p>Your buyer interest was received for review and handoff. ClearSale does not guarantee seller response, buyer payment, vehicle condition, title status, transfer completion, or legal outcome.</p></section>}
+      {submitted && <section className="mp-card"><h2>Interest received</h2><p>Your buyer interest was received for review and handoff. ClearSale does not guarantee seller response, buyer payment, vehicle condition, title status, transfer completion, or legal outcome.</p>{restoredCaseId && <p><strong>Reference:</strong> {restoredCaseId}</p>}</section>}
       <form className="mp-intake-form" onSubmit={submit}>
         <fieldset><legend>Buyer information</legend><div className="mp-form-grid"><label>Buyer name<input name="buyerName" required /></label><label>Buyer email<input name="buyerEmail" type="email" required /></label><label>Buyer phone<input name="buyerPhone" type="tel" required /></label><label>Preferred contact method<select name="preferredContactMethod" required><option value="">Choose one</option><option>Phone</option><option>Email</option><option>Text</option></select></label><label>Buyer location<input name="buyerLocation" placeholder="City, state" /></label><label>Timeline<select name="timeline"><option value="">Choose one</option><option>Today or tomorrow</option><option>This week</option><option>Still researching</option></select></label></div></fieldset>
         <fieldset><legend>Listing interest</legend><div className="mp-form-grid"><label>Listing<input name="listingTitle" placeholder="Which listing are you interested in?" required /></label></div><label>Message to seller or admin<textarea name="message" rows={5} placeholder="Questions, viewing availability, inspection plans, or other notes." required /></label></fieldset>
@@ -675,9 +697,16 @@ function BuyerInterestPage() {
 }
 
 function SubmittedPage() {
+  const [restoredCaseId, setRestoredCaseId] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      const savedCaseId = sessionStorage.getItem("drivable-last-case-id");
+      if (savedCaseId) setRestoredCaseId(savedCaseId);
+    } catch {}
+  }, []);
   return (
     <MarketplaceLayout>
-      <section className="mp-submitted"><div className="mp-eyebrow">ClearSale request received</div><h1>Your request has been received for review.</h1><p>Your listing request is not automatically approved and is not guaranteed to sell. ClearSale does not handle title, payment, transport, taxes, registration, or legal compliance.</p><div className="mp-next-steps"><h2>Next steps</h2><ol><li>Mechanic's Eye reviews the submitted seller and vehicle details.</li><li>The seller remains responsible for accurate information, disclosures, and state-specific requirements.</li><li>The buyer and seller handle any transaction, title transfer, payment, pickup or shipping, taxes, registration, and legal obligations directly.</li></ol></div><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/clearsale">Return to ClearSale</a><a className="mp-btn mp-btn-secondary" href="/marketplace/sell">View Listing Packages</a></div></section>
+      <section className="mp-submitted"><div className="mp-eyebrow">ClearSale request received</div><h1>Your request has been received for review.</h1><p>Your listing request is not automatically approved and is not guaranteed to sell. ClearSale does not handle title, payment, transport, taxes, registration, or legal compliance.</p>{restoredCaseId && <p><strong>Reference:</strong> {restoredCaseId}</p>}<div className="mp-next-steps"><h2>Next steps</h2><ol><li>Mechanic's Eye reviews the submitted seller and vehicle details.</li><li>The seller remains responsible for accurate information, disclosures, and state-specific requirements.</li><li>The buyer and seller handle any transaction, title transfer, payment, pickup or shipping, taxes, registration, and legal obligations directly.</li></ol></div><div className="mp-actions"><a className="mp-btn mp-btn-primary" href="/clearsale">Return to ClearSale</a><a className="mp-btn mp-btn-secondary" href="/marketplace/sell">View Listing Packages</a></div></section>
     </MarketplaceLayout>
   );
 }

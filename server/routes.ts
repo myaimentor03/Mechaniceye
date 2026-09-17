@@ -1803,7 +1803,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await deliverMarketplaceSellerIntake(intake);
-      res.json({ ok: true, received: true });
+      const caseId = generateCaseId();
+      res.json({ ok: true, received: true, id: caseId });
     } catch (error) {
       logEventError("form.marketplace_seller_intake_failed", error);
 
@@ -1831,7 +1832,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await deliverMarketplaceBuyerInterest(intake);
-      res.json({ ok: true, received: true });
+      const caseId = generateCaseId();
+      res.json({ ok: true, received: true, id: caseId });
     } catch (error) {
       logEventError("form.marketplace_buyer_interest_failed", error);
 

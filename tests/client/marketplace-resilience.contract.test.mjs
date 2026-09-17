@@ -88,7 +88,7 @@ test("marketplace buyer interest generates and uses clientRequestId for idempote
 
 test("marketplace buyer interest persists case ID to sessionStorage on success", () => {
   const buyerPageStart = marketplace.indexOf("function BuyerInterestPage");
-  const buyerPage = marketplace.slice(buyerPageStart, buyerPageStart + 5000);
+  const buyerPage = marketplace.slice(buyerPageStart, buyerPageStart + 10000);
   assert.match(buyerPage, /sessionStorage\.setItem\("drivable-last-case-id"/);
   assert.doesNotMatch(buyerPage, /localStorage\.setItem\("drivable-last-case-id"/);
 });
@@ -125,4 +125,37 @@ test("marketplace buyer interest preserves form state on error for mobile retry"
 
 test("both marketplace forms use SUBMISSION_TIMEOUT_MS constant", () => {
   assert.match(marketplace, /SUBMISSION_TIMEOUT_MS = 20000/);
+});
+
+test("marketplace buyer interest restores submitted state from sessionStorage on mount", () => {
+  const buyerPageStart = marketplace.indexOf("function BuyerInterestPage");
+  const buyerPage = marketplace.slice(buyerPageStart, buyerPageStart + 8000);
+  assert.match(buyerPage, /useEffect\(/);
+  assert.match(buyerPage, /sessionStorage\.getItem\("drivable-last-case-id"\)/);
+  assert.match(buyerPage, /setSubmitted\(true\)/);
+});
+
+test("marketplace buyer interest displays restored case reference ID", () => {
+  const buyerPageStart = marketplace.indexOf("function BuyerInterestPage");
+  const buyerPage = marketplace.slice(buyerPageStart, buyerPageStart + 8000);
+  assert.match(buyerPage, /restoredCaseId/);
+  assert.match(buyerPage, /Interest received/);
+  assert.match(buyerPage, /Reference:/);
+});
+
+test("marketplace submitted page restores case ID from sessionStorage", () => {
+  const submittedPageStart = marketplace.indexOf("function SubmittedPage");
+  assert.ok(submittedPageStart !== -1, "SubmittedPage must exist");
+  const submittedPage = marketplace.slice(submittedPageStart, submittedPageStart + 3000);
+  assert.match(submittedPage, /useEffect\(/);
+  assert.match(submittedPage, /sessionStorage\.getItem\("drivable-last-case-id"\)/);
+  assert.match(submittedPage, /setRestoredCaseId/);
+  assert.match(submittedPage, /Reference:/);
+});
+
+test("marketplace pages use sessionStorage (not localStorage) for case ID persistence", () => {
+  const submittedPageStart = marketplace.indexOf("function SubmittedPage");
+  const submittedPage = marketplace.slice(submittedPageStart, submittedPageStart + 3000);
+  assert.doesNotMatch(submittedPage, /localStorage\.setItem\("drivable-last-case-id"/);
+  assert.doesNotMatch(submittedPage, /localStorage\.getItem\("drivable-last-case-id"/);
 });
