@@ -81,6 +81,7 @@ import {
   type UploadedEvidenceFiles
 } from "./r2-evidence-storage";
 import { requireAllowedOrigin } from "./origin-guard";
+import { marketplaceIdempotencyStore, normalizeIdempotencyKey } from "./marketplace-idempotency";
 import { logEvent, logEventError } from "./observability/safe-log";
 import { serializeErrorSafely } from "./observability/errors";
 import { sslConfigForDatabaseUrl } from "./database-ssl";
@@ -1802,9 +1803,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
+      // Idempotency: the ClearSale client resends the same clientRequestId
+      // on mobile timeout retry / double-tap. A repeat must return the
+      // ORIGINAL id without re-firing the listing webhook, so one tap
+      // can never create two listings.
+      const sellerIdempotencyKey = normalizeIdempotencyKey((req.body || {}).clientRequestId);
+      if (sellerIdempotencyKey) {
+        const priorSellerIntake = marketplaceIdempotencyStore.get("marketplace-seller-intake", sellerIdempotencyKey);
+        if (priorSellerIntake) {
+          logEvent("marketplace.seller_intake_duplicate_prevented", { id: priorSellerIntake.id });
+          res.json({ ok: true, received: true, id: priorSellerIntake.id, duplicate: true });
+          return;
+        }
+      }
+
       await deliverMarketplaceSellerIntake(intake);
       const caseId = generateCaseId();
-      res.json({ ok: true, received: true, id: caseId });
+      if (sellerIdempotencyKey) {
+        marketplaceIdempotencyStore.record("marketplace-seller-intake", sellerIdempotencyKey, caseId);
+      }
+      res.json({ ok: true, received: true, id: caseId, duplicate: false });
     } catch (error) {
       logEventError("form.marketplace_seller_intake_failed", error);
 
@@ -1831,9 +1849,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
+      // Idempotency: same contract as seller intake — a buyer-interest
+      // retry with the same clientRequestId returns the ORIGINAL id
+      // without re-firing the webhook.
+      const buyerIdempotencyKey = normalizeIdempotencyKey((req.body || {}).clientRequestId);
+      if (buyerIdempotencyKey) {
+        const priorBuyerInterest = marketplaceIdempotencyStore.get("marketplace-buyer-interest", buyerIdempotencyKey);
+        if (priorBuyerInterest) {
+          logEvent("marketplace.buyer_interest_duplicate_prevented", { id: priorBuyerInterest.id });
+          res.json({ ok: true, received: true, id: priorBuyerInterest.id, duplicate: true });
+          return;
+        }
+      }
+
       await deliverMarketplaceBuyerInterest(intake);
       const caseId = generateCaseId();
-      res.json({ ok: true, received: true, id: caseId });
+      if (buyerIdempotencyKey) {
+        marketplaceIdempotencyStore.record("marketplace-buyer-interest", buyerIdempotencyKey, caseId);
+      }
+      res.json({ ok: true, received: true, id: caseId, duplicate: false });
     } catch (error) {
       logEventError("form.marketplace_buyer_interest_failed", error);
 

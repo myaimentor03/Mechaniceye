@@ -40,6 +40,7 @@
     "test:auth-routes": "tsx --test server/customer-auth-routes.test.ts",
     "test:buyer-risk": "tsx --test server/buyer-risk-vehicle-knowledge.test.ts",
     "test:clearsale-intake": "tsx --test server/clearsale-seller-intake-validation.test.ts",
+    "test:marketplace-idempotency": "tsx --test server/marketplace-idempotency.test.ts",
     "test:buyer-interest": "tsx --test server/marketplace-buyer-interest-validation.test.ts",
     "test:mechanic-match": "tsx --test server/mechanic-match-validation.test.ts",
     "test:concierge-request": "tsx --test server/concierge-request-validation.test.ts",
