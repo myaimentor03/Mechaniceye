@@ -1345,11 +1345,29 @@ function validateConciergeRequest(input: ConciergeRequest) {
   ];
   const missingFields = requiredFields.filter((field) => !input[field]);
   const missingAcknowledgments = requiredAcknowledgments.filter((field) => !input.acknowledgments[field]);
+  const invalidFields: string[] = [];
+
+  if (input.customerEmail && !isValidMarketplaceEmail(input.customerEmail)) {
+    invalidFields.push("customerEmail");
+  }
+  if (input.customerPhone && !isValidMarketplacePhone(input.customerPhone)) {
+    invalidFields.push("customerPhone");
+  }
+  for (const field of ["guideRequested", "helpTopic", "customerName", "currentPage", "urgency", "preferredContactMethod", "wantsHumanReview", "stuckStep", "scenario", "reportType", "topic", "relatedCaseId", "relatedListingId"] as const) {
+    const value = input[field];
+    if (value && value.length > 160) {
+      invalidFields.push(field);
+    }
+  }
+  if (input.message && input.message.length > 4000) {
+    invalidFields.push("message");
+  }
 
   return {
-    ok: missingFields.length === 0 && missingAcknowledgments.length === 0,
+    ok: missingFields.length === 0 && missingAcknowledgments.length === 0 && invalidFields.length === 0,
     missingFields,
-    missingAcknowledgments
+    missingAcknowledgments,
+    invalidFields
   };
 }
 
@@ -1874,6 +1892,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validation = validateConciergeRequest(input);
 
       if (!validation.ok) {
+        if (validation.invalidFields.length > 0) {
+          res.status(400).json({ ok: false, error: `Invalid fields: ${validation.invalidFields.join(", ")}`, invalidFields: validation.invalidFields });
+          return;
+        }
         const missing = [
           ...validation.missingFields,
           ...validation.missingAcknowledgments.map((field) => `acknowledgments.${field}`)
