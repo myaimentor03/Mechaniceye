@@ -1527,12 +1527,24 @@ const endpoints = [PUBLIC_API_ENDPOINT];
           }
 
           setResult(data);
-          setError("");
-          if (data?.id) {
-            try { sessionStorage.setItem("drivable-last-case-id", data.id); } catch {}
-          }
-          window.scrollTo({ top: 0, behavior: "smooth" });
-          return;
+           setError("");
+           if (data?.id) {
+             try { sessionStorage.setItem("drivable-last-case-id", data.id); } catch {}
+           }
+           // Mobile upload recovery: rotate the idempotent clientRequestId after
+           // a successful intake so the next distinct submission is not
+           // collapsed as a duplicate retry. The current attempt's ID is
+           // preserved for retries (generateClientRequestId reuses the stored
+           // value) but must not leak into the next fresh case.
+           try {
+             const storageKey = "drivable-client-request-id";
+             sessionStorage.removeItem(storageKey);
+             const nextId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+             try { sessionStorage.setItem(storageKey, nextId); } catch {}
+             setClientRequestId(nextId);
+           } catch {}
+           window.scrollTo({ top: 0, behavior: "smooth" });
+           return;
         } catch (err: any) {
           const message =
             err?.name === "AbortError"
