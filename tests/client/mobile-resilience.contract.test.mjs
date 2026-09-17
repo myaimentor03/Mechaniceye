@@ -9,27 +9,42 @@ function source(relativePath) {
 
 const backend = source("client/src/TestBackend.tsx");
 
-function clientRequestIdBlock() {
-  const start = backend.indexOf("const [clientRequestId]");
+function clientRequestIdInitBlock() {
+  const start = backend.indexOf("const [clientRequestId, setClientRequestId]");
   assert.ok(start !== -1, "clientRequestId initializer must exist");
-  return backend.slice(start, start + 1200);
+  return backend.slice(start, start + 500);
 }
 
-test("clientRequestId read from sessionStorage is wrapped in try/catch for mobile private mode", () => {
-  const block = clientRequestIdBlock();
+function generateClientRequestIdBlock() {
+  const start = backend.indexOf("function generateClientRequestId");
+  assert.ok(start !== -1, "generateClientRequestId function must exist");
+  return backend.slice(start, start + 800);
+}
+
+test("generateClientRequestId creates new ID and stores in sessionStorage", () => {
+  const block = generateClientRequestIdBlock();
+  assert.match(block, /function generateClientRequestId\(\)/);
+  assert.match(block, /const newId = `req-/);
+  assert.match(block, /sessionStorage\.setItem\(storageKey, newId\)/);
+  assert.match(block, /setClientRequestId\(newId\)/);
+  assert.match(block, /return newId/);
+});
+
+test("clientRequestId initialization read from sessionStorage is wrapped in try/catch for mobile private mode", () => {
+  const block = clientRequestIdInitBlock();
   assert.match(block, /try \{/);
   assert.match(block, /sessionStorage\.getItem\(/);
   assert.match(block, /drivable-client-request-id/);
   assert.match(block, /catch \{[\s\S]*?return fallbackId/);
 });
 
-test("clientRequestId write to sessionStorage never throws — guarded inner try/catch", () => {
-  const block = clientRequestIdBlock();
+test("clientRequestId initialization write to sessionStorage never throws — guarded inner try/catch", () => {
+  const block = clientRequestIdInitBlock();
   assert.match(block, /try \{ window\.sessionStorage\.setItem\(/);
 });
 
-test("clientRequestId falls back to in-memory id when storage is blocked", () => {
-  const block = clientRequestIdBlock();
+test("clientRequestId initialization falls back to in-memory id when storage is blocked", () => {
+  const block = clientRequestIdInitBlock();
   assert.match(block, /const fallbackId = `req-/);
   assert.match(block, /return fallbackId;/);
 });

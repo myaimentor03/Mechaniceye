@@ -1,6 +1,7 @@
 import { diagnoses } from "../shared/schema";
 import { logEvent, logEventError } from "./observability/safe-log";
 import { getDb } from "./db";
+import { sql } from "drizzle-orm";
 import type { IncomingDiagnosisCase, StoredDiagnosisCase } from "./case-storage";
 
 type PublicDiagnosisResponse = {
@@ -20,6 +21,7 @@ type PublicDiagnosisInput = IncomingDiagnosisCase & {
   audioFileNames?: string[];
   videoFileNames?: string[];
   vibrationFileNames?: string[];
+  clientRequestId?: string;
 };
 
 type PublicCaseDbInsertResult =
@@ -90,6 +92,10 @@ function buildVibrationData(input: PublicDiagnosisInput) {
     manualVehicleEntryUsed: input.manualVehicleEntryUsed
   };
 
+  if (input.clientRequestId) {
+    vibrationData.clientRequestId = input.clientRequestId;
+  }
+
   if (input.vibrationEvidenceStatus) {
     vibrationData.vibrationEvidenceStatus = input.vibrationEvidenceStatus;
   }
@@ -107,6 +113,37 @@ function buildVibrationData(input: PublicDiagnosisInput) {
   }
 
   return vibrationData;
+}
+
+export async function findExistingCaseByClientRequestId(
+  userId: string,
+  clientRequestId: string
+): Promise<{ id: string } | null> {
+  if (!clientRequestId || !userId) return null;
+
+  const databaseUrl = process.env.DATABASE_URL?.trim();
+  if (!databaseUrl) return null;
+
+  try {
+    const { diagnoses } = await import("../shared/schema");
+    const { getDb } = await import("./db");
+    const { eq, and } = await import("drizzle-orm");
+
+    const rows = await getDb()
+      .select({ id: diagnoses.id })
+      .from(diagnoses)
+      .where(
+        and(
+          eq(diagnoses.userId, userId),
+          sql`${diagnoses.vibrationData}->>'clientRequestId' = ${clientRequestId}`
+        )
+      )
+      .limit(1);
+
+    return rows.length > 0 ? { id: rows[0].id } : null;
+  } catch {
+    return null;
+  }
 }
 
 function fileSummary(fileNames: unknown, fallbackStatus: unknown) {

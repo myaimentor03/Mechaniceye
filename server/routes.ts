@@ -53,7 +53,7 @@ import { createStoredDiagnosisCase, generateCaseId, type IncomingDiagnosisCase, 
 import { checkDatabaseConnection, getDb } from "./db";
 import { sql } from "drizzle-orm";
 
-import { insertPublicDiagnosisCaseToDb } from "./public-case-db";
+import { insertPublicDiagnosisCaseToDb, findExistingCaseByClientRequestId } from "./public-case-db";
 import {
   buildDrivableAiPayloadFields,
   type MockAiPayloadFields
@@ -2151,6 +2151,29 @@ try {
         message: "The diagnosis case details did not pass validation. Please review the entered information and try again.",
         code: "INVALID_DIAGNOSIS_INTAKE",
       });
+    }
+
+    // Idempotency: check for existing case with same customer + clientRequestId
+    // Prevents duplicate cases on mobile retry after timeout.
+    const clientRequestId = input.clientRequestId;
+    const customerId = req.drivableCustomer!.id;
+    if (clientRequestId) {
+      const existing = await findExistingCaseByClientRequestId(customerId, clientRequestId);
+      if (existing) {
+        await removeIntakeTempFiles(uploadedFiles);
+        logEvent("diagnosis.duplicate_prevented", { existingCaseId: existing.id, clientRequestId });
+        return res.json({
+          id: existing.id,
+          status: "received",
+          createdAt: new Date().toISOString(),
+          vehicleInfo: input.vehicleInfo,
+          description: input.description,
+          timing: input.timing || "",
+          message: "Case already exists",
+          persisted: true,
+          duplicate: true
+        });
+      }
     }
 
     if (photoFiles.length && (process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED !== "true" || evidenceStore.durability !== "private_object_storage")) {

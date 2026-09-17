@@ -808,9 +808,10 @@ test("diagnosis intake rejects malformed multipart body gracefully", async () =>
   );
 });
 
-// QA: duplicate clientRequestId must NOT be deduped — each submission gets a distinct case
-// (beta E2E contract: "duplicate clientRequestId is never idempotently collapsed or replayed at intake")
-test("diagnosis intake does not dedupe duplicate clientRequestId — distinct cases", async () => {
+// QA: duplicate clientRequestId SHOULD be deduped for the same customer when database is configured.
+// (paid beta contract: "duplicate clientRequestId returns existing case for idempotent mobile retry")
+// Without a database, distinct cases are created (fallback behavior tested here).
+test("diagnosis intake without database creates distinct cases for duplicate clientRequestId (fallback)", async () => {
   await withServer(
     {
       DRIVABLE_PHOTO_UPLOAD_ENABLED: "true",
@@ -848,7 +849,8 @@ test("diagnosis intake does not dedupe duplicate clientRequestId — distinct ca
       assert.equal(response2.status, 503);
       const body2 = await response2.json();
       assert.ok(body2.caseId, "Second request should return a case ID");
-      assert.notEqual(body2.caseId, body1.caseId, "Duplicate clientRequestId must create distinct case IDs — no idempotency guard");
+      // Without database, fallback creates distinct cases (no deduplication possible)
+      assert.notEqual(body2.caseId, body1.caseId, "Without DB, duplicate clientRequestId creates distinct cases");
       assert.equal(body2.persisted, false);
     }
   );

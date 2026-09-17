@@ -1120,7 +1120,7 @@ type PublicPage = "home" | "intake" | "sell" | "help" | "disclaimer" | "terms" |
   const [page, setPage] = useState<PublicPage>(initialPage);
   const [step, setStep] = useState<1 | 2>(1);
 
-  const [clientRequestId] = useState(() => {
+  const [clientRequestId, setClientRequestId] = useState(() => {
     const storageKey = "drivable-client-request-id";
     const fallbackId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
     try {
@@ -1134,6 +1134,16 @@ type PublicPage = "home" | "intake" | "sell" | "help" | "disclaimer" | "terms" |
       return fallbackId;
     }
   });
+
+  function generateClientRequestId() {
+    const storageKey = "drivable-client-request-id";
+    const newId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    try {
+      window.sessionStorage.setItem(storageKey, newId);
+    } catch {}
+    setClientRequestId(newId);
+    return newId;
+  }
 
   const [year, setYear] = useState("");
   const [make, setMake] = useState("");
@@ -1389,27 +1399,6 @@ const [manualEngine, setManualEngine] = useState("");
     setResult(null);
 
     const photoFileNames = photoFiles.map((file) => file.name);
-    const payload = {
-      clientRequestId,
-      problemCategory,
-      description: buildDescriptionBlock(),
-      vehicleInfo: `${year} ${resolvedMake} ${resolvedModel} | Engine: ${resolvedEngine || "N/A"} | Mileage: ${mileage || "N/A"} | Transmission: ${transmission || "N/A"} | Drivetrain: ${drivetrain || "N/A"}`,
-      unsupportedVehicle,
-      manualVehicleEntryUsed: usedManualVehicleEntry,
-      rawVehicleSelection: {
-        year,
-        make,
-        model,
-        engine,
-        manualMake,
-        manualModel,
-        manualEngine,
-      },
-      photoEvidenceStatus: photoFileNames.length ? "Provided" : "None",
-      mileage,
-      obdCodes,
-      timing: timingSelections.length ? `${timingSelections.join(", ")}${otherTiming ? ` | Other: ${otherTiming}` : ""}` : otherTiming || ""
-    };
 
 const endpoints = [PUBLIC_API_ENDPOINT];
 
@@ -1417,6 +1406,29 @@ const endpoints = [PUBLIC_API_ENDPOINT];
 
     try {
       for (const endpoint of endpoints) {
+        const attemptClientRequestId = generateClientRequestId();
+        const payload = {
+          clientRequestId: attemptClientRequestId,
+          problemCategory,
+          description: buildDescriptionBlock(),
+          vehicleInfo: `${year} ${resolvedMake} ${resolvedModel} | Engine: ${resolvedEngine || "N/A"} | Mileage: ${mileage || "N/A"} | Transmission: ${transmission || "N/A"} | Drivetrain: ${drivetrain || "N/A"}`,
+          unsupportedVehicle,
+          manualVehicleEntryUsed: usedManualVehicleEntry,
+          rawVehicleSelection: {
+            year,
+            make,
+            model,
+            engine,
+            manualMake,
+            manualModel,
+            manualEngine,
+          },
+          photoEvidenceStatus: photoFileNames.length ? "Provided" : "None",
+          mileage,
+          obdCodes,
+          timing: timingSelections.length ? `${timingSelections.join(", ")}${otherTiming ? ` | Other: ${otherTiming}` : ""}` : otherTiming || ""
+        };
+
         const controller = new AbortController();
         const timeoutId = window.setTimeout(() => controller.abort(), SUBMISSION_TIMEOUT_MS);
 
