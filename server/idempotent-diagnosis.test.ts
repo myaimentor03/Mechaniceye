@@ -17,7 +17,10 @@ test("duplicate guard uses customer-scoped clientRequestId before any persistenc
   const guardStart = routes.indexOf("// Idempotency: check for existing case");
   assert.ok(guardStart !== -1, "idempotency guard comment must exist");
   const guard = routes.slice(guardStart, guardStart + 2000);
-  assert.match(guard, /const clientRequestId = input\.clientRequestId/);
+  // New normalization: raw -> normalizeIdempotencyKey -> normalized clientRequestId
+  assert.match(guard, /normalizeIdempotencyKey/);
+  assert.match(guard, /rawClientRequestId/);
+  assert.match(guard, /const clientRequestId = normalizeIdempotencyKey\(rawClientRequestId\)/);
   assert.match(guard, /const customerId = req\.drivableCustomer!.id/);
   assert.match(guard, /if \(clientRequestId\) \{/);
   assert.match(guard, /findExistingCaseByClientRequestId\(customerId, clientRequestId\)/);
@@ -60,4 +63,34 @@ test("client preserves the same marker for retry but rotates after success — b
   assert.match(backend, /sessionStorage\.removeItem\(storageKey\)/);
   assert.match(backend, /const nextId = `req-/);
   assert.match(backend, /setClientRequestId\(nextId\)/);
+});
+
+test("diagnosis guard normalizes clientRequestId and never persists malformed keys", () => {
+  const guardStart = routes.indexOf("// Idempotency: check for existing case");
+  const guard = routes.slice(guardStart, guardStart + 2000);
+  // Malformed keys become absent so fix-and-retry delivers exactly once
+  assert.match(guard, /input\.clientRequestId = clientRequestId \?\? ""/);
+  // Must import/use the shared normalizer so pattern stays in sync with marketplace
+  assert.match(routes, /from ".\/marketplace-idempotency"/);
+});
+
+test("findExistingCaseByClientRequestId validates normalized shape before DB lookup (160 char cap + token pattern)", () => {
+  const fnStart = publicCaseDb.indexOf("export async function findExistingCaseByClientRequestId");
+  assert.ok(fnStart !== -1, "finder must exist");
+  const fn = publicCaseDb.slice(fnStart, fnStart + 1200);
+  assert.match(fn, /trimmed\.length > 160/);
+  assert.match(fn, /A-Za-z0-9.*\._:-/);
+  assert.match(fn, /normalizedId/);
+  assert.match(fn, /sql`.*->>'clientRequestId' = \$\{normalizedId\}/);
+});
+
+test("buildVibrationData only persists normalized clientRequestId (no traversal / oversized bloat)", () => {
+  const fnStart = publicCaseDb.indexOf("function buildVibrationData");
+  assert.ok(fnStart !== -1, "buildVibrationData must exist");
+  const fn = publicCaseDb.slice(fnStart, fnStart + 1500);
+  assert.match(fn, /clientRequestId/);
+  assert.match(fn, /pattern\.test\(normalized\)/);
+  assert.match(fn, /normalized\.length <= 160/);
+  // Must not unconditionally assign raw input.clientRequestId
+  assert.ok(!/vibrationData\.clientRequestId = input\.clientRequestId/.test(fn), "should not directly assign raw input");
 });

@@ -2364,9 +2364,14 @@ try {
       });
     }
 
-    // Idempotency: check for existing case with same customer + clientRequestId
-    // Prevents duplicate cases on mobile retry after timeout.
-    const clientRequestId = input.clientRequestId;
+    // Idempotency: check for existing case with same customer + normalized clientRequestId
+    // Prevents duplicate cases on mobile retry after timeout. Malformed keys are
+    // treated as absent (backward compatible) so a fix-and-retry with a valid key
+    // still delivers exactly once; oversized or traversal keys never bloat storage.
+    const rawClientRequestId = input.clientRequestId;
+    const clientRequestId = normalizeIdempotencyKey(rawClientRequestId);
+    // Only persist normalized keys so malformed/oversized keys do not pollute vibrationData.
+    input.clientRequestId = clientRequestId ?? "";
     const customerId = req.drivableCustomer!.id;
     if (clientRequestId) {
       const existing = await findExistingCaseByClientRequestId(customerId, clientRequestId);

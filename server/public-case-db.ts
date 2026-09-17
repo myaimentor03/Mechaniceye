@@ -92,8 +92,18 @@ function buildVibrationData(input: PublicDiagnosisInput) {
     manualVehicleEntryUsed: input.manualVehicleEntryUsed
   };
 
-  if (input.clientRequestId) {
-    vibrationData.clientRequestId = input.clientRequestId;
+  // Only persist normalized idempotency keys — mirrors routes.ts guard so malformed
+  // or oversized keys (e.g. traversal, >160 chars) never bloat the DB row and
+  // cannot be used to probe storage.
+  const rawId = (input as any).clientRequestId;
+  if (typeof rawId === "string" && rawId.trim()) {
+    const normalized = rawId.trim();
+    // Reuse the same pattern as marketplace (req- style, 160 char cap) without importing
+    // the module to avoid circular deps — keep the check inline and conservative.
+    const pattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/;
+    if (normalized.length <= 160 && pattern.test(normalized)) {
+      vibrationData.clientRequestId = normalized;
+    }
   }
 
   if (input.vibrationEvidenceStatus) {
@@ -120,6 +130,12 @@ export async function findExistingCaseByClientRequestId(
   clientRequestId: string
 ): Promise<{ id: string } | null> {
   if (!clientRequestId || !userId) return null;
+  // Normalize/validate before DB lookup — malformed keys are treated as absent
+  // (no dedup) so older clients and fix-and-retry flows remain backward compatible.
+  const trimmed = clientRequestId.trim();
+  if (trimmed.length === 0 || trimmed.length > 160) return null;
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(trimmed)) return null;
+  const normalizedId = trimmed;
 
   const databaseUrl = process.env.DATABASE_URL?.trim();
   if (!databaseUrl) return null;
@@ -135,7 +151,7 @@ export async function findExistingCaseByClientRequestId(
       .where(
         and(
           eq(diagnoses.userId, userId),
-          sql`${diagnoses.vibrationData}->>'clientRequestId' = ${clientRequestId}`
+          sql`${diagnoses.vibrationData}->>'clientRequestId' = ${normalizedId}`
         )
       )
       .limit(1);
