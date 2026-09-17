@@ -28,7 +28,7 @@ function verifiedImageType(buffer: Buffer): VerifiedImage | null {
   }
   if (buffer.length >= 12 && buffer.toString("ascii", 4, 8) === "ftyp") {
     const brand = buffer.toString("ascii", 8, 12);
-    if (["heic", "heix", "hevc", "hevx", "mif1", "msf1"].includes(brand)) {
+    if (["heic", "heix", "hevc", "hevx", "mif1", "msf1", "hvc1", "hvc2"].includes(brand)) {
       return { mimeType: "image/heic", extension: ".heic" };
     }
   }

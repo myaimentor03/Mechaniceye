@@ -144,3 +144,119 @@ test("private object storage rolls back objects after a partial upload failure",
   await assert.rejects(() => store.savePhotos("CASE-ROLLBACK", [jpg, jpg]), /unavailable/);
   assert.equal(written.size, 0);
 });
+
+function heicBuffer(brand: string): Buffer {
+  const header = Buffer.alloc(16);
+  header.writeUInt32BE(16, 0);
+  header.write("ftyp", 4, "ascii");
+  header.write(brand, 8, "ascii");
+  return header;
+}
+
+const HEIC_BRANDS = ["heic", "heix", "hevc", "hevx", "mif1", "msf1", "hvc1", "hvc2"] as const;
+
+test("all recognized HEIC/HEIF ftyp brands are accepted with image/heic MIME type", async () => {
+  for (const brand of HEIC_BRANDS) {
+    const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-heic-"));
+    try {
+      const store = new RuntimeFileEvidenceStore(root);
+      const bytes = heicBuffer(brand);
+      const [attachment] = await store.savePhotos(`CASE-HEIC-${brand}`, [upload(bytes, `${brand}.heic`, "image/heic")]);
+      assert.equal(attachment.mimeType, "image/heic", `brand ${brand} must detect as image/heic`);
+      assert.match(attachment.storageKey, /\.heic$/, `brand ${brand} must get .heic extension`);
+      assert.equal(attachment.status, "persisted");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("HEIC brands accept image/heif MIME type from mobile clients (heif-compatible path)", async () => {
+  for (const brand of HEIC_BRANDS) {
+    const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-heif-"));
+    try {
+      const store = new RuntimeFileEvidenceStore(root);
+      const bytes = heicBuffer(brand);
+      const [attachment] = await store.savePhotos(`CASE-HEIF-${brand}`, [upload(bytes, `${brand}.heic`, "image/heif")]);
+      assert.equal(attachment.mimeType, "image/heic", `brand ${brand} with image/heif MIME must be accepted`);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("HEIC ftyp brand with wrong MIME type is rejected (MIME/signature mismatch)", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-heic-mismatch-"));
+  try {
+    const store = new RuntimeFileEvidenceStore(root);
+    const bytes = heicBuffer("heic");
+    await assert.rejects(
+      () => store.savePhotos("CASE-HEIC-MISMATCH", [upload(bytes, "heic.jpg", "image/jpeg")]),
+      /does not match/,
+      "HEIC content disguised as JPEG must be rejected",
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("unknown ftyp brand is rejected as unsupported image", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-unknown-brand-"));
+  try {
+    const store = new RuntimeFileEvidenceStore(root);
+    const bytes = heicBuffer("zzzz");
+    await assert.rejects(
+      () => store.savePhotos("CASE-UNKNOWN", [upload(bytes, "unknown.heic", "image/heic")]),
+      /supported image/,
+      "unrecognized ftyp brand must be rejected",
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("HEIC detection requires minimum 12 bytes — short buffer is rejected", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-short-"));
+  try {
+    const store = new RuntimeFileEvidenceStore(root);
+    const tooShort = Buffer.from([0x00, 0x00, 0x00, 0x0c, 0x66, 0x74, 0x79]);
+    await assert.rejects(
+      () => store.savePhotos("CASE-SHORT", [upload(tooShort, "short.heic", "image/heic")]),
+      /supported image/,
+      "truncated ftyp header must be rejected",
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("HEIC brand detection works through S3 private object storage", async () => {
+  const objects = new Map<string, Buffer>();
+  const client = {
+    async send(command: any) {
+      const name = command.constructor.name;
+      const key = command.input.Key as string;
+      if (name === "PutObjectCommand") {
+        objects.set(key, Buffer.from(command.input.Body));
+        return {};
+      }
+      if (name === "GetObjectCommand") {
+        const value = objects.get(key);
+        if (!value) throw Object.assign(new Error("missing"), { name: "NoSuchKey" });
+        return { Body: { transformToByteArray: async () => value } };
+      }
+      if (name === "DeleteObjectCommand") {
+        objects.delete(key);
+        return {};
+      }
+      throw new Error(`Unexpected command ${name}`);
+    },
+  };
+  const store = new S3PrivateEvidenceStore({ bucket: "test", region: "test-1" }, client);
+  for (const brand of HEIC_BRANDS) {
+    const bytes = heicBuffer(brand);
+    const [attachment] = await store.savePhotos(`CASE-S3-${brand}`, [upload(bytes, `${brand}.heic`, "image/heic")]);
+    assert.equal(attachment.mimeType, "image/heic", `S3 store: brand ${brand} must detect as image/heic`);
+    assert.match(attachment.storageKey, /\.heic$/, `S3 store: brand ${brand} must get .heic extension`);
+  }
+});
