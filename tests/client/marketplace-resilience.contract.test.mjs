@@ -159,3 +159,69 @@ test("marketplace pages use sessionStorage (not localStorage) for case ID persis
   assert.doesNotMatch(submittedPage, /localStorage\.setItem\("drivable-last-case-id"/);
   assert.doesNotMatch(submittedPage, /localStorage\.getItem\("drivable-last-case-id"/);
 });
+
+function sellerSubmitBlock() {
+  const start = marketplace.indexOf("function SellerIntakePage");
+  assert.ok(start !== -1, "SellerIntakePage must exist");
+  return marketplace.slice(start, start + 10000);
+}
+
+function buyerSubmitBlock() {
+  const start = marketplace.indexOf("function BuyerInterestPage");
+  assert.ok(start !== -1, "BuyerInterestPage must exist");
+  return marketplace.slice(start, start + 10000);
+}
+
+test("seller intake rotates clientRequestId after successful submission so next case is not collapsed", () => {
+  const block = sellerSubmitBlock();
+  assert.match(block, /sessionStorage\.setItem\("drivable-last-case-id", data\.id\)/);
+  assert.match(block, /drivable-client-request-id/);
+  assert.match(block, /sessionStorage\.removeItem\(storageKey\)/);
+  assert.match(block, /const nextId = `req-/);
+  assert.match(block, /sessionStorage\.setItem\(storageKey, nextId\)/);
+  assert.match(block, /setClientRequestId\(nextId\)/);
+});
+
+test("seller intake rotation happens after case ID persisted and before navigation", () => {
+  const block = sellerSubmitBlock();
+  const persistAt = block.indexOf('sessionStorage.setItem("drivable-last-case-id"');
+  const rotateAt = block.indexOf('sessionStorage.removeItem(storageKey)');
+  assert.ok(persistAt !== -1 && rotateAt !== -1, "anchors must exist");
+  assert.ok(persistAt < rotateAt, "rotation must occur after case ID persistence");
+  const navigateAt = block.indexOf("navigateFrontend", rotateAt);
+  assert.ok(navigateAt !== -1, "navigation after rotation must exist");
+  assert.ok(rotateAt < navigateAt, "rotation must occur before navigation");
+});
+
+test("seller intake rotation uses try/catch for mobile private mode (QuotaExceeded / blocked storage)", () => {
+  const block = sellerSubmitBlock();
+  assert.match(block, /try \{\s*const storageKey = "drivable-client-request-id"/);
+  assert.match(block, /catch \{\}/);
+});
+
+test("buyer interest rotates clientRequestId after successful submission so next case is not collapsed", () => {
+  const block = buyerSubmitBlock();
+  assert.match(block, /sessionStorage\.setItem\("drivable-last-case-id", data\.id\)/);
+  assert.match(block, /drivable-client-request-id/);
+  assert.match(block, /sessionStorage\.removeItem\(storageKey\)/);
+  assert.match(block, /const nextId = `req-/);
+  assert.match(block, /sessionStorage\.setItem\(storageKey, nextId\)/);
+  assert.match(block, /setClientRequestId\(nextId\)/);
+});
+
+test("buyer interest rotation happens after case ID persisted and before form reset", () => {
+  const block = buyerSubmitBlock();
+  const persistAt = block.indexOf('sessionStorage.setItem("drivable-last-case-id"');
+  const rotateAt = block.indexOf('sessionStorage.removeItem(storageKey)');
+  assert.ok(persistAt !== -1 && rotateAt !== -1, "anchors must exist");
+  assert.ok(persistAt < rotateAt, "rotation must occur after case ID persistence");
+  const resetAt = block.indexOf("form.reset()", rotateAt);
+  assert.ok(resetAt !== -1, "form reset after rotation must exist");
+  assert.ok(rotateAt < resetAt, "rotation must occur before form reset");
+});
+
+test("buyer interest rotation uses try/catch for mobile private mode (QuotaExceeded / blocked storage)", () => {
+  const block = buyerSubmitBlock();
+  assert.match(block, /try \{\s*const storageKey = "drivable-client-request-id"/);
+  assert.match(block, /catch \{\}/);
+});
