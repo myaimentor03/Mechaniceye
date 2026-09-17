@@ -52,7 +52,7 @@ export const db = new Proxy({} as ReturnType<typeof createDb>, {
   }
 });
 
-function redactDatabaseError(error: unknown) {
+export function redactDatabaseError(error: unknown) {
   let message = error instanceof Error ? error.message : "Unknown database error";
   const databaseUrl = process.env.DATABASE_URL;
 
