@@ -40,6 +40,7 @@
     "test:auth-routes": "tsx --test server/customer-auth-routes.test.ts",
     "test:buyer-risk": "tsx --test server/buyer-risk-vehicle-knowledge.test.ts",
     "test:clearsale-intake": "tsx --test server/clearsale-seller-intake-validation.test.ts",
+    "test:buyer-interest": "tsx --test server/marketplace-buyer-interest-validation.test.ts",
     "test:load-cert": "node --test tests/load/load-cert.test.mjs",
     "test:production-smoke": "node --test tests/production-smoke.test.mjs",
     "smoke": "node scripts/production-smoke.mjs",

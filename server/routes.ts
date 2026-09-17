@@ -1115,12 +1115,45 @@ function buildMarketplaceBuyerInterest(body: any): MarketplaceBuyerInterest {
 function validateMarketplaceBuyerInterest(intake: MarketplaceBuyerInterest) {
   const missingFields = marketplaceBuyerInterestRequiredFields.filter((field) => !intake[field]);
   const missingAcknowledgments = marketplaceBuyerInterestRequiredAcknowledgments.filter((field) => !intake.acknowledgments[field]);
+  const invalidFields: string[] = [];
+
+  if (intake.buyerEmail && !isValidMarketplaceEmail(intake.buyerEmail)) {
+    invalidFields.push("buyerEmail");
+  }
+  if (intake.buyerPhone && !isValidMarketplacePhone(intake.buyerPhone)) {
+    invalidFields.push("buyerPhone");
+  }
+  if (intake.listingUrl && !isValidMarketplaceListingUrl(intake.listingUrl)) {
+    invalidFields.push("listingUrl");
+  }
+  for (const field of ["buyerName", "preferredContactMethod", "listingTitle", "buyerLocation", "timeline"] as const) {
+    const value = intake[field];
+    if (value && value.length > 160) {
+      invalidFields.push(field);
+    }
+  }
+  if (intake.message && intake.message.length > 4000) {
+    invalidFields.push("message");
+  }
 
   return {
-    ok: missingFields.length === 0 && missingAcknowledgments.length === 0,
+    ok: missingFields.length === 0 && missingAcknowledgments.length === 0 && invalidFields.length === 0,
     missingFields,
-    missingAcknowledgments
+    missingAcknowledgments,
+    invalidFields
   };
+}
+
+function isValidMarketplaceListingUrl(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return true;
+  if (trimmed.length > 2048) return false;
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function buildInternalReviewInput(body: any): InternalReviewInput {
@@ -1739,6 +1772,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validation = validateMarketplaceBuyerInterest(intake);
 
       if (!validation.ok) {
+        if (validation.invalidFields.length > 0) {
+          res.status(400).json({ ok: false, error: `Invalid fields: ${validation.invalidFields.join(", ")}`, invalidFields: validation.invalidFields });
+          return;
+        }
         const missing = [
           ...validation.missingFields,
           ...validation.missingAcknowledgments.map((field) => `acknowledgments.${field}`)
