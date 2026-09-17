@@ -4,7 +4,8 @@ import express from "express";
 import { registerRoutes } from "./routes.js";
 import { createSessionToken, type CustomerIdentity } from "./customer-auth.js";
 import { generateCaseId } from "./case-storage.js";
-import { storage } from "./storage.js";
+import { storage, LocalStorage } from "./storage.js";
+import { setStorageImpl } from "./storage.js";
 
 // QA lane (Nov 2 paid beta): customer resume/status for mobile recovery and the
 // Copy Case ID flow. The client restores a caseId from sessionStorage, but
@@ -18,6 +19,23 @@ const TEST_BETA_INVITE = "TEST-BETA-INVITE-123";
 
 const OWNER: CustomerIdentity = { id: "cust-resume-owner-1", email: "owner@example.com" };
 const STRANGER: CustomerIdentity = { id: "cust-resume-stranger-1", email: "stranger@example.com" };
+
+// Failing storage impl for testing 500 error paths
+class FailingStorage extends LocalStorage {
+  constructor() {
+    super();
+  }
+  async createDiagnosis(_data: any) { throw new Error("storage unavailable"); }
+  async getDiagnosis(_id: string) { throw new Error("storage unavailable"); }
+  async getRecentDiagnoses() { throw new Error("storage unavailable"); }
+  async getDiagnosesByOwner(_ownerId: string) { throw new Error("storage unavailable"); }
+  async createFollowUp(_data: any) { throw new Error("storage unavailable"); }
+  async createConsultation(_data: any) { throw new Error("storage unavailable"); }
+  async getFixHistory(_id: string) { throw new Error("storage unavailable"); }
+  async updateStepCompletion(_caseId: string, _step: number, _completed: boolean) { throw new Error("storage unavailable"); }
+  async markFixComplete(_id: string) { throw new Error("storage unavailable"); }
+  async getDiagnosesByUser() { throw new Error("storage unavailable"); }
+}
 
 function cookieFor(identity: CustomerIdentity): string {
   return `drivable_session=${createSessionToken(identity, Date.now())}`;
@@ -319,4 +337,46 @@ test("customer resume returns minimal payload for case with evidence attachments
     assert.ok(!("photos" in body), "resume payload must not include photos");
     assert.match(response.headers.get("cache-control") || "", /no-store/);
   });
+});
+
+test("customer resume returns 500 CASE_STATUS_UNAVAILABLE when storage fails", async () => {
+  await withServer(
+    async (origin) => {
+      setStorageImpl(new FailingStorage());
+      try {
+        const response = await fetch(`${origin}/api/my-cases/${generateCaseId()}`, {
+          headers: { cookie: cookieFor(OWNER) },
+        });
+        assert.equal(response.status, 500);
+        const body = await response.json();
+        assert.equal(body.ok, false);
+        assert.equal(body.code, "CASE_STATUS_UNAVAILABLE");
+        assert.equal(body.persisted, false);
+        assert.match(response.headers.get("cache-control") || "", /no-store/);
+      } finally {
+        setStorageImpl(storage);
+      }
+    }
+  );
+});
+
+test("customer case list returns 500 CASE_LIST_UNAVAILABLE when storage fails", async () => {
+  await withServer(
+    async (origin) => {
+      setStorageImpl(new FailingStorage());
+      try {
+        const response = await fetch(`${origin}/api/my-cases`, {
+          headers: { cookie: cookieFor(OWNER) },
+        });
+        assert.equal(response.status, 500);
+        const body = await response.json();
+        assert.equal(body.ok, false);
+        assert.equal(body.code, "CASE_LIST_UNAVAILABLE");
+        assert.equal(body.persisted, false);
+        assert.match(response.headers.get("cache-control") || "", /no-store/);
+      } finally {
+        setStorageImpl(storage);
+      }
+    }
+  );
 });

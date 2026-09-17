@@ -76,7 +76,7 @@ type ConsultationRecord = {
   wasFixed?: boolean;
 };
 
-class LocalStorage {
+export class LocalStorage {
   private diagnoses = new Map<string, DiagnosisRecord>();
   private followUps = new Map<string, FollowUpRecord[]>();
   private consultations = new Map<string, ConsultationRecord[]>();
@@ -277,3 +277,13 @@ class LocalStorage {
 }
 
 export const storage = new LocalStorage();
+
+let activeStorage: LocalStorage = storage;
+
+export function setStorageImpl(impl: LocalStorage) {
+  activeStorage = impl;
+}
+
+export function getStorageImpl(): LocalStorage {
+  return activeStorage;
+}

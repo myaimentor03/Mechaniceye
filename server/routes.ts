@@ -1,6 +1,6 @@
  import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage, getStorageImpl } from "./storage";
 // local fallback validation while DB/schema layer is disabled
 const consultationFeedbackSchema = {
   parse(input: any) {
@@ -2203,7 +2203,7 @@ try {
     try {
       res.setHeader("Cache-Control", "no-store");
       const requesterId = req.drivableCustomer?.id || "";
-      const owned = await storage.getDiagnosesByOwner(requesterId);
+      const owned = await getStorageImpl().getDiagnosesByOwner(requesterId);
       return res.json({
         ok: true,
         cases: owned.map((diagnosis) => ({
@@ -2244,7 +2244,7 @@ try {
           persisted: false,
         });
       }
-      const diagnosis = await storage.getDiagnosis(rawId);
+      const diagnosis = await getStorageImpl().getDiagnosis(rawId);
       const ownerId = typeof diagnosis?.userId === "string" ? diagnosis.userId.trim() : "";
       const requesterId = req.drivableCustomer?.id || "";
       if (!diagnosis || !ownerId || ownerId !== requesterId) {
