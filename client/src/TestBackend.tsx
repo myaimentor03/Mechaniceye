@@ -102,9 +102,14 @@ function PhotoPicker({ files, onChange, onError }: {
   const addFiles = (selected: FileList | null) => {
     const incoming = Array.from(selected || []);
     const invalidType = incoming.find((file) => !PHOTO_MIME_TYPES.has(file.type));
+    const emptyFile = incoming.find((file) => file.size === 0);
     const oversized = incoming.find((file) => file.size > MAX_PHOTO_BYTES);
     if (invalidType) {
       onError(`${invalidType.name} is not a supported JPEG, PNG, WebP, HEIC, or HEIF photo.`);
+      return;
+    }
+    if (emptyFile) {
+      onError(`${emptyFile.name} looks empty (0 bytes) and was not added. Please retake or reselect that photo.`);
       return;
     }
     if (oversized) {
