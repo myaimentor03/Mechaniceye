@@ -2581,11 +2581,20 @@ if (photoFiles.length) {
         return res.status(404).json({ message: "Original diagnosis not found" });
       }
 
+      // Validate additionalInfo early — must be a non-empty string so the
+      // follow-up description never becomes "Follow-up #N: undefined".
+      const rawAdditionalInfo = toOptionalText(req.body.additionalInfo, "additionalInfo");
+      if (!rawAdditionalInfo || !rawAdditionalInfo.trim()) {
+        await cleanupTemporaryFiles();
+        return res.status(400).json({ message: "additionalInfo is required and must be a non-empty string" });
+      }
+      const additionalInfo = rawAdditionalInfo.trim();
+
       // Create follow-up request
       const followUpData = {
         originalDiagnosisId: diagnosisId,
         userId: originalDiagnosis.userId!,
-        additionalInfo: req.body.additionalInfo,
+        additionalInfo,
         newAudioFile: files?.audio?.[0]?.filename || null,
         newVideoFile: files?.video?.[0]?.filename || null,
         newVibrationData: req.body.vibrationData || null,
