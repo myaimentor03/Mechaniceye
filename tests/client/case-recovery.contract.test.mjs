@@ -64,3 +64,13 @@ test("case recovery shows toast on restored case from sessionStorage", () => {
   assert.match(backend, /toast\(/);
   assert.match(backend, /Case Restored/);
 });
+
+test("diagnosis submission handles 500 server error with fail-closed behavior", () => {
+  const submitBlock = backend.slice(
+    backend.indexOf("async function submitDiagnosis"),
+    backend.indexOf("async function submitDiagnosis") + 8000
+  );
+  assert.match(submitBlock, /lastError = `We couldn't record your request \(HTTP 500\)/);
+  assert.doesNotMatch(submitBlock, /setResult\(/);
+  assert.doesNotMatch(submitBlock, /sessionStorage\.setItem/);
+});

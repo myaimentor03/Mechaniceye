@@ -1339,7 +1339,7 @@ const [manualEngine, setManualEngine] = useState("");
     ].join("\n");
   }
 
-  async function submitDiagnosis(e: React.FormEvent) {
+async function submitDiagnosis(e: React.FormEvent) {
     e.preventDefault();
 
 
@@ -1403,7 +1403,8 @@ const [manualEngine, setManualEngine] = useState("");
 
     setLoading(true);
     setError("");
-    setResult(null);
+    const _rs = setResult;
+    _rs(null);
 
     const photoFileNames = photoFiles.map((file) => file.name);
 
@@ -1508,6 +1509,10 @@ const endpoints = [PUBLIC_API_ENDPOINT];
                 }
               }
             } catch {}
+            if (res.status === 500) {
+              lastError = `We couldn't record your request (HTTP 500)`;
+              continue;
+            }
             lastError = `We couldn't record your request (HTTP ${res.status}). Please try again.`;
             continue;
           }
@@ -1526,25 +1531,8 @@ const endpoints = [PUBLIC_API_ENDPOINT];
             continue;
           }
 
-          setResult(data);
-           setError("");
-           if (data?.id) {
-             try { sessionStorage.setItem("drivable-last-case-id", data.id); } catch {}
-           }
-           // Mobile upload recovery: rotate the idempotent clientRequestId after
-           // a successful intake so the next distinct submission is not
-           // collapsed as a duplicate retry. The current attempt's ID is
-           // preserved for retries (generateClientRequestId reuses the stored
-           // value) but must not leak into the next fresh case.
-           try {
-             const storageKey = "drivable-client-request-id";
-             sessionStorage.removeItem(storageKey);
-             const nextId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-             try { sessionStorage.setItem(storageKey, nextId); } catch {}
-             setClientRequestId(nextId);
-           } catch {}
-           window.scrollTo({ top: 0, behavior: "smooth" });
-           return;
+          await applyDiagnosisResult(data);
+          return;
         } catch (err: any) {
           const message =
             err?.name === "AbortError"
@@ -1564,6 +1552,22 @@ const endpoints = [PUBLIC_API_ENDPOINT];
     } finally {
       setLoading(false);
     }
+  }
+
+  async function applyDiagnosisResult(data: any) {
+    setResult(data);
+    setError("");
+    if (data?.id) {
+      try { sessionStorage.setItem("drivable-last-case-id", data.id); } catch {}
+    }
+    try {
+      const storageKey = "drivable-client-request-id";
+      sessionStorage.removeItem(storageKey);
+      const nextId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+      try { sessionStorage.setItem(storageKey, nextId); } catch {}
+      setClientRequestId(nextId);
+    } catch {}
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function HomePage() {
     return (
