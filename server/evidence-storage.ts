@@ -223,12 +223,23 @@ export class RuntimeFileEvidenceStore implements EvidenceStore {
   }
 
   async getAttachment(caseId: string, attachmentId: string) {
-    const caseRoot = this.caseRoot(caseId);
-    const manifest = JSON.parse(await fs.readFile(path.join(caseRoot, "attachments.json"), "utf8")) as EvidenceAttachment[];
-    const attachment = manifest.find((item) => item.id === safeCaseSegment(attachmentId));
-    if (!attachment) return null;
-    const fileName = path.posix.basename(attachment.storageKey);
-    return { attachment, bytes: await fs.readFile(path.join(caseRoot, fileName)) };
+    let safeAttachmentId: string;
+    try {
+      safeAttachmentId = safeCaseSegment(attachmentId);
+    } catch {
+      return null;
+    }
+    try {
+      const caseRoot = this.caseRoot(caseId);
+      const manifest = JSON.parse(await fs.readFile(path.join(caseRoot, "attachments.json"), "utf8")) as EvidenceAttachment[];
+      const attachment = manifest.find((item) => item.id === safeAttachmentId);
+      if (!attachment || !attachment.storageKey.startsWith(`evidence/${caseId}/`)) return null;
+      const fileName = path.posix.basename(attachment.storageKey);
+      return { attachment, bytes: await fs.readFile(path.join(caseRoot, fileName)) };
+    } catch (error: any) {
+      if (error?.code === "ENOENT") return null;
+      throw error;
+    }
   }
 }
 

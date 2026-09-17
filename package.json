@@ -44,6 +44,7 @@
     "test:buyer-interest": "tsx --test server/marketplace-buyer-interest-validation.test.ts",
     "test:mechanic-match": "tsx --test server/mechanic-match-validation.test.ts",
     "test:concierge-request": "tsx --test server/concierge-request-validation.test.ts",
+    "test:reviewer-evidence": "tsx --test server/reviewer-evidence-retrieval.test.ts",
     "test:safety-gate-parity": "tsx --test server/safety-gate-parity.test.ts",
     "test:load-cert": "node --test tests/load/load-cert.test.mjs",
     "test:production-smoke": "node --test tests/production-smoke.test.mjs",

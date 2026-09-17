@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -445,5 +445,82 @@ test("runtime and S3 stores read audio/video/vibration from disk path when buffe
     assert.deepEqual(storedBody.get(vAtt.storageKey), bytes2);
   } finally {
     await rm(root2, { recursive: true, force: true });
+  }
+});
+
+test("runtime store getAttachment returns null for missing case directory (ENOENT on manifest)", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-missing-"));
+  try {
+    const store = new RuntimeFileEvidenceStore(root);
+    const result = await store.getAttachment("NONEXISTENT-CASE", "some-id");
+    assert.equal(result, null);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("runtime store getAttachment returns null for missing attachment file (ENOENT on media)", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-nomedia-"));
+  try {
+    const store = new RuntimeFileEvidenceStore(root);
+    const caseRoot = path.join(root, "CASE-NOMEDIA");
+    await mkdir(caseRoot, { recursive: true });
+    await writeFile(path.join(caseRoot, "attachments.json"), JSON.stringify([{
+      id: "missing-attachment", caseId: "CASE-NOMEDIA", kind: "photo",
+      originalName: "test.jpg", mimeType: "image/jpeg", byteSize: 1024,
+      status: "persisted", serverAttachmentId: "missing-attachment",
+      storageKey: "evidence/CASE-NOMEDIA/missing-attachment.jpg",
+      createdAt: new Date().toISOString(), provenance: "uploaded_media", analysisStatus: "uploaded_not_analyzed",
+    }], null, 2));
+    const result = await store.getAttachment("CASE-NOMEDIA", "missing-attachment");
+    assert.equal(result, null);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("runtime store getAttachment returns null for invalid attachmentId with path traversal", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-traversal-"));
+  try {
+    const store = new RuntimeFileEvidenceStore(root);
+    const result = await store.getAttachment("CASE-TRAVERSAL", "../etc/passwd");
+    assert.equal(result, null);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("runtime store getAttachment returns null when storageKey does not match case prefix", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-prefix-"));
+  try {
+    const store = new RuntimeFileEvidenceStore(root);
+    const caseRoot = path.join(root, "CASE-PREFIX");
+    await mkdir(caseRoot, { recursive: true });
+    await writeFile(path.join(caseRoot, "attachments.json"), JSON.stringify([{
+      id: "bad-prefix", caseId: "CASE-PREFIX", kind: "photo",
+      originalName: "test.jpg", mimeType: "image/jpeg", byteSize: 1024,
+      status: "persisted", serverAttachmentId: "bad-prefix",
+      storageKey: "evidence/OTHER-CASE/evil.jpg",
+      createdAt: new Date().toISOString(), provenance: "uploaded_media", analysisStatus: "uploaded_not_analyzed",
+    }], null, 2));
+    const result = await store.getAttachment("CASE-PREFIX", "bad-prefix");
+    assert.equal(result, null);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("runtime store getAttachment returns attachment when evidence exists", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-ok-"));
+  try {
+    const store = new RuntimeFileEvidenceStore(root);
+    const bytes = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x01, 0x02, 0x03, 0xff, 0xd9]);
+    const [attachment] = await store.savePhotos("CASE-OK", [{ buffer: bytes, originalname: "test.jpg", mimetype: "image/jpeg", size: bytes.length } as Express.Multer.File]);
+    const result = await store.getAttachment("CASE-OK", attachment.id);
+    assert.ok(result);
+    assert.equal(result!.attachment.id, attachment.id);
+    assert.deepEqual(result!.bytes, bytes);
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });
