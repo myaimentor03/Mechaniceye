@@ -18,7 +18,7 @@ function createTestSessionCookie(identity: CustomerIdentity = { id: "cust-test-1
 
 async function withServer(
   env: Record<string, string | undefined>,
-  work: (origin: string, close: () => Promise<void>, sessionCookie: string) => Promise<void>
+  work: (origin: string, sessionCookie: string) => Promise<void>
 ) {
   const priorEnv: Record<string, string | undefined> = {};
   const requiredEnv = {
@@ -48,10 +48,9 @@ async function withServer(
   const sessionCookie = createTestSessionCookie();
 
   try {
-    await work(origin, async () => {
-      await new Promise<void>((resolve) => server.close(() => resolve()));
-    }, sessionCookie);
+    await work(origin, sessionCookie);
   } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
     for (const key of Object.keys(priorEnv)) {
       if (priorEnv[key] === undefined) {
         delete process.env[key];
@@ -149,7 +148,7 @@ test("diagnosis intake rejects unauthenticated requests", async () => {
       DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID: "test",
       DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "test",
     },
-    async (origin, close, sessionCookie) => {
+    async (origin, sessionCookie) => {
       // Don't send the session cookie
       const formData = new FormData();
       Object.entries(validDiagnosisBody()).forEach(([key, value]) => {
@@ -174,7 +173,7 @@ test("diagnosis intake accepts authenticated request without photos when storage
       // No S3 config - falls back to runtime local which is not durable
       // No DATABASE_URL - will fail to persist to DB
     },
-    async (origin, close, sessionCookie) => {
+    async (origin, sessionCookie) => {
       const formData = new FormData();
       Object.entries(validDiagnosisBody({})).forEach(([key, value]) => {
         formData.append(key, typeof value === "string" ? value : JSON.stringify(value));
@@ -205,7 +204,7 @@ test("diagnosis intake rejects photos when DRIVABLE_PHOTO_UPLOAD_ENABLED is fals
       DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID: "test",
       DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "test",
     },
-    async (origin, close, sessionCookie) => {
+    async (origin, sessionCookie) => {
       const formData = new FormData();
       Object.entries(validDiagnosisBody()).forEach(([key, value]) => {
         formData.append(key, typeof value === "string" ? value : JSON.stringify(value));
@@ -233,7 +232,7 @@ test("diagnosis intake rejects photos when evidence storage is not durable", asy
       DRIVABLE_PHOTO_UPLOAD_ENABLED: "true",
       // No S3 config - falls back to runtime local which is not durable
     },
-    async (origin, close, sessionCookie) => {
+    async (origin, sessionCookie) => {
       const formData = new FormData();
       Object.entries(validDiagnosisBody()).forEach(([key, value]) => {
         formData.append(key, typeof value === "string" ? value : JSON.stringify(value));
@@ -268,7 +267,7 @@ test("diagnosis intake rate limits customer intake", async () => {
       DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID: "test",
       DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "test",
     },
-    async (origin, close, sessionCookie) => {
+    async (origin, sessionCookie) => {
       // Make 21 requests (limit is 20 per hour)
       let lastStatus = 0;
       for (let i = 0; i < 22; i++) {
@@ -300,7 +299,7 @@ test("diagnosis intake cleans up temp files on validation failure", async () => 
       DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID: "test",
       DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "test",
     },
-    async (origin, close, sessionCookie) => {
+    async (origin, sessionCookie) => {
       // Invalid VIN
       const formData = new FormData();
       Object.entries(validDiagnosisBody({
@@ -354,7 +353,7 @@ test("diagnosis intake returns case ID and stores in sessionStorage flow", async
       DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID: "test",
       DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "test",
     },
-    async (origin, close, sessionCookie) => {
+    async (origin, sessionCookie) => {
       const formData = new FormData();
       Object.entries(validDiagnosisBody({})).forEach(([key, value]) => {
         formData.append(key, typeof value === "string" ? value : JSON.stringify(value));
@@ -387,7 +386,7 @@ test("diagnosis intake handles storage failure gracefully", async () => {
       DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "test",
       // No DATABASE_URL - will fail to persist to DB
     },
-    async (origin, close, sessionCookie) => {
+    async (origin, sessionCookie) => {
       const formData = new FormData();
       Object.entries(validDiagnosisBody({})).forEach(([key, value]) => {
         formData.append(key, typeof value === "string" ? value : JSON.stringify(value));
@@ -417,7 +416,7 @@ test("diagnosis intake validates VIN format", async () => {
       DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID: "test",
       DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "test",
     },
-    async (origin, close, sessionCookie) => {
+    async (origin, sessionCookie) => {
       // Invalid VIN - contains I, O, Q or wrong length
       const formData = new FormData();
       Object.entries(validDiagnosisBody({
@@ -469,7 +468,7 @@ test("diagnosis intake validates OBD code format", async () => {
       DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID: "test",
       DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "test",
     },
-    async (origin, close, sessionCookie) => {
+    async (origin, sessionCookie) => {
       // Invalid OBD code
       const formData = new FormData();
       Object.entries(validDiagnosisBody({
@@ -521,7 +520,7 @@ test("diagnosis intake validates mileage is non-negative integer", async () => {
       DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID: "test",
       DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "test",
     },
-    async (origin, close, sessionCookie) => {
+    async (origin, sessionCookie) => {
       // Negative mileage
       const formData = new FormData();
       Object.entries(validDiagnosisBody({
@@ -573,7 +572,7 @@ test("diagnosis intake does not leak internal errors to client", async () => {
       DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID: "test",
       DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "test",
     },
-    async (origin, close, sessionCookie) => {
+    async (origin, sessionCookie) => {
       const formData = new FormData();
       Object.entries(validDiagnosisBody()).forEach(([key, value]) => {
         formData.append(key, typeof value === "string" ? value : JSON.stringify(value));
@@ -622,7 +621,7 @@ test("diagnosis intake rejects oversized photo via multer (413)", async () => {
       DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID: "test",
       DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "test",
     },
-    async (origin, close, sessionCookie) => {
+    async (origin, sessionCookie) => {
       const formData = new FormData();
       Object.entries(validDiagnosisBody()).forEach(([key, value]) => {
         formData.append(key, typeof value === "string" ? value : JSON.stringify(value));
@@ -654,7 +653,7 @@ test("diagnosis intake rejects unsupported file type via multer (415)", async ()
       DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID: "test",
       DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "test",
     },
-    async (origin, close, sessionCookie) => {
+    async (origin, sessionCookie) => {
       const formData = new FormData();
       Object.entries(validDiagnosisBody()).forEach(([key, value]) => {
         formData.append(key, typeof value === "string" ? value : JSON.stringify(value));
@@ -686,7 +685,7 @@ test("diagnosis intake silently drops files on unknown fields (multer .fields() 
       DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID: "test",
       DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "test",
     },
-    async (origin, close, sessionCookie) => {
+    async (origin, sessionCookie) => {
       const formData = new FormData();
       Object.entries(validDiagnosisBody()).forEach(([key, value]) => {
         formData.append(key, typeof value === "string" ? value : JSON.stringify(value));
@@ -722,7 +721,7 @@ test("diagnosis intake rejects total evidence file count exceeding limit (413)",
       DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID: "test",
       DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "test",
     },
-    async (origin, close, sessionCookie) => {
+    async (origin, sessionCookie) => {
       const formData = new FormData();
       Object.entries(validDiagnosisBody()).forEach(([key, value]) => {
         formData.append(key, typeof value === "string" ? value : JSON.stringify(value));
@@ -757,7 +756,7 @@ test("diagnosis intake rejects audio/video via app-level guard (415)", async () 
       DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID: "test",
       DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "test",
     },
-    async (origin, close, sessionCookie) => {
+    async (origin, sessionCookie) => {
       const formData = new FormData();
       Object.entries(validDiagnosisBody()).forEach(([key, value]) => {
         formData.append(key, typeof value === "string" ? value : JSON.stringify(value));
@@ -790,7 +789,7 @@ test("diagnosis intake rejects malformed multipart body gracefully", async () =>
       DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID: "test",
       DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "test",
     },
-    async (origin, close, sessionCookie) => {
+    async (origin, sessionCookie) => {
       // Send a raw POST with a content-type that multer can't parse as multipart
       const response = await fetch(`${origin}/api/diagnoses`, {
         method: "POST",
@@ -820,7 +819,7 @@ test("diagnosis intake does not dedupe duplicate clientRequestId — distinct ca
       DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID: "test",
       DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "test",
     },
-    async (origin, close, sessionCookie) => {
+    async (origin, sessionCookie) => {
       const clientRequestId = "req-dedupe-test-123";
 
       const formData1 = new FormData();
@@ -864,7 +863,7 @@ test("diagnosis intake creates distinct case for different clientRequestId", asy
       DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID: "test",
       DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "test",
     },
-    async (origin, close, sessionCookie) => {
+    async (origin, sessionCookie) => {
       const formData1 = new FormData();
       Object.entries(validDiagnosisBody({ clientRequestId: "req-diff-1" })).forEach(([key, value]) => {
         formData1.append(key, typeof value === "string" ? value : JSON.stringify(value));
