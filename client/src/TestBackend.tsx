@@ -1137,6 +1137,13 @@ type PublicPage = "home" | "intake" | "sell" | "help" | "disclaimer" | "terms" |
 
   function generateClientRequestId() {
     const storageKey = "drivable-client-request-id";
+    try {
+      const existing = window.sessionStorage.getItem(storageKey);
+      if (existing) {
+        setClientRequestId(existing);
+        return existing;
+      }
+    } catch {}
     const newId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
     try {
       window.sessionStorage.setItem(storageKey, newId);
