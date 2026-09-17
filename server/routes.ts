@@ -2018,6 +2018,36 @@ try {
     }
   });
 
+  // Customer resume/status: a signed-in customer can list their own cases
+  // (mobile recovery after sessionStorage wipe, new device, Copy Case ID
+  // loss). Minimal payload only — id/status/createdAt, never description,
+  // email, attachments, or evidence metadata — with no-store. Fail-closed:
+  // storage errors answer a generic 500, never a partial or foreign list.
+  app.get("/api/my-cases", requireCustomer, async (req, res) => {
+    try {
+      res.setHeader("Cache-Control", "no-store");
+      const requesterId = req.drivableCustomer?.id || "";
+      const owned = await storage.getDiagnosesByOwner(requesterId);
+      return res.json({
+        ok: true,
+        cases: owned.map((diagnosis) => ({
+          id: diagnosis.id,
+          status: diagnosis.status || "received",
+          createdAt: diagnosis.createdAt,
+        })),
+        persisted: true,
+      });
+    } catch (error) {
+      logEventError("api.customer_case_list_failed", error);
+      return res.status(500).json({
+        ok: false,
+        error: "Case list is temporarily unavailable. Please try again.",
+        code: "CASE_LIST_UNAVAILABLE",
+        persisted: false,
+      });
+    }
+  });
+
   // Customer resume/status: a signed-in customer can verify their own case
   // (mobile recovery, Copy Case ID flow, cross-device resume). Reviewer-only
   // GET /api/diagnoses/:id never serves customers, and client sessionStorage

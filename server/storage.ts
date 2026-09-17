@@ -166,6 +166,16 @@ class LocalStorage {
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
   }
 
+  // Customer resume/status list: only cases owned by this exact customer id.
+  // Ownerless legacy rows are excluded (fail-closed) so they can never be
+  // enumerated through the customer-scoped list. Capped for mobile payloads.
+  async getDiagnosesByOwner(ownerId: string, limit = 100) {
+    const all = await this.getDiagnosesByUser();
+    return all
+      .filter((record) => typeof record.userId === "string" && record.userId !== "" && record.userId === ownerId)
+      .slice(0, Math.max(1, Math.min(limit, 100)));
+  }
+
   async getDiagnosis(id: string) {
     const local = this.diagnoses.get(id);
     if (local) return local;

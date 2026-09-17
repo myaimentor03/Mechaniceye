@@ -179,6 +179,103 @@ test("customer resume treats an ownerless legacy case as not found (fail-closed)
   });
 });
 
+test("customer case list requires a customer session (401 CUSTOMER_AUTH_REQUIRED)", async () => {
+  await withServer(async (origin) => {
+    const response = await fetch(`${origin}/api/my-cases`);
+    assert.equal(response.status, 401);
+    const body = await response.json();
+    assert.equal(body.code, "CUSTOMER_AUTH_REQUIRED");
+  });
+});
+
+test("customer case list returns an empty list for a customer with no cases", async () => {
+  const fresh: CustomerIdentity = { id: "cust-list-fresh-1", email: "fresh-list@example.com" };
+  await withServer(async (origin) => {
+    const response = await fetch(`${origin}/api/my-cases`, {
+      headers: { cookie: cookieFor(fresh) },
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.ok, true);
+    assert.deepEqual(body.cases, []);
+    assert.equal(body.persisted, true);
+    assert.match(response.headers.get("cache-control") || "", /no-store/);
+  });
+});
+
+test("customer case list returns only own cases with a minimal payload (no PII/evidence leak)", async () => {
+  const lister: CustomerIdentity = { id: "cust-list-owner-1", email: "lister@example.com" };
+  const other: CustomerIdentity = { id: "cust-list-other-1", email: "other-list@example.com" };
+  const mineA = generateCaseId();
+  const mineB = generateCaseId();
+  const theirs = generateCaseId();
+  const legacy = generateCaseId();
+  await storage.createDiagnosis({
+    id: mineA,
+    userId: lister.id,
+    vehicleInfo: "2015 Honda Civic",
+    description: "Customer Email: lister@example.com\nEngine runs rough",
+    timing: "Idle",
+  });
+  await storage.createDiagnosis({
+    id: mineB,
+    userId: lister.id,
+    vehicleInfo: "2018 Toyota Camry",
+    description: "Customer Email: lister@example.com\nBrake squeal with photos",
+    attachments: [
+      {
+        id: "att-list-1",
+        caseId: mineB,
+        kind: "photo",
+        originalName: "brake.jpg",
+        mimeType: "image/jpeg",
+        byteSize: 2048,
+        status: "persisted",
+        serverAttachmentId: "srv-list-1",
+        storageKey: "evidence/case-list/brake.jpg",
+        createdAt: new Date().toISOString(),
+        provenance: "customer_observation",
+        analysisStatus: "uploaded_not_analyzed",
+      },
+    ],
+  });
+  await storage.createDiagnosis({
+    id: theirs,
+    userId: other.id,
+    vehicleInfo: "2020 Ford Escape",
+    description: "Customer Email: other-list@example.com\nTransmission slip",
+  });
+  await storage.createDiagnosis({
+    id: legacy,
+    userId: "",
+    vehicleInfo: "2012 Ford F-150",
+    description: "legacy row without recorded owner",
+  });
+
+  await withServer(async (origin) => {
+    const response = await fetch(`${origin}/api/my-cases`, {
+      headers: { cookie: cookieFor(lister) },
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.persisted, true);
+    assert.ok(Array.isArray(body.cases));
+    const ids = body.cases.map((entry: { id: string }) => entry.id);
+    assert.ok(ids.includes(mineA), "own case A must be listed");
+    assert.ok(ids.includes(mineB), "own case B must be listed");
+    assert.ok(!ids.includes(theirs), "another customer's case must never be listed");
+    assert.ok(!ids.includes(legacy), "ownerless legacy case must never be listed");
+    for (const entry of body.cases) {
+      assert.deepEqual(Object.keys(entry).sort(), ["createdAt", "id", "status"]);
+    }
+    const text = JSON.stringify(body);
+    assert.ok(!text.includes("lister@example.com"), "list must not leak owner email PII");
+    assert.ok(!text.includes("Engine runs rough"), "list must not leak symptom PII");
+    assert.ok(!text.includes("brake.jpg"), "list must not leak evidence metadata");
+    assert.match(response.headers.get("cache-control") || "", /no-store/);
+  });
+});
 test("customer resume returns minimal payload for case with evidence attachments (no evidence leakage)", async () => {
   const caseId = generateCaseId();
   await storage.createDiagnosis({
