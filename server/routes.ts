@@ -1913,8 +1913,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
+      // Idempotency: the Mechanic Match client resends the same
+      // clientRequestId on mobile timeout retry / double-tap. A repeat must
+      // return the ORIGINAL id without re-firing the webhook, so one tap can
+      // never create two mechanic requests (FIX routing safety).
+      const mechanicIdempotencyKey = normalizeIdempotencyKey((req.body || {}).clientRequestId);
+      if (mechanicIdempotencyKey) {
+        const priorMechanicRequest = marketplaceIdempotencyStore.get("mechanic-match-request", mechanicIdempotencyKey);
+        if (priorMechanicRequest) {
+          logEvent("mechanic_match.duplicate_prevented", { id: priorMechanicRequest.id });
+          res.json({ ok: true, received: true, id: priorMechanicRequest.id, duplicate: true });
+          return;
+        }
+      }
+
       await deliverMechanicMatchRequest(input);
-      res.json({ ok: true, received: true });
+      const mechanicRequestId = generateCaseId();
+      if (mechanicIdempotencyKey) {
+        marketplaceIdempotencyStore.record("mechanic-match-request", mechanicIdempotencyKey, mechanicRequestId);
+      }
+      res.json({ ok: true, received: true, id: mechanicRequestId, duplicate: false });
     } catch (error) {
       logEventError("form.mechanic_match_request_failed", error);
 
@@ -1941,8 +1959,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
+      // Idempotency: same contract as Mechanic Match — a support concierge
+      // retry with the same clientRequestId returns the ORIGINAL id without
+      // re-firing the webhook, so a mobile timeout never creates two tickets.
+      const conciergeIdempotencyKey = normalizeIdempotencyKey((req.body || {}).clientRequestId);
+      if (conciergeIdempotencyKey) {
+        const priorConciergeRequest = marketplaceIdempotencyStore.get("support-concierge-request", conciergeIdempotencyKey);
+        if (priorConciergeRequest) {
+          logEvent("concierge.duplicate_prevented", { id: priorConciergeRequest.id });
+          res.json({ ok: true, received: true, id: priorConciergeRequest.id, duplicate: true });
+          return;
+        }
+      }
+
       await deliverConciergeRequest(input);
-      res.json({ ok: true, received: true });
+      const conciergeRequestId = generateCaseId();
+      if (conciergeIdempotencyKey) {
+        marketplaceIdempotencyStore.record("support-concierge-request", conciergeIdempotencyKey, conciergeRequestId);
+      }
+      res.json({ ok: true, received: true, id: conciergeRequestId, duplicate: false });
     } catch (error) {
       logEventError("form.concierge_request_failed", error);
 

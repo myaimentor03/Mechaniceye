@@ -42,6 +42,35 @@ import {
 
 const PUBLIC_API_ENDPOINT = "/api/diagnoses";
 const SUBMISSION_TIMEOUT_MS = 20000;
+// QA lane (Nov 2 paid beta): stable idempotency keys for webhook-forwarded
+// public forms. Each flow keeps its own sessionStorage key (rotated only
+// after a successful submit) so a mobile timeout retry or double-tap resends
+// the SAME clientRequestId and the server can return the original id with
+// duplicate:true instead of creating a second request.
+const MECHANIC_CLIENT_REQUEST_STORAGE_KEY = "drivable-mechanic-request-id";
+const CONCIERGE_CLIENT_REQUEST_STORAGE_KEY = "drivable-concierge-request-id";
+
+function newStableClientRequestId(): string {
+  return `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function getOrCreateStableClientRequestId(storageKey: string): string {
+  try {
+    const existing = window.sessionStorage.getItem(storageKey);
+    if (existing && existing.trim()) return existing;
+    const created = newStableClientRequestId();
+    try { window.sessionStorage.setItem(storageKey, created); } catch {}
+    return created;
+  } catch {
+    return newStableClientRequestId();
+  }
+}
+
+function rotateStableClientRequestId(storageKey: string): string {
+  const next = newStableClientRequestId();
+  try { window.sessionStorage.setItem(storageKey, next); } catch {}
+  return next;
+}
 const CATEGORIES = [
   "No start / hard start",
   "Engine running rough",
@@ -437,6 +466,7 @@ function ConciergeHelpPage() {
     const guide = GUIDE_OPTIONS.find((option) => option.topic === helpTopic)?.name || value("guideRequested") || "Nora";
     const payload = {
       intakeType: "support-concierge-request",
+      clientRequestId: getOrCreateStableClientRequestId(CONCIERGE_CLIENT_REQUEST_STORAGE_KEY),
       scenario: selectedScenarioId,
       reportType: selectedReportType,
       topic: initialTopic || null,
@@ -495,6 +525,8 @@ function ConciergeHelpPage() {
         relatedListingId: payload.relatedListingId,
         messageSummary: message.length > 140 ? `${message.slice(0, 137)}...` : message
       });
+      // Rotate only after success so a timeout retry resends the same key.
+      rotateStableClientRequestId(CONCIERGE_CLIENT_REQUEST_STORAGE_KEY);
       form.reset();
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
@@ -701,6 +733,7 @@ function MechanicMatchFlow() {
     const formData = new FormData(form);
     const value = (name: string) => String(formData.get(name) || "").trim();
     const payload = {
+      clientRequestId: getOrCreateStableClientRequestId(MECHANIC_CLIENT_REQUEST_STORAGE_KEY),
       customerName: value("customerName"),
       customerEmail: value("customerEmail"),
       customerPhone: value("customerPhone"),
@@ -743,6 +776,8 @@ function MechanicMatchFlow() {
         throw new Error(result.error || "Mechanic Match request failed.");
       }
 
+      // Rotate only after success so a timeout retry resends the same key.
+      rotateStableClientRequestId(MECHANIC_CLIENT_REQUEST_STORAGE_KEY);
       navigateFrontend("/mechanic-match/submitted");
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Mechanic Match request failed. Please try again.");

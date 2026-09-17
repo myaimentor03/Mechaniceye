@@ -1,13 +1,15 @@
 /**
  * QA launch-blocker lock for the November 2 paid beta (P0 #7 ClearSale,
- * P0 #1 upload recovery, P0 #4 payment safety).
+ * P0 #10 Mechanic routing, P0 Guided Journey support, P0 #1 upload recovery,
+ * P0 #4 payment safety).
  *
- * The ClearSale seller-intake and buyer-interest clients already generate a
- * stable `clientRequestId` (sessionStorage-backed, rotated only after a
- * successful intake) so a mobile timeout retry or double-tap resends the
- * SAME key. The server previously ignored that key: every retry created a
- * new listing request and re-fired the master-intake webhook, producing
- * duplicate listings / duplicate seller emails.
+ * The ClearSale seller-intake, buyer-interest, Mechanic Match, and support
+ * concierge clients generate a stable `clientRequestId`
+ * (sessionStorage-backed, rotated only after a successful intake) so a
+ * mobile timeout retry or double-tap resends the SAME key. The server
+ * previously ignored that key on Mechanic Match / concierge: every retry
+ * created a new request and re-fired the master-intake webhook, producing
+ * duplicate mechanic dispatches / duplicate support tickets and emails.
  *
  * This module is the server-side half of that contract:
  * - `normalizeIdempotencyKey` accepts only safe token-shaped keys
@@ -26,7 +28,9 @@ export const MARKETPLACE_IDEMPOTENCY_MAX_KEYS = 500;
 
 export type MarketplaceIdempotencyNamespace =
   | "marketplace-seller-intake"
-  | "marketplace-buyer-interest";
+  | "marketplace-buyer-interest"
+  | "mechanic-match-request"
+  | "support-concierge-request";
 
 export function normalizeIdempotencyKey(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -77,11 +81,12 @@ export class MarketplaceIdempotencyStore {
 }
 
 /**
- * Process-local idempotency state for the marketplace intake routes.
+ * Process-local idempotency state for the webhook-forwarded intake routes
+ * (ClearSale, buyer interest, Mechanic Match, support concierge).
  * Mirrors the diagnosis route's customer-scoped DB dedupe contract for the
- * webhook-forwarded marketplace endpoints, which have no durable case row to
- * key off. A durable cross-instance store is a post-beta hardening item;
- * this prevents the common single-instance mobile double-submit/timeout
- * retry from creating duplicate ClearSale listings.
+ * webhook-forwarded endpoints, which have no durable case row to key off.
+ * A durable cross-instance store is a post-beta hardening item; this
+ * prevents the common single-instance mobile double-submit/timeout retry
+ * from creating duplicate listings, mechanic requests, or support tickets.
  */
 export const marketplaceIdempotencyStore = new MarketplaceIdempotencyStore();
