@@ -105,3 +105,27 @@ test("Evidence reassurance notes AI does not visually analyze photos", () => {
 test("Missing key details warning appears in guided flow", () => {
   assert.match(backend, /Missing key details may delay your review/);
 });
+
+test("Guided intake restores case ID from sessionStorage on mount", () => {
+  const intakeStart = backend.indexOf("function IntakePage");
+  assert.ok(intakeStart !== -1, "IntakePage must exist");
+  const intake = backend.slice(intakeStart, intakeStart + 8000);
+  assert.match(intake, /useEffect\(/);
+  assert.match(intake, /sessionStorage\.getItem\("drivable-last-case-id"\)/);
+  assert.match(intake, /setRestoredCaseId/);
+});
+
+test("Guided intake displays restored case reference when no active result", () => {
+  const intakeStart = backend.indexOf("function IntakePage");
+  const intake = backend.slice(intakeStart, intakeStart + 8000);
+  assert.match(intake, /restoredCaseId/);
+  assert.match(intake, /Previous Case Reference/);
+  assert.match(intake, /Reference:/);
+});
+
+test("Guided intake uses sessionStorage (not localStorage) for case ID persistence", () => {
+  const intakeStart = backend.indexOf("function IntakePage");
+  const intake = backend.slice(intakeStart, intakeStart + 8000);
+  assert.doesNotMatch(intake, /localStorage\.setItem\("drivable-last-case-id"/);
+  assert.doesNotMatch(intake, /localStorage\.getItem\("drivable-last-case-id"/);
+});

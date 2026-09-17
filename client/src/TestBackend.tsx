@@ -1619,6 +1619,17 @@ const endpoints = [PUBLIC_API_ENDPOINT];
   }
 
   function IntakePage() {
+    const [restoredCaseId, setRestoredCaseId] = useState<string | null>(null);
+
+    useEffect(() => {
+      try {
+        const savedCaseId = sessionStorage.getItem("drivable-last-case-id");
+        if (savedCaseId) {
+          setRestoredCaseId(savedCaseId);
+        }
+      } catch {}
+    }, []);
+
     if (!authChecked) {
       return <div className="simple-page"><div className="step-card"><h2>Checking your account...</h2></div></div>;
     }
@@ -1734,6 +1745,15 @@ const endpoints = [PUBLIC_API_ENDPOINT];
                 </button>
               </div>
               <WhatHappensNext />
+            </div>
+          )}
+
+          {!result && restoredCaseId && (
+            <div className="alert-card info">
+              <h3>Previous Case Reference</h3>
+              <p>Your last Drivable Check submission was received.</p>
+              <p><strong>Reference:</strong> {restoredCaseId}</p>
+              <p className="helper-text">Start a new check below or use the Copy Case ID button if you need to reference this case.</p>
             </div>
           )}
 
