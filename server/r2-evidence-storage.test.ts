@@ -100,24 +100,46 @@ test("stores case-scoped private keys with safe segments and no original filenam
   }
 });
 
-test("sanitizes unsafe case segments and rejects empty case ids", async () => {
+test("rejects unsafe case segments and rejects empty case ids", async () => {
   const store = memoryStore();
   const { root, files } = await makeTemporaryFiles({
     photos: [{ originalname: "a.jpg", mimetype: "image/jpeg", size: 0 } as Express.Multer.File],
   });
 
-  try {
-    const keys = await storeEvidenceFilesWithClient("../CASE:inject/evil", files, store);
-    assert.match(keys.photos![0], /^evidence\/CASEinjectevil\/photos\/[0-9a-f-]{36}\.jpg$/);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
+  await assert.rejects(
+    () => storeEvidenceFilesWithClient("../CASE:inject/evil", files, store),
+    /Invalid server case ID/
+  );
+  await rm(root, { recursive: true, force: true });
 
   const empty = await makeTemporaryFiles({
     photos: [{ originalname: "a.jpg", mimetype: "image/jpeg", size: 0 } as Express.Multer.File],
   });
-  await assert.rejects(() => storeEvidenceFilesWithClient("", empty.files, store));
+  await assert.rejects(() => storeEvidenceFilesWithClient("", empty.files, store), /Invalid server case ID/);
   await rm(empty.root, { recursive: true, force: true });
+});
+
+test("accepts valid case IDs and stores case-scoped private keys", async () => {
+  const store = memoryStore();
+  const now = new Date("2026-09-02T00:00:00.000Z");
+  const { root, files } = await makeTemporaryFiles({
+    photos: [{ originalname: "photo.jpg", mimetype: "image/jpeg", size: 0 } as Express.Multer.File],
+    audio: [{ originalname: "clip.mp3", mimetype: "audio/mpeg", size: 0 } as Express.Multer.File],
+  });
+
+  try {
+    const keys = await storeEvidenceFilesWithClient("CASE-20260902000000000-123", files, store, now);
+    assert.equal(keys.photos?.length, 1);
+    assert.equal(keys.audio?.length, 1);
+    const photoKey = keys.photos![0];
+    assert.match(photoKey, /^evidence\/CASE-20260902000000000-123\/photos\/[0-9a-f-]{36}\.jpg$/);
+    const photoObject = store.objects.get(photoKey);
+    assert.ok(photoObject);
+    assert.equal(photoObject.metadata?.case_id, "CASE-20260902000000000-123");
+    assert.equal(store.objects.size, 2);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("rolls back already-uploaded objects and removes temporary files on failure", async () => {

@@ -17,9 +17,9 @@ export type UploadedEvidenceFiles = Partial<Record<EvidenceField, Express.Multer
 export type StoredEvidenceKeys = Partial<Record<EvidenceField, string[]>>;
 
 function safeCaseSegment(value: string) {
-  const sanitized = value.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
-  if (!sanitized) throw new Error("A positive case ID is required for evidence storage.");
-  return sanitized;
+  if (value === ".." || value.includes("..")) throw new Error("Invalid server case ID");
+  if (!/^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9])?$/.test(value)) throw new Error("Invalid server case ID");
+  return value;
 }
 
 function getR2Configuration() {
