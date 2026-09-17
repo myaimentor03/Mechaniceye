@@ -369,3 +369,81 @@ test("S3 store persists audio/video/vibration and rolls back on failure", async 
   assert.equal(objects.has("evidence/CASE-S3-VIDEO/attachments.json"), true);
   assert.equal(objects.has("evidence/CASE-S3-VIB/attachments.json"), true);
 });
+
+test("S3 audio/video/vibration objects carry retention, case, and evidence-status metadata (parity with photos)", async () => {
+  const stored: Array<{ key: string; metadata?: Record<string, string>; contentType: string }> = [];
+  const client = {
+    async send(command: any) {
+      const name = command.constructor.name;
+      if (name === "PutObjectCommand") {
+        stored.push({ key: command.input.Key as string, metadata: command.input.Metadata, contentType: command.input.ContentType });
+        return {};
+      }
+      if (name === "DeleteObjectCommand") return {};
+      throw new Error(`Unexpected command ${name}`);
+    },
+  };
+  const store = new S3PrivateEvidenceStore({ bucket: "private-test", region: "test-1" }, client);
+  const bytes = Buffer.from([0x01, 0x02, 0x03, 0x04]);
+  await store.saveAudio("CASE-META-AUDIO", [{ buffer: bytes, originalname: "clip.mp3", mimetype: "audio/mpeg", size: bytes.length } as Express.Multer.File]);
+  await store.saveVideo("CASE-META-VIDEO", [{ buffer: bytes, originalname: "clip.mp4", mimetype: "video/mp4", size: bytes.length } as Express.Multer.File]);
+  await store.saveVibration("CASE-META-VIB", [{ buffer: bytes, originalname: "vib.bin", mimetype: "application/octet-stream", size: bytes.length } as Express.Multer.File]);
+  for (const record of stored) {
+    const md = record.metadata || {};
+    assert.equal(md["evidence-status"], "uploaded_not_analyzed", `missing evidence-status on ${record.key}`);
+    assert.equal(md["retention-days"], "30", `missing retention-days on ${record.key}`);
+    assert.ok(/^\d{4}-\d{2}-\d{2}T/.test(md["delete-after"] || ""), `missing ISO delete-after on ${record.key}`);
+    assert.ok(md["case-id"]?.startsWith("CASE-META-"), `missing case-id on ${record.key}`);
+    assert.ok(md["media-type"], `missing media-type on ${record.key}`);
+    assert.equal(record.contentType.includes("/") ? true : false, true);
+  }
+  const audioObj = stored.find((r) => r.key.includes("CASE-META-AUDIO") && !r.key.endsWith("attachments.json"));
+  assert.equal(audioObj?.metadata?.["media-type"], "audio/mpeg");
+  const videoObj = stored.find((r) => r.key.includes("CASE-META-VIDEO") && !r.key.endsWith("attachments.json"));
+  assert.equal(videoObj?.metadata?.["media-type"], "video/mp4");
+  const jsonManifests = stored.filter((r) => r.key.endsWith("attachments.json"));
+  assert.equal(jsonManifests.length, 3);
+  for (const m of jsonManifests) assert.equal(m.metadata?.["media-type"], "application/json");
+});
+
+test("runtime and S3 stores read audio/video/vibration from disk path when buffer is absent (multer disk storage)", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-disk-"));
+  try {
+    const tmpAudio = path.join(root, "disk-audio.mp3");
+    const bytes = Buffer.from([0x0a, 0x0b, 0x0c, 0x0d]);
+    await writeFile(tmpAudio, bytes);
+    const diskFile = { path: tmpAudio, originalname: "disk-audio.mp3", mimetype: "audio/mpeg", size: bytes.length } as Express.Multer.File;
+    const runtime = new RuntimeFileEvidenceStore(path.join(root, "runtime-evidence"));
+    const [att] = await runtime.saveAudio("CASE-DISK-AUDIO", [diskFile]);
+    assert.equal(att.kind, "audio");
+    assert.deepEqual(await readFile(path.join(root, "runtime-evidence", "CASE-DISK-AUDIO", path.basename(att.storageKey))), bytes);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+  const storedBody = new Map<string, Buffer>();
+  const client = {
+    async send(command: any) {
+      const name = command.constructor.name;
+      if (name === "PutObjectCommand") {
+        const body: Buffer = Buffer.isBuffer(command.input.Body) ? command.input.Body : Buffer.from(await command.input.Body);
+        storedBody.set(command.input.Key as string, body);
+        return {};
+      }
+      if (name === "DeleteObjectCommand") { storedBody.delete(command.input.Key as string); return {}; }
+      throw new Error(`Unexpected ${name}`);
+    },
+  };
+  const root2 = await mkdtemp(path.join(tmpdir(), "drivable-evidence-disk2-"));
+  try {
+    const tmpVideo = path.join(root2, "disk-video.mp4");
+    const bytes2 = Buffer.from([0x05, 0x06, 0x07, 0x08]);
+    await writeFile(tmpVideo, bytes2);
+    const diskVideo = { path: tmpVideo, originalname: "disk-video.mp4", mimetype: "video/mp4", size: bytes2.length } as Express.Multer.File;
+    const s3store = new S3PrivateEvidenceStore({ bucket: "test", region: "test-1" }, client);
+    const [vAtt] = await s3store.saveVideo("CASE-DISK-VIDEO", [diskVideo]);
+    assert.equal(vAtt.kind, "video");
+    assert.deepEqual(storedBody.get(vAtt.storageKey), bytes2);
+  } finally {
+    await rm(root2, { recursive: true, force: true });
+  }
+});
