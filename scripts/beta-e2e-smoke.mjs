@@ -210,6 +210,68 @@ function marketplaceBuyerBody() {
   };
 }
 
+function mechanicMatchBody() {
+  return {
+    customerName: "PiiMechIdemDriver343",
+    customerEmail: "mech-idem-343@example.test",
+    customerPhone: "(415) 555-0343",
+    city: "San Francisco",
+    state: "CA",
+    zip: "94103",
+    vehicleYear: "2015",
+    make: "Toyota",
+    model: "Corolla",
+    mileage: "85000",
+    problemCategory: "Engine running rough",
+    symptoms: "Rough idle and hesitation on acceleration, worse when cold.",
+    canDrive: "Short distance only",
+    urgency: "This week",
+    preferredHelpType: "Repair shop",
+    budgetRange: "$300-$750",
+    photosOrVideoAvailable: "Can provide if requested",
+    existingDiagnosisCaseId: "",
+    drivableCheckUsed: "Yes",
+    permissionToShareCase: "Yes",
+    acknowledgments: {
+      platformOnly: true,
+      noGuarantee: true,
+      customerResponsible: true,
+    },
+  };
+}
+
+function conciergeBody() {
+  return {
+    guideRequested: "Guided diagnosis help",
+    helpTopic: "Stuck on photo upload",
+    customerName: "PiiConciergeIdemDriver344",
+    customerEmail: "concierge-idem-344@example.test",
+    customerPhone: "(415) 555-0344",
+    relatedCaseId: "",
+    relatedListingId: "",
+    currentPage: "/diagnosis",
+    urgency: "Today",
+    preferredContactMethod: "Email",
+    message: "I am stuck uploading engine photos on mobile Safari. Please help.",
+    stuckStep: "photo-upload",
+    wantsHumanReview: "Yes",
+    scenario: "fix_my_car",
+    reportType: "diagnosis",
+    topic: "photo-upload",
+    sourceContext: {
+      page: "/diagnosis",
+      selectedScenario: null,
+      selectedReportType: null,
+      topic: null,
+      queryParams: {},
+    },
+    acknowledgments: {
+      aiAssistedGuide: true,
+      finalVerification: true,
+    },
+  };
+}
+
 function followUpForm({ audio, video, vibration, additionalInfo = "still rough after repair" } = {}) {
   const form = new FormData();
   if (additionalInfo) form.append("additionalInfo", additionalInfo);
@@ -1468,6 +1530,97 @@ await check("follow-up with vibrationData returns 404 for missing case after med
       return "ok";
     });
 
+    await check("ClearSale retry + outage recovery: same clientRequestId dedupes (duplicate:true, one webhook), and a failed 502 never records the key", async () => {
+      const retryKey = "req-qa-e2e-seller-idem-001";
+      const retryBody = { ...marketplaceSellerBody(), sellerName: "PiiSellerIdemAlpha341", clientRequestId: retryKey };
+      const retryBefore = webhook.received.filter((entry) => entry.body && entry.body.sellerName === "PiiSellerIdemAlpha341").length;
+      const first = await postJson(`${baseUrl}/api/marketplace/seller-intake`, retryBody);
+      const firstBody = await jsonResponse(first);
+      assert(first.status === 200, `first submit expected 200 got ${first.status}`);
+      assert(firstBody.ok === true && typeof firstBody.id === "string" && firstBody.id.length > 0, "first submit must return a listing id");
+      assert(firstBody.duplicate === false, "first submit must not be marked duplicate");
+      const retry = await postJson(`${baseUrl}/api/marketplace/seller-intake`, retryBody);
+      const retryParsed = await jsonResponse(retry);
+      assert(retry.status === 200, `retry expected 200 got ${retry.status}`);
+      assert(retryParsed.id === firstBody.id, "retry must return the ORIGINAL listing id");
+      assert(retryParsed.duplicate === true, "retry must be marked duplicate:true");
+      const retryHits = webhook.received.filter((entry) => entry.body && entry.body.sellerName === "PiiSellerIdemAlpha341").length - retryBefore;
+      assert(retryHits === 1, `one tap must fire exactly one listing webhook (got ${retryHits})`);
+      const outageKey = "req-qa-e2e-seller-outage-005";
+      const outageBody = { ...marketplaceSellerBody(), sellerName: "PiiSellerIdemOutage345", clientRequestId: outageKey };
+      webhook.setFailAlways(true);
+      let failed;
+      try {
+        failed = await postJson(`${baseUrl}/api/marketplace/seller-intake`, outageBody);
+      } finally {
+        webhook.setFailAlways(false);
+      }
+      const failedBody = await jsonResponse(failed);
+      assert(failed.status === 502, `outage submit expected 502 got ${failed.status}`);
+      assert(failedBody.ok === false, "expected ok:false on webhook failure");
+      const outageBefore = webhook.received.filter((entry) => entry.body && entry.body.sellerName === "PiiSellerIdemOutage345").length;
+      const recovered = await postJson(`${baseUrl}/api/marketplace/seller-intake`, outageBody);
+      const recoveredBody = await jsonResponse(recovered);
+      assert(recovered.status === 200, `retry after outage expected 200 got ${recovered.status}`);
+      assert(recoveredBody.ok === true && typeof recoveredBody.id === "string" && recoveredBody.id.length > 0, "retry must return a listing id");
+      assert(recoveredBody.duplicate === false, "first successful delivery after a 502 must not be marked duplicate");
+      const outageHits = webhook.received.filter((entry) => entry.body && entry.body.sellerName === "PiiSellerIdemOutage345").length - outageBefore;
+      assert(outageHits === 1, `fix-and-retry must deliver exactly one listing webhook (got ${outageHits})`);
+      return `ids ${firstBody.id} ${recoveredBody.id}`;
+    });
+
+    await check("buyer-interest mobile double-submit: same clientRequestId returns the original id with duplicate:true and fires the webhook exactly once", async () => {
+      const key = "req-qa-e2e-buyer-idem-002";
+      const buyerBody = { ...marketplaceBuyerBody(), buyerName: "PiiBuyerIdemEcho342", clientRequestId: key };
+      const before = webhook.received.filter((entry) => entry.body && entry.body.buyerName === "PiiBuyerIdemEcho342").length;
+      const first = await postJson(`${baseUrl}/api/marketplace/buyer-interest`, buyerBody);
+      const firstBody = await jsonResponse(first);
+      assert(first.status === 200, `first submit expected 200 got ${first.status}`);
+      assert(firstBody.ok === true && typeof firstBody.id === "string" && firstBody.id.length > 0, "first submit must return an interest id");
+      assert(firstBody.duplicate === false, "first submit must not be marked duplicate");
+      const retry = await postJson(`${baseUrl}/api/marketplace/buyer-interest`, buyerBody);
+      const retryBody = await jsonResponse(retry);
+      assert(retry.status === 200, `retry expected 200 got ${retry.status}`);
+      assert(retryBody.id === firstBody.id, "retry must return the ORIGINAL interest id");
+      assert(retryBody.duplicate === true, "retry must be marked duplicate:true");
+      const hits = webhook.received.filter((entry) => entry.body && entry.body.buyerName === "PiiBuyerIdemEcho342").length - before;
+      assert(hits === 1, `one tap must fire exactly one buyer webhook (got ${hits})`);
+      return `id ${firstBody.id}`;
+    });
+
+    await check("Mechanic Match mobile double-submit: same clientRequestId returns the original id with duplicate:true and fires the webhook exactly once", async () => {
+      const key = "req-qa-e2e-mech-idem-003";
+      const matchBody = { ...mechanicMatchBody(), clientRequestId: key };
+      const before = webhook.received.filter((entry) => entry.body && entry.body.intakeType === "mechanic-match-request" && entry.body.customerName === "PiiMechIdemDriver343").length;
+      const first = await postJson(`${baseUrl}/api/mechanic-match/request`, matchBody);
+      const firstBody = await jsonResponse(first);
+      assert(first.status === 200, `first submit expected 200 got ${first.status}`);
+      assert(firstBody.ok === true && typeof firstBody.id === "string" && firstBody.id.length > 0, "first submit must return a request id");
+      assert(firstBody.duplicate === false, "first submit must not be marked duplicate");
+      const retry = await postJson(`${baseUrl}/api/mechanic-match/request`, matchBody);
+      const retryBody = await jsonResponse(retry);
+      assert(retry.status === 200, `retry expected 200 got ${retry.status}`);
+      assert(retryBody.id === firstBody.id, "retry must return the ORIGINAL request id");
+      assert(retryBody.duplicate === true, "retry must be marked duplicate:true");
+      const hits = webhook.received.filter((entry) => entry.body && entry.body.intakeType === "mechanic-match-request" && entry.body.customerName === "PiiMechIdemDriver343").length - before;
+      assert(hits === 1, `one tap must fire exactly one mechanic webhook (got ${hits})`);
+      return `id ${firstBody.id}`;
+    });
+
+    await check("concierge happy path forwards payload (200, exactly one webhook)", async () => {
+      const key = "req-qa-e2e-conc-idem-004";
+      const helpBody = { ...conciergeBody(), clientRequestId: key };
+      const before = webhook.received.filter((entry) => entry.body && entry.body.intakeType === "support-concierge-request" && entry.body.customerName === "PiiConciergeIdemDriver344").length;
+      const first = await postJson(`${baseUrl}/api/support/concierge-request`, helpBody);
+      const firstBody = await jsonResponse(first);
+      assert(first.status === 200, `first submit expected 200 got ${first.status}`);
+      assert(firstBody.ok === true && typeof firstBody.id === "string" && firstBody.id.length > 0, "first submit must return a request id");
+      assert(firstBody.duplicate === false, "first submit must not be marked duplicate");
+      const hits = webhook.received.filter((entry) => entry.body && entry.body.intakeType === "support-concierge-request" && entry.body.customerName === "PiiConciergeIdemDriver344").length - before;
+      assert(hits === 1, `one submit must fire exactly one concierge webhook (got ${hits})`);
+      return `id ${firstBody.id}`;
+    });
+
     await check("receipt semantics: non-POST methods on marketplace POST-only routes -> 404 (no silent acceptance)", async () => {
     const target = `${baseUrl}/api/marketplace/seller-intake`;
     for (const method of ["GET", "PUT", "DELETE", "PATCH"]) {
@@ -1504,6 +1657,13 @@ await check("follow-up with vibrationData returns 404 for missing case after med
         "PiiBuyerNameEcho234",
         "buyer-292929@example.test",
         "555-019-2929",
+        "PiiSellerIdemAlpha341",
+        "PiiSellerIdemOutage345",
+        "PiiBuyerIdemEcho342",
+        "PiiMechIdemDriver343",
+        "mech-idem-343@example.test",
+        "PiiConciergeIdemDriver344",
+        "concierge-idem-344@example.test",
         "Anytown",
       ]) {
         assert(!output.includes(needle), `stdout contains PII: ${needle}`);
