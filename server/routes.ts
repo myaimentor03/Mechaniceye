@@ -1244,11 +1244,38 @@ function validateMechanicMatchRequest(input: MechanicMatchRequest) {
   ];
   const missingFields = requiredFields.filter((field) => !input[field]);
   const missingAcknowledgments = requiredAcknowledgments.filter((field) => !input.acknowledgments[field]);
+  const invalidFields: string[] = [];
+
+  if (input.customerEmail && !isValidMarketplaceEmail(input.customerEmail)) {
+    invalidFields.push("customerEmail");
+  }
+  if (input.customerPhone && !isValidMarketplacePhone(input.customerPhone)) {
+    invalidFields.push("customerPhone");
+  }
+  if (input.vehicleYear && !isValidMarketplaceYear(input.vehicleYear)) {
+    invalidFields.push("vehicleYear");
+  }
+  if (input.zip && !isValidMarketplaceZip(input.zip)) {
+    invalidFields.push("zip");
+  }
+  if (input.mileage && !isValidMarketplaceMileage(input.mileage)) {
+    invalidFields.push("mileage");
+  }
+  for (const field of ["customerName", "city", "state", "make", "model", "problemCategory", "canDrive", "urgency", "preferredHelpType", "permissionToShareCase"] as const) {
+    const value = input[field];
+    if (value && value.length > 160) {
+      invalidFields.push(field);
+    }
+  }
+  if (input.symptoms && input.symptoms.length > 4000) {
+    invalidFields.push("symptoms");
+  }
 
   return {
-    ok: missingFields.length === 0 && missingAcknowledgments.length === 0,
+    ok: missingFields.length === 0 && missingAcknowledgments.length === 0 && invalidFields.length === 0,
     missingFields,
-    missingAcknowledgments
+    missingAcknowledgments,
+    invalidFields
   };
 }
 
@@ -1819,6 +1846,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validation = validateMechanicMatchRequest(input);
 
       if (!validation.ok) {
+        if (validation.invalidFields.length > 0) {
+          res.status(400).json({ ok: false, error: `Invalid fields: ${validation.invalidFields.join(", ")}`, invalidFields: validation.invalidFields });
+          return;
+        }
         const missing = [
           ...validation.missingFields,
           ...validation.missingAcknowledgments.map((field) => `acknowledgments.${field}`)
