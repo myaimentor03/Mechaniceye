@@ -18,7 +18,7 @@ async function makeTemporaryFiles(files: UploadedEvidenceFiles): Promise<{ root:
   for (const [field, list] of Object.entries(files) as Array<[keyof UploadedEvidenceFiles, Express.Multer.File[]]>) {
     withPath[field] = [];
     for (const file of list ?? []) {
-      const filename = path.join(root, `${file.originalname}`);
+      const filename = path.join(root, path.basename(file.originalname));
       await writeFile(filename, file.buffer || Buffer.from("test-content"));
       withPath[field]?.push({
         ...file,
