@@ -56,9 +56,9 @@ test("findExistingCaseByClientRequestId fails closed without DB or on error (ret
 test("client preserves the same marker for retry but rotates after success — both are present in TestBackend", () => {
   const backend = source("../client/src/TestBackend.tsx");
   // Preserve path
-  assert.match(backend, /function generateClientRequestId\(\)/);
-  assert.match(backend, /const existing = window\.sessionStorage\.getItem\(storageKey\)/);
-  assert.match(backend, /if \(existing\) \{\s*setClientRequestId\(existing\);\s*return existing/);
+  assert.match(backend, /function getStableClientRequestId\(\)/);
+  assert.match(backend, /const existing = window\.sessionStorage\.getItem/);
+  assert.match(backend, /if \(existing && existing\.trim\(\)\) \{\s*setClientRequestId\(existing\);\s*return existing/);
   // Rotate after success
   assert.match(backend, /sessionStorage\.removeItem\(storageKey\)/);
   assert.match(backend, /const nextId = `req-/);

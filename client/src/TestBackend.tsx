@@ -1170,19 +1170,16 @@ type PublicPage = "home" | "intake" | "sell" | "help" | "disclaimer" | "terms" |
     }
   });
 
-  function generateClientRequestId() {
-    const storageKey = "drivable-client-request-id";
+  function getStableClientRequestId(): string {
     try {
-      const existing = window.sessionStorage.getItem(storageKey);
-      if (existing) {
+      const existing = window.sessionStorage.getItem("drivable-client-request-id");
+      if (existing && existing.trim()) {
         setClientRequestId(existing);
         return existing;
       }
     } catch {}
     const newId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-    try {
-      window.sessionStorage.setItem(storageKey, newId);
-    } catch {}
+    try { window.sessionStorage.setItem("drivable-client-request-id", newId); } catch {}
     setClientRequestId(newId);
     return newId;
   }
@@ -1449,7 +1446,7 @@ const endpoints = [PUBLIC_API_ENDPOINT];
 
     try {
       for (const endpoint of endpoints) {
-        const attemptClientRequestId = generateClientRequestId();
+        const attemptClientRequestId = getStableClientRequestId();
         const payload = {
           clientRequestId: attemptClientRequestId,
           problemCategory,

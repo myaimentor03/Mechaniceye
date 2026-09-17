@@ -15,14 +15,14 @@ function submitBlock() {
   return backend.slice(start, start + 14000);
 }
 
-test("retry preserves clientRequestId for idempotent mobile retry — generateClientRequestId reuses stored id", () => {
-  // The initial generateClientRequestId check must return existing before
+test("retry preserves clientRequestId for idempotent mobile retry — getStableClientRequestId reuses stored id", () => {
+  // The initial getStableClientRequestId check must return existing before
   // creating a new one, so a network timeout retry sends the same marker.
-  const genStart = backend.indexOf("function generateClientRequestId");
+  const genStart = backend.indexOf("function getStableClientRequestId");
   assert.ok(genStart !== -1);
   const block = backend.slice(genStart, genStart + 800);
-  assert.match(block, /sessionStorage\.getItem\(storageKey\)/);
-  assert.match(block, /if \(existing\) \{[\s\S]*return existing/);
+  assert.match(block, /sessionStorage\.getItem\(/);
+  assert.match(block, /if \(existing && existing\.trim\(\)\) \{[\s\S]*return existing/);
 });
 
 test("after successful intake the stored clientRequestId is rotated so the next case is not collapsed", () => {

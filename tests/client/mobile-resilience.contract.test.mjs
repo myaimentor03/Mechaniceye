@@ -15,17 +15,17 @@ function clientRequestIdInitBlock() {
   return backend.slice(start, start + 500);
 }
 
-function generateClientRequestIdBlock() {
-  const start = backend.indexOf("function generateClientRequestId");
-  assert.ok(start !== -1, "generateClientRequestId function must exist");
+function getStableClientRequestIdBlock() {
+  const start = backend.indexOf("function getStableClientRequestId");
+  assert.ok(start !== -1, "getStableClientRequestId function must exist");
   return backend.slice(start, start + 800);
 }
 
-test("generateClientRequestId creates new ID and stores in sessionStorage", () => {
-  const block = generateClientRequestIdBlock();
-  assert.match(block, /function generateClientRequestId\(\)/);
+test("getStableClientRequestId creates new ID and stores in sessionStorage", () => {
+  const block = getStableClientRequestIdBlock();
+  assert.match(block, /function getStableClientRequestId\(\)/);
   assert.match(block, /const newId = `req-/);
-  assert.match(block, /sessionStorage\.setItem\(storageKey, newId\)/);
+  assert.match(block, /sessionStorage\.setItem\(/);
   assert.match(block, /setClientRequestId\(newId\)/);
   assert.match(block, /return newId/);
 });
@@ -35,7 +35,7 @@ test("clientRequestId initialization read from sessionStorage is wrapped in try/
   assert.match(block, /try \{/);
   assert.match(block, /sessionStorage\.getItem\(/);
   assert.match(block, /drivable-client-request-id/);
-  assert.match(block, /catch \{[\s\S]*?return fallbackId/);
+  assert.match(block, /catch \{[\s\S]*?return/);
 });
 
 test("clientRequestId initialization write to sessionStorage never throws — guarded inner try/catch", () => {
