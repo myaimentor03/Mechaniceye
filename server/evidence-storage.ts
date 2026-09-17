@@ -38,6 +38,9 @@ function verifiedImageType(buffer: Buffer): VerifiedImage | null {
 export interface EvidenceStore {
   readonly durability: "runtime_local" | "private_object_storage";
   savePhotos(caseId: string, files: Express.Multer.File[]): Promise<EvidenceAttachment[]>;
+  saveAudio(caseId: string, files: Express.Multer.File[]): Promise<EvidenceAttachment[]>;
+  saveVideo(caseId: string, files: Express.Multer.File[]): Promise<EvidenceAttachment[]>;
+  saveVibration(caseId: string, files: Express.Multer.File[]): Promise<EvidenceAttachment[]>;
   deleteCase(caseId: string): Promise<void>;
   getAttachment(caseId: string, attachmentId: string): Promise<{ attachment: EvidenceAttachment; bytes: Buffer } | null>;
 }
@@ -92,6 +95,108 @@ export class RuntimeFileEvidenceStore implements EvidenceStore {
           mimeType: verified.mimeType, byteSize: file.size, status: "persisted",
           serverAttachmentId: id, storageKey, createdAt: new Date().toISOString(),
           provenance: "uploaded_media", analysisStatus: "uploaded_not_analyzed",
+        });
+      }
+
+      await fs.writeFile(path.join(caseRoot, "attachments.json"), JSON.stringify(attachments, null, 2), { encoding: "utf8", flag: "wx" });
+      return attachments;
+    } catch (error) {
+      await Promise.all(writtenPaths.map((filePath) => fs.rm(filePath, { force: true })));
+      await fs.rm(caseRoot, { recursive: true, force: true });
+      throw error;
+    }
+  }
+
+  async saveAudio(caseId: string, files: Express.Multer.File[]) {
+    if (files.length > PHOTO_LIMITS.maxCount) throw new Error("Too many audio files");
+    const caseRoot = this.caseRoot(caseId);
+    await fs.mkdir(caseRoot, { recursive: true });
+    const attachments: EvidenceAttachment[] = [];
+    const writtenPaths: string[] = [];
+
+    try {
+      for (const file of files) {
+        if (!file.buffer?.length || file.size <= 0) throw new Error("Empty audio rejected");
+        if (file.size > PHOTO_LIMITS.maxBytesEach) throw new Error("Audio is too large");
+        const id = randomUUID();
+        const storedName = `${id}${path.extname(file.originalname)}`;
+        const target = path.join(caseRoot, storedName);
+        await fs.writeFile(target, file.buffer, { flag: "wx" });
+        writtenPaths.push(target);
+        attachments.push({
+          id, caseId, kind: "audio", originalName: path.basename(file.originalname),
+          mimeType: file.mimetype, byteSize: file.size, status: "persisted",
+          serverAttachmentId: id, storageKey: path.posix.join("evidence", safeCaseSegment(caseId), storedName),
+          createdAt: new Date().toISOString(), analysisStatus: "uploaded_not_analyzed",
+          provenance: "uploaded_media",
+        });
+      }
+
+      await fs.writeFile(path.join(caseRoot, "attachments.json"), JSON.stringify(attachments, null, 2), { encoding: "utf8", flag: "wx" });
+      return attachments;
+    } catch (error) {
+      await Promise.all(writtenPaths.map((filePath) => fs.rm(filePath, { force: true })));
+      await fs.rm(caseRoot, { recursive: true, force: true });
+      throw error;
+    }
+  }
+
+  async saveVideo(caseId: string, files: Express.Multer.File[]) {
+    if (files.length > PHOTO_LIMITS.maxCount) throw new Error("Too many video files");
+    const caseRoot = this.caseRoot(caseId);
+    await fs.mkdir(caseRoot, { recursive: true });
+    const attachments: EvidenceAttachment[] = [];
+    const writtenPaths: string[] = [];
+
+    try {
+      for (const file of files) {
+        if (!file.buffer?.length || file.size <= 0) throw new Error("Empty video rejected");
+        if (file.size > PHOTO_LIMITS.maxBytesEach) throw new Error("Video is too large");
+        const id = randomUUID();
+        const storedName = `${id}${path.extname(file.originalname)}`;
+        const target = path.join(caseRoot, storedName);
+        await fs.writeFile(target, file.buffer, { flag: "wx" });
+        writtenPaths.push(target);
+        attachments.push({
+          id, caseId, kind: "video", originalName: path.basename(file.originalname),
+          mimeType: file.mimetype, byteSize: file.size, status: "persisted",
+          serverAttachmentId: id, storageKey: path.posix.join("evidence", safeCaseSegment(caseId), storedName),
+          createdAt: new Date().toISOString(), analysisStatus: "uploaded_not_analyzed",
+          provenance: "uploaded_media",
+        });
+      }
+
+      await fs.writeFile(path.join(caseRoot, "attachments.json"), JSON.stringify(attachments, null, 2), { encoding: "utf8", flag: "wx" });
+      return attachments;
+    } catch (error) {
+      await Promise.all(writtenPaths.map((filePath) => fs.rm(filePath, { force: true })));
+      await fs.rm(caseRoot, { recursive: true, force: true });
+      throw error;
+    }
+  }
+
+  async saveVibration(caseId: string, files: Express.Multer.File[]) {
+    if (files.length > PHOTO_LIMITS.maxCount) throw new Error("Too many vibration files");
+    const caseRoot = this.caseRoot(caseId);
+    await fs.mkdir(caseRoot, { recursive: true });
+    const attachments: EvidenceAttachment[] = [];
+    const writtenPaths: string[] = [];
+
+    try {
+      for (const file of files) {
+        if (!file.buffer?.length || file.size <= 0) throw new Error("Empty vibration file rejected");
+        if (file.size > PHOTO_LIMITS.maxBytesEach) throw new Error("Vibration file is too large");
+        const id = randomUUID();
+        const storedName = `${id}${path.extname(file.originalname)}`;
+        const target = path.join(caseRoot, storedName);
+        await fs.writeFile(target, file.buffer, { flag: "wx" });
+        writtenPaths.push(target);
+        attachments.push({
+          id, caseId, kind: "vibration", originalName: path.basename(file.originalname),
+          mimeType: file.mimetype, byteSize: file.size, status: "persisted",
+          serverAttachmentId: id, storageKey: path.posix.join("evidence", safeCaseSegment(caseId), storedName),
+          createdAt: new Date().toISOString(), analysisStatus: "uploaded_not_analyzed",
+          provenance: "uploaded_media",
         });
       }
 
@@ -209,6 +314,135 @@ export class S3PrivateEvidenceStore implements EvidenceStore {
         ContentType: "application/json",
         CacheControl: "no-store",
         Metadata: evidenceObjectMetadata(safeCaseId, "application/json"),
+      }));
+      writtenKeys.push(key);
+      return attachments;
+    } catch (error) {
+      await Promise.allSettled(writtenKeys.map((Key) => this.client.send(new DeleteObjectCommand({ Bucket: this.config.bucket, Key }))));
+      throw error;
+    }
+  }
+
+  async saveAudio(caseId: string, files: Express.Multer.File[]) {
+    if (files.length > PHOTO_LIMITS.maxCount) throw new Error("Too many audio files");
+    const safeCaseId = safeCaseSegment(caseId);
+    const attachments: EvidenceAttachment[] = [];
+    const writtenKeys: string[] = [];
+    try {
+      for (const file of files) {
+        if (!file.buffer?.length || file.size <= 0) throw new Error("Empty audio rejected");
+        if (file.size > PHOTO_LIMITS.maxBytesEach) throw new Error("Audio is too large");
+        const id = randomUUID();
+        const storageKey = path.posix.join("evidence", safeCaseId, `${id}${path.extname(file.originalname)}`);
+        await this.client.send(new PutObjectCommand({
+          Bucket: this.config.bucket,
+          Key: storageKey,
+          Body: file.buffer,
+          ContentType: file.mimetype,
+          CacheControl: "no-store",
+        }));
+        writtenKeys.push(storageKey);
+        attachments.push({
+          id, caseId: safeCaseId, kind: "audio", originalName: path.basename(file.originalname),
+          mimeType: file.mimetype, byteSize: file.size, status: "persisted",
+          serverAttachmentId: id, storageKey,
+          createdAt: new Date().toISOString(), analysisStatus: "uploaded_not_analyzed",
+          provenance: "uploaded_media",
+        });
+      }
+      const key = manifestKey(safeCaseId);
+      await this.client.send(new PutObjectCommand({
+        Bucket: this.config.bucket,
+        Key: key,
+        Body: Buffer.from(JSON.stringify(attachments)),
+        ContentType: "application/json",
+        CacheControl: "no-store",
+      }));
+      writtenKeys.push(key);
+      return attachments;
+    } catch (error) {
+      await Promise.allSettled(writtenKeys.map((Key) => this.client.send(new DeleteObjectCommand({ Bucket: this.config.bucket, Key }))));
+      throw error;
+    }
+  }
+
+  async saveVideo(caseId: string, files: Express.Multer.File[]) {
+    if (files.length > PHOTO_LIMITS.maxCount) throw new Error("Too many video files");
+    const safeCaseId = safeCaseSegment(caseId);
+    const attachments: EvidenceAttachment[] = [];
+    const writtenKeys: string[] = [];
+    try {
+      for (const file of files) {
+        if (!file.buffer?.length || file.size <= 0) throw new Error("Empty video rejected");
+        if (file.size > PHOTO_LIMITS.maxBytesEach) throw new Error("Video is too large");
+        const id = randomUUID();
+        const storageKey = path.posix.join("evidence", safeCaseId, `${id}${path.extname(file.originalname)}`);
+        await this.client.send(new PutObjectCommand({
+          Bucket: this.config.bucket,
+          Key: storageKey,
+          Body: file.buffer,
+          ContentType: file.mimetype,
+          CacheControl: "no-store",
+        }));
+        writtenKeys.push(storageKey);
+        attachments.push({
+          id, caseId: safeCaseId, kind: "video", originalName: path.basename(file.originalname),
+          mimeType: file.mimetype, byteSize: file.size, status: "persisted",
+          serverAttachmentId: id, storageKey,
+          createdAt: new Date().toISOString(), analysisStatus: "uploaded_not_analyzed",
+          provenance: "uploaded_media",
+        });
+      }
+      const key = manifestKey(safeCaseId);
+      await this.client.send(new PutObjectCommand({
+        Bucket: this.config.bucket,
+        Key: key,
+        Body: Buffer.from(JSON.stringify(attachments)),
+        ContentType: "application/json",
+        CacheControl: "no-store",
+      }));
+      writtenKeys.push(key);
+      return attachments;
+    } catch (error) {
+      await Promise.allSettled(writtenKeys.map((Key) => this.client.send(new DeleteObjectCommand({ Bucket: this.config.bucket, Key }))));
+      throw error;
+    }
+  }
+
+  async saveVibration(caseId: string, files: Express.Multer.File[]) {
+    if (files.length > PHOTO_LIMITS.maxCount) throw new Error("Too many vibration files");
+    const safeCaseId = safeCaseSegment(caseId);
+    const attachments: EvidenceAttachment[] = [];
+    const writtenKeys: string[] = [];
+    try {
+      for (const file of files) {
+        if (!file.buffer?.length || file.size <= 0) throw new Error("Empty vibration file rejected");
+        if (file.size > PHOTO_LIMITS.maxBytesEach) throw new Error("Vibration file is too large");
+        const id = randomUUID();
+        const storageKey = path.posix.join("evidence", safeCaseId, `${id}${path.extname(file.originalname)}`);
+        await this.client.send(new PutObjectCommand({
+          Bucket: this.config.bucket,
+          Key: storageKey,
+          Body: file.buffer,
+          ContentType: file.mimetype,
+          CacheControl: "no-store",
+        }));
+        writtenKeys.push(storageKey);
+        attachments.push({
+          id, caseId: safeCaseId, kind: "vibration", originalName: path.basename(file.originalname),
+          mimeType: file.mimetype, byteSize: file.size, status: "persisted",
+          serverAttachmentId: id, storageKey,
+          createdAt: new Date().toISOString(), analysisStatus: "uploaded_not_analyzed",
+          provenance: "uploaded_media",
+        });
+      }
+      const key = manifestKey(safeCaseId);
+      await this.client.send(new PutObjectCommand({
+        Bucket: this.config.bucket,
+        Key: key,
+        Body: Buffer.from(JSON.stringify(attachments)),
+        ContentType: "application/json",
+        CacheControl: "no-store",
       }));
       writtenKeys.push(key);
       return attachments;

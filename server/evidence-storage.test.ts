@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { drivableEvidenceIntakeSchema } from "../shared/drivableEvidence.js";
-import { RuntimeFileEvidenceStore, S3PrivateEvidenceStore } from "./evidence-storage.js";
+import { RuntimeFileEvidenceStore, S3PrivateEvidenceStore, PHOTO_LIMITS } from "./evidence-storage.js";
 
 function upload(buffer: Buffer, originalname = "dash.jpg", mimetype = "image/jpeg") {
   return { buffer, originalname, mimetype, size: buffer.length } as Express.Multer.File;
@@ -259,4 +259,113 @@ test("HEIC brand detection works through S3 private object storage", async () =>
     assert.equal(attachment.mimeType, "image/heic", `S3 store: brand ${brand} must detect as image/heic`);
     assert.match(attachment.storageKey, /\.heic$/, `S3 store: brand ${brand} must get .heic extension`);
   }
+});
+
+test("runtime store persists audio attachments with correct metadata", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-audio-"));
+  try {
+    const store = new RuntimeFileEvidenceStore(root);
+    const bytes = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+    const [attachment] = await store.saveAudio("CASE-AUDIO", [upload(bytes, "note.mp3", "audio/mpeg")]);
+    assert.equal(attachment.caseId, "CASE-AUDIO");
+    assert.equal(attachment.kind, "audio");
+    assert.equal(attachment.analysisStatus, "uploaded_not_analyzed");
+    assert.match(attachment.storageKey, /^evidence\/CASE-AUDIO\/[0-9a-f-]+\.mp3$/);
+    assert.deepEqual(await readFile(path.join(root, "CASE-AUDIO", path.basename(attachment.storageKey))), bytes);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("runtime store persists video attachments with correct metadata", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-video-"));
+  try {
+    const store = new RuntimeFileEvidenceStore(root);
+    const bytes = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+    const [attachment] = await store.saveVideo("CASE-VIDEO", [upload(bytes, "clip.mp4", "video/mp4")]);
+    assert.equal(attachment.caseId, "CASE-VIDEO");
+    assert.equal(attachment.kind, "video");
+    assert.equal(attachment.analysisStatus, "uploaded_not_analyzed");
+    assert.match(attachment.storageKey, /^evidence\/CASE-VIDEO\/[0-9a-f-]+\.mp4$/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("runtime store persists vibration attachments with correct metadata", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-vibration-"));
+  try {
+    const store = new RuntimeFileEvidenceStore(root);
+    const bytes = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+    const [attachment] = await store.saveVibration("CASE-VIB", [upload(bytes, "vib.bin", "application/octet-stream")]);
+    assert.equal(attachment.caseId, "CASE-VIB");
+    assert.equal(attachment.kind, "vibration");
+    assert.equal(attachment.analysisStatus, "uploaded_not_analyzed");
+    assert.match(attachment.storageKey, /^evidence\/CASE-VIB\/[0-9a-f-]+\.bin$/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("runtime store rejects oversized audio/video/vibration files", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-limit-"));
+  try {
+    const store = new RuntimeFileEvidenceStore(root);
+    const big = Buffer.alloc(PHOTO_LIMITS.maxBytesEach + 1);
+    await assert.rejects(() => store.saveAudio("CASE-LIMIT", [upload(big, "big.mp3", "audio/mpeg")]), /too large/i);
+    await assert.rejects(() => store.saveVideo("CASE-LIMIT", [upload(big, "big.mp4", "video/mp4")]), /too large/i);
+    await assert.rejects(() => store.saveVibration("CASE-LIMIT", [upload(big, "big.bin", "application/octet-stream")]), /too large/i);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("runtime store does not duplicate case directory when called twice", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-dup-"));
+  try {
+    const store = new RuntimeFileEvidenceStore(root);
+    const bytes = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+    const [attachment] = await store.saveAudio("CASE-DUP", [upload(bytes, "note.mp3", "audio/mpeg")]);
+    const caseRoot = path.join(root, "CASE-DUP");
+    const manifest = JSON.parse(await readFile(path.join(caseRoot, "attachments.json"), "utf8"));
+    assert.equal(manifest.length, 1);
+    assert.equal(manifest[0].id, attachment.id);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("S3 store persists audio/video/vibration and rolls back on failure", async () => {
+  const objects = new Map<string, Buffer>();
+  const client = {
+    async send(command: any) {
+      const name = command.constructor.name;
+      const key = command.input.Key as string;
+      if (name === "PutObjectCommand") {
+        objects.set(key, Buffer.from(command.input.Body));
+        return {};
+      }
+      if (name === "GetObjectCommand") {
+        const value = objects.get(key);
+        if (!value) throw Object.assign(new Error("missing"), { name: "NoSuchKey" });
+        return { Body: { transformToByteArray: async () => value } };
+      }
+      if (name === "DeleteObjectCommand") {
+        objects.delete(key);
+        return {};
+      }
+      throw new Error(`Unexpected command ${name}`);
+    },
+  };
+  const store = new S3PrivateEvidenceStore({ bucket: "test", region: "test-1" }, client);
+  const bytes = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+  const [audio] = await store.saveAudio("CASE-S3-AUDIO", [upload(bytes, "note.mp3", "audio/mpeg")]);
+  const [video] = await store.saveVideo("CASE-S3-VIDEO", [upload(bytes, "clip.mp4", "video/mp4")]);
+  const [vib] = await store.saveVibration("CASE-S3-VIB", [upload(bytes, "vib.bin", "application/octet-stream")]);
+  assert.equal(audio.kind, "audio");
+  assert.equal(video.kind, "video");
+  assert.equal(vib.kind, "vibration");
+  assert.equal(objects.has("evidence/CASE-S3-AUDIO/attachments.json"), true);
+  assert.equal(objects.has("evidence/CASE-S3-VIDEO/attachments.json"), true);
+  assert.equal(objects.has("evidence/CASE-S3-VIB/attachments.json"), true);
 });

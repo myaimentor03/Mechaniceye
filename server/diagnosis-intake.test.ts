@@ -747,7 +747,7 @@ test("diagnosis intake rejects total evidence file count exceeding limit (413)",
   );
 });
 
-test("diagnosis intake rejects audio/video via app-level guard (415)", async () => {
+test("diagnosis intake accepts audio/video through the media pipeline", async () => {
   await withServer(
     {
       DRIVABLE_PHOTO_UPLOAD_ENABLED: "true",
@@ -761,10 +761,11 @@ test("diagnosis intake rejects audio/video via app-level guard (415)", async () 
       Object.entries(validDiagnosisBody()).forEach(([key, value]) => {
         formData.append(key, typeof value === "string" ? value : JSON.stringify(value));
       });
-      // audio is a valid multer field, but the route handler rejects it
-      // This tests the app-level guard after multer succeeds
       const audioBuffer = Buffer.alloc(1024, 0xff);
       formData.append("audio", new Blob([audioBuffer], { type: "audio/mpeg" }), "engine-sound.mp3");
+      const videoBuffer = Buffer.alloc(1024, 0xff);
+      formData.append("video", new Blob([videoBuffer], { type: "video/mp4" }), "clip.mp4");
+      formData.append("vibrationData", JSON.stringify({ samples: [0.1] }));
 
       const response = await fetch(`${origin}/api/diagnoses`, {
         method: "POST",
@@ -772,10 +773,9 @@ test("diagnosis intake rejects audio/video via app-level guard (415)", async () 
         body: formData,
       });
 
-      assert.equal(response.status, 415);
+      assert.notEqual(response.status, 415, "audio/video/vibration must not be rejected with UNSUPPORTED_MEDIA_TYPE");
       const body = await response.json();
-      assert.equal(body.code, "UNSUPPORTED_MEDIA_TYPE");
-      assert.equal(body.persisted, false);
+      assert.equal(body.code !== "UNSUPPORTED_MEDIA_TYPE", true, "must not have UNSUPPORTED_MEDIA_TYPE code");
     }
   );
 });

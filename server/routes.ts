@@ -1772,9 +1772,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.setHeader("Cache-Control", "no-store");
     res.json({
       photoUpload: process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && evidenceStore.durability === "private_object_storage",
-      audioUpload: false,
-      videoUpload: false,
-      vibrationSensorCapture: false,
+      audioUpload: process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && evidenceStore.durability === "private_object_storage",
+      videoUpload: process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && evidenceStore.durability === "private_object_storage",
+      vibrationSensorCapture: process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && evidenceStore.durability === "private_object_storage",
     });
   });
 
@@ -2296,9 +2296,10 @@ try {
       video: uploadedFiles.video,
       vibration: uploadedFiles.vibration,
     };
-    const hasMobileMedia = ["audio", "video", "vibration"].some((field) =>
-      (mobileMediaFiles as Record<string, Express.Multer.File[] | undefined>)[field]?.length
-    );
+    const audioFiles = uploadedFiles.audio || [];
+    const videoFiles = uploadedFiles.video || [];
+    const vibrationFiles = uploadedFiles.vibration || [];
+    const hasMobileMedia = audioFiles.length > 0 || videoFiles.length > 0 || vibrationFiles.length > 0;
 
     let input: DiagnosisInput;
     let evidenceIntake;
@@ -2370,16 +2371,6 @@ try {
         persisted: false,
       });
     }
-    if (hasMobileMedia) {
-      // Photo-first release: audio/video/vibration capture is not advertised, so
-      // those parts are rejected outright rather than silently dropped.
-      await removeIntakeTempFiles(uploadedFiles);
-      return res.status(415).json({
-        message: "Audio, video, and vibration capture are not supported yet. You can submit photos along with written symptoms and OBD-II codes.",
-        code: "UNSUPPORTED_MEDIA_TYPE",
-        persisted: false,
-      });
-    }
     let responseBody: DiagnosisCaseResponse;
     let storedCase: StoredDiagnosisCase | undefined;
     let usedPublicFallback = false;
@@ -2408,7 +2399,7 @@ try {
             accountId: req.drivableCustomer!.id,
             caseId: responseBody.id,
             choices: consentChoices,
-            hasMedia: photoFiles.length > 0 || hasMobileMedia,
+            hasMedia: photoFiles.length > 0 || audioFiles.length > 0 || videoFiles.length > 0 || vibrationFiles.length > 0,
           });
         } catch (consentError) {
           const status = consentError instanceof IntakeConsentError && consentError.code === "CONSENT_REQUIRED" ? 400 : 503;
@@ -2459,9 +2450,13 @@ if (photoFiles.length) {
         }
       }
 
-      if (hasMobileMedia) {
+      if (audioFiles.length || videoFiles.length || vibrationFiles.length) {
         try {
-          storedR2Keys = await storeEvidenceFiles(responseBody.id, mobileMediaFiles);
+          storedR2Keys = await storeEvidenceFiles(responseBody.id, {
+            ...(audioFiles.length && { audio: audioFiles }),
+            ...(videoFiles.length && { video: videoFiles }),
+            ...(vibrationFiles.length && { vibration: vibrationFiles }),
+          });
           if (storedR2Keys.audio?.length) input.audioFileNames = storedR2Keys.audio;
           if (storedR2Keys.video?.length) input.videoFileNames = storedR2Keys.video;
           if (storedR2Keys.vibration?.length) input.vibrationFileNames = storedR2Keys.vibration;
@@ -2470,14 +2465,14 @@ if (photoFiles.length) {
           if (storedR2Keys.vibration?.length) input.vibrationEvidenceStatus = "Persisted";
           if (!responseBody.evidencePersistence) {
             responseBody.evidencePersistence = {
-              durability: "private_object_storage",
-              durableStorageConfigured: true,
+              durability: evidenceStore.durability,
+              durableStorageConfigured: evidenceStore.durability === "private_object_storage",
               analysisStatus: "uploaded_not_analyzed",
             };
           }
         } catch (storageError) {
           logEventError("api.media_evidence_persistence_failed", storageError);
-          await removeIntakeTempFiles(mobileMediaFiles);
+          await removeIntakeTempFiles({ audio: audioFiles, video: videoFiles, vibration: vibrationFiles });
           return res.status(507).json({
             message: "The case could not be completed because its media evidence was not persisted. Please try again.",
             caseId: responseBody.id,
@@ -2543,16 +2538,6 @@ if (photoFiles.length) {
     try {
       const diagnosisId = req.params.id;
 
-      const hasMobileMedia = ["audio", "video"].some((field) => files[field]?.length) || Boolean(req.body.vibrationData);
-      if (hasMobileMedia) {
-        await cleanupTemporaryFiles();
-        return res.status(415).json({
-          message: "Audio, video, and vibration capture are not supported yet. You can submit photos along with written symptoms and OBD-II codes.",
-          code: "UNSUPPORTED_MEDIA_TYPE",
-          persisted: false,
-        });
-      }
-      
       // Get original diagnosis
       const originalDiagnosis = await storage.getDiagnosis(diagnosisId);
       if (!originalDiagnosis) {
@@ -2567,7 +2552,7 @@ if (photoFiles.length) {
         additionalInfo: req.body.additionalInfo,
         newAudioFile: files?.audio?.[0]?.filename || null,
         newVideoFile: files?.video?.[0]?.filename || null,
-        newVibrationData: null,
+        newVibrationData: req.body.vibrationData || null,
       };
 
       const followUp = await storage.createFollowUp(followUpData);

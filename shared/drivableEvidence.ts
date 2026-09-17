@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const evidenceModes = ["diagnose", "buy", "sell"] as const;
 export const evidenceKinds = [
-  "photo", "audio", "video", "document", "obd_screenshot", "sensor_session",
+  "photo", "audio", "video", "document", "obd_screenshot", "sensor_session", "vibration",
 ] as const;
 export const evidenceProvenance = [
   "customer_observation", "buyer_observation", "seller_claim",

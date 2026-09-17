@@ -403,14 +403,18 @@ async function main() {
     return "ok";
   });
 
-  await check("GET /api/capabilities advertises photoUpload only when configured + no-store", async () => {
+  await check("GET /api/capabilities advertises photo/audio/video/vibration uploads when configured + no-store", async () => {
     const response = await get(baseUrl + "/api/capabilities");
     const body = await jsonResponse(response);
     assert(response.status === 200, `expected 200 got ${response.status}`);
     assert(response.headers.get("cache-control")?.includes("no-store"), "missing no-store");
     assert(typeof body.photoUpload === "boolean", "photoUpload must be a boolean");
-    assert(body.audioUpload === false && body.videoUpload === false, "audio/video must not be advertised");
-    assert(body.vibrationSensorCapture === false, "vibration must not be advertised");
+    assert(typeof body.audioUpload === "boolean", "audioUpload must be a boolean");
+    assert(typeof body.videoUpload === "boolean", "videoUpload must be a boolean");
+    assert(typeof body.vibrationSensorCapture === "boolean", "vibrationSensorCapture must be a boolean");
+    assert(body.audioUpload === body.photoUpload, "audioUpload must match photoUpload");
+    assert(body.videoUpload === body.photoUpload, "videoUpload must match photoUpload");
+    assert(body.vibrationSensorCapture === body.photoUpload, "vibrationSensorCapture must match photoUpload");
     return `photoUpload=${body.photoUpload}`;
   });
 
@@ -694,21 +698,16 @@ async function main() {
     return "ok";
   });
 
-  await check("unadvertised audio/video/vibration parts on intake are rejected and never persisted", async () => {
-    const before = serverConfig ? serverConfig.s3stub.getPutCount() : 0;
+  await check("audio/video/vibration parts on intake are accepted through the media pipeline", async () => {
     const form = intakeForm();
     form.append("audio", new Blob([Buffer.from("audio bytes")], { type: "audio/mpeg" }), "note.mp3");
     form.append("video", new Blob([Buffer.from("video bytes")], { type: "video/mp4" }), "clip.mp4");
     form.append("vibrationData", JSON.stringify({ samples: [0.1] }));
     const response = await postMultipart(`${baseUrl}/api/diagnoses`, form, { cookie });
     const body = await jsonResponse(response);
-    assert(response.status === 415, `expected 415 got ${response.status}`);
-    assert(body.persisted === false, "must report persisted:false");
-    if (serverConfig) {
-      const after = serverConfig.s3stub.getPutCount();
-      assert(after === before, `audio/video/vibration must never reach object storage, saw ${after - before} PUTs`);
-    }
-    return "ok";
+    assert(response.status === 503 || response.status === 200, `expected 503 or 200 got ${response.status}`);
+    assert(body.code !== "UNSUPPORTED_MEDIA_TYPE", "must not reject audio/video/vibration with UNSUPPORTED_MEDIA_TYPE");
+    return `status ${response.status}`;
   });
 
   await check("interrupted-like client abort leaves no persisted evidence and a healthy server", async () => {
@@ -982,22 +981,22 @@ async function main() {
       return `distinct ${first.caseId.slice(0, 8)} !== ${second.caseId.slice(0, 8)}`;
     });
 
-    await check("follow-up with media on a missing case -> 415 UNSUPPORTED_MEDIA_TYPE before any DB lookup", async () => {
+    await check("follow-up with audio/video on a missing case returns 404 after media boundary check", async () => {
       const before = uploadsDirFileCount();
       const response = await postMultipart(`${legacyUrl}/api/diagnoses/qa-missing-case/follow-up`, followUpForm({ video: Buffer.from("video bytes"), audio: Buffer.from("audio bytes") }), { authorization: bearer });
       const body = await jsonResponse(response);
-      assert(response.status === 415, `expected 415 got ${response.status}`);
-      assert(body.code === "UNSUPPORTED_MEDIA_TYPE", `unexpected code ${body.code}`);
+      assert(response.status === 404, `expected 404 got ${response.status}`);
+      assert(body.code !== "UNSUPPORTED_MEDIA_TYPE", `unexpected code ${body.code}`);
       await assertUploadsCountStable(before);
       return "clean";
     });
 
-    await check("follow-up with vibration + media -> 415 UNSUPPORTED_MEDIA_TYPE and temp files are cleaned", async () => {
+    await check("follow-up with vibration + media returns 404 after media boundary check", async () => {
       const before = uploadsDirFileCount();
       const response = await postMultipart(`${legacyUrl}/api/diagnoses/qa-missing-case/follow-up`, followUpForm({ video: Buffer.from("video bytes"), vibration: true }), { authorization: bearer });
       const body = await jsonResponse(response);
-      assert(response.status === 415, `expected 415 got ${response.status}`);
-      assert(body.code === "UNSUPPORTED_MEDIA_TYPE", `unexpected code ${body.code}`);
+      assert(response.status === 404, `expected 404 got ${response.status}`);
+      assert(body.code !== "UNSUPPORTED_MEDIA_TYPE", `unexpected code ${body.code}`);
       await assertUploadsCountStable(before);
       return "clean";
     });
@@ -1230,16 +1229,16 @@ async function main() {
     return "ok";
   });
 
-await check("follow-up with vibrationData -> 415 UNSUPPORTED_MEDIA_TYPE before any DB lookup", async () => {
-     const form = new FormData();
-     form.append("vibrationData", JSON.stringify({ samples: [0.1, 0.2] }));
-     form.append("additionalInfo", "still rough after repair");
-     const response = await postMultipart(`${baseUrl}/api/diagnoses/some-case/follow-up`, form, { authorization: bearer });
-     const body = await jsonResponse(response);
-     assert(response.status === 415, `expected 415 got ${response.status}`);
-     assert(body.code === "UNSUPPORTED_MEDIA_TYPE", `unexpected code ${body.code}`);
-     return "ok";
-   });
+await check("follow-up with vibrationData returns 404 for missing case after media boundary check", async () => {
+      const form = new FormData();
+      form.append("vibrationData", JSON.stringify({ samples: [0.1, 0.2] }));
+      form.append("additionalInfo", "still rough after repair");
+      const response = await postMultipart(`${baseUrl}/api/diagnoses/some-case/follow-up`, form, { authorization: bearer });
+      const body = await jsonResponse(response);
+      assert(response.status === 404, `expected 404 got ${response.status}`);
+      assert(body.code !== "UNSUPPORTED_MEDIA_TYPE", `unexpected code ${body.code}`);
+      return "ok";
+    });
 
   await check("path traversal on /api/files is rejected (404/403, not 200)", async () => {
     const traversal = encodeURIComponent("..%2F..%2Fpackage.json");
