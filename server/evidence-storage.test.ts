@@ -553,4 +553,99 @@ test("runtime store rolls back on MIME/content type mismatch rejection", async (
   }
 });
 
+test("runtime store rolls back on empty audio rejection (no leftover manifest)", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-empty-audio-"));
+  try {
+    const store = new RuntimeFileEvidenceStore(root);
+    const emptyFile = { buffer: Buffer.alloc(0), originalname: "empty.mp3", mimetype: "audio/mpeg", size: 0 } as Express.Multer.File;
+    await assert.rejects(() => store.saveAudio("CASE-EMPTY-AUDIO", [emptyFile]), /Empty audio rejected|Media has no readable content/);
+    await assert.rejects(() => readFile(path.join(root, "CASE-EMPTY-AUDIO", "attachments.json")), /ENOENT/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("runtime store rolls back on empty video rejection (no leftover manifest)", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-empty-video-"));
+  try {
+    const store = new RuntimeFileEvidenceStore(root);
+    const emptyFile = { buffer: Buffer.alloc(0), originalname: "empty.mp4", mimetype: "video/mp4", size: 0 } as Express.Multer.File;
+    await assert.rejects(() => store.saveVideo("CASE-EMPTY-VIDEO", [emptyFile]), /Empty video rejected|Media has no readable content/);
+    await assert.rejects(() => readFile(path.join(root, "CASE-EMPTY-VIDEO", "attachments.json")), /ENOENT/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("runtime store rolls back on empty vibration rejection (no leftover manifest)", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-empty-vib-"));
+  try {
+    const store = new RuntimeFileEvidenceStore(root);
+    const emptyFile = { buffer: Buffer.alloc(0), originalname: "empty.bin", mimetype: "application/octet-stream", size: 0 } as Express.Multer.File;
+    await assert.rejects(() => store.saveVibration("CASE-EMPTY-VIB", [emptyFile]), /Empty vibration|Media has no readable content/);
+    await assert.rejects(() => readFile(path.join(root, "CASE-EMPTY-VIB", "attachments.json")), /ENOENT/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("runtime store rolls back already-written audio when second file is empty (mobile retry / partial batch)", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-partial-audio-"));
+  try {
+    const store = new RuntimeFileEvidenceStore(root);
+    const good = { buffer: Buffer.from([0x01, 0x02]), originalname: "good.mp3", mimetype: "audio/mpeg", size: 2 } as Express.Multer.File;
+    const empty = { buffer: Buffer.alloc(0), originalname: "empty.mp3", mimetype: "audio/mpeg", size: 0 } as Express.Multer.File;
+    await assert.rejects(() => store.saveAudio("CASE-PARTIAL-AUDIO", [good, empty]), /Empty audio rejected|Media has no readable content/);
+    await assert.rejects(() => readFile(path.join(root, "CASE-PARTIAL-AUDIO", "attachments.json")), /ENOENT/);
+    // The first file's bytes must have been cleaned up — no orphan left on disk.
+    const caseRoot = path.join(root, "CASE-PARTIAL-AUDIO");
+    let exists = true;
+    try { await readFile(path.join(caseRoot, "attachments.json")); } catch (e: any) { if (e?.code === "ENOENT") exists = false; }
+    assert.equal(exists, false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("S3 store rolls back audio/video/vibration on empty-file rejection with no objects written", async () => {
+  const written = new Set<string>();
+  const client = {
+    async send(command: any) {
+      const name = command.constructor.name;
+      const key = command.input.Key as string;
+      if (name === "PutObjectCommand") { written.add(key); return {}; }
+      if (name === "DeleteObjectCommand") { written.delete(key); return {}; }
+      throw new Error(`Unexpected ${name}`);
+    },
+  };
+  const store = new S3PrivateEvidenceStore({ bucket: "private-test", region: "test-1" }, client);
+  const emptyAudio = { buffer: Buffer.alloc(0), originalname: "empty.mp3", mimetype: "audio/mpeg", size: 0 } as Express.Multer.File;
+  await assert.rejects(() => store.saveAudio("CASE-S3-EMPTY-AUDIO", [emptyAudio]), /Empty audio rejected|Media has no readable content/);
+  assert.equal(written.size, 0);
+  const emptyVideo = { buffer: Buffer.alloc(0), originalname: "empty.mp4", mimetype: "video/mp4", size: 0 } as Express.Multer.File;
+  await assert.rejects(() => store.saveVideo("CASE-S3-EMPTY-VIDEO", [emptyVideo]), /Empty video rejected|Media has no readable content/);
+  assert.equal(written.size, 0);
+  const emptyVib = { buffer: Buffer.alloc(0), originalname: "empty.bin", mimetype: "application/octet-stream", size: 0 } as Express.Multer.File;
+  await assert.rejects(() => store.saveVibration("CASE-S3-EMPTY-VIB", [emptyVib]), /Empty vibration|Media has no readable content/);
+  assert.equal(written.size, 0);
+});
+
+test("S3 store rolls back already-written audio when second audio file is empty (no orphan objects)", async () => {
+  const written = new Set<string>();
+  const client = {
+    async send(command: any) {
+      const name = command.constructor.name;
+      const key = command.input.Key as string;
+      if (name === "PutObjectCommand") { written.add(key); return {}; }
+      if (name === "DeleteObjectCommand") { written.delete(key); return {}; }
+      throw new Error(`Unexpected ${name}`);
+    },
+  };
+  const store = new S3PrivateEvidenceStore({ bucket: "private-test", region: "test-1" }, client);
+  const good = { buffer: Buffer.from([0x01, 0x02]), originalname: "good.mp3", mimetype: "audio/mpeg", size: 2 } as Express.Multer.File;
+  const empty = { buffer: Buffer.alloc(0), originalname: "empty.mp3", mimetype: "audio/mpeg", size: 0 } as Express.Multer.File;
+  await assert.rejects(() => store.saveAudio("CASE-S3-PARTIAL-AUDIO", [good, empty]), /Empty audio rejected|Media has no readable content/);
+  assert.equal(written.size, 0, "S3 partial audio batch must be fully rolled back");
+});
+
 
