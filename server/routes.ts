@@ -1005,12 +1005,92 @@ function buildMarketplaceSellerIntake(body: any): MarketplaceSellerIntake {
 function validateMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
   const missingFields = marketplaceRequiredFields.filter((field) => !intake[field]);
   const missingAcknowledgments = marketplaceRequiredAcknowledgments.filter((field) => !intake.acknowledgments[field]);
+  const invalidFields: string[] = [];
+
+  if (intake.vehicleYear && !isValidMarketplaceYear(intake.vehicleYear)) {
+    invalidFields.push("vehicleYear");
+  }
+  if (intake.sellerEmail && !isValidMarketplaceEmail(intake.sellerEmail)) {
+    invalidFields.push("sellerEmail");
+  }
+  if (intake.sellerPhone && !isValidMarketplacePhone(intake.sellerPhone)) {
+    invalidFields.push("sellerPhone");
+  }
+  if (intake.mileage && !isValidMarketplaceMileage(intake.mileage)) {
+    invalidFields.push("mileage");
+  }
+  if (intake.askingPrice && !isValidMarketplacePrice(intake.askingPrice)) {
+    invalidFields.push("askingPrice");
+  }
+  if (intake.zip && !isValidMarketplaceZip(intake.zip)) {
+    invalidFields.push("zip");
+  }
+  for (const field of ["sellerName", "city", "state", "make", "model", "titleStatus", "runsAndDrives", "listingType"] as const) {
+    const value = intake[field];
+    if (value && value.length > 160) {
+      invalidFields.push(field);
+    }
+  }
+  if (intake.knownIssues && intake.knownIssues.length > 4000) {
+    invalidFields.push("knownIssues");
+  }
+  if (intake.vin && !isValidMarketplaceVin(intake.vin)) {
+    invalidFields.push("vin");
+  }
 
   return {
-    ok: missingFields.length === 0 && missingAcknowledgments.length === 0,
+    ok: missingFields.length === 0 && missingAcknowledgments.length === 0 && invalidFields.length === 0,
     missingFields,
-    missingAcknowledgments
+    missingAcknowledgments,
+    invalidFields
   };
+}
+
+function isValidMarketplaceYear(value: string): boolean {
+  if (!/^\d{4}$/.test(value.trim())) return false;
+  const year = Number.parseInt(value.trim(), 10);
+  const maxYear = new Date().getFullYear() + 1;
+  return Number.isInteger(year) && year >= 1886 && year <= maxYear;
+}
+
+function isValidMarketplaceEmail(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.length > 254) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(trimmed);
+}
+
+function isValidMarketplacePhone(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.length > 32) return false;
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length < 7 || digits.length > 15) return false;
+  return /^[+(\d][\d\s().-]*$/.test(trimmed);
+}
+
+function isValidMarketplaceMileage(value: string): boolean {
+  const normalized = value.trim().replace(/[\s,]/g, "");
+  if (!/^\d+$/.test(normalized)) return false;
+  const mileage = Number.parseInt(normalized, 10);
+  return Number.isSafeInteger(mileage) && mileage >= 0 && mileage <= 2000000;
+}
+
+function isValidMarketplacePrice(value: string): boolean {
+  const normalized = value.trim().replace(/[$\s,]/g, "");
+  if (!/^\d+(\.\d{1,2})?$/.test(normalized)) return false;
+  const price = Number(normalized);
+  return Number.isFinite(price) && price >= 0 && price <= 50000000;
+}
+
+function isValidMarketplaceZip(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed.length < 3 || trimmed.length > 12) return false;
+  return /^[A-Za-z0-9][A-Za-z0-9 \-]*$/.test(trimmed);
+}
+
+function isValidMarketplaceVin(value: string): boolean {
+  const trimmed = value.trim().toUpperCase();
+  if (trimmed.length === 0) return true;
+  return /^[A-HJ-NPR-Z0-9]{17}$/.test(trimmed);
 }
 
 function buildMarketplaceBuyerInterest(body: any): MarketplaceBuyerInterest {
@@ -1631,6 +1711,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validation = validateMarketplaceSellerIntake(intake);
 
       if (!validation.ok) {
+        if (validation.invalidFields.length > 0) {
+          res.status(400).json({ ok: false, error: `Invalid fields: ${validation.invalidFields.join(", ")}`, invalidFields: validation.invalidFields });
+          return;
+        }
         const missing = [
           ...validation.missingFields,
           ...validation.missingAcknowledgments.map((field) => `acknowledgments.${field}`)
