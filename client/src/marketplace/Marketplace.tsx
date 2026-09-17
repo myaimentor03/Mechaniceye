@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import { NeedHelpPanel } from "../components/NeedHelpPanel";
+import { toast } from "../hooks/use-toast";
 import {
   PUBLIC_REVIEW_PATH,
   PublicHeaderNavigation,
@@ -9,6 +10,7 @@ import { getFrontendRoutePath, navigateFrontend } from "../frontendRouting";
 
 const MARKETPLACE_SELLER_INTAKE_ENDPOINT = "/api/marketplace/seller-intake";
 const MARKETPLACE_BUYER_INTEREST_ENDPOINT = "/api/marketplace/buyer-interest";
+const SUBMISSION_TIMEOUT_MS = 20000;
 
 const MARKETPLACE_PUBLIC_NAVIGATION: readonly PublicNavigationItem[] = Object.freeze([
   { label: "Drivable Check", href: "/drivable-check" },
@@ -313,6 +315,38 @@ function SellerIntakePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
+  const [clientRequestId, setClientRequestId] = useState(() => {
+    const storageKey = "drivable-client-request-id";
+    const fallbackId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    try {
+      const existing = window.sessionStorage.getItem(storageKey);
+      if (existing) {
+        return existing;
+      }
+      try { window.sessionStorage.setItem(storageKey, fallbackId); } catch {}
+      return fallbackId;
+    } catch {
+      return fallbackId;
+    }
+  });
+
+  function generateClientRequestId() {
+    const storageKey = "drivable-client-request-id";
+    try {
+      const existing = window.sessionStorage.getItem(storageKey);
+      if (existing) {
+        setClientRequestId(existing);
+        return existing;
+      }
+    } catch {}
+    const newId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    try {
+      window.sessionStorage.setItem(storageKey, newId);
+    } catch {}
+    setClientRequestId(newId);
+    return newId;
+  }
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -328,8 +362,9 @@ function SellerIntakePage() {
       intakeType: "marketplace-seller",
       source: "drivable-marketplace-seller-intake",
       submittedAt: new Date().toISOString(),
-      appBrand: "Drivable by Mechanic’s Eye",
+      appBrand: "Drivable by Mechanic's Eye",
       marketplaceBrand: "Drivable Marketplace",
+      clientRequestId: generateClientRequestId(),
       sellerName: value("sellerName"),
       sellerEmail: value("sellerEmail"),
       sellerPhone: value("sellerPhone"),
@@ -368,21 +403,83 @@ function SellerIntakePage() {
     setIsSubmitting(true);
     setSubmitError("");
 
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), SUBMISSION_TIMEOUT_MS);
+
     try {
       const response = await fetch(getMarketplaceSellerIntakeEndpoint(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
-      const result = await response.json().catch(() => ({ ok: false, error: "Seller intake failed." }));
 
-      if (!response.ok || !result.ok) {
-        throw new Error(result.error || "Seller intake failed. Please check the form and try again.");
+      if (!response.ok) {
+        if (response.status === 401) {
+          setSubmitError("Your session expired. Please sign in again to submit your listing request.");
+          setIsSubmitting(false);
+          return;
+        }
+        if (response.status === 429) {
+          const retryAfter = response.headers.get("Retry-After");
+          const retryHint = retryAfter ? ` Please wait ${retryAfter} seconds and try again.` : " Please wait a minute and try again.";
+          setSubmitError(`Too many requests.${retryHint}`);
+          setIsSubmitting(false);
+          return;
+        }
+        try {
+          const errorText = await response.text();
+          if (errorText) {
+            const parsed = JSON.parse(errorText) as any;
+            const serverMsg = parsed?.message || parsed?.error;
+            if (typeof serverMsg === "string" && serverMsg.trim()) {
+              setSubmitError(serverMsg);
+              setIsSubmitting(false);
+              return;
+            }
+          }
+        } catch {}
+        setSubmitError(`We couldn't record your request (HTTP ${response.status}). Please try again.`);
+        setIsSubmitting(false);
+        return;
       }
 
+      let data: any;
+      try {
+        const responseText = await response.text();
+        if (!responseText.trim()) {
+          throw new Error("empty");
+        }
+        data = JSON.parse(responseText);
+      } catch {
+        setSubmitError("We received a response we couldn't read. Please try again.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (data?.id) {
+        try { sessionStorage.setItem("drivable-last-case-id", data.id); } catch {}
+      }
+
+      // Rotate clientRequestId after successful intake so next submission is not collapsed as duplicate
+      try {
+        const storageKey = "drivable-client-request-id";
+        sessionStorage.removeItem(storageKey);
+        const nextId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+        try { sessionStorage.setItem(storageKey, nextId); } catch {}
+        setClientRequestId(nextId);
+      } catch {}
+
       navigateFrontend("/marketplace/sell/submitted");
-    } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "Seller intake failed. Please try again.");
+    } catch (err: any) {
+      const message =
+        err?.name === "AbortError"
+          ? `Request timed out after ${SUBMISSION_TIMEOUT_MS / 1000} seconds. Please try again.`
+          : err.message || String(err);
+
+      setSubmitError(`Submission failed: ${message}`);
+    } finally {
+      window.clearTimeout(timeoutId);
       setIsSubmitting(false);
     }
   };
@@ -410,6 +507,38 @@ function BuyerInterestPage() {
   const [submitError, setSubmitError] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
+  const [clientRequestId, setClientRequestId] = useState(() => {
+    const storageKey = "drivable-client-request-id";
+    const fallbackId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    try {
+      const existing = window.sessionStorage.getItem(storageKey);
+      if (existing) {
+        return existing;
+      }
+      try { window.sessionStorage.setItem(storageKey, fallbackId); } catch {}
+      return fallbackId;
+    } catch {
+      return fallbackId;
+    }
+  });
+
+  function generateClientRequestId() {
+    const storageKey = "drivable-client-request-id";
+    try {
+      const existing = window.sessionStorage.getItem(storageKey);
+      if (existing) {
+        setClientRequestId(existing);
+        return existing;
+      }
+    } catch {}
+    const newId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    try {
+      window.sessionStorage.setItem(storageKey, newId);
+    } catch {}
+    setClientRequestId(newId);
+    return newId;
+  }
+
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -425,8 +554,9 @@ function BuyerInterestPage() {
       intakeType: "marketplace-buyer-interest",
       source: "drivable-marketplace-buyer-interest",
       submittedAt: new Date().toISOString(),
-      appBrand: "Drivable by Mechanic’s Eye",
+      appBrand: "Drivable by Mechanic's Eye",
       marketplaceBrand: "Drivable Marketplace",
+      clientRequestId: generateClientRequestId(),
       buyerName: value("buyerName"),
       buyerEmail: value("buyerEmail"),
       buyerPhone: value("buyerPhone"),
@@ -446,23 +576,84 @@ function BuyerInterestPage() {
     setIsSubmitting(true);
     setSubmitError("");
 
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), SUBMISSION_TIMEOUT_MS);
+
     try {
       const response = await fetch(getMarketplaceBuyerInterestEndpoint(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
-      const result = await response.json().catch(() => ({ ok: false, error: "Buyer interest failed." }));
 
-      if (!response.ok || !result.ok) {
-        throw new Error(result.error || "Buyer interest failed. Please check the form and try again.");
+      if (!response.ok) {
+        if (response.status === 401) {
+          setSubmitError("Your session expired. Please sign in again to submit your buyer interest.");
+          setIsSubmitting(false);
+          return;
+        }
+        if (response.status === 429) {
+          const retryAfter = response.headers.get("Retry-After");
+          const retryHint = retryAfter ? ` Please wait ${retryAfter} seconds and try again.` : " Please wait a minute and try again.";
+          setSubmitError(`Too many requests.${retryHint}`);
+          setIsSubmitting(false);
+          return;
+        }
+        try {
+          const errorText = await response.text();
+          if (errorText) {
+            const parsed = JSON.parse(errorText) as any;
+            const serverMsg = parsed?.message || parsed?.error;
+            if (typeof serverMsg === "string" && serverMsg.trim()) {
+              setSubmitError(serverMsg);
+              setIsSubmitting(false);
+              return;
+            }
+          }
+        } catch {}
+        setSubmitError(`We couldn't record your request (HTTP ${response.status}). Please try again.`);
+        setIsSubmitting(false);
+        return;
       }
+
+      let data: any;
+      try {
+        const responseText = await response.text();
+        if (!responseText.trim()) {
+          throw new Error("empty");
+        }
+        data = JSON.parse(responseText);
+      } catch {
+        setSubmitError("We received a response we couldn't read. Please try again.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (data?.id) {
+        try { sessionStorage.setItem("drivable-last-case-id", data.id); } catch {}
+      }
+
+      // Rotate clientRequestId after successful intake so next submission is not collapsed as duplicate
+      try {
+        const storageKey = "drivable-client-request-id";
+        sessionStorage.removeItem(storageKey);
+        const nextId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+        try { sessionStorage.setItem(storageKey, nextId); } catch {}
+        setClientRequestId(nextId);
+      } catch {}
 
       setSubmitted(true);
       form.reset();
-    } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "Buyer interest failed. Please try again.");
+    } catch (err: any) {
+      const message =
+        err?.name === "AbortError"
+          ? `Request timed out after ${SUBMISSION_TIMEOUT_MS / 1000} seconds. Please try again.`
+          : err.message || String(err);
+
+      setSubmitError(`Submission failed: ${message}`);
     } finally {
+      window.clearTimeout(timeoutId);
       setIsSubmitting(false);
     }
   };
