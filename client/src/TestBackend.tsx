@@ -1166,6 +1166,7 @@ const [manualEngine, setManualEngine] = useState("");
   const [customer, setCustomer] = useState<DrivableCustomer | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [photoUploadEnabled, setPhotoUploadEnabled] = useState(false);
+  const prevCustomerIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -1180,6 +1181,20 @@ const [manualEngine, setManualEngine] = useState("");
       .finally(() => { if (active) setAuthChecked(true); });
     return () => { active = false; };
   }, []);
+
+  // Shared-device safety: if the signed-in customer changes (logout, account
+  // switch on a shared tablet, or session expiry → new login), any previously
+  // restored case card must be cleared immediately. Otherwise the prior
+  // customer's Case ID would remain visible under the new customer's session
+  // until the next refresh, because the restore effect is gated by !result.
+  useEffect(() => {
+    if (!authChecked) return;
+    const currentId = customer?.id ?? null;
+    if (prevCustomerIdRef.current !== null && prevCustomerIdRef.current !== currentId) {
+      setResult(null);
+    }
+    prevCustomerIdRef.current = currentId;
+  }, [authChecked, customer?.id]);
 
   // QA lane (Nov 2 paid beta): server-verified case restore. The saved case
   // id in sessionStorage is only a pointer — status must come from
