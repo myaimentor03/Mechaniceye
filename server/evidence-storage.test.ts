@@ -524,3 +524,33 @@ test("runtime store getAttachment returns attachment when evidence exists", asyn
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("runtime store rolls back on empty photo rejection", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-empty-"));
+  try {
+    const store = new RuntimeFileEvidenceStore(root);
+    const bytes = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+    const emptyFile = { buffer: Buffer.alloc(0), originalname: "empty.jpg", mimetype: "image/jpeg", size: 0 } as Express.Multer.File;
+    await assert.rejects(() => store.savePhotos("CASE-EMPTY", [emptyFile]), /Photo has no readable content/);
+    const caseRoot = path.join(root, "CASE-EMPTY");
+    await assert.rejects(() => readFile(path.join(caseRoot, "attachments.json")), /ENOENT/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("runtime store rolls back on MIME/content type mismatch rejection", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "drivable-evidence-mismatch-"));
+  try {
+    const store = new RuntimeFileEvidenceStore(root);
+    const bytes = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+    const mismatchFile = { buffer: bytes, originalname: "fake.jpg", mimetype: "image/png", size: bytes.length } as Express.Multer.File;
+    await assert.rejects(() => store.savePhotos("CASE-MISMATCH", [mismatchFile]), /Photo MIME type does not match its content/);
+    const caseRoot = path.join(root, "CASE-MISMATCH");
+    await assert.rejects(() => readFile(path.join(caseRoot, "attachments.json")), /ENOENT/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+
