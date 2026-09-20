@@ -65,7 +65,7 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
         ? `Evidence: ${formData.photoFiles.length} photo${formData.photoFiles.length !== 1 ? "s" : ""}, ${formData.audioFiles.length} audio${formData.audioFiles.length !== 1 ? "s" : ""}, ${formData.videoFiles.length} video${formData.videoFiles.length !== 1 ? "s" : ""}, ${formData.vibrationFiles.length} vibration${formData.vibrationFiles.length !== 1 ? "s" : ""}`
         : "Add evidence (photo, audio, video, or vibration)"
       : journey.step === "review"
-      ? `Review evidence${formData.photoFiles.length + formData.audioFiles.length + formData.videoFiles.length + formData.vibrationFiles.length > 0 ? " (${formData.photoFiles.length + formData.audioFiles.length + formData.videoFiles.length + formData.vibrationFiles.length} file(s))" : ""} before saving`
+      ? `Review evidence${formData.photoFiles.length + formData.audioFiles.length + formData.videoFiles.length + formData.vibrationFiles.length > 0 ? " (" + (formData.photoFiles.length + formData.audioFiles.length + formData.videoFiles.length + formData.vibrationFiles.length) + " file(s))" : ""} before saving`
       : "Your case has been saved";
 
   const getModalityStatus = (modality: "photo" | "audio" | "video" | "vibration") => {
@@ -118,7 +118,6 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
   }
 
   function handleModalityRetry(modality: keyof NonNullable<EvidenceCaptureProps["evidenceStatus"]>) {
-    // Clear files for that modality; parent owns evidenceStatus so delegate reset via onRetry
     setFormData((prev: any) => {
       const next = { ...prev };
       if (modality === "photo") next.photoFiles = [];
@@ -128,7 +127,12 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
       return next;
     });
     if (onRetry) onRetry(modality);
-    toast({ title: "Cleared", description: `${modality} files cleared. Please re-add evidence and save again.` });
+    const retryMsg = modality === "vibration"
+      ? "Place the phone flat on the center console and tap Measure Vibration to retry."
+      : modality === "audio"
+        ? "Tap Record Sound to retry."
+        : "Tap Take Photo to retry.";
+    toast({ title: "Cleared", description: `${modality} files cleared. ${retryMsg}` });
   }
 
   function handleError(message: string) {
@@ -315,7 +319,15 @@ return (
           <Button
             variant="outline"
             onClick={() => journey.proceedToReview()}
-            disabled={formData.photoFiles.length + formData.audioFiles.length + formData.videoFiles.length + formData.vibrationFiles.length === 0}
+            disabled={
+  formData.photoFiles.length + formData.audioFiles.length + formData.videoFiles.length + formData.vibrationFiles.length === 0
+  || (evidenceStatus && (
+    evidenceStatus.photo === "failed"
+    || evidenceStatus.audio === "failed"
+    || evidenceStatus.video === "failed"
+    || evidenceStatus.vibration === "failed"
+  ))
+}
             className="flex-1 sm:flex-none bg-automotive-orange hover:bg-orange-600 text-white"
           >
             <Video className="w-3 h-3 mr-1" /> Review

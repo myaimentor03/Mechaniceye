@@ -2468,9 +2468,14 @@ if (photoFiles.length) {
       // Persist evidence attachment metadata to the database as durable SQL records.
       // This is fire-and-forget: file storage already succeeded, and a DB failure
       // should not block the case response. The manifest file is the fallback.
+      // We still call persistEvidenceAttachments so that DB-backed evidence records
+      // are created in parallel with the case response. A failure here does not
+      // prevent the case from being saved; the manifest file is the reliable fallback.
       const allAttachments = responseBody.attachments ?? [];
       if (allAttachments.length > 0) {
-        void persistEvidenceAttachments(allAttachments);
+        await persistEvidenceAttachments(allAttachments).catch(
+          (err) => logEventError("evidence_db.persist_failed", err, { caseId: responseBody.id })
+        );
       }
 
       if (usedPublicFallback) {
