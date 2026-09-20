@@ -289,6 +289,45 @@ test("journey evaluate transitions to evaluating and ready_diagnosis", async () 
   });
 });
 
+test("journey diagnosis_ready includes structured decision packet for the customer UI", async () => {
+  await withJourneyServer(async (origin) => {
+    const startRes = await fetch(`${origin}/api/journey/start`, {
+      method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({
+        vehicleInfo: "2020 Toyota RAV4",
+        description: "Check engine light is on, car runs rough at idle, started last week",
+        timing: "Idle",
+        urgency: "Safe to Drive",
+        canDrive: "Yes",
+      }),
+    });
+    const caseData = await jsonOf(startRes);
+    const caseId = caseData.id;
+
+    for (const transition of ["submit_intake", "acknowledge_triage", "finish_evidence", "evaluate", "ready_diagnosis"]) {
+      const res = await fetch(`${origin}/api/journey/${caseId}/advance`, {
+        method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition }),
+      });
+      assert.equal(res.status, 200);
+    }
+
+    const statusRes = await fetch(`${origin}/api/journey/${caseId}/status`, {
+      headers: makeCustomerHeader(),
+    });
+    assert.equal(statusRes.status, 200);
+    const status = await jsonOf(statusRes);
+    assert.equal(status.state, "diagnosis_ready");
+    assert.ok(status.outcome, "Should have determined an outcome");
+    assert.ok(status.decisionPacket, "diagnosis_ready must include a decisionPacket for the customer UI");
+    assert.equal(status.decisionPacket.outcome, status.outcome);
+    assert.ok(status.decisionPacket.guidance?.title, "decisionPacket must include guidance title");
+    assert.ok(Array.isArray(status.decisionPacket.guidance?.immediateSteps), "guidance must include immediate steps");
+    assert.ok(Array.isArray(status.decisionPacket.guidance?.warnings), "guidance must include safety warnings");
+    assert.ok(Array.isArray(status.decisionPacket.guidance?.followUp), "guidance must include follow-up");
+    assert.ok(status.decisionPacket.evidenceSummary, "decisionPacket must summarize case evidence");
+    assert.equal(status.decisionPacket.evidenceBelongsToCase, true);
+  });
+});
+
 test("journey resolve completes the full happy path", async () => {
   await withJourneyServer(async (origin) => {
     const startRes = await fetch(`${origin}/api/journey/start`, {

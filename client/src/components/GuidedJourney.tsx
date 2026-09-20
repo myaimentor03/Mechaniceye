@@ -1,6 +1,41 @@
 import { useEffect, useState } from "react";
 import { navigateFrontend } from "../frontendRouting";
 
+type DecisionPacket = {
+  outcome: string;
+  decisionPath?: string;
+  confidenceLevel: string;
+  confidenceScore: number;
+  riskLevel: string;
+  safetyTriggered: boolean;
+  vehicleInfo: string;
+  summary: string;
+  evidenceSummary: {
+    photos: number;
+    audio: number;
+    video: number;
+    vibration: number;
+    text: number;
+    persistedCount: number;
+  };
+  matchedSymptoms: {
+    label: string;
+    confidence: number;
+    possibleRiskLevel: string;
+    safetyNote: string | null;
+  }[];
+  guidance: {
+    title: string;
+    description: string;
+    immediateSteps: string[];
+    whatToShare: string[];
+    warnings: string[];
+    followUp: string[];
+  };
+  evidenceBelongsToCase: boolean;
+  reusableForFixSell: boolean;
+};
+
 type JourneyCaseResponse = {
   id: string;
   state: string;
@@ -60,6 +95,7 @@ type JourneyCaseResponse = {
     relevanceScore: number;
   }[];
   currentEvidencePrompt?: string;
+  decisionPacket?: DecisionPacket;
 };
 
 const STORAGE_KEY = "drivable.journey.caseId";
@@ -473,6 +509,78 @@ export function GuidedJourney() {
           </p>
           {caseData.outcome && <p><strong>Outcome:</strong> {outcomeCopy(caseData.outcome)} {caseData.decisionPath && <em>({caseData.decisionPath})</em>}</p>}
         </div>
+
+        {caseData.decisionPacket && (
+          <div className="step-card" style={caseData.decisionPacket.outcome === "stop_driving"
+            ? { borderColor: "rgba(255,100,100,0.6)", background: "rgba(90,25,30,0.4)" }
+            : { borderColor: "rgba(100,200,255,0.4)", background: "rgba(15,45,75,0.35)" }}>
+            <div className="step-header">
+              <div>
+                <div className="eyebrow">
+                  Your plan — {caseData.decisionPacket.outcome.replace(/_/g, " ").toUpperCase()}
+                  {" "}· confidence {caseData.decisionPacket.confidenceScore}% ({caseData.decisionPacket.confidenceLevel})
+                  {" "}· risk {caseData.decisionPacket.riskLevel}
+                </div>
+                <h2>{caseData.decisionPacket.guidance.title}</h2>
+                <p>{caseData.decisionPacket.guidance.description}</p>
+              </div>
+            </div>
+            <div className="section-block">
+              <h3>What to do next</h3>
+              <ol style={{ margin: 0, paddingLeft: "1.25rem" }}>
+                {caseData.decisionPacket.guidance.immediateSteps.map((step, i) => (
+                  <li key={i} style={{ marginBottom: "4px" }}>{step}</li>
+                ))}
+              </ol>
+            </div>
+            <div className="section-block">
+              <h3>What to share with a shop or buyer</h3>
+              <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
+                {caseData.decisionPacket.guidance.whatToShare.map((item, i) => (
+                  <li key={i} style={{ marginBottom: "4px" }}>{item}</li>
+                ))}
+              </ul>
+              <p className="helper-text">
+                Evidence on this case: {caseData.decisionPacket.evidenceSummary.photos} photo(s),{" "}
+                {caseData.decisionPacket.evidenceSummary.audio} audio,{" "}
+                {caseData.decisionPacket.evidenceSummary.video} video,{" "}
+                {caseData.decisionPacket.evidenceSummary.vibration} vibration,{" "}
+                {caseData.decisionPacket.evidenceSummary.text} note(s) —{" "}
+                {caseData.decisionPacket.evidenceSummary.persistedCount} persisted.{" "}
+                Evidence belongs to your vehicle case and can be reused for Mechanic Match or ClearSale.
+              </p>
+            </div>
+            {caseData.decisionPacket.matchedSymptoms.length > 0 && (
+              <div className="section-block">
+                <h3>What we noticed</h3>
+                <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
+                  {caseData.decisionPacket.matchedSymptoms.map((s, i) => (
+                    <li key={i} style={{ marginBottom: "4px" }}>
+                      <strong>{s.label}</strong> ({Math.round(s.confidence * 100)}% match, {s.possibleRiskLevel} risk)
+                      {s.safetyNote ? ` — ${s.safetyNote}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div className="notice-strip">
+              <strong>Important:</strong>
+              <ul style={{ margin: "4px 0 0", paddingLeft: "1.25rem" }}>
+                {caseData.decisionPacket.guidance.warnings.map((w, i) => (
+                  <li key={i} style={{ marginBottom: "4px" }}>{w}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="section-block">
+              <h3>Follow up</h3>
+              <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
+                {caseData.decisionPacket.guidance.followUp.map((f, i) => (
+                  <li key={i} style={{ marginBottom: "4px" }}>{f}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
 
         {caseData.matchedSymptomCategories.length > 0 && (
           <div className="step-card" style={{ borderColor: "rgba(100,180,255,0.4)", background: "rgba(20,50,80,0.3)" }}>
