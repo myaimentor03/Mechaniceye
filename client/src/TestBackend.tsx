@@ -504,11 +504,15 @@ function ConciergeHelpPage() {
     setSubmitError("");
     setConfirmation(null);
 
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), SUBMISSION_TIMEOUT_MS);
+
     try {
       const response = await fetch("/api/support/concierge-request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: controller.signal,
       });
       const result = await response.json().catch(() => ({ ok: false, error: "Support request failed." }));
 
@@ -529,9 +533,14 @@ function ConciergeHelpPage() {
       rotateStableClientRequestId(CONCIERGE_CLIENT_REQUEST_STORAGE_KEY);
       form.reset();
       window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "Support request failed. Please try again.");
+    } catch (error: any) {
+      const messageText =
+        error?.name === "AbortError"
+          ? `Request timed out after ${SUBMISSION_TIMEOUT_MS / 1000} seconds. Please try again.`
+          : error instanceof Error ? error.message : "Support request failed. Please try again.";
+      setSubmitError(messageText);
     } finally {
+      window.clearTimeout(timeoutId);
       setIsSubmitting(false);
     }
   }
@@ -764,11 +773,15 @@ function MechanicMatchFlow() {
     setIsSubmitting(true);
     setSubmitError("");
 
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), SUBMISSION_TIMEOUT_MS);
+
     try {
       const response = await fetch("/api/mechanic-match/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: controller.signal,
       });
       const result = await response.json().catch(() => ({ ok: false, error: "Mechanic Match request failed." }));
 
@@ -779,10 +792,16 @@ function MechanicMatchFlow() {
       // Rotate only after success so a timeout retry resends the same key.
       rotateStableClientRequestId(MECHANIC_CLIENT_REQUEST_STORAGE_KEY);
       navigateFrontend("/mechanic-match/submitted");
-    } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "Mechanic Match request failed. Please try again.");
-      setIsSubmitting(false);
+    } catch (error: any) {
+      const message =
+        error?.name === "AbortError"
+          ? `Request timed out after ${SUBMISSION_TIMEOUT_MS / 1000} seconds. Please try again.`
+          : error instanceof Error ? error.message : "Mechanic Match request failed. Please try again.";
+      setSubmitError(message);
       window.scrollTo({ top: 0, behavior: "smooth" });
+    } finally {
+      window.clearTimeout(timeoutId);
+      setIsSubmitting(false);
     }
   }
 
