@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X, Camera, Image, Upload } from "lucide-react";
@@ -12,7 +12,6 @@ interface PhotoRecorderProps {
 
 export function PhotoRecorder({ files, onChange, onError }: PhotoRecorderProps) {
   const [cameraActive, setCameraActive] = useState(false);
-  const [capturedPhoto, setCapturedPhoto] = useState<File | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -25,10 +24,6 @@ export function PhotoRecorder({ files, onChange, onError }: PhotoRecorderProps) 
       }
     };
   }, []);
-
-  useEffect(() => {
-    setCapturedPhoto(null);
-  }, [files.length]);
 
   const startCamera = useCallback(async () => {
     onError("");
@@ -97,7 +92,7 @@ export function PhotoRecorder({ files, onChange, onError }: PhotoRecorderProps) 
     onChange(next);
   }
 
-  const photoUrls = files.map((file) => URL.createObjectURL(file));
+  const photoUrls = useMemo(() => files.map((file) => URL.createObjectURL(file)), [files]);
 
   useEffect(() => {
     return () => {

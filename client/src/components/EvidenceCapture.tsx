@@ -58,6 +58,14 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
     : internalJourney;
   const [activeTab, setActiveTab] = useState("description");
 
+  // Photo-first: when journey advances to evidence, steer customer to photo tab
+  // so the highest-priority evidence (photo) is presented first.
+  useEffect(() => {
+    if (journey.step === "evidence" && activeTab === "description") {
+      setActiveTab("photo");
+    }
+  }, [journey.step, activeTab]);
+
   const evidenceStatusText = journey.step === "describe"
       ? "Describe the vehicle issue"
       : journey.step === "evidence"
@@ -86,10 +94,10 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
       : "text-green-600";
 
   const tabs = [
+    { id: "photo", label: "Photos", icon: Image },
     { id: "audio", label: "Audio", icon: Mic },
     { id: "video", label: "Video", icon: Video },
     { id: "vibration", label: "Vibration", icon: Waves },
-    { id: "photo", label: "Photos", icon: Image },
     { id: "description", label: "Description", icon: Edit },
   ];
 
@@ -275,19 +283,21 @@ export function EvidenceCapture({ formData, setFormData, capabilities = MEDIA_UN
 
 return (
     <>
-      {/* Evidence Status Bar */}
-      <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-        <Shield className="w-4 h-4 text-blue-600" />
-        <span className={evidenceStatusColor}>
-          Evidence: {evidenceStatusText}
+      {/* Evidence Status Bar — photo-first, wraps on mobile */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-4 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+        <span className="inline-flex items-center gap-1.5">
+          <Shield className="w-4 h-4 text-blue-600 shrink-0" />
+          <span className={evidenceStatusColor}>
+            {evidenceStatusText}
+          </span>
         </span>
-        <span className="text-blue-600">|</span>
+        <span className="hidden sm:inline text-blue-300">|</span>
         <span className="text-blue-700">Photos: {formData.photoFiles.length}/{MAX_PHOTO_COUNT}{evidenceStatus?.photo === "persisted" ? " ✓" : ""}{evidenceStatus?.photo === "failed" ? " ✕" : ""}{evidenceStatus?.photo === "not_provided" ? " —" : ""}</span>
-        <span className="text-blue-600">|</span>
+        <span className="text-blue-300">·</span>
         <span className="text-blue-700">Audio: {formData.audioFiles.length}/{MAX_AUDIO_FILES}{evidenceStatus?.audio === "persisted" ? " ✓" : ""}{evidenceStatus?.audio === "failed" ? " ✕" : ""}{evidenceStatus?.audio === "not_provided" ? " —" : ""}</span>
-        <span className="text-blue-600">|</span>
+        <span className="text-blue-300">·</span>
         <span className="text-blue-700">Video: {formData.videoFiles.length}/{MAX_VIDEO_FILES}{evidenceStatus?.video === "persisted" ? " ✓" : ""}{evidenceStatus?.video === "failed" ? " ✕" : ""}{evidenceStatus?.video === "not_provided" ? " —" : ""}</span>
-        <span className="text-blue-600">|</span>
+        <span className="text-blue-300">·</span>
         <span className="text-blue-700">Vibration: {formData.vibrationFiles.length}/{MAX_VIBRATION_FILES}{evidenceStatus?.vibration === "persisted" ? " ✓" : ""}{evidenceStatus?.vibration === "failed" ? " ✕" : ""}{evidenceStatus?.vibration === "not_provided" ? " —" : ""}</span>
       </div>
 
