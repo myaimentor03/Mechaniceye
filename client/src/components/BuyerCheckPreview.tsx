@@ -4,6 +4,7 @@ import { buildBuyerEvidenceDraft } from "../lib/buyerEvidenceDraft";
 import { NextActionStrip } from "./NextActionStrip";
 
 const BUYER_VEHICLE_KNOWLEDGE_ENDPOINT = "/api/buyer-risk/vehicle-knowledge";
+const LOOKUP_TIMEOUT_MS = 15000;
 
 const REVIEW_AREAS = [
   "Seller evidence checklist",
@@ -99,6 +100,9 @@ export function BuyerCheckPreview() {
 
     setEvidenceDraft(parsedEvidence.data);
 
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), LOOKUP_TIMEOUT_MS);
+
     try {
       const params = new URLSearchParams({
         year: vehicleYear.trim(),
@@ -106,7 +110,9 @@ export function BuyerCheckPreview() {
         model: vehicleModel.trim()
       });
 
-      const response = await fetch(getBuyerVehicleKnowledgeEndpoint() + "?" + params.toString());
+      const response = await fetch(getBuyerVehicleKnowledgeEndpoint() + "?" + params.toString(), {
+        signal: controller.signal,
+      });
 
       if (!response.ok) {
         let message = "Vehicle knowledge lookup failed.";
@@ -124,8 +130,14 @@ export function BuyerCheckPreview() {
       setVehicleKnowledge(data);
       setLookupStatus("success");
     } catch (error) {
+      const message =
+        error instanceof DOMException && error.name === "AbortError"
+          ? `Request timed out after ${LOOKUP_TIMEOUT_MS / 1000} seconds. Please try again.`
+          : error instanceof Error ? error.message : "Vehicle knowledge lookup failed.";
       setLookupStatus("error");
-      setLookupError(error instanceof Error ? error.message : "Vehicle knowledge lookup failed.");
+      setLookupError(message);
+    } finally {
+      window.clearTimeout(timeoutId);
     }
   }
 

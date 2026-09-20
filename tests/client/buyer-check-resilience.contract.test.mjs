@@ -15,16 +15,25 @@ function buyerLookupBlock() {
   return buyer.slice(start, start + 3000);
 }
 
-test("Buyer Check vehicle knowledge lookup uses fetch without AbortController timeout (known gap for mobile resilience)", () => {
+test("Buyer Check vehicle knowledge lookup uses AbortController with timeout for mobile resilience", () => {
   const block = buyerLookupBlock();
-  assert.doesNotMatch(block, /AbortController/);
-  // This test documents the gap: lookup lacks timeout protection for mobile
+  assert.match(block, /const controller = new AbortController\(\)/);
+  assert.match(block, /window\.setTimeout\(\(\) => controller\.abort\(\),/);
+  assert.match(block, /signal: controller\.signal/);
+  assert.match(block, /window\.clearTimeout\(timeoutId\)/);
 });
 
-test("Buyer Check vehicle knowledge lookup does not explicitly check for 401 status (known gap)", () => {
+test("Buyer Check lookup timeout produces a user-friendly AbortError message", () => {
+  const block = buyerLookupBlock();
+  assert.match(block, /error\.name === "AbortError"/);
+  assert.match(block, /Request timed out after \$/);
+  assert.match(block, /seconds\. Please try again/);
+});
+
+test("Buyer Check vehicle knowledge lookup is a public endpoint (no auth required)", () => {
   const block = buyerLookupBlock();
   assert.doesNotMatch(block, /response\.status === 401/);
-  // This test documents the gap: no explicit re-auth handling for expired sessions
+  // Correct: buyer-risk/vehicle-knowledge is a public GET endpoint, no session needed
 });
 
 test("Buyer Check vehicle knowledge lookup handles non-OK responses with error message", () => {
