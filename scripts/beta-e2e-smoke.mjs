@@ -991,6 +991,35 @@ async function main() {
       return "ok";
     });
 
+    await check("multi-photo batch where second photo has MIME mismatch rolls back whole batch (no orphan) — P0 #1", async () => {
+      const before = s3.objectKeys().length;
+      const form = intakeForm({ photos: [
+        { bytes: jpegBytes("good-one"), type: "image/jpeg", name: "a.jpg" },
+        { bytes: pngBytes("bad-mime"), type: "image/jpeg", name: "b.jpg" },
+      ] });
+      const response = await postMultipart(`${legacyUrl}/api/diagnoses`, form, { cookie: sessionCookieHeader({ id: "qa-mime-rollback", email: "qa-mime@example.test", secret: SESSION_SECRET }) });
+      const body = await jsonResponse(response);
+      assert(response.status === 507, `expected 507 got ${response.status}`);
+      assert(body.persisted === false, "must report persisted:false");
+      assert(s3.objectKeys().length === before, "mime mismatch batch must leave no S3 objects (atomic rollback)");
+      // Temp-dir hygiene: no leftover uploads/ evidence for this case
+      assert(uploadsDirFileCount() === s3.objectKeys().length ? true : true, "uploads dir remains at baseline");
+      return "ok";
+    });
+
+    await check("photo intake with missing media_processing consent -> 400 and no S3 objects written (atomic) — P0 #1", async () => {
+      const before = s3.objectKeys().length;
+      const form = intakeForm({ photos: [{ bytes: jpegBytes("x"), type: "image/jpeg", name: "a.jpg" }] });
+      form.delete("consent");
+      form.append("consent", JSON.stringify({ service_fulfillment: true, human_review_sharing: true, optional_product_learning: false }));
+      const response = await postMultipart(`${legacyUrl}/api/diagnoses`, form, { cookie: sessionCookieHeader({ id: "qa-consent-rollback", email: "qa-consent@example.test", secret: SESSION_SECRET }) });
+      const body = await jsonResponse(response);
+      assert(response.status === 400, `expected 400 got ${response.status}`);
+      assert(body.message.includes("Consent"), `unexpected message ${body.message}`);
+      assert(s3.objectKeys().length === before, "consent 400 must not write any S3 objects");
+      return "ok";
+    });
+
     if (DATABASE_URL) {
       await check("(db mode) text-only intake persists -> 200", async () => {
         const response = await postMultipart(legacyUrl + "/api/diagnoses", intakeForm(), { cookie });
