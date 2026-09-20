@@ -108,6 +108,43 @@ test("/api/files/:filename enforces basename normalization and nosniff header", 
   });
 });
 
+test("/api/internal/review/write routes reject unexpected multipart fields as client errors, not 500s", async () => {
+  await withServer(async (origin) => {
+    const prior = process.env.DRIVABLE_REVIEWER_TOKEN;
+    process.env.DRIVABLE_REVIEWER_TOKEN = "routes-security-followup-token-12345";
+    try {
+      const body = new FormData();
+      body.append("additionalInfo", "Follow-up details that are long enough to matter here.");
+      body.append("photo", new File([Buffer.alloc(2048)], "captured.jpg", { type: "image/jpeg" }));
+      const response = await fetch(`${origin}/api/diagnoses/case-123/follow-up`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${process.env.DRIVABLE_REVIEWER_TOKEN}` },
+        body,
+      });
+      assert.equal(response.status, 400);
+      const parsed = await response.json();
+      assert.equal(parsed.persisted, false);
+      assert.match(parsed.message, /audio and video/i);
+    } finally {
+      if (prior === undefined) delete process.env.DRIVABLE_REVIEWER_TOKEN;
+      else process.env.DRIVABLE_REVIEWER_TOKEN = prior;
+    }
+  });
+});
+
+test("follow-up evidence upload stays behind the reviewer gate before multipart parsing", async () => {
+  await withServer(async (origin) => {
+    const body = new FormData();
+    body.append("additionalInfo", "Follow-up details that are long enough to matter here.");
+    body.append("video", new File([Buffer.alloc(2048)], "clip.mp4", { type: "video/mp4" }));
+    const response = await fetch(`${origin}/api/diagnoses/case-123/follow-up`, {
+      method: "POST",
+      body,
+    });
+    assert.equal([401, 503].includes(response.status), true);
+  });
+});
+
 test("generated case IDs use cryptographic randomness, not Math.random()", () => {
   const ids = new Set<string>();
   for (let i = 0; i < 1_000; i += 1) ids.add(generateCaseId());

@@ -4,6 +4,7 @@ import express from "express";
 import { createServer } from "node:http";
 import { registerDurableReviewRoutes } from "./review-routes.js";
 import { reviewerIdentityFromCredential } from "../reviewer-auth.js";
+import { createRateLimit } from "../rate-limit.js";
 import { ReviewWriteError } from "./postgres-review-writer.js";
 
 const token = "review-route-test-token-that-is-long-enough";
@@ -90,4 +91,31 @@ test("review write failures never echo storage or database internals", async () 
       assert.equal(body.includes("Review state could not be persisted."), true);
     });
   } finally { if (prior === undefined) delete process.env.DRIVABLE_REVIEWER_TOKEN; else process.env.DRIVABLE_REVIEWER_TOKEN = prior; }
+});
+
+test("review write routes are rate limited per reviewer when a limiter is wired", async () => {
+  const prior = process.env.DRIVABLE_REVIEWER_TOKEN; process.env.DRIVABLE_REVIEWER_TOKEN = token;
+  const app = express(); app.use(express.json());
+  const runtime = { writer: { async createDraft(input: any) { return { ok: true, ...input }; } } };
+  const limiter = createRateLimit({ scope: "review-write-test", windowMs: 60_000, max: 2 });
+  registerDurableReviewRoutes(app, async () => runtime, limiter);
+  const server = createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const address = server.address(); assert.ok(address && typeof address === "object");
+    const origin = `http://127.0.0.1:${address.port}`;
+    let lastStatus = 0;
+    for (let i = 0; i < 4; i += 1) {
+      const response = await fetch(`${origin}/api/internal/review/drafts`, {
+        method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({ riskLevel: "low" }),
+      });
+      lastStatus = response.status;
+      await response.text();
+    }
+    assert.equal(lastStatus, 429);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    if (prior === undefined) delete process.env.DRIVABLE_REVIEWER_TOKEN; else process.env.DRIVABLE_REVIEWER_TOKEN = prior;
+  }
 });

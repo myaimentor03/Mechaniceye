@@ -1,4 +1,4 @@
-import type { Express, Response } from "express";
+import type { Express, RequestHandler, Response } from "express";
 import { requireReviewer } from "../reviewer-auth.js";
 import { ReviewReleaseReadError } from "./async-release-gate.js";
 import { LaunchControlUnavailableError, requireVerifiedLaunchControlRuntime } from "./launch-control-runtime.js";
@@ -10,24 +10,31 @@ const REJECTION_REASONS: readonly ReviewRejectionReason[] = ["insufficient_evide
 
 type RuntimeProvider = typeof requireVerifiedLaunchControlRuntime;
 
-export function registerDurableReviewRoutes(app: Express, runtimeProvider: RuntimeProvider = requireVerifiedLaunchControlRuntime): void {
-  app.post("/api/internal/review/drafts", requireReviewer, async (req, res) => {
+export function registerDurableReviewRoutes(
+  app: Express,
+  runtimeProvider: RuntimeProvider = requireVerifiedLaunchControlRuntime,
+  writeLimit?: RequestHandler,
+): void {
+  const writeGate: RequestHandler[] = writeLimit ? [writeLimit] : [];
+  const reviewed = (handler: RequestHandler): RequestHandler[] => [requireReviewer, ...writeGate, handler];
+
+  app.post("/api/internal/review/drafts", ...reviewed(async (req, res) => {
     try {
       const runtime = await runtimeProvider();
       const input = versionInput(req.body);
       res.status(201).json(await runtime.writer.createDraft(input));
     } catch (error) { reviewError(res, error); }
-  });
+  }));
 
-  app.post("/api/internal/review/:caseId/:versionId/final", requireReviewer, async (req, res) => {
+  app.post("/api/internal/review/:caseId/:versionId/final", ...reviewed(async (req, res) => {
     try {
       const runtime = await runtimeProvider();
       const input = versionInput({ ...req.body, caseId: req.params.caseId });
       res.status(201).json(await runtime.writer.createFinal({ ...input, sourceVersionId: req.params.versionId }));
     } catch (error) { reviewError(res, error); }
-  });
+  }));
 
-  app.post("/api/internal/review/:caseId/:versionId/approve", requireReviewer, async (req, res) => {
+  app.post("/api/internal/review/:caseId/:versionId/approve", ...reviewed(async (req, res) => {
     try {
       const runtime = await runtimeProvider();
       res.json(await runtime.writer.approve({
@@ -36,9 +43,9 @@ export function registerDurableReviewRoutes(app: Express, runtimeProvider: Runti
         highRiskAcknowledged: req.body?.highRiskAcknowledged === true,
       }));
     } catch (error) { reviewError(res, error); }
-  });
+  }));
 
-  app.post("/api/internal/review/:caseId/:versionId/reject", requireReviewer, async (req, res) => {
+  app.post("/api/internal/review/:caseId/:versionId/reject", ...reviewed(async (req, res) => {
     try {
       const reasonCode = req.body?.reasonCode;
       if (!REJECTION_REASONS.includes(reasonCode)) throw new TypeError("A valid rejection reason is required");
@@ -48,16 +55,16 @@ export function registerDurableReviewRoutes(app: Express, runtimeProvider: Runti
         reviewerRef: req.drivableReviewer!.ref, reasonCode,
       }));
     } catch (error) { reviewError(res, error); }
-  });
+  }));
 
-  app.post("/api/internal/review/:caseId/:versionId/supersede", requireReviewer, async (req, res) => {
+  app.post("/api/internal/review/:caseId/:versionId/supersede", ...reviewed(async (req, res) => {
     try {
       const runtime = await runtimeProvider();
       res.json(await runtime.writer.supersede({ caseId: req.params.caseId, versionId: req.params.versionId }));
     } catch (error) { reviewError(res, error); }
-  });
+  }));
 
-  app.post("/api/internal/review/:caseId/:versionId/release-decision", requireReviewer, async (req, res) => {
+  app.post("/api/internal/review/:caseId/:versionId/release-decision", ...reviewed(async (req, res) => {
     try {
       const runtime = await runtimeProvider();
       const bindings = versionBindings(req.body);
@@ -67,7 +74,7 @@ export function registerDurableReviewRoutes(app: Express, runtimeProvider: Runti
       });
       res.status(decision.allowed ? 200 : 409).json(decision);
     } catch (error) { reviewError(res, error); }
-  });
+  }));
 }
 
 function versionInput(body: any) {

@@ -76,20 +76,22 @@ export default function Diagnosis() {
     formDataToSend.append("vehicleInfo", formData.vehicleInfo);
     formDataToSend.append("timing", formData.timing);
     
-    if (formData.audioFile) {
-      formDataToSend.append("audio", formData.audioFile);
-    }
-    
-    if (formData.videoFile) {
-      formDataToSend.append("video", formData.videoFile);
-    }
-    
+    // The diagnosis endpoint stores only the captured photo (field "photos").
+    // Audio/video/vibration are collected in the guided follow-up flow, so leave
+    // them off this request rather than letting the server reject the whole submission.
     if (formData.capturedPhoto) {
-      formDataToSend.append("photo", formData.capturedPhoto);
+      formDataToSend.append("photos", formData.capturedPhoto);
     }
     
     if (formData.vibrationData) {
       formDataToSend.append("vibrationData", JSON.stringify(formData.vibrationData));
+    }
+
+    if (formData.audioFile || formData.videoFile) {
+      toast({
+        title: "Audio and Video Not Attached",
+        description: "The initial analysis stores only a captured photo. Audio and video evidence are collected during the follow-up flow after analysis.",
+      });
     }
 
     // Simulate analysis delay for better UX

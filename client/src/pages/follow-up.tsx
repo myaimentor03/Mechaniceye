@@ -85,7 +85,10 @@ export default function FollowUp() {
     }
     
     if (formData.capturedPhoto) {
-      formDataToSend.append("photo", formData.capturedPhoto);
+      toast({
+        title: "Photo Not Attached",
+        description: "The follow-up evidence flow stores audio and video only. Use the initial diagnosis flow to attach a captured photo.",
+      });
     }
     
     if (formData.vibrationData) {

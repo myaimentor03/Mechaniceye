@@ -122,6 +122,25 @@ const diagnosisPhotoUploadMiddleware = (req: any, res: any, next: any) => {
     });
   });
 };
+const followUpEvidenceUploadMiddleware = (req: any, res: any, next: any) => {
+  upload.fields([
+    { name: 'audio', maxCount: 1 },
+    { name: 'video', maxCount: 1 },
+  ])(req, res, (error: unknown) => {
+    if (!error) return next();
+    const isMulterError = error instanceof multer.MulterError;
+    const isUnexpectedField =
+      isMulterError && error.code === 'LIMIT_UNEXPECTED_FILE';
+    return res.status(isUnexpectedField ? 400 : isMulterError ? 413 : 415).json({
+      message: isUnexpectedField
+        ? "Follow-up evidence accepts only audio and video. Photos and other file fields are not stored; use the initial diagnosis flow for photos."
+        : isMulterError
+          ? "Follow-up evidence upload exceeds the allowed size."
+          : "Follow-up evidence was rejected because the file type is not supported.",
+      persisted: false,
+    });
+  });
+};
 const evidenceStore = createEvidenceStoreFromEnvironment();
 
 // Subscription tier features
@@ -1483,7 +1502,6 @@ async function deliverConciergeRequest(input: ConciergeRequest) {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   registerCustomerAuthRoutes(app);
-  registerDurableReviewRoutes(app);
   const publicFormLimit = createRateLimit({ scope: "public-form", windowMs: 10 * 60_000, max: 15 });
   const vehicleKnowledgeLimit = createRateLimit({ scope: "buyer-vehicle-knowledge", windowMs: 5 * 60_000, max: 120 });
   const customerIntakeLimit = createRateLimit({
@@ -1498,6 +1516,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     max: 120,
     key: (req) => req.drivableReviewer?.ref || req.ip || "unknown",
   });
+  registerDurableReviewRoutes(app, undefined, reviewerWriteLimit);
 
   app.get("/api/health/live", (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -1583,7 +1602,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/internal-review", requireReviewer, async (req, res) => {
+  app.post("/api/internal-review", requireReviewer, reviewerWriteLimit, async (req, res) => {
     try {
       const input = buildInternalReviewInput(req.body || {});
       const validation = validateInternalReviewInput(input);
@@ -1926,6 +1945,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       res.json(diagnosis);
     } catch (error) {
+      logEventError("api.diagnosis_fetch_failed", error, { diagnosisId: String(req.params?.id ?? "") });
       res.status(500).json({ message: "Failed to fetch diagnosis" });
     }
   });
@@ -2076,10 +2096,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create follow-up request when previous fixes didn't work
-  app.post("/api/diagnoses/:id/follow-up", requireReviewer, reviewerWriteLimit, upload.fields([
-    { name: 'audio', maxCount: 1 },
-    { name: 'video', maxCount: 1 }
-  ]), async (req, res) => {
+  app.post("/api/diagnoses/:id/follow-up", requireReviewer, reviewerWriteLimit, followUpEvidenceUploadMiddleware, async (req, res) => {
     try {
       const diagnosisId = req.params.id;
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
@@ -2177,6 +2194,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const mechanics = await storage.getActiveMechanics();
       res.json(mechanics);
     } catch (error) {
+      logEventError("api.mechanics_fetch_failed", error);
       res.status(500).json({ message: "Failed to fetch mechanics" });
     }
   });

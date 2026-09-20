@@ -10,7 +10,7 @@
 
 ## Summary
 
-This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_0902.md`. All required P0/P1 fixes are implemented, regression-tested, and green. An additional adversarial audit pass over the full public surface produced two further small hardening fixes (bounded validation error responses and a public read rate limit) plus one P2 gap closed (consent revocation intake). A second adversarial session (0906) closed three more gaps: bounded webhook delivery timeouts across every outbound webhook, code-mapped (never raw-message) review error serialization, and same-origin API calls in the production client (removing hard-coded cross-origin coupling to a second Render host). `npm run check`, `npm run build`, and the complete security/auth/storage/review/consent/observability test suite pass.
+This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_0902.md`. All required P0/P1 fixes are implemented, regression-tested, and green. An additional adversarial audit pass over the full public surface produced two further small hardening fixes (bounded validation error responses and a public read rate limit) plus one P2 gap closed (consent revocation intake). A second adversarial session (0906) closed three more gaps: bounded webhook delivery timeouts across every outbound webhook, code-mapped (never raw-message) review error serialization, and same-origin API calls in the production client (removing hard-coded cross-origin coupling to a second Render host). A fourth adversarial session (0919) re-verified the P0 Beta multimodal evidence pipeline end-to-end and fixed a client↔server multipart contract mismatch that silently broke every captured-photo diagnosis submission and turned malformed follow-up evidence bodies into 500s. `npm run check`, `npm run build`, and the complete security/auth/storage/review/consent/observability test suite pass.
 
 ---
 
@@ -130,6 +130,13 @@ This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_
 - **Step-completion and fix-complete routes accepted unvalidated input (`server/routes.ts`):** `suggestionIndex`, `stepIndex`, `timeSpent`, `stepsCompleted`, and `feedback` flowed straight to storage with no type/range checks, so NaN/negative/oversized values could corrupt review/diagnosis state. Added `toIndex`, `toOptionalCount`, `toOptionalNumber`, and `toOptionalText` validators enforcing non-negative integer indices, bounded time, and 4,000-char text caps. Responses are 400 (not 500) on invalid input to distinguish client errors.
 - **Reviewer-gated write routes lacked rate limits (`server/routes.ts`):** the follow-up (50 MB disk writes), feedback (quotas on mechanic ratings), steps, and fix-complete routes had no per-actor limit. Added a shared `reviewerWriteLimit` (120 req / 10 min keyed by reviewer ref) applied to all four routes.
 
+### Fourth adversarial session (0919) — P0 Beta evidence pipeline client↔server contract
+
+- **Captured multimedia silently broke the customer diagnosis flow (`client/src/pages/diagnosis.tsx`):** the P0 Beta page appended its camera file under the multipart field `photo` (singular), but the server route is `diagnosisPhotoUpload.array("photos", …)` (`server/routes.ts`). Empirically verified against multer in this session: `array("photos")` raises `MulterError LIMIT_UNEXPECTED_FILE` for **any** file part not named `photos`, so every diagnosis submitted with a captured photo — or with an audio/video file from the tabs — was rejected with 413 and **no diagnosis was created**. The audit doc's claim that "captured photos … pass MIME type verification" was therefore false in practice (the photo never reached the verified image pipeline). The page now appends the camera photo as `photos` so it actually flows through the byte-verified photo storage, and no longer attaches `audio`/`video` (the diagnosis route has no storage for them; attaching them hard-rejected the whole submission). An honest toast tells the user that audio/video are collected in the follow-up flow instead. `vibrationData` (a text part) is unchanged and persists.
+- **Follow-up evidence upload leaked a 500 on out-of-contract multipart bodies (`server/routes.ts`):** `/api/diagnoses/:id/follow-up` used a bare `upload.fields([{ name: 'audio' }, { name: 'video' }])`. Because the follow-up page also appended a `photo` part, any reviewer using it hit `LIMIT_UNEXPECTED_FILE`, and — unlike the diagnosis route — this MulterError was **not** caught, so it cascaded to the global handler as a 500. Added `followUpEvidenceUploadMiddleware` mirroring `diagnosisPhotoUploadMiddleware`: `LIMIT_UNEXPECTED_FILE` → `400` with "Follow-up evidence accepts only audio and video…" (+ `persisted: false`), other size limits → `413`, unsupported MIME → `415`. Malformed reviewer evidence bodies now fail closed as client errors instead of 500s.
+- **Client aligned to the follow-up contract (`client/src/pages/follow-up.tsx`):** the page no longer appends `photo` (the follow-up endpoint stores audio/video only); a captured photo produces a clear toast instead of failing the submit.
+- **Regression coverage:** `server/routes-security.test.ts` gains two tests — an authenticated follow-up with a `photo` part returns `400 persisted:false` (not 500), and the follow-up evidence upload stays behind the reviewer/auth gate (401/503, gate runs before multipart parsing). `test:routes-security` is now 7 tests; `npm run check`, `npm run build`, and all 26 suites pass.
+
 ---
 
 ## Verification
@@ -153,14 +160,14 @@ This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_
 | `test:safe-log` | PASS (4) | Structured log lines; no message/stack/cause leak; PII-redacted attributes |
 | `test:origin-guard` | PASS (6) | Allowlist; route-level 403; global read-through/write-reject; no-origin pass |
 | `test:registration-enum` | PASS (2) | Identical register responses; session only for new accounts |
-| `test:routes-security` | PASS (5) | Form 403 on disallowed origin before validation; allowed origin passes guard; knowledge endpoint 429 before DB; file containment; case-ID entropy |
+| `test:routes-security` | PASS (7) | Form 403 on disallowed origin before validation; allowed origin passes guard; knowledge endpoint 429 before DB; file containment; case-ID entropy; follow-up unexpected field → 400 not 500; follow-up stays behind reviewer gate |
 | `test:follow-up-boundary` | PASS (2) | Only text labeled analyzed; no implied media |
 | `test:review` (release gate) | PASS (11) | All deny paths fail closed; immutable versioned records |
 | `test:review-async` | PASS (3) | Async release gate read contract |
 | `test:review-postgres` | PASS (3) | Postgres review reader durability contract |
 | `test:review-writer` | PASS (4) | Postgres review writer contract, error isolation |
 | `test:review-adapter` | PASS (3) | Postgres adapter contract |
-| `test:review-routes` | PASS (4) | Reviewer-gated wiring; ignores client identity; review failures never echo storage internals; TypeError never echoes message |
+| `test:review-routes` | PASS (5) | Reviewer-gated wiring; ignores client identity; review failures never echo storage internals; TypeError never echoes message; reviewer-write rate limit when wired |
 | `test:webhook-fetch` | PASS (4) | Bounded webhook delivery: respond, non-2xx, stalled endpoint aborts, caller signal honored |
 | `test:media-contract` | PASS (7) | Traversal-resistant keys, server-generated keys, verified bytes, idempotent puts, private access, durability gate |
 | `test:delivery` | PASS (8) | Idempotent enqueue, fenced leases, bounded retries → DLQ, fixed metadata |
@@ -172,7 +179,7 @@ This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_
 - **All public state-changing routes** (`/api/auth/register`, `/api/auth/login`, `/api/auth/logout`, diagnosis intake, four public forms, consent revoke) are covered by the global origin enforcement and/or `requireAllowedOrigin`, plus `SameSite=Lax` on the session cookie.
 - **Authentication/sessions:** scrypt-salted passwords, HMAC-signed stateless sessions (expiry, version check, timing-safe compare), `HttpOnly`/`Secure`(prod)/`SameSite=Lax` cookie. Reviewer API uses a separate 32-char secret, timing-safe, `not_configured` → 503.
 - **Reviewer endpoints:** every `/api/internal/*` and evidence/file/consultation route requires the reviewer credential; review identity is derived server-side (`reviewer_ref`), never from the request body.
-- **Uploads:** photo intake requires authenticated customer + launch-controlled private-object storage; MIME allowlist with byte verification at storage time; server-generated keys; `X-Content-Type-Options: nosniff` on retrieval; local `uploads/` is gitignored and never treated as durable.
+- **Uploads:** photo intake requires authenticated customer + launch-controlled private-object storage; MIME allowlist with byte verification at storage time; server-generated keys; `X-Content-Type-Options: nosniff` on retrieval; local `uploads/` is gitignored and never treated as durable; follow-up evidence accepts only `audio`/`video` parts and rejects unexpected multipart fields as 400 (never a 500).
 - **R2/S3 evidence:** private objects only, case-prefixed keys, server-generated attachment IDs, no public URLs, rollback on partial failure (re-verified via `media/private-object-storage.contract.test.ts`).
 - **File retrieval:** `/api/files/:filename` and `/api/internal/evidence/*` are reviewer-only, basename-normalized, containment-checked, `nosniff`.
 - **CORS/Origin:** allowlist only; disallowed origins get 403 on state changes and never receive CORS headers.
@@ -202,6 +209,7 @@ This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_
 8. **Consent revocation recorded but not enforced downstream** — `decideConsentAuthorization` is never called by evidence/review/delivery paths. Validates requested purposes; a future-release policy item (original audit P2).
 9. **Outbound webhooks single-attempt, no retry; durable outbox unused** — `fetchWebhookWithTimeout` is bounded (5 s) but single-shot. Availability concern, not security.
 10. **Follow-up upload/steps/fix-complete/feedback** now carry the reviewer-write rate limit (120/10 min) and input validation (see third session), but the follow-up route still writes media to local `uploads/` by design until durable private-object evidence lands for reviewing media. Low-moderate severity.
+11. **Follow-up page is customer-reachable but its endpoint is reviewer-gated** — the P0 hardening that required reviewer authorization for `/api/diagnoses/:id/follow-up` (originally fixed to close unauthorized evidence access) broke the customer-facing `/follow-up/:id` app page, which now returns 401/503 for the intended end-user. Restoring the authorized-but-customer flow requires a purpose-built, bounded customer follow-up intake endpoint (its own rate limit, origin guard, input bounds, and durable evidence storage); it is a product decision, not something to do by weakening the reviewer gate.
 
 ---
 
