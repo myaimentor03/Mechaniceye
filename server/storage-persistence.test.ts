@@ -94,3 +94,37 @@ test("LocalStorage getRecentDiagnoses returns in-memory records without a databa
     else delete process.env.DATABASE_URL;
   }
 });
+
+test("mapDiagnosisRowToRecord surfaces durable evidence metadata columns", () => {
+  const record = mapDiagnosisRowToRecord(
+    dbRow({
+      photoFileNames: ["engine-bay.jpg", "dash.jpg"],
+      audioFileNames: [],
+      videoFileNames: null,
+      vibrationFileNames: ["vibration-run-1.json"],
+      evidenceVersion: "1",
+    }),
+  );
+  assert.deepEqual(record.photoFileNames, ["engine-bay.jpg", "dash.jpg"]);
+  assert.deepEqual(record.audioFileNames, []);
+  assert.deepEqual(record.videoFileNames, []);
+  assert.deepEqual(record.vibrationFileNames, ["vibration-run-1.json"]);
+  assert.equal(record.evidenceVersion, "1");
+});
+
+test("mapDiagnosisRowToRecord tolerates NULL evidence metadata columns", () => {
+  const record = mapDiagnosisRowToRecord(
+    dbRow({
+      photoFileNames: null,
+      audioFileNames: null,
+      videoFileNames: null,
+      vibrationFileNames: null,
+      evidenceVersion: null,
+    }),
+  );
+  assert.deepEqual(record.photoFileNames, []);
+  assert.deepEqual(record.audioFileNames, []);
+  assert.deepEqual(record.videoFileNames, []);
+  assert.deepEqual(record.vibrationFileNames, []);
+  assert.equal(record.evidenceVersion, "1");
+});

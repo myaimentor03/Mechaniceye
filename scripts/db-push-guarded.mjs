@@ -11,7 +11,7 @@
  *  - Never echoes DATABASE_URL or credentials.
  *
  * Preferred production path is the reviewed SQL in migrations/
- * (0001-0003). This wrapper exists only to keep the previously-uncontrolled
+ * (0001-0005). This wrapper exists only to keep the previously-uncontrolled
  * `db:push` safe until it is retired entirely.
  *
  * Usage:  DATABASE_URL=... node scripts/db-push-guarded.mjs
@@ -40,7 +40,7 @@ const guard = mutationTargetGuard(databaseUrl);
 if (!guard.ok) {
   console.error(`db:push refused: ${guard.reason}`);
   console.error("db:push directly alters the target schema with no migration review.");
-  console.error("Prefer the reviewed SQL migrations in migrations/ (0001-0003).");
+  console.error("Prefer the reviewed SQL migrations in migrations/ (0001-0005).");
   process.exit(1);
 }
 if (guard.markers?.length) {

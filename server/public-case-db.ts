@@ -19,6 +19,7 @@ type PublicDiagnosisInput = IncomingDiagnosisCase & {
   audioFileNames?: string[];
   videoFileNames?: string[];
   vibrationFileNames?: string[];
+  evidenceVersion?: string;
 };
 
 type PublicCaseDbInsertResult =
@@ -57,7 +58,7 @@ function hasEvidence(status: unknown, fileNames: unknown, data?: unknown) {
   );
 }
 
-function buildInputTypes(input: PublicDiagnosisInput) {
+export function buildInputTypes(input: PublicDiagnosisInput) {
   const inputTypes = new Set<string>();
 
   if (nonEmptyString(input.description)) {
@@ -118,6 +119,22 @@ function fileSummary(fileNames: unknown, fallbackStatus: unknown) {
   return nonEmptyString(fallbackStatus) ? fallbackStatus.trim() : null;
 }
 
+export function buildEvidenceMetadata(input: PublicDiagnosisInput) {
+  const metadata: Record<string, unknown> = {
+    photoFileNames: normalizeFileList(input.photoFileNames),
+    audioFileNames: normalizeFileList(input.audioFileNames),
+    videoFileNames: normalizeFileList(input.videoFileNames),
+    vibrationFileNames: normalizeFileList(input.vibrationFileNames),
+  };
+
+  const version = nonEmptyString(input.evidenceVersion) ? input.evidenceVersion.trim() : null;
+  if (version) {
+    metadata.evidenceVersion = version;
+  }
+
+  return metadata;
+}
+
 function errorMessage(error: unknown) {
   let message = error instanceof Error ? error.message : "Unknown database error";
   const databaseUrl = process.env.DATABASE_URL;
@@ -164,6 +181,7 @@ export async function insertPublicDiagnosisCaseToDb(
         audioFile: fileSummary(input.audioFileNames, input.audioEvidenceStatus),
         videoFile: fileSummary(input.videoFileNames, input.videoEvidenceStatus),
         vibrationData: buildVibrationData(input),
+        ...buildEvidenceMetadata(input),
         confidenceScore: 0,
         confidenceLevel: "low",
         inputTypes: buildInputTypes(input)

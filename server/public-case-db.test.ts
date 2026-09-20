@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { insertPublicDiagnosisCaseToDb } from "./public-case-db.js";
+import { buildEvidenceMetadata, buildInputTypes, insertPublicDiagnosisCaseToDb } from "./public-case-db.js";
 
 const BASE_INPUT = {
   description: "Engine shakes at idle",
@@ -57,4 +57,55 @@ test("public case DB insert redacts any database credentials echoed back", async
       else delete process.env.DATABASE_URL;
     }
   });
+});
+
+test("buildInputTypes lists only evidence actually present", () => {
+  const types = buildInputTypes({
+    description: "written symptom",
+    vehicleInfo: "2014 Ford Focus",
+    photoEvidenceStatus: "Persisted",
+    photoFileNames: ["engine-bay.jpg"],
+    audioEvidenceStatus: "none",
+    vibrationEvidenceStatus: "Persisted",
+    vibrationFileNames: ["vibration-run-1.json"],
+  });
+  assert.deepEqual(types, ["written", "photo", "vibration"]);
+});
+
+test("buildInputTypes omits missing, 'none', and 'not provided' evidence", () => {
+  const types = buildInputTypes({
+    description: "written symptom",
+    vehicleInfo: "2014 Ford Focus",
+    photoEvidenceStatus: "none",
+    audioEvidenceStatus: "Not provided",
+    videoEvidenceStatus: "not_provided",
+    vibrationData: null,
+  });
+  assert.deepEqual(types, ["written"]);
+});
+
+test("buildEvidenceMetadata returns normalized file-name arrays and version", () => {
+  const metadata = buildEvidenceMetadata({
+    description: "engine shakes",
+    vehicleInfo: "2014 Ford Focus",
+    photoFileNames: ["a.jpg", "", "b.jpg"],
+    audioFileNames: undefined,
+    videoFileNames: null as unknown as string[],
+    vibrationFileNames: ["vib.json"],
+    evidenceVersion: "3",
+  });
+  assert.deepEqual(metadata.photoFileNames, ["a.jpg", "b.jpg"]);
+  assert.deepEqual(metadata.audioFileNames, []);
+  assert.deepEqual(metadata.videoFileNames, []);
+  assert.deepEqual(metadata.vibrationFileNames, ["vib.json"]);
+  assert.equal(metadata.evidenceVersion, "3");
+});
+
+test("buildEvidenceMetadata omits evidenceVersion when blank", () => {
+  const metadata = buildEvidenceMetadata({
+    description: "engine shakes",
+    vehicleInfo: "2014 Ford Focus",
+  });
+  assert.deepEqual(metadata.photoFileNames, []);
+  assert.equal("evidenceVersion" in metadata, false);
 });

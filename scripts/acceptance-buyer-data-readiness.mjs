@@ -71,6 +71,15 @@ const EXPECTED_SEED_COUNTS = Object.freeze({
   drivable_seed_seller_disclosure_prompts: 30,
 });
 
+// Migration 0005 adds durable case evidence metadata to the diagnoses row.
+const CASE_EVIDENCE_METADATA_COLUMNS = Object.freeze([
+  "photo_file_names",
+  "audio_file_names",
+  "video_file_names",
+  "vibration_file_names",
+  "evidence_version",
+]);
+
 let pool;
 const failures = [];
 
@@ -148,6 +157,17 @@ async function main() {
     const triggers = await triggerNames();
     for (const trigger of LAUNCH_CONTROL_TRIGGERS) {
       report(triggers.has(trigger), `launch-control trigger ${trigger}`);
+    }
+
+    for (const column of CASE_EVIDENCE_METADATA_COLUMNS) {
+      const present = await pool.query(
+        "select 1 as one from information_schema.columns where table_schema = current_schema() and table_name = 'diagnoses' and column_name = $1",
+        [column],
+      );
+      report(
+        present.rows.length > 0,
+        `diagnoses evidence-metadata column ${column}`,
+      );
     }
 
     const OPTIONAL_TABLES = Object.freeze([

@@ -55,6 +55,11 @@ export const diagnoses = pgTable("diagnoses", {
   confidenceScore: integer("confidence_score").default(0),
   confidenceLevel: text("confidence_level").default("low"), // low, medium, high
   inputTypes: json("input_types").$type<string[]>(), // track what inputs were used
+  photoFileNames: json("photo_file_names").$type<string[]>(),
+  audioFileNames: json("audio_file_names").$type<string[]>(),
+  videoFileNames: json("video_file_names").$type<string[]>(),
+  vibrationFileNames: json("vibration_file_names").$type<string[]>(),
+  evidenceVersion: text("evidence_version").default("1"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

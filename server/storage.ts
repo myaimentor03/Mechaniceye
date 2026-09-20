@@ -24,6 +24,11 @@ export function mapDiagnosisRowToRecord(row: DiagnosisRow): DiagnosisRecord {
     confidenceScore: row.confidenceScore ?? 0,
     confidenceLevel: row.confidenceLevel ?? "low",
     inputTypes: Array.isArray(row.inputTypes) ? row.inputTypes : [],
+    photoFileNames: Array.isArray(row.photoFileNames) ? row.photoFileNames : [],
+    audioFileNames: Array.isArray(row.audioFileNames) ? row.audioFileNames : [],
+    videoFileNames: Array.isArray(row.videoFileNames) ? row.videoFileNames : [],
+    vibrationFileNames: Array.isArray(row.vibrationFileNames) ? row.vibrationFileNames : [],
+    evidenceVersion: row.evidenceVersion ?? "1",
     iterationCount: row.iterationCount ?? 1,
     primaryDiagnosis: (row.primaryDiagnosis as DiagnosisRecord["primaryDiagnosis"]) ?? null,
     alternativeScenarios: (row.alternativeScenarios as DiagnosisRecord["alternativeScenarios"]) ?? [],
@@ -44,6 +49,11 @@ type DiagnosisRecord = {
   confidenceScore?: number;
   confidenceLevel?: string;
   inputTypes?: string[];
+  photoFileNames?: string[];
+  audioFileNames?: string[];
+  videoFileNames?: string[];
+  vibrationFileNames?: string[];
+  evidenceVersion?: string;
   iterationCount?: number;
   createdAt: string;
   status?: string;

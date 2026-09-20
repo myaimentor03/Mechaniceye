@@ -95,6 +95,7 @@ Migrations are already present in `migrations/` and verified against `shared/sch
 2. `0002_drivable_core_schema.sql` - Core app tables (users, diagnoses, fix_history_log, chat_export_log, mechanics, consultations, follow_up_requests) + seed knowledge tables + operational tables (confirmed_cases, vehicle_knowledge_packs) + indexes
 3. `0003_drivable_data_integrity_hardening.sql` - FK constraints (NOT VALID, enforced on new writes only) + lookup indexes + timeline indexes
 4. `0004_drivable_delivery_outbox.sql` - Optional durable delivery outbox table (NOT WIRED into runtime)
+5. `0005_drivable_case_evidence_metadata.sql` - Case evidence metadata columns on `diagnoses` (photo/audio/video/vibration file-name lists + `evidence_version`), so the durable case row owns its evidence
 
 **To generate fresh migrations** (if schema changes):
 ```bash
@@ -180,7 +181,28 @@ npm run nhtsa:batch -- --apply
 ```
 Runs `npx spawn_sync` for each of the 30 vehicles with `--apply`. Inserts/upserts all 30 packs into `drivable_vehicle_knowledge_packs`.
 
-**Expected pack count after full import:** 30 packs (one per tier-1 vehicle).
+**Expected pack count after tier-1 import:** 30 packs (one per tier-1 vehicle).
+
+**Tier-2 lists (verified inventory, no duplicates, no malformed rows):**
+
+| List | Rows | Unique vehicles | Packs already on disk |
+|---|---|---|---|
+| `tier1-marketplace-vehicles.csv` | 30 | 30 | 30 |
+| `tier2-common-used-vehicles.csv` | 215 | 215 | 215 |
+| `tier2-missing-vehicles.csv` | 21 | 21 | 21 |
+| `grand-cherokee-repair.csv` | 7 | 7 | 7 |
+
+There are **230 distinct vehicles** across all four lists (cross-file case-insensitive
+dedup; tier-2 shares some year/make/model rows with tier-1). Each unique vehicle
+produces exactly one pack keyed by `pack_id`. `tier2-common-used-vehicles.csv` is the
+full tier-2 target (215 packs); `tier2-missing-vehicles.csv` is a generated subset for a
+target where the common list is already largely imported.
+
+**To run a different batch list:**
+```bash
+npm run nhtsa:batch -- --file data/nhtsa/batch-lists/tier2-common-used-vehicles.csv
+npm run nhtsa:batch -- --file data/nhtsa/batch-lists/grand-cherokee-repair.csv
+```
 
 **Pack file location:** `data/nhtsa/vehicle-knowledge-packs/{pack_id}.json` - **gitignored**, must be regenerated on each deployment.
 
@@ -292,6 +314,13 @@ TRUNCATE drivable_vehicle_knowledge_packs;
 ### Schema Rollback
 No down-migration exists. If full rollback is needed:
 ```sql
+-- Remove 0005 evidence-metadata columns first (non-destructive reversal)
+ALTER TABLE diagnoses DROP COLUMN IF EXISTS photo_file_names;
+ALTER TABLE diagnoses DROP COLUMN IF EXISTS audio_file_names;
+ALTER TABLE diagnoses DROP COLUMN IF EXISTS video_file_names;
+ALTER TABLE diagnoses DROP COLUMN IF EXISTS vibration_file_names;
+ALTER TABLE diagnoses DROP COLUMN IF EXISTS evidence_version;
+
 -- Drop all Drivable tables (order matters for foreign keys)
 DROP TABLE IF EXISTS drivable_vehicle_knowledge_packs;
 DROP TABLE IF EXISTS drivable_confirmed_cases;
@@ -321,8 +350,8 @@ DROP TABLE IF EXISTS follow_up_requests;
 | Issue | Impact | Mitigation |
 |---|---|---|
 | 10a. Schema import path mismatch | `server/db.ts` line 4 imports from `./shared/shared/schema` (double nesting). Canonical path is `shared/schema.ts`. | Low risk if current directory structure is preserved. |
-| 10b. DB is partially disabled | `server/_db.DISABLED.ts` contains original Neon serverless connection. Active code uses `server/db.ts` (plain pg Pool) + `server/storage.ts` (LocalStorage - in-memory Map). | Diagnosis data is **not durable** across server restarts unless `public-case-db.ts` is invoked. |
-| 10c. Commerce/Jobs/Review subsystems use in-memory test doubles | `server/commerce/in-memory-commerce-order-repository.ts`, `server/jobs/in-memory-delivery-outbox.ts`, `server/review/in-memory-review-repository.ts`, `server/media/in-memory-private-object-storage.ts` - explicitly marked as test doubles with `durable: false`. | Production requires durable implementations backed by PostgreSQL or object storage. |
+| 10b. Core storage is in-memory-first | `server/storage.ts` `LocalStorage` keeps diagnoses/follow-ups/consultations in an in-memory Map; reads merge local + DB rows. `server/db.ts` connects to Postgres when `DATABASE_URL` is set. Diagnosis data written through `storage.createDiagnosis` alone is **not durable** across restarts. | Public intake writes durable case rows via `insertPublicDiagnosisCaseToDb` (see `insertPublicDiagnosisCaseToDb()` in `server/public-case-db.ts`); receipt marks `persisted:false` when the DB write fails. |
+| 10c. Some subsystems still have in-memory-only paths | The current tree has **no commerce/order module** (no `server/commerce/*`). Test-double fakes that DO exist and are import-unreachable from production code: `server/jobs/in-memory-delivery-outbox.ts`, `server/media/in-memory-private-object-storage.ts`, `server/review/in-memory-review-repository.ts` (all marked `durable: false`). | `scripts/verify-production-storage-guards.mjs` statically proves no production module imports a fake; runtime asserts (`assertDurableReviewRepository`, `assertDurableScalablePrivateStorage`, `assertDurableDeliveryOutbox`) fail closed. Follow-ups/consultations still persist only in-memory — see §12 Persistence Truth Map. |
 | 10d. All seed manifest entries have `importAllowedNow: false` | The manifest explicitly gates all 8 datasets with `importAllowedNow: false`. The import script enforces this for local validation, but `--apply` does not check this flag (requires `DRIVABLE_ALLOW_SEED_IMPORT=1`). | Policy gate for local validation, not a technical gate. |
 | 10e. NHTSA packs are gitignored | Pack JSON files in `data/nhtsa/vehicle-knowledge-packs/` are gitignored. Must be regenerated from NHTSA API or imported to database on each fresh deployment. | Regenerate or import on each deployment. |
 | 10f. No down migrations | No rollback migration files exist. Schema rollback requires manual SQL. | Manual rollback SQL available in runbook. |
@@ -416,6 +445,43 @@ The P0 beta requires real phone sensor capture (vibration/audio/photo/video) lin
 // routes.ts follow-up endpoint passes sensorData to performEnhancedAnalysis()
 // inputTypes in diagnoses tracks what was actually analyzed
 ```
+
+---
+
+## 13. Persistence Truth Map (Verified Against Current Code)
+
+Trace of a public diagnosis intake (`POST /api/diagnoses` in `server/routes.ts`):
+
+1. **Browser intake** → parsed/validated into a `DiagnosisInput`
+   (`normalizeDiagnosisBody` + `drivableEvidenceIntakeSchema`), identity assigned
+   from the authenticated customer (`applyAuthenticatedCaseIdentity`).
+2. **Case creation** → id from `createPublicDiagnosisCase` / `createStoredDiagnosisCase`
+   (`server/case-storage.ts`). `case.json` + tracker CSV are written on the ops
+   volume when local case storage is enabled; otherwise a public-fallback case is
+   used (`usedPublicFallback`).
+3. **Evidence storage** → photos via `evidenceStore.savePhotos()` (durable
+   object storage when `DRIVABLE_PHOTO_UPLOAD_ENABLED=true` and durability =
+   `private_object_storage`); audio/video/ vibration are recorded in `input` and
+   forwarded to analysis. File-name lists are now persisted on the case row by
+   migration 0005 (evidence metadata), applied via `insertPublicDiagnosisCaseToDb`.
+4. **DB case persistence** → `insertPublicDiagnosisCaseToDb(responseBody, input,
+   storedCase, authenticatedCaseOwnerId(...))` upserts the `diagnoses` row
+   (`ON CONFLICT DO NOTHING`). Returns `{ok:false}` when the DB is unreachable.
+5. **Receipt** → `persisted:false` + HTTP `503`/`202` whenever the DB write or
+   evidence persistence fails; `casePersistence.databaseMirror` is
+   `persisted`/`unavailable`/`not_attempted` so the client can never assume
+   durability that did not happen.
+
+### Findings
+
+| Finding | Location | Status / Mitigation |
+|---|---|---|
+| Process-local-only data | `LocalStorage` diagnoses/follow-ups/consultations in `server/storage.ts`; follow-up route (`POST /api/diagnoses/:id/follow-up`) writes follow-ups and follow-up diagnoses only in-memory | Documented. Follow-ups are restart-loss until a durable follow-up writer is wired. Not silently claimed as durable. |
+| False durable receipts | None found: the receipt carries `persisted:false` and the DB-mirror state whenever the DB write fails; local-case store falls back to 202 + `persisted:false`; evidence photo failure returns 507 + `persisted:false` | Verified by `server/persistence-truth.test.ts`, `server/public-case-db.test.ts`, and the no-DB contract sweep (`npm run test:safe-contracts`). |
+| Restart-loss risks | Follow-ups, consultations, mechanic ratings, fix-history (stub returns `[]`), and any diagnosis written only through `storage.createDiagnosis` | Public intake path is durable via `diagnoses` rows. Mitigations: documented, plus static production-storage guard + runtime durability asserts. |
+| Orphaned evidence | Evidence objects can exist without a case row only if the DB write failed after `savePhotos` — the route then calls `evidenceStore.deleteCase(responseBody.id)` to remove the orphan | Covered in the intake route; narrow tests assert DB failure does not become success. |
+| Case/evidence mismatch | Pre-0005, photo/audio/video/vibration file names were not retained on the durable case row (only `input_types` label list + coarse `audio_file`/`video_file` summaries) | Fixed by migration 0005 + `buildEvidenceMetadata()` in `server/public-case-db.ts`; `mapDiagnosisRowToRecord` surfaces them on reads. |
+| DB failure reported as success | None found: `insertPublicDiagnosisCaseToDb` returns `{ok:false}` and callers downgrade the response; the persistence-truth tests assert this behavior | Verified in `server/public-case-db.test.ts` (fails closed; redacts credentials). |
 
 ---
 
