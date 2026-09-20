@@ -311,10 +311,48 @@ export const journeyCaseEvents = pgTable("journey_case_events", {
   // structured payload
   payload: json("payload").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").defaultNow(),
+  }, (table) => [
+    index("journey_events_case_timeline_idx").on(table.caseId, table.createdAt),
+    index("journey_events_customer_idx").on(table.customerId, table.createdAt),
+  ]);
+
+// Journey case persistence — durable row-per-case state.
+// Complex nested fields (evidence, safetyFlags, matchedSymptomCategories,
+// plannedEvidence) are stored as JSONB and deserialised on read.
+// Evidence belongs to the vehicle/case and is reusable across FIX/SELL flows.
+export const journeyCases = pgTable("journey_cases", {
+  id: varchar("id").primaryKey(),
+  state: varchar("state").notNull().default("intake"),
+  createdAt: varchar("created_at").notNull(),
+  updatedAt: varchar("updated_at").notNull(),
+  vehicleInfo: text("vehicle_info").notNull(),
+  description: text("description").notNull(),
+  timing: text("timing"),
+  urgency: text("urgency"),
+  canDrive: text("can_drive"),
+  customerId: varchar("customer_id"),
+  customerEmail: text("customer_email"),
+  evidence: json("evidence").$type<unknown[]>().default([]),
+  safetyFlags: json("safety_flags").$type<unknown[]>().default([]),
+  safetyTriggered: boolean("safety_triggered").notNull().default(false),
+  confidenceScore: integer("confidence_score").notNull().default(0),
+  confidenceLevel: varchar("confidence_level").notNull().default("insufficient_information"),
+  riskLevel: varchar("risk_level").notNull().default("unknown"),
+  outcome: varchar("outcome"),
+  decisionPath: varchar("decision_path"),
+  resolutionNote: text("resolution_note"),
+  humanReviewRequested: boolean("human_review_requested").notNull().default(false),
+  escalationReason: text("escalation_reason"),
+  nextAction: varchar("next_action"),
+  nextActionPrompt: text("next_action_prompt"),
+  matchedSymptomCategories: json("matched_symptom_categories").$type<unknown[]>().default([]),
+  plannedEvidence: json("planned_evidence").$type<unknown[]>().default([]),
+  currentEvidencePrompt: text("current_evidence_prompt"),
 }, (table) => [
-  index("journey_events_case_timeline_idx").on(table.caseId, table.createdAt),
-  index("journey_events_customer_idx").on(table.customerId, table.createdAt),
+  index("journey_cases_customer_idx").on(table.customerId),
+  index("journey_cases_state_idx").on(table.state),
 ]);
+
 
 export const drivableVehicleKnowledgePacks = pgTable("drivable_vehicle_knowledge_packs", {
   packId: varchar("pack_id").primaryKey(),
@@ -448,3 +486,7 @@ export type DrivableVehicleKnowledgePack = typeof drivableVehicleKnowledgePacks.
 export const insertJourneyCaseEventSchema = createInsertSchema(journeyCaseEvents).omit({ createdAt: true });
 export type InsertJourneyCaseEvent = z.infer<typeof insertJourneyCaseEventSchema>;
 export type JourneyCaseEvent = typeof journeyCaseEvents.$inferSelect;
+
+export const insertJourneyCaseSchema = createInsertSchema(journeyCases).omit({ createdAt: true, updatedAt: true });
+export type InsertJourneyCase = z.infer<typeof insertJourneyCaseSchema>;
+export type JourneyCaseRow = typeof journeyCases.$inferSelect;
