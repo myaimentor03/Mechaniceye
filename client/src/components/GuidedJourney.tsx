@@ -516,7 +516,7 @@ export function GuidedJourney() {
             {caseData.state === "resolved" && <span className="helper-text">Resolved. Outcome: {outcomeCopy(caseData.outcome)}</span>}
           </div>
 
-          {(caseData.state === "intake" || caseData.state === "triage" || caseData.state === "evidence_requested") && (
+          {(caseData.state === "intake" || caseData.state === "triage" || caseData.state === "evidence_requested" || caseData.state === "evidence_received") && (
             <>
               <form onSubmit={handleAddEvidence} className="top-gap">
                 <div className="field-grid">

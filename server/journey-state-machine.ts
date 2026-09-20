@@ -87,6 +87,7 @@ export type JourneyTransition =
   | "acknowledge_triage"
   | "request_evidence"
   | "submit_evidence"
+  | "add_more_evidence"
   | "finish_evidence"
   | "evaluate"
   | "ready_diagnosis"
@@ -99,7 +100,7 @@ const VALID_TRANSITIONS: Record<JourneyState, JourneyTransition[]> = {
   intake: ["submit_intake"],
   triage: ["acknowledge_triage", "request_evidence", "submit_evidence", "escalate", "resolve_stop_driving"],
   evidence_requested: ["submit_evidence", "finish_evidence", "escalate", "resolve_stop_driving"],
-  evidence_received: ["evaluate", "escalate", "resolve_stop_driving"],
+  evidence_received: ["add_more_evidence", "evaluate", "escalate", "resolve_stop_driving"],
   evaluating: ["ready_diagnosis", "escalate", "resolve_stop_driving"],
   diagnosis_ready: ["resolve", "request_human_review", "escalate"],
   escalation_required: ["request_human_review", "resolve", "resolve_stop_driving"],
@@ -112,6 +113,7 @@ const TRANSITION_TARGETS: Record<JourneyTransition, JourneyState> = {
   acknowledge_triage: "evidence_requested",
   request_evidence: "evidence_requested",
   submit_evidence: "evidence_received",
+  add_more_evidence: "evidence_received",
   finish_evidence: "evidence_received",
   evaluate: "evaluating",
   ready_diagnosis: "diagnosis_ready",
@@ -355,7 +357,7 @@ export function buildNextAction(state: JourneyState, caseData: JourneyCase): {
     case "evidence_received":
       return {
         action: "evaluate",
-        prompt: "Let us review what you have shared.",
+        prompt: "Thanks — that evidence is saved to your case. You can add one more item if it helps, or continue to review what you have shared.",
       };
     case "evaluating":
       return {
@@ -508,7 +510,7 @@ export function advanceJourney(
   const now = new Date().toISOString();
   updated.updatedAt = now;
 
-  if (transition === "submit_evidence" && additionalData?.evidence) {
+  if ((transition === "submit_evidence" || transition === "add_more_evidence") && additionalData?.evidence) {
     const normalized: EvidenceRecord[] = additionalData.evidence.map((e: any) => ({
       id: e.id || `ev-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
       kind: e.kind,
@@ -563,7 +565,7 @@ export function advanceJourney(
     );
   }
 
-  if (transition === "submit_evidence" && evidenceItems && evidenceItems.length > 0 && updated.matchedSymptomCategories.length > 0) {
+  if ((transition === "submit_evidence" || transition === "add_more_evidence") && evidenceItems && evidenceItems.length > 0 && updated.matchedSymptomCategories.length > 0) {
     updated.plannedEvidence = planEvidence(
       updated.matchedSymptomCategories,
       evidenceItems,
