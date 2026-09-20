@@ -33,6 +33,7 @@ import {
 } from "./evidence-storage";
 import { requireReviewer } from "./reviewer-auth";
 import { buildFollowUpEvidenceBoundary } from "./follow-up-evidence-boundary";
+import { logCaseStarted, logStateTransition, logEvidenceAdded, logReviewAction, logCaseResolved, getCaseEvents } from "./journey-case-events";
 import { InMemoryReviewRepository } from "./review/in-memory-review-repository";
 import { HumanReviewReleaseGate } from "./review/release-gate";
 import type { ReviewRepository } from "./review/types";
@@ -324,6 +325,8 @@ export function registerJourneyRoutes(app: Express): void {
         journeyReviewBridge.createReviewForCase(caseData);
       }
 
+      logCaseStarted(caseData);
+
       logEvent("journey.case_started", {
         caseId: caseData.id,
         state: caseData.state,
@@ -420,6 +423,9 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
 
       setJourneyCase(updated);
 
+      // Log the state transition to the durable event timeline
+      logStateTransition(caseData, caseData.state, mappedTransition);
+
       // When a case enters human_review, automatically create a review draft
       if (updated.state === "human_review" && caseData.state !== "human_review") {
         journeyReviewBridge.createReviewForCase(updated);
@@ -486,6 +492,8 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       });
 
       setJourneyCase(updated);
+
+      logEvidenceAdded(updated, [evidenceRecord]);
 
       logEvent("journey.evidence_added", {
         caseId: updated.id,
@@ -573,6 +581,8 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         });
 
         setJourneyCase(updated);
+
+        logEvidenceAdded(updated, evidenceRecords);
 
         logEvent("journey.photo_evidence_added", {
           caseId: updated.id,
@@ -670,6 +680,8 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
 
         setJourneyCase(updated);
 
+        logEvidenceAdded(updated, evidenceRecords);
+
         logEvent("journey.audio_evidence_added", {
           caseId: updated.id,
           persistedCount: attachments.length,
@@ -764,6 +776,8 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         });
 
         setJourneyCase(updated);
+
+        logEvidenceAdded(updated, evidenceRecords);
 
         logEvent("journey.video_evidence_added", {
           caseId: updated.id,
@@ -861,6 +875,8 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
 
         setJourneyCase(updated);
 
+        logEvidenceAdded(updated, evidenceRecords);
+
         logEvent("journey.vibration_evidence_added", {
           caseId: updated.id,
           persistedCount: attachments.length,
@@ -953,6 +969,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           escalationReason: "Safety re-evaluation triggered during case progression",
         });
         journeyReviewBridge.createReviewForCase(escalated);
+        logStateTransition(caseData, caseData.state, "escalate");
         setJourneyCase(escalated);
         res.json(safeJourneyResponse(escalated));
         return;
@@ -962,6 +979,28 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       res.json(safeJourneyResponse(updated));
     } catch (error) {
       logEventError("journey.re-evaluate_failed", error, { caseId: req.params.caseId });
+      journeyError(res, error);
+    }
+  });
+
+  // Case activity timeline — customer-visible event log for this case
+  app.get("/api/journey/:caseId/events", requireCustomer, async (req, res) => {
+    try {
+      const caseData = getJourneyCase(req.params.caseId);
+      if (!caseData) {
+        res.status(404).json({ ok: false, error: "Journey case not found." });
+        return;
+      }
+      if (!assertOwner(caseData, req.drivableCustomer!.id)) {
+        res.status(404).json({ ok: false, error: "Journey case not found." });
+        return;
+      }
+
+      const events = await getCaseEvents(caseData.id);
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ ok: true, events });
+    } catch (error) {
+      logEventError("journey.events_failed", error, { caseId: req.params.caseId });
       journeyError(res, error);
     }
   });
@@ -1141,6 +1180,10 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
 
       setJourneyCase(updated);
 
+      logReviewAction(updated.id, updated.customerId, "approved", reviewerRef, {
+        resolutionNote: `Approved by reviewer ${reviewerRef}`,
+      });
+
       logEvent("journey.review_approved_and_resolved", {
         caseId: updated.id,
         approvalId: approval.approvalId,
@@ -1193,6 +1236,10 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         reviewerRef,
         reasonCode
       );
+
+      logReviewAction(caseData.id, caseData.customerId, "rejected", reviewerRef, {
+        reasonCode,
+      });
 
       logEvent("journey.review_rejected", {
         caseId: caseData.id,

@@ -312,6 +312,11 @@ test("journey resolve completes the full happy path", async () => {
     });
     assert.equal(ackRes.status, 200);
 
+    const finishRes = await fetch(`${origin}/api/journey/${caseId}/advance`, {
+      method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition: "finish_evidence" }),
+    });
+    assert.equal(finishRes.status, 200);
+
     const evalRes = await fetch(`${origin}/api/journey/${caseId}/advance`, {
       method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition: "evaluate" }),
     });

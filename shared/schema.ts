@@ -285,6 +285,37 @@ export const drivableConfirmedCases = pgTable("drivable_confirmed_cases", {
   index("confirmed_cases_vehicle_idx").on(table.vehicleYear, table.vehicleMake, table.vehicleModel),
 ]);
 
+// Journey case activity log — append-only event stream for case lifecycle.
+// Each row is one customer-visible state transition, evidence submission,
+// review action, or resolution.  Evidence belongs to the vehicle/case and
+// is reusable across FIX/SELL flows.
+export const journeyCaseEvents = pgTable("journey_case_events", {
+  eventId: varchar("event_id").primaryKey(),
+  caseId: varchar("case_id").notNull(),
+  customerId: varchar("customer_id"),
+  eventType: varchar("event_type").notNull(),
+  // state transition metadata
+  fromState: varchar("from_state"),
+  toState: varchar("to_state"),
+  transition: varchar("transition"),
+  outcome: varchar("outcome"),
+  // evidence metadata
+  evidenceKind: varchar("evidence_kind"),
+  evidenceCount: integer("evidence_count"),
+  // review metadata
+  reviewerRef: varchar("reviewer_ref"),
+  reviewAction: varchar("review_action"),
+  reasonCode: varchar("reason_code"),
+  // human-readable message for the customer
+  message: text("message"),
+  // structured payload
+  payload: json("payload").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("journey_events_case_timeline_idx").on(table.caseId, table.createdAt),
+  index("journey_events_customer_idx").on(table.customerId, table.createdAt),
+]);
+
 export const drivableVehicleKnowledgePacks = pgTable("drivable_vehicle_knowledge_packs", {
   packId: varchar("pack_id").primaryKey(),
   vehicleYear: integer("vehicle_year"),
@@ -413,3 +444,7 @@ export type InsertDrivableConfirmedCase = z.infer<typeof insertDrivableConfirmed
 export type DrivableConfirmedCase = typeof drivableConfirmedCases.$inferSelect;
 export type InsertDrivableVehicleKnowledgePack = z.infer<typeof insertDrivableVehicleKnowledgePackSchema>;
 export type DrivableVehicleKnowledgePack = typeof drivableVehicleKnowledgePacks.$inferSelect;
+
+export const insertJourneyCaseEventSchema = createInsertSchema(journeyCaseEvents).omit({ createdAt: true });
+export type InsertJourneyCaseEvent = z.infer<typeof insertJourneyCaseEventSchema>;
+export type JourneyCaseEvent = typeof journeyCaseEvents.$inferSelect;
