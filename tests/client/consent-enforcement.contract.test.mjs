@@ -30,7 +30,7 @@ test("server: consent validation block exists in routes.ts", () => {
 test("server: consent check runs BEFORE the idempotency guard", () => {
   const consentCheckAt = routes.indexOf("// Server-side consent validation");
   assert.ok(consentCheckAt !== -1, "consent validation comment must exist");
-  const idempotencyAt = routes.indexOf("// Idempotency: check for existing case");
+  const idempotencyAt = routes.indexOf("// Idempotency: check process-local in-memory store first");
   assert.ok(idempotencyAt !== -1, "idempotency guard must exist");
   assert.ok(
     consentCheckAt < idempotencyAt,
