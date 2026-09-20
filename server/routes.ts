@@ -2688,7 +2688,9 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
       // Persist follow-up evidence attachment metadata to the database.
       const followUpAttachments = [...photoAttachments, ...audioAttachments, ...videoAttachments, ...vibrationAttachments];
       if (followUpAttachments.length > 0) {
-        void persistEvidenceAttachments(followUpAttachments);
+        await persistEvidenceAttachments(followUpAttachments).catch(
+          (err) => logEventError("evidence_db.persist_failed", err, { caseId: diagnosisId })
+        );
       }
 
       // Get previously attempted fixes
