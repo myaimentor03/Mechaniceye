@@ -100,10 +100,25 @@ type JourneyCaseResponse = {
 
 const STORAGE_KEY = "drivable.journey.caseId";
 
+type JourneyEvent = {
+  eventId: string;
+  caseId: string;
+  eventType: string;
+  fromState?: string | null;
+  toState?: string | null;
+  transition?: string | null;
+  evidenceKind?: string | null;
+  evidenceCount?: number | null;
+  message?: string | null;
+  createdAt?: string | null;
+};
+
 export function GuidedJourney() {
   const [auth, setAuth] = useState<{ ok: boolean; user: { email: string; id: string } | null } | null>(null);
   const [caseData, setCaseData] = useState<JourneyCaseResponse | null>(null);
   const [myCases, setMyCases] = useState<JourneyCaseResponse[]>([]);
+  const [caseEvents, setCaseEvents] = useState<JourneyEvent[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [evidenceKind, setEvidenceKind] = useState("text");
@@ -149,6 +164,21 @@ export function GuidedJourney() {
     }
   }
 
+  async function fetchCaseEvents(caseId: string) {
+    setEventsLoading(true);
+    try {
+      const res = await fetch(`/api/journey/${caseId}/events`, { credentials: "include" });
+      if (!res.ok) { setCaseEvents([]); return; }
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.events)) setCaseEvents(data.events);
+      else setCaseEvents([]);
+    } catch {
+      setCaseEvents([]);
+    } finally {
+      setEventsLoading(false);
+    }
+  }
+
   useEffect(() => {
     fetchAuth();
   }, []);
@@ -162,6 +192,14 @@ export function GuidedJourney() {
       fetchMyCases();
     }
   }, [auth]);
+
+  // Keep timeline in sync with the active case — customer-visible
+  // persistence/resume + notifications foundation (P0 #5/#6). Fire-and-forget;
+  // a missing timeline never blocks the one-next-action UI.
+  useEffect(() => {
+    if (!caseData?.id) { setCaseEvents([]); return; }
+    fetchCaseEvents(caseData.id);
+  }, [caseData?.id, caseData?.updatedAt]);
 
   async function handleStart(e: React.FormEvent) {
     e.preventDefault();
@@ -740,6 +778,30 @@ export function GuidedJourney() {
           {caseData.urgency && <p><strong>Urgency:</strong> {caseData.urgency}</p>}
           {caseData.canDrive && <p><strong>Can drive:</strong> {caseData.canDrive}</p>}
           <p><strong>Created:</strong> {new Date(caseData.createdAt).toLocaleString()} · <strong>Updated:</strong> {new Date(caseData.updatedAt).toLocaleString()}</p>
+        </div>
+
+        <div className="step-card" style={{ background: "rgba(255,255,255,0.04)" }}>
+          <div className="step-header">
+            <div>
+              <div className="eyebrow">Case activity — notifications foundation</div>
+              <h3>Timeline — what happened, when, and what is next</h3>
+              <p className="helper-text">This timeline belongs to your vehicle/case, persists across sessions, and is reusable for FIX / SELL flows. {eventsLoading ? "Loading…" : `${caseEvents.length} event(s) • ${caseEvents.length ? new Date(caseEvents[0]?.createdAt || "").toLocaleString() + " → " + new Date(caseEvents[caseEvents.length - 1]?.createdAt || "").toLocaleString() : "no events yet"}`}</p>
+            </div>
+            <button className="secondary-btn" disabled={eventsLoading} onClick={() => fetchCaseEvents(caseData.id)}>Refresh</button>
+          </div>
+          {caseEvents.length === 0 && !eventsLoading && <p className="helper-text">No activity yet. Start the journey or add evidence — each step appears here so you can resume later and see what the system knows.</p>}
+          {caseEvents.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
+              {caseEvents.map((ev) => (
+                <div key={ev.eventId} className="pill" style={{ textAlign: "left", maxWidth: "640px", whiteSpace: "normal", alignItems: "flex-start", flexDirection: "column" as any }}>
+                  <span style={{ fontSize: "0.85em", opacity: 0.7 }}>{ev.createdAt ? new Date(ev.createdAt).toLocaleString() : ""} · {ev.eventType.replace(/_/g, " ")}{ev.fromState || ev.toState ? ` — ${ev.fromState || ""}${ev.fromState && ev.toState ? " → " : ""}${ev.toState || ""}` : ""}{ev.evidenceKind ? ` · ${ev.evidenceKind}` : ""}</span>
+                  <span style={{ display: "block", marginTop: "2px" }}>{ev.message || "—"}</span>
+                  {ev.evidenceCount != null && <span style={{ display: "block", fontSize: "0.8em", opacity: 0.6 }}>evidence count: {ev.evidenceCount}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="helper-text" style={{ marginTop: "8px" }}>Truthful boundary: timeline shows what was captured and stored; analysis remains evidence-driven. No automated diagnosis is claimed beyond FIX / SELL / MONITOR / STOP DRIVING guidance.</p>
         </div>
 
         {myCases.length > 1 && (
