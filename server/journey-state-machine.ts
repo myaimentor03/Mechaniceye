@@ -202,6 +202,9 @@ export function calculateConfidence(caseData: JourneyCase): {
   if (caseData.evidence.some((e) => e.kind === "video")) score += 5;
   if (caseData.evidence.some((e) => e.kind === "vibration")) score += 5;
 
+  const symptomMatchCount = caseData.matchedSymptomCategories?.length || 0;
+  if (symptomMatchCount > 0) score += Math.min(symptomMatchCount * 8, 20);
+
   score = Math.min(score, 100);
 
   let level: ConfidenceLevel;
