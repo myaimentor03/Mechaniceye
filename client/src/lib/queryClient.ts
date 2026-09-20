@@ -64,7 +64,13 @@ export async function uploadWithProgress(
     });
 
     xhr.addEventListener("load", () => {
-      const response = new Response(xhr.response, {
+      // Prefer responseText for string bodies; xhr.response is empty unless
+      // responseType is set. Keep statusText fallback but surface server body
+      // so layperson error toasts are truthful (e.g. 507 persistence failed).
+      const bodyText = typeof xhr.responseText === "string" && xhr.responseText.length > 0
+        ? xhr.responseText
+        : typeof xhr.response === "string" ? xhr.response : "";
+      const response = new Response(bodyText, {
         status: xhr.status,
         statusText: xhr.statusText,
         headers: {
@@ -74,7 +80,20 @@ export async function uploadWithProgress(
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve(response);
       } else {
-        reject(new Error(`${xhr.status}: ${xhr.statusText}`));
+        // Truthful error: include server-provided message when available.
+        let serverMessage = bodyText;
+        try {
+          const parsed = bodyText ? JSON.parse(bodyText) : null;
+          if (parsed && typeof parsed.message === "string" && parsed.message.trim()) {
+            serverMessage = parsed.message.trim();
+          } else if (parsed && typeof parsed.error === "string" && parsed.error.trim()) {
+            serverMessage = parsed.error.trim();
+          }
+        } catch {
+          // body is not JSON; use raw text
+        }
+        const detail = serverMessage || xhr.statusText || "Upload failed";
+        reject(new Error(`${xhr.status}: ${detail}`));
       }
     });
 

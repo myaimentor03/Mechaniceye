@@ -10,7 +10,7 @@ import { BottomNavigation } from "@/components/bottom-navigation";
 import { EvidenceCapture } from "@/components/EvidenceCapture";
 import { EvidenceVerificationPanel } from "@/components/EvidenceVerificationPanel";
 import { AnalysisProgress } from "@/components/analysis-progress";
-import { apiRequest } from "@/lib/queryClient";
+import { uploadWithProgress } from "@/lib/queryClient";
 import { RefreshCw, AlertCircle } from "lucide-react";
 import type { Diagnosis } from "@shared/schema";
 import { MEDIA_UNAVAILABLE, parseMediaCapabilities, filterSubmittableEvidence, type MediaCapabilities } from "@/lib/mediaAvailability";
@@ -33,6 +33,7 @@ export default function FollowUp() {
     video: "persisted" | "not_provided" | "failed";
     vibration: "persisted" | "not_provided" | "failed";
   } | undefined>(undefined);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const [formData, setFormData] = useState({
     description: "",
@@ -58,11 +59,15 @@ export default function FollowUp() {
     return () => { cancelled = true; };
   }, []);
 
+  // Real upload progress for follow-up evidence (parity with intake: diagnosis.tsx uses uploadWithProgress).
+  const uploadFollowUp = async (formDataToSend: FormData) => {
+    setUploadProgress(0);
+    const response = await uploadWithProgress(`/api/diagnoses/${diagnosisId}/follow-up`, formDataToSend, setUploadProgress);
+    return response.json();
+  };
+
   const followUpMutation = useMutation({
-    mutationFn: async (data: FormData) => {
-      const response = await apiRequest("POST", `/api/diagnoses/${diagnosisId}/follow-up`, data);
-      return response.json();
-    },
+    mutationFn: uploadFollowUp,
     onSuccess: (newDiagnosis) => {
       queryClient.invalidateQueries({ queryKey: ["/api/diagnoses"] });
       // Truthful per-modality status so the capture UI reflects what was
@@ -82,6 +87,7 @@ export default function FollowUp() {
     },
     onError: (error: any) => {
       setIsAnalyzing(false);
+      setUploadProgress(0);
       // Truthful failed status so Retry UI surfaces for modalities that had
       // files (parity with diagnosis intake); the customer stays on this
       // page and can clear/re-add evidence and submit again.
@@ -183,7 +189,7 @@ export default function FollowUp() {
       <div className="min-h-screen bg-gray-50">
         <AppHeader />
         <main className="container mx-auto px-4 py-6 max-w-4xl pb-20 md:pb-6">
-          <AnalysisProgress />
+          <AnalysisProgress uploadProgress={uploadProgress} />
         </main>
         <BottomNavigation currentPage="diagnosis" />
       </div>
