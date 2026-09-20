@@ -296,6 +296,7 @@ type DiagnosisInput = IncomingDiagnosisCase & {
 const localOperationsRoot = "C:\\MechanicsEye_Operations";
 
 function canUseLocalCaseStorage() {
+  if (process.env.DRIVABLE_DISABLE_LOCAL_CASE_STORE === "true") return false;
   return process.platform === "win32" && fs.existsSync(localOperationsRoot);
 }
 

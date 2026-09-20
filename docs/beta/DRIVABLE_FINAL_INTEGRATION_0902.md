@@ -1,11 +1,10 @@
 # Drivable Beta Final Integration Report 0902
 
-**Date:** 2026-09-07
 **Branch:** `integration/drivable-beta-0902`
-**Final SHA:** `4e78286`
+**Final SHA:** `7ae5b15` (`ci: verify integration candidate branches`)
 **Base:** `opencode/launch-hardening-rescue-0902` (`8eba023`)
 **Operator:** OpenCode Worker 1 (Drivable Beta Lead Integrator)
-**Date:** 2026-09-09
+**Updated:** 2026-09-19 (integration verification session; see §9 for what changed)
 
 ---
 
@@ -34,7 +33,7 @@ Deliberate hand-resolution (both/newest-safe-behavior wins), never ours/theirs w
 
 | File | Resolution |
 |---|---|
-| `server/routes.ts` | Hand-resolved: single `/api/health` aggregate `{ok,live}` (QA) with `no-store`; `Vary: Origin` before origin-denied 403; photo-first intake with 413/415/507 gates; `buildDiagnosisApiResponse` 3rd arg `persisted=false`; mirror-failure logged via safe `logEventError` (no raw `console.error`); **path traversal on `/api/files/:filename` now returns 403 (Forbidden) instead of 400 (Bad Request)** — preserves key secrecy, does not reveal path-detection to callers |
+| `server/routes.ts` | Hand-resolved: single `/api/health` aggregate `{ok,live}` (QA) with `no-store`; `Vary: Origin` before origin-denied 403; photo-first intake with 413/415/507 gates; `buildDiagnosisApiResponse` 3rd arg `persisted=false`; mirror-failure logged via safe `logEventError` (no raw `console.error`); **path traversal on `/api/files/:filename` now returns 404 (Not Found) instead of 400 (Bad Request)** — preserves key secrecy, does not reveal path-detection to callers (landed via `fdb13e5`, superseding the earlier 403 turnout) |
 | `server/index.ts` | Hand-resolved: CORS same-origin rules from security-remediation + default express.json/urlencoded limits (100kb) so over-limit JSON yields 413 |
 | `server/origin-guard.ts` | Multi-platform `requireAllowedOrigin`/`enforceOriginForStateChanging` merged; `Vary: Origin` added to all origin-denied 403 responses |
 | `client/src/TestBackend.tsx` | Deliberate hand-resolution (launch-hardening + QA behaviors merged) |
@@ -57,31 +56,32 @@ Deliberate hand-resolution (both/newest-safe-behavior wins), never ours/theirs w
 
 ---
 
-## 3. Build, Typecheck, and Test Results (final, at `4e78286`)
+## 3. Build, Typecheck, and Test Results (final, at `7ae5b15`)
 
 | Check | Result |
 |---|---|
 | `npm run check` (tsc) | PASS, clean |
-| `npm run build` | PASS (`dist/server/index.js` 241.0kb) |
-| Full safe test grid (30 suites) | **30/30 PASS** |
-| `npm run test:beta-e2e` | 90/92 PASS (2 env-related failures: missing `MASTER_INTAKE_WEBHOOK_URL`; both expected fail-closed) |
-| `npm run verify:migration-parity` | PASS |
-| `npm run preflight:safe` | PASS (8/8 stages, no DB/mutation) |
-| `npm run validate:seed-data` | PASS (8 datasets, 270 rows) |
+| `npm run build` | PASS (`dist/server/index.js` 242.5kb) |
+| Full safe test grid (30 package scripts) | **30/30 PASS** |
+| `npm run test:safe-contracts` (broad glob) | **157/157 PASS** |
+| `npm run test:beta-e2e` | **7/7 PASS** (104/104 smoke checks) |
+| `npm run test:client-nav` + `npm run test:buyer-draft` | **8/8 PASS** |
+| `npm run verify:migration-parity` | PASS (migrations match `shared/schema.ts`, no DB required) |
+| `npm run verify:no-destructive-sql` | PASS (no destructive statements in migrations or seed preview) |
 
-Suites included: evidence, security, auth, identity, rate-limit, readiness, consent (+postgres/intake/revocation), origin-guard, routes-security, safe-log, webhook-fetch, registration-enum, review (+async/postgres/writer/adapter/routes), follow-up-boundary, delivery, observability, media-contract, load-cert, production-smoke, storage-persistence, public-case.
+Suites included: evidence, security, auth, identity, rate-limit, readiness, consent (+postgres/intake/revocation), origin-guard, routes-security, safe-log, webhook-fetch, registration-enum, review (+async/postgres/writer/adapter/routes), follow-up-boundary, delivery, observability, media-contract, load-cert, production-smoke, storage-persistence, persistence-truth, public-case, client navigation contract, buyer evidence draft.
 
 ---
 
 ## 4. Server Startup / Health Endpoints (local production-like boot, no DB, no storage creds)
 
 - Boot: `node dist/server/index.js` prints `Server running on port <PORT>`.
-- `GET /api/health/live` → 200 `{"ok":true,"live":true}`
+- `GET /api/health/live` → 200 `{"ok":true}`
 - `GET /api/health` → 200 `{"ok":true,"live":true}` (single aggregate, `no-store`)
-- `GET /api/health/readiness` → 503 `REVIEWER_ACCESS_NOT_CONFIGURED` without launch controls (fail-closed, correct)
-- `GET /` and `GET /clearsale` → 200 `text/html` SPA fallback
-- `GET /api/nope` → 404; `GET /api/auth/me` → 200 `{"ok":true,"user":null}`
-- `/api/capabilities` → `photoUpload:false`, `audioUpload:false`, `videoUpload:false` when storage not configured (fail-closed)
+- `GET /api/health/readiness` → 401 without reviewer token, else 503 with the launch-readiness report while any durability gate is red (fail-closed, correct); 200 only in a fully provisioned deploy
+- `GET /api/health/db` → 503 `{ok:false}` with redacted reason when `DATABASE_URL` is absent (verified no URL/credential echo)
+- `GET /` → 200 `text/html` SPA fallback
+- `/api/capabilities` → `photoUpload:false`, `audioUpload:false`, `videoUpload:false`, `vibrationSensorCapture:false` when storage/flag not configured (fail-closed)
 
 ---
 
@@ -125,14 +125,65 @@ Suites included: evidence, security, auth, identity, rate-limit, readiness, cons
 
 ## 8. Verified Beta-Readiness
 
-- **Code/branch readiness: ~95%.** All integrated work type-checks, builds, passes every safe automated suite, the production-ready built server boots and serves the SPA with fail-closed security/storage/database behavior, and no conflict markers or secrets remain in the tree. Beta E2E: 90/92 tests pass (2 env-dependent failures for webhook forwarding without `MASTER_INTAKE_WEBHOOK_URL`; path-traversal now returns 403).
+- **Code/branch readiness: ~95%.** All integrated work type-checks, builds, passes every safe automated suite (30/30 scripts, `safe-contracts` 157/157, beta E2E 7/7 with 104/104 smoke checks, client-nav + buyer-draft 8/8), the production-ready built server boots and serves the SPA with fail-closed security/storage/database behavior, and no conflict markers or secrets remain in the tree.
 - **Remaining ~5% (owner-dependent, not code):** live Neon provision + guarded `db:push`, live R2/S3 provisioning, real (non-stub) webhook and `.onrender.com` smoke, iPhone device verification, AI live-mode validation. These are exactly the actions in Section 7.
-- **Deliberate product boundaries this release:** photo-first evidence intake (no audio/video vibration), evidence upload disabled until storage is configured, and origin enforcement returns 403 (with `Vary: Origin`) for disallowed state-changing cross-origin requests. Path traversal on `/api/files` returns 403 (Forbidden) instead of 400 (Bad Request) to avoid revealing detection.
+- **Deliberate product boundaries this release:** photo-first evidence intake (no audio/video vibration), evidence upload disabled until storage is configured, and origin enforcement returns 403 (with `Vary: Origin`) for disallowed state-changing cross-origin requests. Path traversal on `/api/files` returns 404 (Not Found) to avoid revealing detection.
 
 ---
 
 **GO / CONDITIONAL GO / NO-GO: CONDITIONAL GO**
 
 All code and branch requirements are met. Deployment requires owner actions in Section 7 (DB provisioning, R2/S3 bucket setup, feature flag configuration). With those actions completed, the beta is ready for controlled tester traffic.
+
+---
+
+## 9. Integration Verification Session (2026-09-19, at `7ae5b15`)
+
+### 9.1 Scope confirmed
+Fetched `origin`, verified every candidate branch tip is already an ancestor of HEAD (0 commits behind), confirmed zero conflict markers, clean `npm run check` / `npm run build`.
+
+### 9.2 Test-grid fixes found and applied
+- **Removed corrupt untracked scratch files** `server/guided-journey.ts` and `server/guided-journey.test.ts`. They contained leaked runtime session prompts and broken syntax (they were an accidental export at some earlier point, not referenced by any import or route). They matched the `server/**/*.test.ts` glob and broke `test:safe-contracts`. **Moved, not deleted**, to `C:\Users\Hall7\AppData\Local\Temp\opencode\scratch-guided-journey\` so any wanted content is preserved. Verified zero remaining references. `test:safe-contracts` → **157/157 PASS**.
+- **Root-caused `test:beta-e2e` failures to a machine-dependent path.** On an operator machine that happens to have `C:\MechanicsEye_Operations` present, `canUseLocalCaseStorage()` (win32 + ops root exists) returned `true`, so smoke scenarios took the local ops-store path (202 + retained S3 evidence) instead of the production-like fail-closed path (503 + rollback).
+  - Added an explicit opt-out in `server/routes.ts`: `canUseLocalCaseStorage()` returns `false` when `DRIVABLE_DISABLE_LOCAL_CASE_STORE === "true"`. No behavior change on machines without the ops root; this makes the leeward local fallback impossible to hit by accident in test/CI environments.
+  - Added `DRIVABLE_DISABLE_LOCAL_CASE_STORE: "true"` to the three spawned servers in `scripts/beta-e2e-smoke.mjs`.
+  - Rebuilt the server bundle; `npm run test:beta-e2e` → **7/7 PASS** with **104/104 smoke checks**.
+
+### 9.3 Wired two previously unwired tests
+- `npm run test:client-nav` (4 tests) — public navigation contract.
+- `npm run test:buyer-draft` (4 tests) — client buyer-evidence draft safety.
+Both pass. Added to `package.json` so they are discoverable/runnable in future sessions.
+
+### 9.4 Evidence storage architecture (reconciled, verified, unchanged)
+- **Photos (only supported media in this release):** unified `EvidenceStore` served by `S3PrivateEvidenceStore` (`DRIVABLE_EVIDENCE_S3_*`), case-scoped keys, generated UUID filenames, verified-byte MIME typing, rollback on partial failure, retention metadata, idempotent delete. Fallback `RuntimeFileEvidenceStore` is explicitly non-durable and intake still requires `durability === "private_object_storage"` (507 otherwise) — fail-closed.
+- **Mobile media (audio/video/vibration):** not supported; intake returns 415 before any storage (asserted), follow-up returns 422 for input vibration. `server/r2-evidence-storage.ts` (Cloudflare `R2_*` vars) is a **legacy seam with no reachable production path** in this release — documented, left intact for a future mobile-release wiring, not a blocker.
+- **Contract + durability gate:** `server/media/private-object-storage.ts` and `assertDurableScalablePrivateStorage` guarantee any reviewer/release decision and any production capability report can never rely on process-local or non-scalable storage.
+- Every grep/read confirms follow-up media is labeled "stored but never analyzed as model input" (`buildFollowUpEvidenceBoundary`), matching the customer-facing contract.
+
+### 9.5 Security re-verification (no new findings)
+P0/P1 items remain closed with regression suites: structured redaction logger (`safe-log`), PII/VIN/phone scrubbing (`privacy`), error objects never surface message/stack/cause (`errors`), origin enforcement with `Vary: Origin` (`origin-guard`), rate-limited reviewer/customer/auth + public/buyer endpoints, identical registration responses, cryptographic case IDs, `basename`+nosniff file serving returning 404 on traversal. Only console writes in the tree are the port startup line and dev-only Vite logging.
+
+### 9.6 Database static review (no writes; no DB touched)
+- `server/db.ts` redacts full URL, username, password, host, database name in every error path plus a URL-pattern fallback regex.
+- `migrations/0001-0004` are idempotent (`IF NOT EXISTS`), free of destructive SQL (scanner PASSED), and migration/schema parity PASSED against `shared/schema.ts` (no database required).
+- `0003` hardening constraints are `NOT VALID` (never re-scan existing rows); `0004` outbox is explicitly documented **NOT WIRED** and stores only opaque identifiers / delivery metadata (no PII, no raw bodies, no VINs).
+
+### 9.7 Local production-like boot (built bundle, no DB, no storage creds)
+Booted `dist/server/index.js` with launch flags set but no `DATABASE_URL`/S3 creds:
+- `/api/health`, `/api/health/live`, `/`, `/api/capabilities` all correct (capabilities all `false`).
+- `/api/health/readiness` → 401 unauthenticated, 503 with valid reviewer token while durability gates are red.
+- `/api/health/db` → 503 with redacted error. Process exited cleanly on stop.
+
+### 9.8 Backlog sweep
+No TODO/FIXME/`@ts-ignore`/`@ts-expect-error` markers in server, client, commits script dirs, or tests. Client has zero localhost URLs; server has only the dev-origin allowlist and test harnesses. No stale references to the removed `guided-journey` module.
+
+### 9.9 Known side effect to disclose (this worktree)
+Before the 9.2 fix, the operator machine's earlier smoke runs briefly exercised `createStoredDiagnosisCase`, which writes case folders/tracker rows under the real `C:\MechanicsEye_Operations` ops directory. Those artifacts were created on this machine only and cannot be reverted per integration rules (no deletion of ops data); they are not part of the repo and are restricted to the operator's local ops root. All smoke runs since the fix write to the S3 stub only.
+
+### 9.10 Files changed in this session
+- `server/routes.ts` (+1): `DRIVABLE_DISABLE_LOCAL_CASE_STORE` opt-out in `canUseLocalCaseStorage()`.
+- `scripts/beta-e2e-smoke.mjs` (+7): env flag on the three spawned servers.
+- `package.json` (+2 scripts): `test:client-nav`, `test:buyer-draft`.
+- `docs/beta/DRIVABLE_FINAL_INTEGRATION_0902.md`: this update.
 
 ---

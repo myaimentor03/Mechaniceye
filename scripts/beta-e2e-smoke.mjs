@@ -756,6 +756,11 @@ async function main() {
         DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "qa-secret-key",
         DRIVABLE_EVIDENCE_S3_FORCE_PATH_STYLE: "true",
         DRIVABLE_PHOTO_UPLOAD_ENABLED: "true",
+        // Make the boundary harness deterministic regardless of the operator's
+        // local machine: the legacy scenarios must exercise the production-like
+        // fail-closed path (DB absent -> 503 + evidence rollback), never the
+        // operator's C:\MechanicsEye_Operations local case store.
+        DRIVABLE_DISABLE_LOCAL_CASE_STORE: "true",
         NODE_ENV: "production",
         ...(DATABASE_URL ? { DATABASE_URL } : {}),
       },
@@ -1009,6 +1014,7 @@ async function main() {
         DRIVABLE_SESSION_SECRET: SESSION_SECRET,
         DRIVABLE_BETA_INVITE_CODE: BETA_INVITE,
         NODE_ENV: "production",
+        DRIVABLE_DISABLE_LOCAL_CASE_STORE: "true",
         DRIVABLE_EVIDENCE_S3_BUCKET: "qa-evidence",
         DRIVABLE_EVIDENCE_S3_REGION: "us-east-1",
         DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID: "only-half",
@@ -1265,6 +1271,7 @@ async function main() {
           DRIVABLE_SESSION_SECRET: SESSION_SECRET,
           DRIVABLE_BETA_INVITE_CODE: BETA_INVITE,
           DRIVABLE_LAUNCH_CONTROLS_ENABLED: "true",
+          DRIVABLE_DISABLE_LOCAL_CASE_STORE: "true",
           NODE_ENV: "production",
         },
       });
