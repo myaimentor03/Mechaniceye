@@ -43,6 +43,8 @@ import {
 const PUBLIC_API_ENDPOINT = "/api/diagnoses";
 const SUBMISSION_TIMEOUT_MS = 20000;
 const CASE_RECOVERY_TIMEOUT_MS = 20000;
+const AUTH_ME_TIMEOUT_MS = 15000;
+const CAPABILITIES_TIMEOUT_MS = 10000;
 // QA lane (Nov 2 paid beta): stable idempotency keys for webhook-forwarded
 // public forms. Each flow keeps its own sessionStorage key (rotated only
 // after a successful submit) so a mobile timeout retry or double-tap resends
@@ -1254,16 +1256,29 @@ const [manualEngine, setManualEngine] = useState("");
 
   useEffect(() => {
     let active = true;
-    fetch("/api/auth/me")
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), AUTH_ME_TIMEOUT_MS);
+    fetch("/api/auth/me", { signal: controller.signal })
       .then((response) => response.json())
       .then((body) => {
         if (!active) return;
         setCustomer(body.user || null);
         if (body.user?.email) setCustomerEmail(body.user.email);
       })
-      .catch(() => { if (active) setCustomer(null); })
-      .finally(() => { if (active) setAuthChecked(true); });
-    return () => { active = false; };
+      .catch((err) => {
+        if (!active) return;
+        if (err instanceof DOMException && err.name === "AbortError") {
+          // Timeout on flaky mobile network — treat as unauthenticated
+          setCustomer(null);
+        } else {
+          setCustomer(null);
+        }
+      })
+      .finally(() => {
+        window.clearTimeout(timeoutId);
+        if (active) setAuthChecked(true);
+      });
+    return () => { active = false; controller.abort(); window.clearTimeout(timeoutId); };
   }, []);
 
   // Shared-device safety: if the signed-in customer changes (logout, account
@@ -1331,10 +1346,14 @@ const [manualEngine, setManualEngine] = useState("");
   }, [authChecked, customer, result]);
 
   useEffect(() => {
-    fetch("/api/capabilities")
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), CAPABILITIES_TIMEOUT_MS);
+    fetch("/api/capabilities", { signal: controller.signal })
       .then((response) => response.json())
       .then((body) => setPhotoUploadEnabled(body.photoUpload === true))
-      .catch(() => setPhotoUploadEnabled(false));
+      .catch(() => setPhotoUploadEnabled(false))
+      .finally(() => window.clearTimeout(timeoutId));
+    return () => { controller.abort(); window.clearTimeout(timeoutId); };
   }, []);
 
   const availableMakes = useMemo(() => {

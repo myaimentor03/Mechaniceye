@@ -71,7 +71,7 @@ test("TestBackend renders CustomerAccountGate when not authenticated", () => {
 });
 
 test("TestBackend checks auth on mount via /api/auth/me", () => {
-  assert.match(backend, /fetch\("\/api\/auth\/me"\)/);
+  assert.match(backend, /fetch\("\/api\/auth\/me", \{ signal: controller\.signal \}\)/);
   assert.match(backend, /setCustomer\(body\.user \|\| null\)/);
   assert.match(backend, /setAuthChecked\(true\)/);
 });
