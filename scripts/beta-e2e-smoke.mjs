@@ -626,6 +626,35 @@ async function main() {
     return "ok";
   });
 
+  await check("intake smuggled payment fields are stripped (fail-closed 503 persisted:false, no paid reflection)", async () => {
+    const spoofCookie = sessionCookieHeader({ id: "qa-pay-spoof", email: "qa-pay-spoof@example.test", secret: SESSION_SECRET });
+    const hostile = intakeForm();
+    hostile.append("PaymentStatus", "Paid");
+    hostile.append("paymentStatus", "Paid");
+    hostile.append("PaymentTier", "Full Decision");
+    hostile.append("paid", "true");
+    hostile.append("entitlement", "paid");
+    hostile.append("verifiedPaymentEntitlement", "true");
+    hostile.append("amountMinor", "4900");
+    hostile.append("stripePaymentIntentId", "pi_spoof_12345");
+    hostile.append("checkoutSessionId", "cs_spoof_67890");
+    const cleanResponse = await postMultipart(`${baseUrl}/api/diagnoses`, intakeForm(), { cookie: spoofCookie });
+    const cleanBody = await jsonResponse(cleanResponse);
+    const spoofCookie2 = sessionCookieHeader({ id: "qa-pay-spoof-2", email: "qa-pay-spoof-2@example.test", secret: SESSION_SECRET });
+    const response = await postMultipart(`${baseUrl}/api/diagnoses`, hostile, { cookie: spoofCookie2 });
+    const body = await jsonResponse(response);
+    assert(response.status === cleanResponse.status, `smuggled payment fields must not change the intake outcome (clean=${cleanResponse.status} hostile=${response.status})`);
+    assert(response.status === 503, `expected fail-closed 503 got ${response.status}`);
+    assert(body.persisted === false, "must report persisted:false");
+    assert(cleanBody.persisted === false, "clean baseline must also report persisted:false");
+    const serialized = JSON.stringify(body);
+    assert(!serialized.includes('"Paid"'), "response must never report a Paid status");
+    assert(!serialized.includes("pi_spoof_12345"), "stripe spoof value must never be reflected");
+    assert(!serialized.includes("cs_spoof_67890"), "checkout spoof value must never be reflected");
+    assert(!serialized.includes("verifiedPaymentEntitlement"), "response must never carry a payment entitlement flag");
+    return "stripped";
+  });
+
   await check("unauthenticated /api/auth/me reports no account and never a paid flag", async () => {
     const response = await get(baseUrl + "/api/auth/me");
     const body = await jsonResponse(response);
