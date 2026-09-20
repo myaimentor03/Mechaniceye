@@ -2399,6 +2399,23 @@ try {
       });
     }
 
+    // Server-side consent validation — always enforced regardless of launch
+    // controls. The client checks this before submission but any HTTP client
+    // can bypass the UI. Consent must be verified before any evidence is
+    // persisted so photos are never stored without authorization.
+    const consent = consentChoices as Record<string, unknown> | undefined;
+    const hasServiceConsent = consent?.service_fulfillment === true;
+    const hasHumanReviewConsent = consent?.human_review_sharing === true;
+    const hasMediaConsent = photoFiles.length > 0
+      ? consent?.media_processing === true
+      : true;
+    if (!hasServiceConsent || !hasHumanReviewConsent || !hasMediaConsent) {
+      await removeIntakeTempFiles(uploadedFiles);
+      return res.status(400).json({
+        message: "Consent is required. Please accept service fulfillment and human review. Photo submissions also require media processing consent.",
+      });
+    }
+
     // Idempotency: check for existing case with same customer + normalized clientRequestId
     // Prevents duplicate cases on mobile retry after timeout. Malformed keys are
     // treated as absent (backward compatible) so a fix-and-retry with a valid key

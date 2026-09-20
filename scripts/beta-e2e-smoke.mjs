@@ -149,7 +149,7 @@ function intakeForm({ photos = [], vibrationData, clientRequestId } = {}) {
   form.append("consent", JSON.stringify({
     service_fulfillment: true,
     media_processing: true,
-    human_review_sharing: false,
+    human_review_sharing: true,
     optional_product_learning: false,
   }));
   if (clientRequestId) form.append("clientRequestId", clientRequestId);
@@ -695,13 +695,13 @@ async function main() {
     return "ok";
   });
 
-  await check("missing consent field with launch controls + no DB -> 503 persisted:false (fail-closed, same gate)", async () => {
+  await check("missing consent field -> 400 (server-side consent gate rejects before persistence)", async () => {
     const form = intakeForm();
     form.delete("consent");
     const response = await postMultipart(`${baseUrl}/api/diagnoses`, form, { cookie });
     const body = await jsonResponse(response);
-    assert(response.status === 503, `expected 503 got ${response.status}`);
-    assert(body.persisted === false, "must report persisted:false");
+    assert(response.status === 400, `expected 400 got ${response.status}`);
+    assert(body.message.includes("Consent"), `unexpected message ${body.message}`);
     return "ok";
   });
 
