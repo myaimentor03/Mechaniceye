@@ -217,6 +217,7 @@ function InternalReviewDesk() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const INTERNAL_REVIEW_TIMEOUT_MS = 20000;
 
   async function submitInternalReview(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -249,6 +250,9 @@ function InternalReviewDesk() {
     setSubmitError("");
     setSubmitSuccess(false);
 
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), INTERNAL_REVIEW_TIMEOUT_MS);
+
     try {
       const response = await fetch("/api/internal-review", {
         method: "POST",
@@ -256,7 +260,8 @@ function InternalReviewDesk() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${reviewerToken.trim()}`,
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: controller.signal
       });
       const result = await response.json().catch(() => ({ ok: false, error: "Internal review failed." }));
 
@@ -266,9 +271,14 @@ function InternalReviewDesk() {
 
       setSubmitSuccess(true);
       form.reset();
-    } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "Internal review failed.");
+    } catch (error: unknown) {
+      const message =
+        error instanceof DOMException && error.name === "AbortError"
+          ? `Request timed out after ${INTERNAL_REVIEW_TIMEOUT_MS / 1000} seconds. Please try again.`
+          : error instanceof Error ? error.message : "Internal review failed.";
+      setSubmitError(message);
     } finally {
+      window.clearTimeout(timeoutId);
       setIsSubmitting(false);
     }
   }
