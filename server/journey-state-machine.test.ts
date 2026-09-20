@@ -350,23 +350,70 @@ it("resolves with resolve_stop_driving", () => {
        assert.equal(caseData.outcome, "stop_driving");
      });
 
-     it("request_human_review transitions to human_review state", () => {
-       let caseData = createJourneyCase({
-         vehicleInfo: "2018 Honda Civic",
-         description: "Car makes a grinding noise when braking at low speeds",
-       });
-       caseData = advanceJourney(caseData, "submit_intake");
+it("request_human_review transitions to human_review state", () => {
+        let caseData = createJourneyCase({
+          vehicleInfo: "2018 Honda Civic",
+          description: "Car makes a grinding noise when braking at low speeds",
+        });
+        caseData = advanceJourney(caseData, "submit_intake");
 
-       caseData = advanceJourney(caseData, "request_evidence");
-       caseData = advanceJourney(caseData, "submit_evidence", {
-         evidence: [{ kind: "photo", description: "Photo" }],
-       });
-       caseData = advanceJourney(caseData, "evaluate");
-       caseData = advanceJourney(caseData, "ready_diagnosis");
-       caseData = advanceJourney(caseData, "request_human_review");
+        caseData = advanceJourney(caseData, "request_evidence");
+        caseData = advanceJourney(caseData, "submit_evidence", {
+          evidence: [{ kind: "photo", description: "Photo" }],
+        });
+        caseData = advanceJourney(caseData, "evaluate");
+        caseData = advanceJourney(caseData, "ready_diagnosis");
+        caseData = advanceJourney(caseData, "request_human_review");
 
-       assert.equal(caseData.state, "human_review");
-     });
+        assert.equal(caseData.state, "human_review");
+      });
+
+      it("add_followup_evidence transitions from resolved to evidence_received and clears outcome", () => {
+        let caseData = createJourneyCase({
+          vehicleInfo: "2020 Toyota RAV4",
+          description: "Check engine light is on, car runs rough at idle",
+          timing: "Idle",
+          urgency: "Safe to Drive",
+        });
+        caseData = advanceJourney(caseData, "submit_intake");
+        caseData = advanceJourney(caseData, "acknowledge_triage");
+        caseData = advanceJourney(caseData, "finish_evidence");
+        caseData = advanceJourney(caseData, "evaluate");
+        caseData = advanceJourney(caseData, "ready_diagnosis");
+        caseData = advanceJourney(caseData, "resolve");
+        assert.equal(caseData.state, "resolved");
+        assert.ok(caseData.outcome);
+        assert.ok(caseData.decisionPath);
+
+        caseData = advanceJourney(caseData, "add_followup_evidence", {
+          evidence: [{ kind: "text", description: "New symptom: engine stalling at stops" }],
+        });
+
+        assert.equal(caseData.state, "evidence_received");
+        assert.equal(caseData.outcome, undefined, "Outcome should be cleared for re-evaluation");
+        assert.equal(caseData.decisionPath, undefined, "Decision path should be cleared");
+        assert.equal(caseData.resolutionNote, undefined, "Resolution note should be cleared");
+        assert.equal(caseData.humanReviewRequested, false, "Human review flag should be cleared");
+        assert.equal(caseData.evidence.length, 1, "Follow-up evidence should be added");
+        assert.equal(caseData.evidence[0].description, "New symptom: engine stalling at stops");
+        assert.equal(caseData.nextAction, "evaluate");
+      });
+
+      it("add_followup_evidence rejects from non-resolved state", () => {
+        let caseData = createJourneyCase({
+          vehicleInfo: "2018 Honda Civic",
+          description: "Grinding noise when braking",
+        });
+        caseData = advanceJourney(caseData, "submit_intake");
+        assert.equal(caseData.state, "triage");
+
+        assert.throws(
+          () => advanceJourney(caseData, "add_followup_evidence", {
+            evidence: [{ kind: "text", description: "Test" }],
+          }),
+          /Invalid transition/,
+        );
+      });
   });
 
   describe("evaluateSafetyFlags", () => {

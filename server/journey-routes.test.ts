@@ -612,3 +612,129 @@ test("journey advance with outcome and resolution note", async () => {
     assert.equal(afterResolve.resolutionNote, "Recommended professional repair");
   });
 });
+
+test("journey add_followup_evidence re-opens resolved case for new evidence", async () => {
+  await withJourneyServer(async (origin) => {
+    const startRes = await fetch(`${origin}/api/journey/start`, {
+      method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({
+        vehicleInfo: "2020 Toyota RAV4",
+        description: "Check engine light, runs rough at idle",
+        timing: "Idle",
+        urgency: "Safe to Drive",
+      }),
+    });
+    const caseData = await jsonOf(startRes);
+    const caseId = caseData.id;
+
+    for (const transition of ["submit_intake", "acknowledge_triage", "finish_evidence", "evaluate", "ready_diagnosis", "resolve"]) {
+      const res = await fetch(`${origin}/api/journey/${caseId}/advance`, {
+        method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition }),
+      });
+      assert.equal(res.status, 200);
+    }
+
+    const resolvedRes = await fetch(`${origin}/api/journey/${caseId}/status`, { headers: makeCustomerHeader() });
+    const resolvedData = await jsonOf(resolvedRes);
+    assert.equal(resolvedData.state, "resolved");
+    assert.ok(resolvedData.outcome);
+    assert.ok(resolvedData.decisionPath);
+
+    // Add follow-up evidence via advance endpoint
+    const followupRes = await fetch(`${origin}/api/journey/${caseId}/advance`, {
+      method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({
+        transition: "add_followup_evidence",
+      }),
+    });
+    assert.equal(followupRes.status, 200);
+    const followupData = await jsonOf(followupRes);
+    assert.equal(followupData.state, "evidence_received");
+    assert.equal(followupData.outcome, undefined, "Outcome should be cleared");
+    assert.equal(followupData.decisionPath, undefined, "Decision path should be cleared");
+    assert.equal(followupData.nextAction, "evaluate");
+
+    // Now add actual evidence
+    const evidenceRes = await fetch(`${origin}/api/journey/${caseId}/evidence`, {
+      method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({
+        kind: "text",
+        description: "New symptom: engine stalling at stops",
+      }),
+    });
+    assert.equal(evidenceRes.status, 200);
+    const evidenceData = await jsonOf(evidenceRes);
+    assert.equal(evidenceData.state, "evidence_received");
+    assert.ok(evidenceData.evidence.some((e: any) => e.description === "New symptom: engine stalling at stops"));
+
+    // Continue through evaluation
+    for (const transition of ["evaluate", "ready_diagnosis", "resolve"]) {
+      const res = await fetch(`${origin}/api/journey/${caseId}/advance`, {
+        method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition }),
+      });
+      assert.equal(res.status, 200);
+    }
+
+    const finalRes = await fetch(`${origin}/api/journey/${caseId}/status`, { headers: makeCustomerHeader() });
+    const finalData = await jsonOf(finalRes);
+    assert.equal(finalData.state, "resolved");
+    assert.ok(finalData.outcome);
+    assert.ok(finalData.evidence.length >= 1);
+  });
+});
+
+test("journey add_followup_evidence rejects from non-resolved state", async () => {
+  await withJourneyServer(async (origin) => {
+    const startRes = await fetch(`${origin}/api/journey/start`, {
+      method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({
+        vehicleInfo: "2018 Honda Civic",
+        description: "Grinding noise when braking",
+      }),
+    });
+    const caseData = await jsonOf(startRes);
+    const caseId = caseData.id;
+
+    const submitIntakeRes = await fetch(`${origin}/api/journey/${caseId}/advance`, {
+      method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition: "submit_intake" }),
+    });
+    assert.equal(submitIntakeRes.status, 200);
+
+    // Case is in triage, not resolved - should reject
+    const followupRes = await fetch(`${origin}/api/journey/${caseId}/advance`, {
+      method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition: "add_followup_evidence" }),
+    });
+    assert.equal(followupRes.status, 409);
+  });
+});
+
+test("journey add_followup_evidence via evidence endpoint on resolved case", async () => {
+  await withJourneyServer(async (origin) => {
+    const startRes = await fetch(`${origin}/api/journey/start`, {
+      method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({
+        vehicleInfo: "2020 Toyota RAV4",
+        description: "Check engine light, runs rough at idle",
+        timing: "Idle",
+        urgency: "Safe to Drive",
+      }),
+    });
+    const caseData = await jsonOf(startRes);
+    const caseId = caseData.id;
+
+    for (const transition of ["submit_intake", "acknowledge_triage", "finish_evidence", "evaluate", "ready_diagnosis", "resolve"]) {
+      const res = await fetch(`${origin}/api/journey/${caseId}/advance`, {
+        method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition }),
+      });
+      assert.equal(res.status, 200);
+    }
+
+    // Add follow-up evidence directly via evidence endpoint (text evidence)
+    const evidenceRes = await fetch(`${origin}/api/journey/${caseId}/evidence`, {
+      method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({
+        kind: "text",
+        description: "Follow-up: check engine light is now flashing",
+      }),
+    });
+    assert.equal(evidenceRes.status, 200);
+    const evidenceData = await jsonOf(evidenceRes);
+    assert.equal(evidenceData.state, "evidence_received");
+    assert.equal(evidenceData.outcome, undefined);
+    assert.ok(evidenceData.evidence.some((e: any) => e.description === "Follow-up: check engine light is now flashing"));
+  });
+});

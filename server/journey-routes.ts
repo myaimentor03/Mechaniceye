@@ -384,6 +384,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         request_evidence: { triage: "request_evidence", evidence_requested: "request_evidence" },
         submit_evidence: { triage: "submit_evidence", evidence_requested: "submit_evidence" },
         add_more_evidence: { evidence_received: "add_more_evidence" },
+        add_followup_evidence: { resolved: "add_followup_evidence" },
         finish_evidence: { evidence_requested: "finish_evidence" },
         evaluate: { evidence_received: "evaluate" },
         ready_diagnosis: { evaluating: "ready_diagnosis" },
@@ -460,8 +461,8 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         return;
       }
 
-      if (caseData.state !== "evidence_requested" && caseData.state !== "triage" && caseData.state !== "evidence_received") {
-        res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested, during triage, or to add more after first evidence." });
+      if (caseData.state !== "evidence_requested" && caseData.state !== "triage" && caseData.state !== "evidence_received" && caseData.state !== "resolved") {
+        res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested, during triage, after first evidence, or as follow-up to a resolved case." });
         return;
       }
 
@@ -486,7 +487,13 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         // Seed tables may not exist yet; fall back to empty
       }
 
-      const updated = advanceJourney(caseData, caseData.state === "evidence_received" ? "add_more_evidence" : "submit_evidence", {
+      const transition = caseData.state === "evidence_received"
+        ? "add_more_evidence"
+        : caseData.state === "resolved"
+        ? "add_followup_evidence"
+        : "submit_evidence";
+
+      const updated = advanceJourney(caseData, transition, {
         evidence: [evidenceRecord],
         evidenceItems,
       });
@@ -526,8 +533,8 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           res.status(404).json({ ok: false, error: "Journey case not found." });
           return;
         }
-        if (caseData.state !== "evidence_requested" && caseData.state !== "triage" && caseData.state !== "evidence_received") {
-          res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested, during triage, or to add more after first evidence." });
+        if (caseData.state !== "evidence_requested" && caseData.state !== "triage" && caseData.state !== "evidence_received" && caseData.state !== "resolved") {
+          res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested, during triage, after first evidence, or as follow-up to a resolved case." });
           return;
         }
 
@@ -575,7 +582,13 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           // Seed tables may not exist yet; fall back to empty
         }
 
-        const updated = advanceJourney(caseData, caseData.state === "evidence_received" ? "add_more_evidence" : "submit_evidence", {
+        const transition = caseData.state === "evidence_received"
+          ? "add_more_evidence"
+          : caseData.state === "resolved"
+          ? "add_followup_evidence"
+          : "submit_evidence";
+
+        const updated = advanceJourney(caseData, transition, {
           evidence: evidenceRecords,
           evidenceItems,
         });
@@ -625,8 +638,8 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           res.status(404).json({ ok: false, error: "Journey case not found." });
           return;
         }
-        if (caseData.state !== "evidence_requested" && caseData.state !== "triage" && caseData.state !== "evidence_received") {
-          res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested, during triage, or to add more after first evidence." });
+        if (caseData.state !== "evidence_requested" && caseData.state !== "triage" && caseData.state !== "evidence_received" && caseData.state !== "resolved") {
+          res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested, during triage, after first evidence, or as follow-up to a resolved case." });
           return;
         }
 
@@ -673,7 +686,13 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           // Seed tables may not exist yet; fall back to empty
         }
 
-        const updated = advanceJourney(caseData, caseData.state === "evidence_received" ? "add_more_evidence" : "submit_evidence", {
+        const transition = caseData.state === "evidence_received"
+          ? "add_more_evidence"
+          : caseData.state === "resolved"
+          ? "add_followup_evidence"
+          : "submit_evidence";
+
+        const updated = advanceJourney(caseData, transition, {
           evidence: evidenceRecords,
           evidenceItems,
         });
@@ -723,8 +742,8 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           res.status(404).json({ ok: false, error: "Journey case not found." });
           return;
         }
-        if (caseData.state !== "evidence_requested" && caseData.state !== "triage" && caseData.state !== "evidence_received") {
-          res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested, during triage, or to add more after first evidence." });
+        if (caseData.state !== "evidence_requested" && caseData.state !== "triage" && caseData.state !== "evidence_received" && caseData.state !== "resolved") {
+          res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested, during triage, after first evidence, or as follow-up to a resolved case." });
           return;
         }
 
@@ -770,7 +789,13 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           // Seed tables may not exist yet; fall back to empty
         }
 
-        const updated = advanceJourney(caseData, caseData.state === "evidence_received" ? "add_more_evidence" : "submit_evidence", {
+        const transition = caseData.state === "evidence_received"
+          ? "add_more_evidence"
+          : caseData.state === "resolved"
+          ? "add_followup_evidence"
+          : "submit_evidence";
+
+        const updated = advanceJourney(caseData, transition, {
           evidence: evidenceRecords,
           evidenceItems,
         });
@@ -820,8 +845,8 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           res.status(404).json({ ok: false, error: "Journey case not found." });
           return;
         }
-        if (caseData.state !== "evidence_requested" && caseData.state !== "triage" && caseData.state !== "evidence_received") {
-          res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested, during triage, or to add more after first evidence." });
+        if (caseData.state !== "evidence_requested" && caseData.state !== "triage" && caseData.state !== "evidence_received" && caseData.state !== "resolved") {
+          res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested, during triage, after first evidence, or as follow-up to a resolved case." });
           return;
         }
 
@@ -868,7 +893,13 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           // Seed tables may not exist yet; fall back to empty
         }
 
-        const updated = advanceJourney(caseData, caseData.state === "evidence_received" ? "add_more_evidence" : "submit_evidence", {
+        const transition = caseData.state === "evidence_received"
+          ? "add_more_evidence"
+          : caseData.state === "resolved"
+          ? "add_followup_evidence"
+          : "submit_evidence";
+
+        const updated = advanceJourney(caseData, transition, {
           evidence: evidenceRecords,
           evidenceItems,
         });

@@ -654,10 +654,15 @@ export function GuidedJourney() {
             {caseData.state === "escalation_required" && <button className="primary-btn" disabled={loading} onClick={() => handleAdvance("request_human_review")}>Flag for human review (safety valve)</button>}
             {caseData.state === "escalation_required" && <button className="secondary-btn" disabled={loading} onClick={() => handleAdvance("resolve_stop_driving")}>Resolve as STOP DRIVING</button>}
             {caseData.state === "human_review" && <button className="primary-btn" disabled={loading} onClick={() => handleAdvance("resolve")}>Mark human review complete</button>}
-            {caseData.state === "resolved" && <span className="helper-text">Resolved. Outcome: {outcomeCopy(caseData.outcome)}</span>}
+            {caseData.state === "resolved" && (
+              <>
+                <span className="helper-text">Resolved. Outcome: {outcomeCopy(caseData.outcome)}</span>
+                <button className="secondary-btn" disabled={loading} onClick={() => handleAdvance("add_followup_evidence")}>Add follow-up evidence</button>
+              </>
+            )}
           </div>
 
-          {(caseData.state === "intake" || caseData.state === "triage" || caseData.state === "evidence_requested" || caseData.state === "evidence_received") && (
+          {(caseData.state === "intake" || caseData.state === "triage" || caseData.state === "evidence_requested" || caseData.state === "evidence_received" || caseData.state === "resolved") && (
             <>
               <form onSubmit={handleAddEvidence} className="top-gap">
                 <div className="field-grid">

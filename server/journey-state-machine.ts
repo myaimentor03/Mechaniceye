@@ -94,7 +94,8 @@ export type JourneyTransition =
   | "escalate"
   | "request_human_review"
   | "resolve"
-  | "resolve_stop_driving";
+  | "resolve_stop_driving"
+  | "add_followup_evidence";
 
 const VALID_TRANSITIONS: Record<JourneyState, JourneyTransition[]> = {
   intake: ["submit_intake"],
@@ -105,7 +106,7 @@ const VALID_TRANSITIONS: Record<JourneyState, JourneyTransition[]> = {
   diagnosis_ready: ["resolve", "request_human_review", "escalate"],
   escalation_required: ["request_human_review", "resolve", "resolve_stop_driving"],
   human_review: ["resolve", "resolve_stop_driving"],
-  resolved: [],
+  resolved: ["add_followup_evidence"],
 };
 
 const TRANSITION_TARGETS: Record<JourneyTransition, JourneyState> = {
@@ -121,6 +122,7 @@ const TRANSITION_TARGETS: Record<JourneyTransition, JourneyState> = {
   request_human_review: "human_review",
   resolve: "resolved",
   resolve_stop_driving: "resolved",
+  add_followup_evidence: "evidence_received",
 };
 
 const SAFETY_KEYWORDS: Record<string, string[]> = {
@@ -703,7 +705,7 @@ export function advanceJourney(
   const now = new Date().toISOString();
   updated.updatedAt = now;
 
-  if ((transition === "submit_evidence" || transition === "add_more_evidence") && additionalData?.evidence) {
+if ((transition === "submit_evidence" || transition === "add_more_evidence" || transition === "add_followup_evidence") && additionalData?.evidence) {
     const normalized: EvidenceRecord[] = additionalData.evidence.map((e: any) => ({
       id: e.id || `ev-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
       kind: e.kind,
@@ -717,6 +719,15 @@ export function advanceJourney(
       status: e.status || (e.storageKey ? "persisted" : "text_only"),
     }));
     updated.evidence = [...updated.evidence, ...normalized];
+  }
+
+  // When adding follow-up evidence to a resolved case, clear the previous resolution
+  // so the case can be re-evaluated with the new evidence.
+  if (transition === "add_followup_evidence") {
+    updated.outcome = undefined;
+    updated.decisionPath = undefined;
+    updated.resolutionNote = undefined;
+    updated.humanReviewRequested = false;
   }
 
   updated.confidenceScore = calculateConfidence(updated).score;
@@ -758,7 +769,7 @@ export function advanceJourney(
     );
   }
 
-  if ((transition === "submit_evidence" || transition === "add_more_evidence") && evidenceItems && evidenceItems.length > 0 && updated.matchedSymptomCategories.length > 0) {
+  if ((transition === "submit_evidence" || transition === "add_more_evidence" || transition === "add_followup_evidence") && evidenceItems && evidenceItems.length > 0 && updated.matchedSymptomCategories.length > 0) {
     updated.plannedEvidence = planEvidence(
       updated.matchedSymptomCategories,
       evidenceItems,
