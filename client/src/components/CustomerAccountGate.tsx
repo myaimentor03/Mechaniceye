@@ -2,6 +2,8 @@ import { useState } from "react";
 
 export type DrivableCustomer = { id: string; email: string };
 
+const AUTH_TIMEOUT_MS = 20000;
+
 export function CustomerAccountGate({ onAuthenticated }: { onAuthenticated: (user: DrivableCustomer) => void }) {
   const [mode, setMode] = useState<"register" | "login">("register");
   const [busy, setBusy] = useState(false);
@@ -14,6 +16,8 @@ export function CustomerAccountGate({ onAuthenticated }: { onAuthenticated: (use
     const data = new FormData(form);
     setBusy(true);
     setError("");
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), AUTH_TIMEOUT_MS);
     try {
       const response = await fetch(`/api/auth/${mode}`, {
         method: "POST",
@@ -23,6 +27,7 @@ export function CustomerAccountGate({ onAuthenticated }: { onAuthenticated: (use
           password: String(data.get("password") || ""),
           inviteCode: mode === "register" ? String(data.get("inviteCode") || "") : undefined,
         }),
+        signal: controller.signal,
       });
       const result = await response.json().catch(() => ({ ok: false, error: "Account request failed." }));
       if (!response.ok) throw new Error(result.error || "Account request failed.");
@@ -35,8 +40,13 @@ export function CustomerAccountGate({ onAuthenticated }: { onAuthenticated: (use
       if (!result.user) throw new Error(result.error || "Account request failed.");
       onAuthenticated(result.user);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Account request failed.");
+      if (reason instanceof Error && reason.name === "AbortError") {
+        setError(`Request timed out after ${AUTH_TIMEOUT_MS / 1000} seconds. Please try again.`);
+      } else {
+        setError(reason instanceof Error ? reason.message : "Account request failed.");
+      }
     } finally {
+      window.clearTimeout(timeoutId);
       setBusy(false);
     }
   }

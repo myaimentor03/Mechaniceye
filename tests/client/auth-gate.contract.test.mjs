@@ -91,3 +91,17 @@ test("TestBackend propagates customer email from auth gate to intake form", () =
   assert.match(backend, /readOnly required/);
   assert.match(backend, /This verified delivery address comes from your signed-in account/);
 });
+
+test("auth submit uses AbortController with timeout for mobile resilience", () => {
+  assert.match(gate, /const AUTH_TIMEOUT_MS = 20000/);
+  assert.match(gate, /const controller = new AbortController\(\)/);
+  assert.match(gate, /window\.setTimeout\(\(\) => controller\.abort\(\), AUTH_TIMEOUT_MS\)/);
+  assert.match(gate, /signal: controller\.signal/);
+  assert.match(gate, /window\.clearTimeout\(timeoutId\)/);
+});
+
+test("auth timeout produces a user-friendly AbortError message and always clears busy", () => {
+  assert.match(gate, /reason\.name === "AbortError"/);
+  assert.match(gate, /Request timed out after \$/);
+  assert.match(gate, /seconds\. Please try again/);
+});
