@@ -44,9 +44,29 @@ test("case recovery on 401 prompts re-auth without restoring a case", () => {
 });
 
 test("case recovery on network failure preserves the saved id for retry without claiming status", () => {
-  const restoreBlock = backend.slice(backend.indexOf("server-verified case restore"));
-  assert.match(restoreBlock, /Couldn't verify your saved case \(network issue\)/);
-  assert.doesNotMatch(restoreBlock, /setResult\(\{ id: savedCaseId/);
+   const restoreBlock = backend.slice(backend.indexOf("server-verified case restore"));
+   assert.match(restoreBlock, /Couldn't verify your saved case \(network issue\)/);
+   assert.doesNotMatch(restoreBlock, /setResult\(\{ id: savedCaseId/);
+});
+
+test("case recovery uses AbortController with timeout for mobile resilience", () => {
+   const restoreBlock = backend.slice(backend.indexOf("server-verified case restore"));
+   assert.match(restoreBlock, /const controller = new AbortController\(\)/);
+   assert.match(restoreBlock, /window\.setTimeout\(\(\) => controller\.abort\(\), CASE_RECOVERY_TIMEOUT_MS/);
+   assert.match(restoreBlock, /signal: controller\.signal/);
+   assert.match(restoreBlock, /window\.clearTimeout\(timeoutId\)/);
+});
+
+test("case recovery timeout produces a user-friendly AbortError message", () => {
+   const restoreBlock = backend.slice(backend.indexOf("server-verified case restore"));
+   assert.match(restoreBlock, /err\.name === "AbortError"/);
+   assert.match(restoreBlock, /Couldn't verify your saved case \(timeout\)/);
+   assert.match(restoreBlock, /Your Case ID is preserved for retry/);
+});
+
+test("case recovery cleanup aborts the controller on unmount", () => {
+   const restoreBlock = backend.slice(backend.indexOf("server-verified case restore"));
+   assert.match(restoreBlock, /return \(\) => \{ controller\.abort\(\)/);
 });
 
 test("expired session on submit prompts re-auth instead of a generic error", () => {

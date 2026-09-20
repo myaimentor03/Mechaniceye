@@ -42,6 +42,7 @@ import {
 
 const PUBLIC_API_ENDPOINT = "/api/diagnoses";
 const SUBMISSION_TIMEOUT_MS = 20000;
+const CASE_RECOVERY_TIMEOUT_MS = 20000;
 // QA lane (Nov 2 paid beta): stable idempotency keys for webhook-forwarded
 // public forms. Each flow keeps its own sessionStorage key (rotated only
 // after a successful submit) so a mobile timeout retry or double-tap resends
@@ -1292,36 +1293,40 @@ const [manualEngine, setManualEngine] = useState("");
         savedCaseId = sessionStorage.getItem("drivable-last-case-id");
       } catch {}
       if (!savedCaseId) return;
-      let cancelled = false;
-      fetch(`/api/my-cases/${encodeURIComponent(savedCaseId)}`, { credentials: "same-origin" })
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), CASE_RECOVERY_TIMEOUT_MS);
+      fetch(`/api/my-cases/${encodeURIComponent(savedCaseId)}`, { credentials: "same-origin", signal: controller.signal })
         .then(async (res) => {
-          if (cancelled) return;
-          if (res.ok) {
-            const body = await res.json().catch(() => null);
-            if (!cancelled && body && typeof body.id === "string") {
-              setResult({ id: body.id, status: body.status || "received" });
-              toast({ title: "Case Restored", description: "Your previous case has been restored." });
+          window.clearTimeout(timeoutId);
+          if (!res.ok) {
+            if (res.status === 401) {
+              setCustomer(null);
+              setError("Your session expired. Please sign in again to view your case.");
+              return;
+            }
+            // 400 malformed / 404 unknown-or-foreign / 500 unavailable:
+            // only 404 for a well-formed id means the saved pointer is stale,
+            // so drop it instead of restoring a case that is not ours.
+            if (res.status === 404) {
+              try { sessionStorage.removeItem("drivable-last-case-id"); } catch {}
             }
             return;
           }
-          if (res.status === 401) {
-            setCustomer(null);
-            setError("Your session expired. Please sign in again to view your case.");
-            return;
-          }
-          // 400 malformed / 404 unknown-or-foreign / 500 unavailable:
-          // only 404 for a well-formed id means the saved pointer is stale,
-          // so drop it instead of restoring a case that is not ours.
-          if (res.status === 404) {
-            try { sessionStorage.removeItem("drivable-last-case-id"); } catch {}
+          const body = await res.json().catch(() => null);
+          if (body && typeof body.id === "string") {
+            setResult({ id: body.id, status: body.status || "received" });
+            toast({ title: "Case Restored", description: "Your previous case has been restored." });
           }
         })
-        .catch(() => {
-          if (!cancelled) {
+        .catch((err) => {
+          window.clearTimeout(timeoutId);
+          if (err.name === "AbortError") {
+            setError("Couldn't verify your saved case (timeout). Your Case ID is preserved for retry.");
+          } else {
             setError("Couldn't verify your saved case (network issue). Your Case ID is preserved for retry.");
           }
         });
-      return () => { cancelled = true; };
+      return () => { controller.abort(); window.clearTimeout(timeoutId); };
     }
   }, [authChecked, customer, result]);
 
