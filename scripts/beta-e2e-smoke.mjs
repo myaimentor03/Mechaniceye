@@ -1529,17 +1529,47 @@ await check("follow-up with vibrationData returns 404 for missing case after med
       throw new Error("no-op");
     }, { skipReason: "webhook stub required" });
   } else {
-    await check("seller intake happy path forwards complete payload (200)", async () => {
-      const response = await postJson(`${baseUrl}/api/marketplace/seller-intake`, marketplaceSellerBody());
+    await check("seller intake happy path forwards complete payload (200) + smuggled payment fields stripped — P0 #4", async () => {
+      // Payment-spoof lock piggybacked on the happy path with ZERO extra
+      // requests: the shared public-form limiter (15/10min per IP) leaves no
+      // budget for a standalone spoof check before the idempotency sequence.
+      // The happy-path body carries hostile payment keys; it must still
+      // succeed 200 with the same shape, and neither the API response nor
+      // the webhook packet may grant, echo, or reflect paid state.
+      const hostileBody = {
+        ...marketplaceSellerBody(),
+        PaymentStatus: "Paid",
+        paymentStatus: "Paid",
+        PaymentTier: "Full Decision",
+        paid: true,
+        entitlement: "paid",
+        verifiedPaymentEntitlement: true,
+        amountMinor: 4900,
+        stripePaymentIntentId: "pi_spoof_12345",
+        checkoutSessionId: "cs_spoof_67890",
+      };
+      const response = await postJson(`${baseUrl}/api/marketplace/seller-intake`, hostileBody);
       const body = await jsonResponse(response);
       assert(response.status === 200, `expected 200 got ${response.status}`);
       assert(body.ok === true && body.received === true, "expected ok:true received:true");
+      assert(body.duplicate === false, "happy path must not be flagged duplicate");
+      const serialized = JSON.stringify(body);
+      assert(!serialized.includes('"Paid"'), "response must never report a Paid status");
+      assert(!serialized.includes("pi_spoof_12345"), "stripe spoof value must never be reflected");
+      assert(!serialized.includes("cs_spoof_67890"), "checkout spoof value must never be reflected");
+      assert(!serialized.includes("verifiedPaymentEntitlement"), "response must never carry a payment entitlement flag");
       const captured = webhook.received.filter((entry) => entry.body && (entry.body.intakeType === "marketplace-seller" || entry.body.intakeType === "marketplace-seller-intake"));
       const packet = captured.find((entry) => entry.body.sellerName === "PiiSellerNameAlpha123");
       assert(packet, "seller packet must reach the webhook");
       assert(packet.body.sellerName === "PiiSellerNameAlpha123", "packet must carry the seller identity (to webhook, not logs)");
       assert(packet.body.acknowledgments?.ownerAuthorized === true, "acknowledgment missing");
-      return "ok";
+      const packetSerialized = JSON.stringify(packet.body);
+      assert(!packetSerialized.includes('"Paid"'), "webhook packet must never carry Paid status");
+      assert(!packetSerialized.includes("pi_spoof_12345"), "webhook packet must never carry stripe spoof value");
+      assert(!packetSerialized.includes("cs_spoof_67890"), "webhook packet must never carry checkout spoof value");
+      assert(!packetSerialized.includes("verifiedPaymentEntitlement"), "webhook packet must never carry entitlement flag");
+      assert(!packetSerialized.includes("amountMinor"), "webhook packet must never carry amountMinor");
+      return "ok stripped";
     });
 
     await check("buyer interest happy path forwards payload (200)", async () => {
