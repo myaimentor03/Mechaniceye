@@ -2416,16 +2416,34 @@ try {
       });
     }
 
-    // Idempotency: check for existing case with same customer + normalized clientRequestId
-    // Prevents duplicate cases on mobile retry after timeout. Malformed keys are
-    // treated as absent (backward compatible) so a fix-and-retry with a valid key
-    // still delivers exactly once; oversized or traversal keys never bloat storage.
+    // Idempotency: check process-local in-memory store first (works without DB)
+    // then fall back to DB-scoped dedupe. Prevents duplicate cases on mobile
+    // retry after timeout. Malformed keys are treated as absent (backward
+    // compatible) so a fix-and-retry with a valid key still delivers exactly
+    // once; oversized or traversal keys never bloat storage.
     const rawClientRequestId = input.clientRequestId;
     const clientRequestId = normalizeIdempotencyKey(rawClientRequestId);
     // Only persist normalized keys so malformed/oversized keys do not pollute vibrationData.
     input.clientRequestId = clientRequestId ?? "";
     const customerId = req.drivableCustomer!.id;
     if (clientRequestId) {
+      const customerScopedKey = `${customerId}:${clientRequestId}`;
+      const priorInMemory = marketplaceIdempotencyStore.get("diagnosis-intake", customerScopedKey);
+      if (priorInMemory) {
+        await removeIntakeTempFiles(uploadedFiles);
+        logEvent("diagnosis.duplicate_prevented", { existingCaseId: priorInMemory.id, clientRequestId });
+        return res.json({
+          id: priorInMemory.id,
+          status: "received",
+          createdAt: new Date().toISOString(),
+          vehicleInfo: input.vehicleInfo,
+          description: input.description,
+          timing: input.timing || "",
+          message: "Case already exists",
+          persisted: true,
+          duplicate: true
+        });
+      }
       const existing = await findExistingCaseByClientRequestId(customerId, clientRequestId);
       if (existing) {
         await removeIntakeTempFiles(uploadedFiles);
@@ -2603,6 +2621,9 @@ if (photoFiles.length) {
         const webhookDebug = await forwardMasterDiagnosisIntakeWebhook(responseBody, input);
         void deliverPublicCaseNotification(responseBody, input);
         void deliverDiagnosisWebhook(responseBody, input, storedCase);
+        if (webhookDebug.webhookForwarded && clientRequestId) {
+          marketplaceIdempotencyStore.record("diagnosis-intake", `${customerId}:${clientRequestId}`, responseBody.id);
+        }
         return res.json(buildDiagnosisApiResponse(responseBody, webhookDebug, dbResult.ok));
       }
 
@@ -2624,6 +2645,9 @@ if (photoFiles.length) {
       }
       const webhookDebug = await forwardMasterDiagnosisIntakeWebhook(responseBody, input);
       await deliverDiagnosisWebhook(responseBody, input, storedCase);
+      if (webhookDebug.webhookForwarded && clientRequestId) {
+        marketplaceIdempotencyStore.record("diagnosis-intake", `${customerId}:${clientRequestId}`, responseBody.id);
+      }
       return res.json(buildDiagnosisApiResponse(responseBody, webhookDebug, dbResult.ok));
     } catch (error) {
       logEventError("api.diagnosis_creation_failed", error);

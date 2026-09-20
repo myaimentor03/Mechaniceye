@@ -13,16 +13,21 @@ const publicCaseDb = source("./public-case-db.ts");
 test("duplicate guard uses customer-scoped clientRequestId before any persistence", () => {
   // Must check existing case by (customerId, clientRequestId) before touching
   // evidence storage or DB insert so a mobile retry does not create duplicate
-  // evidence objects.
-  const guardStart = routes.indexOf("// Idempotency: check for existing case");
+  // evidence objects. Now checks in-memory store first, then DB.
+  const guardStart = routes.indexOf("// Idempotency: check process-local in-memory store first");
   assert.ok(guardStart !== -1, "idempotency guard comment must exist");
-  const guard = routes.slice(guardStart, guardStart + 2000);
+  const guard = routes.slice(guardStart, guardStart + 2500);
   // New normalization: raw -> normalizeIdempotencyKey -> normalized clientRequestId
   assert.match(guard, /normalizeIdempotencyKey/);
   assert.match(guard, /rawClientRequestId/);
   assert.match(guard, /const clientRequestId = normalizeIdempotencyKey\(rawClientRequestId\)/);
   assert.match(guard, /const customerId = req\.drivableCustomer!.id/);
   assert.match(guard, /if \(clientRequestId\) \{/);
+  // In-memory store check — must be customer-scoped to prevent cross-customer collision
+  assert.match(guard, /marketplaceIdempotencyStore\.get\("diagnosis-intake"/);
+  assert.match(guard, /customerScopedKey/);
+  assert.match(guard, /\$\{customerId\}:\$\{clientRequestId\}/);
+  // DB fallback check
   assert.match(guard, /findExistingCaseByClientRequestId\(customerId, clientRequestId\)/);
   assert.match(guard, /duplicate_prevented/);
   assert.match(guard, /persisted: true/);
@@ -30,8 +35,8 @@ test("duplicate guard uses customer-scoped clientRequestId before any persistenc
 });
 
 test("duplicate path cleans uploaded temp files and returns early without persisting new evidence", () => {
-  const guardStart = routes.indexOf("// Idempotency: check for existing case");
-  const guard = routes.slice(guardStart, guardStart + 2000);
+  const guardStart = routes.indexOf("// Idempotency: check process-local in-memory store first");
+  const guard = routes.slice(guardStart, guardStart + 2500);
   assert.match(guard, /await removeIntakeTempFiles\(uploadedFiles\)/);
   assert.match(guard, /return res\.json\(/);
   // Ensure the guard appears before photo/r2 persistence branching
@@ -66,12 +71,23 @@ test("client preserves the same marker for retry but rotates after success — b
 });
 
 test("diagnosis guard normalizes clientRequestId and never persists malformed keys", () => {
-  const guardStart = routes.indexOf("// Idempotency: check for existing case");
-  const guard = routes.slice(guardStart, guardStart + 2000);
+  const guardStart = routes.indexOf("// Idempotency: check process-local in-memory store first");
+  const guard = routes.slice(guardStart, guardStart + 2500);
   // Malformed keys become absent so fix-and-retry delivers exactly once
   assert.match(guard, /input\.clientRequestId = clientRequestId \?\? ""/);
   // Must import/use the shared normalizer so pattern stays in sync with marketplace
   assert.match(routes, /from ".\/marketplace-idempotency"/);
+});
+
+test("diagnosis in-memory record is customer-scoped and only after webhook success", () => {
+  // Recording must use customerScopedKey and only when webhookForwarded
+  const recordIdx = routes.indexOf('marketplaceIdempotencyStore.record("diagnosis-intake"');
+  assert.ok(recordIdx !== -1, "diagnosis intake must record to idempotency store");
+  const snippet = routes.slice(recordIdx - 500, recordIdx + 500);
+  assert.match(snippet, /customerId/);
+  assert.match(snippet, /clientRequestId/);
+  assert.match(snippet, /webhookForwarded/);
+  assert.match(snippet, /\$\{customerId\}:\$\{clientRequestId\}/);
 });
 
 test("findExistingCaseByClientRequestId validates normalized shape before DB lookup (160 char cap + token pattern)", () => {

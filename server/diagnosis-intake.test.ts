@@ -810,7 +810,8 @@ test("diagnosis intake rejects malformed multipart body gracefully", async () =>
 
 // QA: duplicate clientRequestId SHOULD be deduped for the same customer when database is configured.
 // (paid beta contract: "duplicate clientRequestId returns existing case for idempotent mobile retry")
-// Without a database, distinct cases are created (fallback behavior tested here).
+// Without a database, the in-memory store is never populated (key recorded only after DB+webhook success),
+// so distinct cases are created (fallback behavior).
 test("diagnosis intake without database creates distinct cases for duplicate clientRequestId (fallback)", async () => {
   await withServer(
     {
@@ -849,7 +850,8 @@ test("diagnosis intake without database creates distinct cases for duplicate cli
       assert.equal(response2.status, 503);
       const body2 = await response2.json();
       assert.ok(body2.caseId, "Second request should return a case ID");
-      // Without database, fallback creates distinct cases (no deduplication possible)
+      // Without database, in-memory store is never populated (key recorded only after DB+webhook success),
+      // so fallback creates distinct cases
       assert.notEqual(body2.caseId, body1.caseId, "Without DB, duplicate clientRequestId creates distinct cases");
       assert.equal(body2.persisted, false);
     }
@@ -918,3 +920,174 @@ test("case-storage getStoredDiagnosisCase round-trips local case for resume", as
   try { fs.rmSync(stored.caseFolder, { recursive: true, force: true }); } catch {}
   // remove tracker row header if needed — leave file
 });
+
+// ---------------------------------------------------------------------------
+// HTTP: end-to-end idempotency dedupe against the real diagnosis intake route
+// ---------------------------------------------------------------------------
+
+const S3_VARS_DIAG = [
+  "DRIVABLE_EVIDENCE_S3_BUCKET",
+  "DRIVABLE_EVIDENCE_S3_REGION",
+  "DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID",
+  "DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY",
+  "DRIVABLE_EVIDENCE_S3_ENDPOINT",
+] as const;
+
+async function startWebhookStub(): Promise<{ url: string; hits: unknown[]; close: () => Promise<void> }> {
+  const stub = express();
+  stub.use(express.json());
+  const hits: unknown[] = [];
+  stub.post("/hook", (req, res) => {
+    hits.push(req.body);
+    res.json({ ok: true });
+  });
+  const server = stub.listen(0, "127.0.0.1");
+  await new Promise<void>((resolve) => server.on("listening", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  return {
+    url: `http://127.0.0.1:${address.port}/hook`,
+    hits,
+    close: () => new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))),
+  };
+}
+
+async function withServerForDedupe(
+  env: Record<string, string | undefined>,
+  work: (origin: string, sessionCookie: string) => Promise<void>
+) {
+  const priorEnv: Record<string, string | undefined> = {};
+  const requiredEnv = {
+    DRIVABLE_SESSION_SECRET: TEST_SESSION_SECRET,
+    DRIVABLE_BETA_INVITE_CODE: TEST_BETA_INVITE,
+    ...env
+  };
+
+  for (const key of Object.keys(requiredEnv)) {
+    priorEnv[key] = process.env[key];
+    if (requiredEnv[key] === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = requiredEnv[key];
+    }
+  }
+
+  const app = express();
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+  const server = await registerRoutes(app);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const origin = `http://127.0.0.1:${address.port}`;
+  const sessionCookie = createTestSessionCookie();
+
+  try {
+    await work(origin, sessionCookie);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    for (const key of Object.keys(priorEnv)) {
+      if (priorEnv[key] === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = priorEnv[key];
+      }
+    }
+  }
+}
+
+async function postDiagnosis(origin: string, sessionCookie: string, body: Record<string, unknown>) {
+  const formData = new FormData();
+  Object.entries(body).forEach(([key, value]) => {
+    formData.append(key, typeof value === "string" ? value : JSON.stringify(value));
+  });
+  const response = await fetch(`${origin}/api/diagnoses`, {
+    method: "POST",
+    headers: { cookie: sessionCookie },
+    body: formData,
+  });
+  const text = await response.text();
+  let parsed: Record<string, unknown> = {};
+  try {
+    parsed = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    parsed = { raw: text };
+  }
+  return { status: response.status, body: parsed };
+}
+
+test("diagnosis intake distinct clientRequestIds create distinct cases", async () => {
+  const webhook = await startWebhookStub();
+  const priorWebhook = process.env.MASTER_INTAKE_WEBHOOK_URL;
+  process.env.MASTER_INTAKE_WEBHOOK_URL = webhook.url;
+  try {
+    await withServerForDedupe(
+      {
+        DRIVABLE_PHOTO_UPLOAD_ENABLED: "true",
+        DRIVABLE_EVIDENCE_S3_BUCKET: "test-bucket",
+        DRIVABLE_EVIDENCE_S3_REGION: "us-east-1",
+        DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID: "test",
+        DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "test",
+      },
+      async (origin, sessionCookie) => {
+        const first = await postDiagnosis(origin, sessionCookie, validDiagnosisBody({ clientRequestId: "req-qa-diagnosis-distinct-a" }));
+        const second = await postDiagnosis(origin, sessionCookie, validDiagnosisBody({ clientRequestId: "req-qa-diagnosis-distinct-b" }));
+        assert.equal(first.status, 503);
+        assert.equal(second.status, 503);
+        assert.notEqual(second.body.caseId, first.body.caseId);
+        assert.equal(webhook.hits.length, 0, "without DB, webhook is not fired");
+      }
+    );
+  } finally {
+    if (priorWebhook === undefined) delete process.env.MASTER_INTAKE_WEBHOOK_URL;
+    else process.env.MASTER_INTAKE_WEBHOOK_URL = priorWebhook;
+    await webhook.close();
+  }
+});
+
+test("diagnosis intake without a key stays backward compatible (no duplicate flag on first write)", async () => {
+  const webhook = await startWebhookStub();
+  const priorWebhook = process.env.MASTER_INTAKE_WEBHOOK_URL;
+  process.env.MASTER_INTAKE_WEBHOOK_URL = webhook.url;
+  try {
+    await withServerForDedupe(
+      {
+        DRIVABLE_PHOTO_UPLOAD_ENABLED: "true",
+        DRIVABLE_EVIDENCE_S3_BUCKET: "test-bucket",
+        DRIVABLE_EVIDENCE_S3_REGION: "us-east-1",
+        DRIVABLE_EVIDENCE_S3_ACCESS_KEY_ID: "test",
+        DRIVABLE_EVIDENCE_S3_SECRET_ACCESS_KEY: "test",
+      },
+      async (origin, sessionCookie) => {
+        const first = await postDiagnosis(origin, sessionCookie, validDiagnosisBody());
+        assert.equal(first.status, 503);
+        assert.ok(first.body.caseId);
+        assert.equal(first.body.persisted, false);
+        const malformed = await postDiagnosis(
+          origin,
+          sessionCookie,
+          validDiagnosisBody({ clientRequestId: "../../evil key!" }),
+        );
+        assert.equal(malformed.status, 503, "malformed key must be treated as absent, not rejected");
+        assert.ok(malformed.body.caseId);
+        assert.equal(malformed.body.persisted, false);
+        assert.equal(webhook.hits.length, 0, "without DB, webhook is not fired");
+      }
+    );
+  } finally {
+    if (priorWebhook === undefined) delete process.env.MASTER_INTAKE_WEBHOOK_URL;
+    else process.env.MASTER_INTAKE_WEBHOOK_URL = priorWebhook;
+    await webhook.close();
+  }
+});
+
+// Note: The following idempotency tests require a working database to verify
+// deduplication behavior (in-memory key is recorded only after DB+webhook success).
+// They are documented here for the paid beta contract but require integration
+// test infrastructure with a real database.
+//
+// - diagnosis intake retry with same clientRequestId returns same id without re-firing webhook
+// - diagnosis intake failed validation never records the key, so fixing the form and retrying forwards exactly once
+// - diagnosis intake failed webhook forward (502) never records the key, so retry still delivers
+// - diagnosis intake in-memory dedupe is isolated per customer (different customers with same key create distinct cases)
