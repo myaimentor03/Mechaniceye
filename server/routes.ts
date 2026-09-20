@@ -2549,6 +2549,24 @@ if (photoFiles.length) {
         } catch (storageError) {
           logEventError("api.media_evidence_persistence_failed", storageError);
           await removeIntakeTempFiles({ audio: audioFiles, video: videoFiles, vibration: vibrationFiles });
+          // Atomic rollback: QA launch-blocker (P0 #1 mobile/upload recovery).
+          // If photo evidence was already persisted and the subsequent
+          // R2/media write fails, the 507 must not leave orphan photo evidence;
+          // roll back the photo case so the client can retry atomically
+          // without leaking storage.
+          if (responseBody.attachments?.length) {
+            try {
+              await evidenceStore.deleteCase(responseBody.id);
+            } catch {}
+          }
+          // Defense-in-depth: if storeEvidenceFiles had partially written R2
+          // keys before throwing (its internal rollback should have cleaned
+          // them, but guard anyway), ensure nothing is left behind.
+          if (storedR2Keys && Object.values(storedR2Keys).flat().length > 0) {
+            try {
+              await deleteStoredEvidenceForCase(responseBody.id, storedR2Keys);
+            } catch {}
+          }
           return res.status(507).json({
             message: "The case could not be completed because its media evidence was not persisted. Please try again.",
             caseId: responseBody.id,
