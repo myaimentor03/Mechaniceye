@@ -11,7 +11,6 @@ import { AnalysisProgress } from "@/components/analysis-progress";
 import { apiRequest, uploadWithProgress } from "@/lib/queryClient";
 import { filterSubmittableEvidence, parseMediaCapabilities, MEDIA_UNAVAILABLE, type MediaCapabilities } from "@/lib/mediaAvailability";
 import { useEvidenceDraft } from "@/hooks/useEvidenceDraft";
-import { useJourneyState } from "@/hooks/useJourneyState";
 
 export default function Diagnosis() {
   const [, setLocation] = useLocation();
@@ -25,7 +24,6 @@ export default function Diagnosis() {
     video: "persisted" | "not_provided" | "failed";
     vibration: "persisted" | "not_provided" | "failed";
   } | undefined>(undefined);
-  const journey = useJourneyState();
   const [formData, setFormData] = useState({
     description: "",
     vehicleInfo: "",
@@ -134,7 +132,7 @@ export default function Diagnosis() {
           vibration: summary.vibration?.status as "persisted" | "not_provided" | "failed" ?? "not_provided",
         });
       }
-      journey.goToComplete();
+      draft.setJourneyStep("complete");
       setLocation(`/results/${diagnosis.id}`);
       toast({
         title: "Case saved",
@@ -150,7 +148,7 @@ export default function Diagnosis() {
         video: formData.videoFiles.length > 0 ? "failed" : "not_provided",
         vibration: formData.vibrationFiles.length > 0 ? "failed" : "not_provided",
       });
-      journey.resetToDescribe();
+      draft.setJourneyStep("describe");
       toast({
         title: "Upload failed",
         description: error.message || "Could not save your evidence. Please try again.",
@@ -220,25 +218,25 @@ export default function Diagnosis() {
 
             {/* Progress Steps - truthful journey state */}
             <div className="flex items-center space-x-4 mb-8">
-              {journey.step !== "complete" ? (
+              {draft.journeyStep !== "complete" ? (
                 <>
                   <div className="flex items-center space-x-1">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${journey.step === "describe" ? "border-automotive-orange bg-automotive-orange" : "border-automotive-orange bg-automotive-orange"} text-white text-sm font-semibold`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${draft.journeyStep === "describe" ? "border-automotive-orange bg-automotive-orange" : "border-automotive-orange bg-automotive-orange"} text-white text-sm font-semibold`}>
                       1
                     </div>
-                    <span className={`font-medium text-sm ${journey.step === "describe" ? "text-automotive-orange" : "text-automotive-orange"}`}>Describe Issue</span>
+                    <span className={`font-medium text-sm ${draft.journeyStep === "describe" ? "text-automotive-orange" : "text-automotive-orange"}`}>Describe Issue</span>
                   </div>
                   <div className="flex items-center space-x-1">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${journey.step === "evidence" || journey.step === "review" ? "border-automotive-orange bg-automotive-orange" : "border-gray-200 bg-gray-200"} text-white text-sm font-semibold`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${draft.journeyStep === "evidence" || draft.journeyStep === "review" ? "border-automotive-orange bg-automotive-orange" : "border-gray-200 bg-gray-200"} text-white text-sm font-semibold`}>
                       2
                     </div>
-                    <span className={`text-sm ${journey.step === "evidence" ? "text-automotive-orange font-medium" : "text-gray-500"}`}>Add Evidence</span>
+                    <span className={`text-sm ${draft.journeyStep === "evidence" ? "text-automotive-orange font-medium" : "text-gray-500"}`}>Add Evidence</span>
                   </div>
                   <div className="flex items-center space-x-1">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${journey.step === "review" ? "border-automotive-orange bg-automotive-orange" : "border-gray-200 bg-gray-200"} text-white text-sm font-semibold`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${draft.journeyStep === "review" ? "border-automotive-orange bg-automotive-orange" : "border-gray-200 bg-gray-200"} text-white text-sm font-semibold`}>
                       3
                     </div>
-                    <span className={`text-sm ${journey.step === "review" ? "text-automotive-orange font-medium" : "text-gray-500"}`}>Review</span>
+                    <span className={`text-sm ${draft.journeyStep === "review" ? "text-automotive-orange font-medium" : "text-gray-500"}`}>Review</span>
                   </div>
                 </>
               ) : (
@@ -257,8 +255,8 @@ export default function Diagnosis() {
               onRetry={(modality) => {
                 setEvidenceStatus((prev) => prev ? { ...prev, [modality]: "not_provided" } : undefined);
               }}
-              journeyStep={journey.step}
-              onStepChange={journey.setStep}
+              journeyStep={draft.journeyStep}
+              onStepChange={draft.setJourneyStep}
             />
 
             {/* Submit Button */}
