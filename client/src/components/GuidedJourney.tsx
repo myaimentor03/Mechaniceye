@@ -75,6 +75,7 @@ export function GuidedJourney() {
   const [photoFiles, setPhotoFiles] = useState<FileList | null>(null);
   const [audioFiles, setAudioFiles] = useState<FileList | null>(null);
   const [videoFiles, setVideoFiles] = useState<FileList | null>(null);
+  const [vibrationFiles, setVibrationFiles] = useState<FileList | null>(null);
 
   // intake form state
   const [vehicleInfo, setVehicleInfo] = useState("");
@@ -299,6 +300,38 @@ export function GuidedJourney() {
       await fetchMyCases();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Video upload failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVibrationUpload(e: React.FormEvent) {
+    e.preventDefault();
+    if (!caseData || !vibrationFiles || vibrationFiles.length === 0) {
+      setError("Select at least one vibration recording (JSON with x/y/z samples, max 2 MB each, up to 2).");
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      const form = new FormData();
+      for (let i = 0; i < vibrationFiles.length; i++) {
+        form.append("vibration", vibrationFiles[i]);
+      }
+      const res = await fetch(`/api/journey/${caseData.id}/evidence/vibration`, {
+        method: "POST",
+        credentials: "include",
+        body: form,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Vibration evidence not accepted.");
+      setCaseData(data);
+      setVibrationFiles(null);
+      const el = document.getElementById("journey-vibration-input") as HTMLInputElement | null;
+      if (el) el.value = "";
+      await fetchMyCases();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Vibration upload failed.");
     } finally {
       setLoading(false);
     }
@@ -545,6 +578,13 @@ export function GuidedJourney() {
                   <div className="field"><span className="helper-text">Validated: mp4/mov/webm/avi, max 50 MB each, up to 2. Stored durably with your vehicle case — reusable for Mechanic Match / ClearSale. Stored, not auto-diagnosed (truthful boundary).</span></div>
                 </div>
                 <div className="step-actions"><button className="secondary-btn" type="submit" disabled={loading || !videoFiles || videoFiles.length === 0}>Upload video evidence</button><span className="helper-text">{videoFiles ? `${videoFiles.length} selected` : "No file selected"}</span></div>
+              </form>
+              <form onSubmit={handleVibrationUpload} className="top-gap" style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "12px", marginTop: "12px" }}>
+                <div className="field-grid">
+                  <div className="field"><label>Vibration evidence (motion-sensor JSON)</label><input id="journey-vibration-input" type="file" accept="application/json,.json" multiple onChange={(e) => setVibrationFiles(e.target.files)} /></div>
+                  <div className="field"><span className="helper-text">Validated: JSON with {"{samples: [{x,y,z,t}, ...]}"}, 2–20k samples, max 2 MB each, up to 2. Stored durably with your vehicle case — reusable for Mechanic Match / ClearSale. Stored, not auto-diagnosed (truthful boundary). Never synthesize — only real sensor data.</span></div>
+                </div>
+                <div className="step-actions"><button className="secondary-btn" type="submit" disabled={loading || !vibrationFiles || vibrationFiles.length === 0}>Upload vibration evidence</button><span className="helper-text">{vibrationFiles ? `${vibrationFiles.length} selected` : "No file selected"} — captured on device, persisted to case</span></div>
               </form>
               {caseData.evidence && caseData.evidence.length > 0 && (
                 <div className="step-card" style={{ marginTop: "12px", background: "rgba(255,255,255,0.04)" }}>
