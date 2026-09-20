@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X, Camera, Image, Upload } from "lucide-react";
 import { MAX_PHOTO_COUNT, validatePhotoFiles, type PhotoValidationResult } from "@/lib/photoValidation";
+import { useFilePreviewUrls } from "@/lib/filePreviewUrls";
 
 interface PhotoRecorderProps {
   files: File[];
@@ -92,13 +93,9 @@ export function PhotoRecorder({ files, onChange, onError }: PhotoRecorderProps) 
     onChange(next);
   }
 
-  const photoUrls = useMemo(() => files.map((file) => URL.createObjectURL(file)), [files]);
-
-  useEffect(() => {
-    return () => {
-      photoUrls.forEach((url) => URL.revokeObjectURL(url));
-    };
-  }, [photoUrls]);
+  // Stable per-file thumbnail URLs: retained photos keep their URL across
+  // array-reference changes (no flicker), removed photos are revoked once.
+  const photoUrls = useFilePreviewUrls(files);
 
   return (
     <div className="space-y-4">
