@@ -8,7 +8,7 @@ import { AppHeader } from "@/components/app-header";
 import { BottomNavigation } from "@/components/bottom-navigation";
 import { EvidenceCapture } from "@/components/EvidenceCapture";
 import { AnalysisProgress } from "@/components/analysis-progress";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, uploadWithProgress } from "@/lib/queryClient";
 import { filterSubmittableEvidence, parseMediaCapabilities, MEDIA_UNAVAILABLE, type MediaCapabilities } from "@/lib/mediaAvailability";
 import { useEvidenceDraft } from "@/hooks/useEvidenceDraft";
 import { useJourneyState } from "@/hooks/useJourneyState";
@@ -37,6 +37,13 @@ export default function Diagnosis() {
   });
 
   const draft = useEvidenceDraft(formData);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+  const uploadDiagnosis = async (formDataToSend: FormData) => {
+    setUploadProgress(0);
+    const response = await uploadWithProgress("/api/diagnoses", formDataToSend, setUploadProgress);
+    return response.json();
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -46,48 +53,6 @@ export default function Diagnosis() {
       .catch(() => { if (!cancelled) setCapabilities({ ...MEDIA_UNAVAILABLE }); });
     return () => { cancelled = true; };
   }, []);
-
-  const createDiagnosisMutation = useMutation({
-    mutationFn: async (data: FormData) => {
-      const response = await apiRequest("POST", "/api/diagnoses", data);
-      return response.json();
-    },
-    onSuccess: (diagnosis) => {
-      draft.clearAfterSubmit();
-      queryClient.invalidateQueries({ queryKey: ["/api/diagnoses"] });
-      const summary = diagnosis.evidenceSummary;
-      if (summary) {
-        setEvidenceStatus({
-          photo: summary.photos?.status as "persisted" | "not_provided" | "failed" ?? "not_provided",
-          audio: summary.audio?.status as "persisted" | "not_provided" | "failed" ?? "not_provided",
-          video: summary.video?.status as "persisted" | "not_provided" | "failed" ?? "not_provided",
-          vibration: summary.vibration?.status as "persisted" | "not_provided" | "failed" ?? "not_provided",
-        });
-      }
-      journey.goToComplete();
-      setLocation(`/results/${diagnosis.id}`);
-      toast({
-        title: "Case saved",
-        description: "Your evidence has been stored with your case. It has not been analyzed yet.",
-      });
-    },
-    onError: (error: any) => {
-      setIsAnalyzing(false);
-      // Truthful failed status so retry UI surfaces per modality that had files
-      setEvidenceStatus({
-        photo: formData.photoFiles.length > 0 ? "failed" : "not_provided",
-        audio: formData.audioFiles.length > 0 ? "failed" : "not_provided",
-        video: formData.videoFiles.length > 0 ? "failed" : "not_provided",
-        vibration: formData.vibrationFiles.length > 0 ? "failed" : "not_provided",
-      });
-      journey.resetToDescribe();
-      toast({
-        title: "Upload failed",
-        description: error.message || "Could not save your evidence. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
 
   const handleAnalyze = async () => {
     if (!formData.description.trim() || !formData.vehicleInfo.trim() || !formData.timing) {
@@ -156,7 +121,42 @@ export default function Diagnosis() {
       formDataToSend.append("vibration", file);
     });
 
-    createDiagnosisMutation.mutate(formDataToSend);
+    try {
+      const diagnosis = await uploadDiagnosis(formDataToSend);
+      draft.clearAfterSubmit();
+      queryClient.invalidateQueries({ queryKey: ["/api/diagnoses"] });
+      const summary = diagnosis.evidenceSummary;
+      if (summary) {
+        setEvidenceStatus({
+          photo: summary.photos?.status as "persisted" | "not_provided" | "failed" ?? "not_provided",
+          audio: summary.audio?.status as "persisted" | "not_provided" | "failed" ?? "not_provided",
+          video: summary.video?.status as "persisted" | "not_provided" | "failed" ?? "not_provided",
+          vibration: summary.vibration?.status as "persisted" | "not_provided" | "failed" ?? "not_provided",
+        });
+      }
+      journey.goToComplete();
+      setLocation(`/results/${diagnosis.id}`);
+      toast({
+        title: "Case saved",
+        description: "Your evidence has been stored with your case. It has not been analyzed yet.",
+      });
+    } catch (error: any) {
+      setIsAnalyzing(false);
+      setUploadProgress(0);
+      // Truthful failed status so retry UI surfaces per modality that had files
+      setEvidenceStatus({
+        photo: formData.photoFiles.length > 0 ? "failed" : "not_provided",
+        audio: formData.audioFiles.length > 0 ? "failed" : "not_provided",
+        video: formData.videoFiles.length > 0 ? "failed" : "not_provided",
+        vibration: formData.vibrationFiles.length > 0 ? "failed" : "not_provided",
+      });
+      journey.resetToDescribe();
+      toast({
+        title: "Upload failed",
+        description: error.message || "Could not save your evidence. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   if (isAnalyzing) {
@@ -164,7 +164,7 @@ export default function Diagnosis() {
       <div className="min-h-screen bg-gray-50">
         <AppHeader />
         <main className="container mx-auto px-4 py-6 max-w-4xl pb-20 md:pb-6">
-          <AnalysisProgress />
+          <AnalysisProgress uploadProgress={uploadProgress} />
         </main>
         <BottomNavigation currentPage="diagnosis" />
       </div>
@@ -265,7 +265,7 @@ export default function Diagnosis() {
             <div className="mt-8 pt-6 border-t border-gray-200">
               <Button 
                 onClick={handleAnalyze}
-                disabled={createDiagnosisMutation.isPending}
+                disabled={isAnalyzing}
                 className="w-full bg-automotive-blue hover:bg-blue-800 text-white py-4 px-6 rounded-xl font-semibold text-lg"
               >
                 Save Evidence to Case

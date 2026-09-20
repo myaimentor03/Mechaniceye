@@ -1,34 +1,25 @@
-import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle, Clock, Loader2, Upload, Shield } from "lucide-react";
+import { CheckCircle, Clock, Loader2, Shield } from "lucide-react";
 
-export function AnalysisProgress() {
-  const [progress, setProgress] = useState(0);
-  const [currentStep, setCurrentStep] = useState(0);
+interface AnalysisProgressProps {
+  uploadProgress?: number;
+}
+
+export function AnalysisProgress({ uploadProgress = 0 }: AnalysisProgressProps) {
+  const progress = uploadProgress;
 
   const steps = [
-    { label: "Collecting your evidence", completed: false },
-    { label: "Verifying file integrity", completed: false },
-    { label: "Storing evidence securely", completed: false },
+    { label: "Uploading your evidence", threshold: 0 },
+    { label: "Verifying file integrity", threshold: 50 },
+    { label: "Storing evidence securely", threshold: 85 },
   ];
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        const newProgress = prev + Math.random() * 30;
+  const currentStepIndex = steps.findIndex((step, index) => {
+    const nextThreshold = steps[index + 1]?.threshold ?? 100;
+    return progress >= step.threshold && progress < nextThreshold;
+  });
 
-        if (newProgress >= 33 && currentStep < 1) {
-          setCurrentStep(1);
-        } else if (newProgress >= 66 && currentStep < 2) {
-          setCurrentStep(2);
-        }
-
-        return Math.min(newProgress, 95);
-      });
-    }, 500);
-
-    return () => clearInterval(interval);
-  }, [currentStep]);
+  const safeCurrentStepIndex = currentStepIndex === -1 ? steps.length - 1 : currentStepIndex;
 
   return (
     <Card>
@@ -46,9 +37,9 @@ export function AnalysisProgress() {
           {/* Progress Steps */}
           <div className="space-y-4 max-w-md mx-auto">
             {steps.map((step, index) => {
-              const isCompleted = index < currentStep;
-              const isActive = index === currentStep;
-              const isPending = index > currentStep;
+              const isCompleted = index < safeCurrentStepIndex;
+              const isActive = index === safeCurrentStepIndex && progress < 100;
+              const isPending = index > safeCurrentStepIndex;
 
               return (
                 <div
@@ -101,8 +92,8 @@ export function AnalysisProgress() {
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
-                className="bg-automotive-blue h-2 rounded-full transition-all duration-500"
-                style={{ width: `${progress}%` }}
+                className="bg-automotive-blue h-2 rounded-full transition-all duration-300"
+                style={{ width: `${Math.min(progress, 100)}%` }}
               ></div>
             </div>
           </div>

@@ -42,6 +42,54 @@ export const getQueryFn: <T>(options: {
     return await res.json();
   };
 
+export interface UploadProgressCallback {
+  (progress: number): void;
+}
+
+export async function uploadWithProgress(
+  url: string,
+  formData: FormData,
+  onProgress: UploadProgressCallback
+): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url, true);
+    xhr.withCredentials = true;
+
+    xhr.upload.addEventListener("progress", (event) => {
+      if (event.lengthComputable) {
+        const progress = Math.round((event.loaded / event.total) * 100);
+        onProgress(progress);
+      }
+    });
+
+    xhr.addEventListener("load", () => {
+      const response = new Response(xhr.response, {
+        status: xhr.status,
+        statusText: xhr.statusText,
+        headers: {
+          "Content-Type": xhr.getResponseHeader("Content-Type") || "application/json",
+        },
+      });
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(response);
+      } else {
+        reject(new Error(`${xhr.status}: ${xhr.statusText}`));
+      }
+    });
+
+    xhr.addEventListener("error", () => {
+      reject(new Error("Upload failed"));
+    });
+
+    xhr.addEventListener("abort", () => {
+      reject(new Error("Upload aborted"));
+    });
+
+    xhr.send(formData);
+  });
+}
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
