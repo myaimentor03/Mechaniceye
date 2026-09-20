@@ -310,6 +310,199 @@ export function determineDecisionPath(outcome: OwnerOutcome, confidenceLevel: Co
   }
 }
 
+type DecisionPacket = {
+  outcome: OwnerOutcome;
+  decisionPath: DecisionPathId | undefined;
+  confidenceLevel: ConfidenceLevel;
+  confidenceScore: number;
+  riskLevel: RiskLevel;
+  safetyTriggered: boolean;
+  vehicleInfo: string;
+  summary: string;
+  evidenceSummary: {
+    photos: number;
+    audio: number;
+    video: number;
+    vibration: number;
+    text: number;
+    persistedCount: number;
+  };
+  matchedSymptoms: Array<{
+    label: string;
+    confidence: number;
+    possibleRiskLevel: string;
+    safetyNote: string | null;
+  }>;
+  guidance: {
+    title: string;
+    description: string;
+    immediateSteps: string[];
+    whatToShare: string[];
+    warnings: string[];
+    followUp: string[];
+  };
+  evidenceBelongsToCase: boolean;
+  reusableForFixSell: boolean;
+};
+
+function buildFixGuidance(caseData: JourneyCase): DecisionPacket["guidance"] {
+  const hasPersistedEvidence = caseData.evidence.some((e) => e.status === "persisted");
+  return {
+    title: "Get It Repaired Professionally",
+    description: "Take the vehicle and your collected evidence to a qualified shop, mobile mechanic, or specialist.",
+    immediateSteps: [
+      "Review the evidence you captured — it belongs to your case and can be shared with any shop.",
+      "Contact a repair shop and share the symptom summary and evidence.",
+      "Ask the shop to inspect the specific areas identified in your matched symptoms.",
+    ],
+    whatToShare: [
+      "All photos, audio, video, and vibration recordings from this case.",
+      "The symptom summary: " + caseData.matchedSymptomCategories.map((m) => m.label).join(", "),
+      "Your description: " + caseData.description.slice(0, 200),
+    ],
+    warnings: [
+      "This is not a certified diagnosis — a physical inspection by a qualified mechanic is required.",
+      "Do not drive if safety triggers were detected (brakes, steering, overheating, fuel leak, smoke/fire).",
+      "Confidence level: " + caseData.confidenceLevel + " — more evidence increases certainty.",
+    ],
+    followUp: [
+      "If the shop confirms a different root cause, you can add that as follow-up evidence.",
+      "Track repair outcome to improve future guidance.",
+    ],
+  };
+}
+
+function buildSellGuidance(caseData: JourneyCase): DecisionPacket["guidance"] {
+  return {
+    title: "Sell or List It As-Is",
+    description: "Prepare an honest, evidence-backed listing when repair is not the preferred path.",
+    immediateSteps: [
+      "Gather all evidence from this case — it belongs to your vehicle and transfers to the buyer.",
+      "Use the symptom summary and evidence to write an honest condition description.",
+      "Disclose all known issues clearly; transparency reduces liability and builds trust.",
+    ],
+    whatToShare: [
+      "All photos, audio, video, and vibration recordings from this case.",
+      "Symptom categories detected: " + caseData.matchedSymptomCategories.map((m) => m.label).join(", "),
+      "Confidence level: " + caseData.confidenceLevel + " (" + caseData.confidenceScore + "/100)",
+      "Any safety triggers detected: " + (caseData.safetyTriggered ? "YES — must disclose" : "None"),
+    ],
+    warnings: [
+      "Do not conceal safety-related issues — this may have legal consequences.",
+      "If safety triggers were detected, the vehicle should not be driven to the buyer.",
+      "This is not a certified inspection — buyers should still get their own inspection.",
+    ],
+    followUp: [
+      "Consider a pre-sale inspection for buyer confidence.",
+      "Use the evidence to justify your asking price or negotiate fairly.",
+    ],
+  };
+}
+
+function buildMonitorGuidance(caseData: JourneyCase): DecisionPacket["guidance"] {
+  const topSymptom = caseData.matchedSymptomCategories[0];
+  return {
+    title: "Wait and Monitor",
+    description: "Monitor a lower-risk concern with clear warning signs, usage limits, and a defined follow-up point.",
+    immediateSteps: [
+      "Continue driving normally unless symptoms worsen.",
+      "Watch for the specific warning signs below.",
+      "Re-check in 1-2 weeks or at the next service interval.",
+    ],
+    whatToShare: [
+      "Current evidence is saved to your case for future reference.",
+      "Primary concern: " + (topSymptom?.label || "unspecified issue"),
+      "Confidence level: " + caseData.confidenceLevel + " — more evidence could clarify the issue.",
+    ],
+    warnings: [
+      "If the issue worsens or new symptoms appear, start a new journey or add evidence to this case.",
+      "Safety triggers override monitoring — stop driving immediately if brakes, steering, overheating, fuel leak, or smoke/fire occur.",
+      "Low confidence means the issue is not well understood yet.",
+    ],
+    followUp: [
+      "Re-run the journey if symptoms change or new evidence becomes available.",
+      "Schedule a routine inspection at your next service visit.",
+    ],
+  };
+}
+
+function buildStopDrivingGuidance(caseData: JourneyCase): DecisionPacket["guidance"] {
+  const triggeredFlags = caseData.safetyFlags.filter((f) => f.matched).map((f) => f.label).join(", ");
+  return {
+    title: "Do Not Drive — Seek In-Person Help",
+    description: "A safety trigger was detected. This vehicle should not be driven until inspected in person by a qualified professional.",
+    immediateSteps: [
+      "STOP DRIVING immediately.",
+      "Arrange for a tow to a repair shop or your home.",
+      "Do not attempt to drive even a short distance.",
+    ],
+    whatToShare: [
+      "All evidence from this case with the tow driver and repair shop.",
+      "Safety trigger(s) detected: " + triggeredFlags,
+      "Your full description: " + caseData.description.slice(0, 300),
+    ],
+    warnings: [
+      "Driving with these conditions risks serious injury or death.",
+      "This is not a suggestion — it is a safety boundary.",
+      "No amount of evidence or confidence change alters this directive.",
+    ],
+    followUp: [
+      "After in-person inspection and repair, you can start a new journey to verify the fix.",
+      "Share the repair outcome to improve future safety detection.",
+    ],
+  };
+}
+
+export function buildDecisionPacket(caseData: JourneyCase): DecisionPacket {
+  const evidenceSummary = {
+    photos: caseData.evidence.filter((e) => e.kind === "photo").length,
+    audio: caseData.evidence.filter((e) => e.kind === "audio").length,
+    video: caseData.evidence.filter((e) => e.kind === "video").length,
+    vibration: caseData.evidence.filter((e) => e.kind === "vibration").length,
+    text: caseData.evidence.filter((e) => e.kind === "text").length,
+    persistedCount: caseData.evidence.filter((e) => e.status === "persisted").length,
+  };
+
+  let guidance: DecisionPacket["guidance"];
+  switch (caseData.outcome) {
+    case "fix":
+      guidance = buildFixGuidance(caseData);
+      break;
+    case "sell":
+      guidance = buildSellGuidance(caseData);
+      break;
+    case "monitor":
+      guidance = buildMonitorGuidance(caseData);
+      break;
+    case "stop_driving":
+      guidance = buildStopDrivingGuidance(caseData);
+      break;
+    default:
+      guidance = buildMonitorGuidance(caseData);
+  }
+
+  return {
+    outcome: caseData.outcome || "monitor",
+    decisionPath: caseData.decisionPath,
+    confidenceLevel: caseData.confidenceLevel,
+    confidenceScore: caseData.confidenceScore,
+    riskLevel: caseData.riskLevel,
+    safetyTriggered: caseData.safetyTriggered,
+    vehicleInfo: caseData.vehicleInfo,
+    summary: caseData.description.slice(0, 300),
+    evidenceSummary,
+    matchedSymptoms: caseData.matchedSymptomCategories.map((m) => ({
+      label: m.label,
+      confidence: m.confidence,
+      possibleRiskLevel: m.possibleRiskLevel,
+      safetyNote: m.safetyNote,
+    })),
+    guidance,
+    evidenceBelongsToCase: true,
+    reusableForFixSell: true,
+  };
+}
+
 export function buildNextAction(state: JourneyState, caseData: JourneyCase): {
   action: string;
   prompt: string;
@@ -595,4 +788,5 @@ type Evidence = {
 
 export type {
   Evidence as JourneyEvidence,
+  DecisionPacket,
 };

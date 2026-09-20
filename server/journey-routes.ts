@@ -4,11 +4,13 @@ import {
   advanceJourney,
   evaluateSafetyFlags,
   calculateConfidence,
+  buildDecisionPacket,
   type JourneyCase,
   type JourneyState,
   type JourneyTransition,
   type OwnerOutcome,
   type EvidenceRecord,
+  type DecisionPacket,
 } from "./journey-state-machine";
 import multer from "multer";
 import { requireCustomer } from "./customer-auth";
@@ -185,7 +187,7 @@ function journeyError(res: Response, error: unknown): void {
 }
 
 function safeJourneyResponse(caseData: JourneyCase) {
-  return {
+  const baseResponse = {
     id: caseData.id,
     state: caseData.state,
     createdAt: caseData.createdAt,
@@ -250,6 +252,18 @@ function safeJourneyResponse(caseData: JourneyCase) {
     })),
     currentEvidencePrompt: caseData.currentEvidencePrompt,
   };
+
+  // Include structured decision packet when case reaches decision point
+  if (caseData.state === "diagnosis_ready" || caseData.state === "resolved") {
+    if (caseData.outcome) {
+      return {
+        ...baseResponse,
+        decisionPacket: buildDecisionPacket(caseData),
+      };
+    }
+  }
+
+  return baseResponse;
 }
 
 function assertOwner(caseData: JourneyCase, customerId: string): boolean {

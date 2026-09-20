@@ -10,8 +10,10 @@ import {
   hasSafetyTrigger,
   buildNextAction,
   generateJourneyCaseId,
+  buildDecisionPacket,
   type JourneyCase,
   type SafetyFlag,
+  type DecisionPacket,
 } from "./journey-state-machine";
 
 describe("journey-state-machine", () => {
@@ -725,6 +727,167 @@ it("resolves with resolve_stop_driving", () => {
       const action = buildNextAction("resolved", caseData);
       assert.equal(action.action, "");
       assert.ok(action.prompt.includes("resolved"));
+    });
+  });
+
+  describe("buildDecisionPacket", () => {
+    const baseCaseData: JourneyCase = {
+      id: "test",
+      state: "diagnosis_ready",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      vehicleInfo: "2020 Toyota RAV4",
+      description: "Check engine light is on, car runs rough at idle",
+      timing: "Idle",
+      urgency: "Safe to Drive",
+      canDrive: "Yes",
+      evidence: [
+        { id: "1", kind: "photo", addedAt: new Date().toISOString(), status: "persisted" },
+        { id: "2", kind: "text", addedAt: new Date().toISOString(), status: "text_only" },
+      ],
+      safetyFlags: [],
+      safetyTriggered: false,
+      confidenceScore: 60,
+      confidenceLevel: "moderate",
+      riskLevel: "medium",
+      outcome: "fix",
+      decisionPath: "professional_repair",
+      humanReviewRequested: false,
+      matchedSymptomCategories: [
+        {
+          symptomCategoryId: "check_engine_light",
+          label: "Check Engine Light",
+          confidence: 0.8,
+          matchedPhrases: ["check engine light"],
+          possibleRiskLevel: "medium",
+          safetyNote: null,
+          humanReviewRecommended: false,
+          recommendedInitialPath: "professional_repair",
+          commonEvidenceNeeded: "Photo of check engine light, OBD codes",
+        },
+      ],
+      plannedEvidence: [],
+      currentEvidencePrompt: undefined,
+    };
+
+    it("builds fix decision packet with professional repair guidance", () => {
+      const caseData = { ...baseCaseData, outcome: "fix" as const, decisionPath: "professional_repair" as const };
+      const packet = buildDecisionPacket(caseData);
+
+      assert.equal(packet.outcome, "fix");
+      assert.equal(packet.decisionPath, "professional_repair");
+      assert.equal(packet.confidenceLevel, "moderate");
+      assert.equal(packet.evidenceSummary.photos, 1);
+      assert.equal(packet.evidenceSummary.text, 1);
+      assert.equal(packet.evidenceSummary.persistedCount, 1);
+      assert.ok(packet.guidance.title.includes("Repair"));
+      assert.ok(packet.guidance.immediateSteps.length > 0);
+      assert.ok(packet.guidance.whatToShare.length > 0);
+      assert.ok(packet.guidance.warnings.length > 0);
+      assert.ok(packet.guidance.followUp.length > 0);
+      assert.equal(packet.evidenceBelongsToCase, true);
+      assert.equal(packet.reusableForFixSell, true);
+    });
+
+    it("builds sell decision packet with as-is listing guidance", () => {
+      const caseData = { ...baseCaseData, outcome: "sell" as const, decisionPath: "sell_as_is" as const, confidenceLevel: "moderate" as const };
+      const packet = buildDecisionPacket(caseData);
+
+      assert.equal(packet.outcome, "sell");
+      assert.equal(packet.decisionPath, "sell_as_is");
+      assert.ok(packet.guidance.title.includes("Sell") || packet.guidance.title.includes("List"));
+      assert.ok(packet.guidance.immediateSteps.some((s) => s.includes("evidence") || s.includes("disclose")));
+      assert.ok(packet.guidance.warnings.some((w) => w.includes("conceal") || w.includes("liability")));
+    });
+
+    it("builds monitor decision packet with watch-and-wait guidance", () => {
+      const caseData = { ...baseCaseData, outcome: "monitor" as const, decisionPath: "monitor_wait" as const, confidenceLevel: "low" as const };
+      const packet = buildDecisionPacket(caseData);
+
+      assert.equal(packet.outcome, "monitor");
+      assert.equal(packet.decisionPath, "monitor_wait");
+      assert.ok(packet.guidance.title.includes("Monitor") || packet.guidance.title.includes("Wait"));
+      assert.ok(packet.guidance.immediateSteps.some((s) => s.toLowerCase().includes("watch") || s.toLowerCase().includes("re-check")));
+      assert.ok(packet.guidance.warnings.some((w) => w.toLowerCase().includes("worsens") || w.toLowerCase().includes("safety")));
+    });
+
+    it("builds stop_driving decision packet with immediate safety steps", () => {
+      const caseData = {
+        ...baseCaseData,
+        outcome: "stop_driving" as const,
+        decisionPath: undefined,
+        safetyTriggered: true,
+        safetyFlags: [
+          { triggerId: "brakes", label: "Brake Safety Risk", matched: true, matchedPhrase: "brakes failed" },
+        ],
+        confidenceLevel: "high" as const,
+      };
+      const packet = buildDecisionPacket(caseData);
+
+      assert.equal(packet.outcome, "stop_driving");
+      assert.equal(packet.decisionPath, undefined);
+      assert.equal(packet.safetyTriggered, true);
+      assert.ok(packet.guidance.title.includes("Not Drive") || packet.guidance.title.includes("Stop"));
+      assert.ok(packet.guidance.immediateSteps.some((s) => s.includes("STOP") || s.includes("stop driving")));
+      assert.ok(packet.guidance.warnings.some((w) => w.includes("injury") || w.includes("death") || w.includes("boundary")));
+      assert.ok(packet.guidance.whatToShare.some((s) => s.includes("safety trigger") || s.includes("Brake")));
+    });
+
+    it("includes evidence summary with correct counts", () => {
+      const caseData = {
+        ...baseCaseData,
+        evidence: [
+          { id: "1", kind: "photo" as const, addedAt: new Date().toISOString(), status: "persisted" },
+          { id: "2", kind: "photo" as const, addedAt: new Date().toISOString(), status: "persisted" },
+          { id: "3", kind: "audio" as const, addedAt: new Date().toISOString(), status: "persisted" },
+          { id: "4", kind: "text" as const, addedAt: new Date().toISOString(), status: "text_only" },
+        ],
+      };
+      const packet = buildDecisionPacket(caseData);
+
+      assert.equal(packet.evidenceSummary.photos, 2);
+      assert.equal(packet.evidenceSummary.audio, 1);
+      assert.equal(packet.evidenceSummary.video, 0);
+      assert.equal(packet.evidenceSummary.vibration, 0);
+      assert.equal(packet.evidenceSummary.text, 1);
+      assert.equal(packet.evidenceSummary.persistedCount, 3);
+    });
+
+    it("includes matched symptoms in packet", () => {
+      const caseData = {
+        ...baseCaseData,
+        matchedSymptomCategories: [
+          {
+            symptomCategoryId: "brake_noise",
+            label: "Brake Noise",
+            confidence: 0.9,
+            matchedPhrases: ["grinding brakes"],
+            possibleRiskLevel: "high",
+            safetyNote: "Inspect immediately",
+            humanReviewRecommended: false,
+            recommendedInitialPath: "professional_repair",
+            commonEvidenceNeeded: "Brake rotor photo",
+          },
+          {
+            symptomCategoryId: "check_engine_light",
+            label: "Check Engine Light",
+            confidence: 0.7,
+            matchedPhrases: ["check engine"],
+            possibleRiskLevel: "medium",
+            safetyNote: null,
+            humanReviewRecommended: false,
+            recommendedInitialPath: "professional_repair",
+            commonEvidenceNeeded: "OBD codes",
+          },
+        ],
+      };
+      const packet = buildDecisionPacket(caseData);
+
+      assert.equal(packet.matchedSymptoms.length, 2);
+      assert.equal(packet.matchedSymptoms[0].label, "Brake Noise");
+      assert.equal(packet.matchedSymptoms[0].confidence, 0.9);
+      assert.equal(packet.matchedSymptoms[0].possibleRiskLevel, "high");
+      assert.equal(packet.matchedSymptoms[1].label, "Check Engine Light");
     });
   });
 });
