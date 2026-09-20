@@ -6,8 +6,10 @@ import {
   VIDEO_ACCEPT,
   baseMimeType,
   extensionForVideoMime,
+  MAX_VIDEO_COUNT,
   validateVideoFiles,
 } from "@/lib/mediaValidation";
+import { useFilePreviewUrls } from "@/lib/filePreviewUrls";
 
 interface VideoRecorderProps {
   files: File[];
@@ -17,7 +19,6 @@ interface VideoRecorderProps {
 
 export function VideoRecorder({ files, onChange, onError }: VideoRecorderProps) {
   const [recording, setRecording] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [liveStream, setLiveStream] = useState<MediaStream | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -26,13 +27,14 @@ export function VideoRecorder({ files, onChange, onError }: VideoRecorderProps) 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const videoUrls = useFilePreviewUrls(files);
+
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
       liveStream?.getTracks().forEach((t) => t.stop());
     };
-  }, [previewUrl, liveStream]);
+  }, [liveStream]);
 
   function formatTime(sec: number) {
     const m = Math.floor(sec / 60);
@@ -77,7 +79,7 @@ export function VideoRecorder({ files, onChange, onError }: VideoRecorderProps) 
         }
         if (validFiles.length === 0) return;
         onChange([...files, ...validFiles]);
-        setPreviewUrl(URL.createObjectURL(blob));
+        onError("");
       };
       recorder.start();
       recorderRef.current = recorder;
@@ -110,7 +112,6 @@ export function VideoRecorder({ files, onChange, onError }: VideoRecorderProps) 
     }
     if (validFiles.length > 0) {
       onChange([...files, ...validFiles]);
-      setPreviewUrl(URL.createObjectURL(validFiles[validFiles.length - 1]));
     }
     e.target.value = "";
   }
@@ -118,7 +119,6 @@ export function VideoRecorder({ files, onChange, onError }: VideoRecorderProps) 
   function removeFile(index: number) {
     const next = files.filter((_, i) => i !== index);
     onChange(next);
-    if (next.length === 0) setPreviewUrl(null);
   }
 
   return (
@@ -173,35 +173,34 @@ export function VideoRecorder({ files, onChange, onError }: VideoRecorderProps) 
 
       {files.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-sm font-medium text-gray-700">Videos ({files.length}/4)</h4>
+          <h4 className="text-sm font-medium text-gray-700">Videos ({files.length}/{MAX_VIDEO_COUNT})</h4>
           <div className="space-y-2">
             {files.map((file, index) => (
               <div
                 key={`${file.name}-${index}`}
-                className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg"
+                className="p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2"
               >
-                <div className="flex items-center gap-3">
-                  <FileVideo className="w-5 h-5 text-gray-500" />
-                  <span className="text-sm text-gray-900 truncate max-w-[200px]">{file.name}</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <FileVideo className="w-5 h-5 text-gray-500" />
+                    <span className="text-sm text-gray-900 truncate max-w-[200px]">{file.name}</span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeFile(index)}
+                    aria-label="Remove video"
+                  >
+                    <X className="w-4 h-4 text-red-500" />
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeFile(index)}
-                  aria-label="Remove video"
-                >
-                  <X className="w-4 h-4 text-red-500" />
-                </Button>
+                {videoUrls[index] && (
+                  <video controls src={videoUrls[index]} className="w-full max-h-[200px]" preload="metadata" />
+                )}
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {previewUrl && !recording && (
-        <div className="mt-4 rounded-xl overflow-hidden">
-          <video controls src={previewUrl} className="w-full max-h-[200px]" />
         </div>
       )}
 
@@ -211,6 +210,10 @@ export function VideoRecorder({ files, onChange, onError }: VideoRecorderProps) 
           <p>Tap <strong>Record Video</strong> to film the vehicle issue from a safe distance. Do not record while driving. Or choose a file you already recorded.</p>
         </div>
       )}
+
+      <p className="text-xs text-gray-500">
+        Video is stored with your case only. It is not analyzed automatically.
+      </p>
     </div>
   );
 }
