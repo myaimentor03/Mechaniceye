@@ -2889,7 +2889,13 @@ if (photoFiles.length) {
   // Submit consultation feedback
   app.post("/api/consultations/:id/feedback", requireReviewer, reviewerWriteLimit, async (req, res) => {
     try {
-      const consultationId = req.params.id;
+      // Fail closed on hostile/malformed ids: only a trimmed, bounded id
+      // ever reaches storage. Field names only, never the submitted value.
+      const consultationId = typeof req.params.id === "string" ? req.params.id.trim() : "";
+      if (!consultationId || consultationId.length > 160) {
+        res.status(400).json({ ok: false, error: "Invalid consultation id.", invalidFields: ["id"] });
+        return;
+      }
       const feedbackData = consultationFeedbackSchema.parse(req.body);
       
       // Calculate overall score (average of ratings, with wasFixed bonus)
@@ -2909,13 +2915,19 @@ if (photoFiles.length) {
         completedAt: new Date()
       });
 
-      // Update mechanic rating based on feedback
+      // Update mechanic rating based on feedback. Average only completed
+      // (rated) consultations: pending ones carry no overallScore and must
+      // not dilute the mean. Skip the write when nothing rated is present so
+      // a corrupt scorecard can never persist NaN as the mechanic rating.
       const consultations = await storage.getConsultationsByMechanic(consultation.mechanicId);
-      const averageRating = consultations
+      const ratedScores = consultations
         .filter(c => c.overallScore)
-        .reduce((sum, c) => sum + parseFloat(c.overallScore!), 0) / consultations.length;
-      
-      await storage.updateMechanicRating(consultation.mechanicId, averageRating);
+        .map(c => parseFloat(c.overallScore!))
+        .filter(score => Number.isFinite(score));
+      if (ratedScores.length > 0) {
+        const averageRating = ratedScores.reduce((sum, score) => sum + score, 0) / ratedScores.length;
+        await storage.updateMechanicRating(consultation.mechanicId, averageRating);
+      }
 
       res.json(consultation);
     } catch (error: any) {
