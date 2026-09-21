@@ -292,17 +292,42 @@ async function tryAutoEvaluate(caseData: JourneyCase): Promise<JourneyCase> {
     // Seed tables may not exist yet; fall back to empty
   }
 
+  const previousState = caseData.state;
   const evaluated = advanceJourney(caseData, "evaluate", { evidenceItems });
   setJourneyCase(evaluated);
-  logStateTransition(evaluated, caseData.state, "evaluate");
+  logStateTransition(evaluated, previousState, "evaluate");
+
+  // Complete to diagnosis_ready so the customer immediately sees a
+  // useful FIX/SELL/MONITOR decision without an extra click. This mirrors
+  // the unattended worker's full auto-evaluation and ensures the
+  // decisionPacket is present inline after evidence upload.
+  const diagnosed = advanceJourney(evaluated, "ready_diagnosis", { evidenceItems });
+  setJourneyCase(diagnosed);
+  logStateTransition(diagnosed, evaluated.state, "ready_diagnosis");
+
   logEvent("journey.auto_evaluate", {
-    caseId: evaluated.id,
-    confidenceScore: evaluated.confidenceScore,
-    confidenceLevel: evaluated.confidenceLevel,
-    evidenceCount: evaluated.evidence.length,
+    caseId: diagnosed.id,
+    confidenceScore: diagnosed.confidenceScore,
+    confidenceLevel: diagnosed.confidenceLevel,
+    evidenceCount: diagnosed.evidence.length,
+    outcome: diagnosed.outcome,
+    decisionPath: diagnosed.decisionPath,
   });
 
-  return evaluated;
+  // Notify so the customer sees "results ready" even if they briefly left
+  if (diagnosed.customerId) {
+    notifyStateTransition({
+      caseId: diagnosed.id,
+      customerId: diagnosed.customerId,
+      fromState: previousState,
+      toState: diagnosed.state,
+      transition: "ready_diagnosis",
+      safetyTriggered: diagnosed.safetyTriggered,
+      outcome: diagnosed.outcome,
+    }).catch(() => {});
+  }
+
+  return diagnosed;
 }
 
 export function registerJourneyRoutes(app: Express): void {

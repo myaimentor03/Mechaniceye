@@ -661,15 +661,20 @@ test("journey add_followup_evidence re-opens resolved case for new evidence", as
     });
     assert.equal(evidenceRes.status, 200);
     const evidenceData = await jsonOf(evidenceRes);
-    // With auto-evaluate, if confidence is moderate+ the case advances to evaluating
-    assert.ok(evidenceData.state === "evidence_received" || evidenceData.state === "evaluating",
-      `Expected evidence_received or evaluating, got ${evidenceData.state}`);
+    // With inline auto-evaluate completing to diagnosis_ready, state may be evidence_received, evaluating, or diagnosis_ready
+    assert.ok(evidenceData.state === "evidence_received" || evidenceData.state === "evaluating" || evidenceData.state === "diagnosis_ready",
+      `Expected evidence_received, evaluating or diagnosis_ready, got ${evidenceData.state}`);
     assert.ok(evidenceData.evidence.some((e: any) => e.description === "New symptom: engine stalling at stops"));
 
-    // Continue through evaluation — if already evaluating, skip evaluate transition
-    const remainingTransitions = evidenceData.state === "evaluating"
-      ? ["ready_diagnosis", "resolve"]
-      : ["evaluate", "ready_diagnosis", "resolve"];
+    // Continue through evaluation — skip steps already completed by inline auto-evaluation
+    let remainingTransitions: string[] = [];
+    if (evidenceData.state === "diagnosis_ready") {
+      remainingTransitions = ["resolve"];
+    } else if (evidenceData.state === "evaluating") {
+      remainingTransitions = ["ready_diagnosis", "resolve"];
+    } else {
+      remainingTransitions = ["evaluate", "ready_diagnosis", "resolve"];
+    }
     for (const transition of remainingTransitions) {
       const res = await fetch(`${origin}/api/journey/${caseId}/advance`, {
         method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition }),
@@ -729,7 +734,7 @@ test("journey add_followup_evidence via evidence endpoint on resolved case", asy
       assert.equal(res.status, 200);
     }
 
-    // Add follow-up evidence directly via evidence endpoint (text evidence)
+     // Add follow-up evidence directly via evidence endpoint (text evidence)
     const evidenceRes = await fetch(`${origin}/api/journey/${caseId}/evidence`, {
       method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({
         kind: "text",
@@ -738,10 +743,14 @@ test("journey add_followup_evidence via evidence endpoint on resolved case", asy
     });
      assert.equal(evidenceRes.status, 200);
 const evidenceData = await jsonOf(evidenceRes);
-     // With auto-evaluate, if confidence is moderate+ the case advances to evaluating
-     assert.ok(evidenceData.state === "evidence_received" || evidenceData.state === "evaluating",
-       `Expected evidence_received or evaluating, got ${evidenceData.state}`);
-     assert.equal(evidenceData.outcome, undefined);
+     // With inline auto-evaluate completing to diagnosis_ready, state may be evidence_received, evaluating, or diagnosis_ready
+     assert.ok(evidenceData.state === "evidence_received" || evidenceData.state === "evaluating" || evidenceData.state === "diagnosis_ready",
+       `Expected evidence_received, evaluating or diagnosis_ready, got ${evidenceData.state}`);
+     if (evidenceData.state === "evidence_received") {
+       assert.equal(evidenceData.outcome, undefined);
+     } else {
+       assert.ok(evidenceData.outcome, "diagnosis_ready should have an outcome");
+     }
      assert.ok(evidenceData.evidence.some((e: any) => e.description === "Follow-up: check engine light is now flashing"));
    });
  });

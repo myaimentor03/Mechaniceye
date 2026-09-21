@@ -77,29 +77,37 @@ export async function pollAndEvaluate(): Promise<number> {
       try {
         const previousState = caseData.state;
 
-        // Auto-evaluate: advance through evaluate -> evaluating -> ready_diagnosis
+        // Auto-evaluate: advance through evaluate -> evaluating -> diagnosis_ready
+        // in a single unattended cycle so the customer returns to a useful
+        // FIX/SELL/MONITOR/STOP decision without manual clicks.
         const evaluated = advanceJourney(caseData, "evaluate", { evidenceItems });
         setJourneyCase(evaluated);
         await logStateTransition(evaluated, previousState, "evaluate");
 
+        const diagnosed = advanceJourney(evaluated, "ready_diagnosis", { evidenceItems });
+        setJourneyCase(diagnosed);
+        await logStateTransition(diagnosed, evaluated.state, "ready_diagnosis");
+
         logEvent("journey.unattended_auto_evaluate", {
-          caseId: evaluated.id,
-          customerId: evaluated.customerId,
-          confidenceScore: evaluated.confidenceScore,
-          confidenceLevel: evaluated.confidenceLevel,
-          evidenceCount: evaluated.evidence.length,
+          caseId: diagnosed.id,
+          customerId: diagnosed.customerId,
+          confidenceScore: diagnosed.confidenceScore,
+          confidenceLevel: diagnosed.confidenceLevel,
+          evidenceCount: diagnosed.evidence.length,
+          outcome: diagnosed.outcome,
+          decisionPath: diagnosed.decisionPath,
         });
 
-        // Notify the customer that results are ready
-        if (evaluated.customerId) {
+        // Notify the customer that results are ready (diagnosis_ready is notable)
+        if (diagnosed.customerId) {
           await notifyStateTransition({
-            caseId: evaluated.id,
-            customerId: evaluated.customerId,
+            caseId: diagnosed.id,
+            customerId: diagnosed.customerId,
             fromState: previousState,
-            toState: evaluated.state,
-            transition: "evaluate",
-            safetyTriggered: evaluated.safetyTriggered,
-            outcome: evaluated.outcome,
+            toState: diagnosed.state,
+            transition: "ready_diagnosis",
+            safetyTriggered: diagnosed.safetyTriggered,
+            outcome: diagnosed.outcome,
           });
         }
 
