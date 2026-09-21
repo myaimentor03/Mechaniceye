@@ -375,6 +375,30 @@ export const drivableVehicleKnowledgePacks = pgTable("drivable_vehicle_knowledge
 ]);
 
 
+// Evidence attachment persistence: each uploaded evidence file gets a row.
+// This is the durable source of truth for evidence metadata, written alongside
+// the filesystem/S3 manifest so evidence can be queried via SQL.
+export const drivableEvidenceAttachments = pgTable("drivable_evidence_attachments", {
+  id: varchar("id").primaryKey(),
+  caseId: varchar("case_id").notNull(),
+  kind: text("kind").notNull(),
+  originalName: text("original_name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  byteSize: integer("byte_size").notNull(),
+  status: text("status").notNull().default("persisted"),
+  storageKey: text("storage_key").notNull(),
+  provenance: text("provenance").notNull().default("uploaded_media"),
+  analysisStatus: text("analysis_status").notNull().default("uploaded_not_analyzed"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("evidence_attachments_case_idx").on(table.caseId),
+  index("evidence_attachments_kind_idx").on(table.kind),
+  index("evidence_attachments_case_kind_idx").on(table.caseId, table.kind),
+]);
+
+export const insertDrivableEvidenceAttachmentSchema = createInsertSchema(drivableEvidenceAttachments).omit({ createdAt: true });
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -460,6 +484,9 @@ export type InsertFixHistoryLog = z.infer<typeof insertFixHistoryLogSchema>;
 export type FixHistoryLog = typeof fixHistoryLog.$inferSelect;
 export type InsertChatExportLog = z.infer<typeof insertChatExportLogSchema>;
 export type ChatExportLog = typeof chatExportLog.$inferSelect;
+
+export type InsertDrivableEvidenceAttachment = z.infer<typeof insertDrivableEvidenceAttachmentSchema>;
+export type DrivableEvidenceAttachment = typeof drivableEvidenceAttachments.$inferSelect;
 
 
 export type InsertDrivableSeedSymptomCategory = z.infer<typeof insertDrivableSeedSymptomCategorySchema>;

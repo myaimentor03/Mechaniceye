@@ -242,9 +242,10 @@ export class JourneyReviewBridge {
    * Builds the evidence boundary for a case being resolved.
    */
   buildEvidenceBoundary(caseData: JourneyCase): FollowUpEvidenceBoundary {
+    const photoStored = caseData.evidence.some((e) => e.kind === "photo" && e.status === "persisted");
     const audioStored = caseData.evidence.some((e) => e.kind === "audio" && e.status === "persisted");
     const videoStored = caseData.evidence.some((e) => e.kind === "video" && e.status === "persisted");
     const vibrationStored = caseData.evidence.some((e) => e.kind === "vibration");
-    return buildFollowUpEvidenceBoundary({ audioStored, videoStored, vibrationStored });
+    return buildFollowUpEvidenceBoundary({ photoStored, audioStored, videoStored, vibrationStored });
   }
 }

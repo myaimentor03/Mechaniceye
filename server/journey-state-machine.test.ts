@@ -286,9 +286,10 @@ it("finish_evidence transitions from evidence_requested to evidence_received", (
        caseData = advanceJourney(caseData, "submit_intake");
        caseData = advanceJourney(caseData, "request_evidence");
        assert.equal(caseData.state, "evidence_requested");
-       caseData = advanceJourney(caseData, "finish_evidence");
-       assert.equal(caseData.state, "evidence_received");
-       assert.equal(caseData.nextAction, "evaluate");
+        caseData = advanceJourney(caseData, "finish_evidence");
+        assert.equal(caseData.state, "evidence_received");
+        // No evidence yet, so confidence is insufficient: ask for one more evidence item.
+        assert.equal(caseData.nextAction, "add_more_evidence");
        assert.ok(caseData.nextActionPrompt.length > 0);
      });
 

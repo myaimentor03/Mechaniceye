@@ -216,7 +216,7 @@ test("journey advance to evidence_requested and finish evidence", async () => {
     });
     const afterFinish = await jsonOf(finishRes);
     assert.equal(afterFinish.state, "evidence_received");
-    assert.equal(afterFinish.nextAction, "evaluate");
+    assert.equal(afterFinish.nextAction, "add_more_evidence");
   });
 });
 
@@ -416,7 +416,7 @@ test("journey finish_evidence transitions from evidence_requested", async () => 
     });
     const afterFinish = await jsonOf(finishRes);
     assert.equal(afterFinish.state, "evidence_received");
-    assert.equal(afterFinish.nextAction, "evaluate");
+    assert.equal(afterFinish.nextAction, "add_more_evidence");
   });
 });
 
