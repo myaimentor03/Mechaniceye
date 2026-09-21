@@ -922,3 +922,106 @@ const evidenceData = await jsonOf(evidenceRes);
       assert.equal(resolved.outcome, "stop_driving");
     });
   });
+
+  test("journey handoff endpoint returns service destination for resolved fix case", async () => {
+    await withJourneyServer(async (origin) => {
+      const startRes = await fetch(`${origin}/api/journey/start`, {
+        method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({
+          vehicleInfo: "2020 Honda Civic",
+          description: "Grinding noise when braking at low speeds, started last week",
+          timing: "Braking",
+          urgency: "Safe to Drive",
+          canDrive: "Yes",
+        }),
+      });
+      const caseData = await jsonOf(startRes);
+      const caseId = caseData.id;
+
+      // Walk through intake → triage
+      for (const transition of ["submit_intake", "acknowledge_triage"]) {
+        const res = await fetch(`${origin}/api/journey/${caseId}/advance`, {
+          method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition }),
+        });
+        assert.equal(res.status, 200);
+      }
+
+      // Add evidence so the case has something to hand off
+      const evRes = await fetch(`${origin}/api/journey/${caseId}/evidence`, {
+        method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({
+          kind: "text",
+          description: "Grinding noise only when braking, metal-on-metal sound",
+        }),
+      });
+      assert.equal(evRes.status, 200);
+
+      // Continue through the rest of the path — inline auto-evaluate may
+      // have already advanced the case, so check current state.
+      const statusAfterEv = await jsonOf(await fetch(`${origin}/api/journey/${caseId}/status`, { headers: makeCustomerHeader() }));
+      let remainingTransitions: string[] = [];
+      if (statusAfterEv.state === "diagnosis_ready") {
+        remainingTransitions = ["resolve"];
+      } else if (statusAfterEv.state === "evaluating") {
+        remainingTransitions = ["ready_diagnosis", "resolve"];
+      } else {
+        remainingTransitions = ["finish_evidence", "evaluate", "ready_diagnosis", "resolve"];
+      }
+      for (const transition of remainingTransitions) {
+        const res = await fetch(`${origin}/api/journey/${caseId}/advance`, {
+          method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition }),
+        });
+        assert.equal(res.status, 200);
+      }
+
+      // Verify the case is resolved with a service destination
+      const statusRes = await fetch(`${origin}/api/journey/${caseId}/status`, { headers: makeCustomerHeader() });
+      const resolvedData = await jsonOf(statusRes);
+      assert.equal(resolvedData.state, "resolved");
+      assert.ok(resolvedData.outcome, "Should have an outcome");
+      assert.ok(resolvedData.nextServiceDestination, "Should have a service destination");
+
+      // Call the handoff endpoint
+      const handoffRes = await fetch(`${origin}/api/journey/${caseId}/handoff`, { headers: makeCustomerHeader() });
+      assert.equal(handoffRes.status, 200);
+      const handoff = await jsonOf(handoffRes);
+      assert.equal(handoff.ok, true);
+      assert.ok(handoff.destination, "Handoff should include destination");
+      assert.ok(handoff.caseSummary, "Handoff should include case summary");
+      assert.ok(handoff.evidenceSummary, "Handoff should include evidence summary");
+      assert.equal(handoff.caseSummary.id, caseId);
+      assert.equal(handoff.caseSummary.outcome, resolvedData.outcome);
+      assert.equal(handoff.destination.caseId, caseId);
+      assert.equal(handoff.evidenceSummary.totalCount >= 0, true, "Evidence count should be present");
+      assert.ok(handoff.handoffUrl, "Should include a handoff URL");
+    });
+  });
+
+  test("journey handoff endpoint returns 409 for non-resolved case", async () => {
+    await withJourneyServer(async (origin) => {
+      const startRes = await fetch(`${origin}/api/journey/start`, {
+        method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({
+          vehicleInfo: "2020 Honda Civic",
+          description: "Grinding noise when braking at low speeds",
+        }),
+      });
+      const caseData = await jsonOf(startRes);
+      const caseId = caseData.id;
+
+      const submitRes = await fetch(`${origin}/api/journey/${caseId}/advance`, {
+        method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition: "submit_intake" }),
+      });
+      assert.equal(submitRes.status, 200);
+
+      // Case is in triage, not resolved — handoff should fail
+      const handoffRes = await fetch(`${origin}/api/journey/${caseId}/handoff`, { headers: makeCustomerHeader() });
+      assert.equal(handoffRes.status, 409);
+      const handoff = await jsonOf(handoffRes);
+      assert.equal(handoff.ok, false);
+    });
+  });
+
+  test("journey handoff endpoint returns 404 for unknown case", async () => {
+    await withJourneyServer(async (origin) => {
+      const handoffRes = await fetch(`${origin}/api/journey/JRN-nonexistent/handoff`, { headers: makeCustomerHeader() });
+      assert.equal(handoffRes.status, 404);
+    });
+  });

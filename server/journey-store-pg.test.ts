@@ -36,12 +36,12 @@ function createFakeExecutor() {
             "confidence_level", "risk_level", "outcome", "decision_path",
             "resolution_note", "human_review_requested", "escalation_reason",
             "next_action", "next_action_prompt", "matched_symptom_categories",
-            "planned_evidence", "current_evidence_prompt",
+            "planned_evidence", "current_evidence_prompt", "next_service_destination",
           ];
           for (let i = 0; i < jsonbCols.length; i++) {
             const val = values?.[11 + i];
             const col = jsonbCols[i];
-            if (col === "evidence" || col === "safety_flags" || col === "matched_symptom_categories" || col === "planned_evidence") {
+            if (col === "evidence" || col === "safety_flags" || col === "matched_symptom_categories" || col === "planned_evidence" || col === "next_service_destination") {
               row[col] = typeof val === "string" ? JSON.parse(val) : val;
             } else {
               row[col] = val;
@@ -279,5 +279,50 @@ describe("journey-store-pg", () => {
     assert.equal(retrieved.timing, undefined);
     assert.equal(retrieved.urgency, undefined);
     assert.equal(retrieved.canDrive, undefined);
+  });
+
+  it("round-trips nextServiceDestination through set and get", async () => {
+    const caseData = createJourneyCase({
+      vehicleInfo: "2020 Honda Civic",
+      description: "Grinding noise when braking at low speeds",
+      timing: "Braking",
+      urgency: "Safe to Drive",
+    });
+
+    // Simulate a resolved case with a service destination
+    caseData.state = "resolved";
+    caseData.outcome = "fix";
+    caseData.nextServiceDestination = {
+      service: "mechanic_match",
+      label: "Mechanic Match",
+      description: "Route your case evidence to qualified mechanics.",
+      caseId: caseData.id,
+      evidenceReusable: true,
+      outcome: "fix",
+    };
+
+    await store.set(caseData);
+    const retrieved = await store.get(caseData.id);
+
+    assert.ok(retrieved, "case should be retrievable");
+    assert.ok(retrieved.nextServiceDestination, "nextServiceDestination should be persisted");
+    assert.equal(retrieved.nextServiceDestination!.service, "mechanic_match");
+    assert.equal(retrieved.nextServiceDestination!.label, "Mechanic Match");
+    assert.equal(retrieved.nextServiceDestination!.caseId, caseData.id);
+    assert.equal(retrieved.nextServiceDestination!.evidenceReusable, true);
+    assert.equal(retrieved.nextServiceDestination!.outcome, "fix");
+  });
+
+  it("round-trips null nextServiceDestination as undefined", async () => {
+    const caseData = createJourneyCase({
+      vehicleInfo: "2020 Honda Civic",
+      description: "Grinding noise when braking at low speeds",
+    });
+
+    await store.set(caseData);
+    const retrieved = await store.get(caseData.id);
+
+    assert.ok(retrieved, "case should be retrievable");
+    assert.equal(retrieved.nextServiceDestination, undefined);
   });
 });

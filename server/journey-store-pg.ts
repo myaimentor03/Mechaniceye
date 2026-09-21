@@ -48,6 +48,9 @@ function rowToCase(row: Record<string, unknown>): JourneyCase {
     currentEvidencePrompt: row.current_evidence_prompt != null
       ? String(row.current_evidence_prompt)
       : undefined,
+    nextServiceDestination: row.next_service_destination != null && typeof row.next_service_destination === "object"
+      ? (row.next_service_destination as any)
+      : undefined,
   };
 }
 
@@ -80,6 +83,7 @@ function caseToRow(c: JourneyCase): Record<string, unknown> {
     matched_symptom_categories: c.matchedSymptomCategories,
     planned_evidence: c.plannedEvidence,
     current_evidence_prompt: c.currentEvidencePrompt ?? null,
+    next_service_destination: c.nextServiceDestination ?? null,
   };
 }
 
@@ -91,7 +95,7 @@ const UPSERT = `
     confidence_level, risk_level, outcome, decision_path,
     resolution_note, human_review_requested, escalation_reason,
     next_action, next_action_prompt, matched_symptom_categories,
-    planned_evidence, current_evidence_prompt
+    planned_evidence, current_evidence_prompt, next_service_destination
   ) values (
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11,
@@ -99,7 +103,7 @@ const UPSERT = `
     $16, $17, $18, $19,
     $20, $21, $22,
     $23, $24, $25::jsonb,
-    $26::jsonb, $27
+    $26::jsonb, $27, $28::jsonb
   )
   on conflict (id) do update set
     state = excluded.state,
@@ -126,7 +130,8 @@ const UPSERT = `
     next_action_prompt = excluded.next_action_prompt,
     matched_symptom_categories = excluded.matched_symptom_categories,
     planned_evidence = excluded.planned_evidence,
-    current_evidence_prompt = excluded.current_evidence_prompt
+    current_evidence_prompt = excluded.current_evidence_prompt,
+    next_service_destination = excluded.next_service_destination
 `;
 
 function buildUpsertParams(c: JourneyCase): unknown[] {
@@ -139,6 +144,7 @@ function buildUpsertParams(c: JourneyCase): unknown[] {
     row.resolution_note, row.human_review_requested, row.escalation_reason,
     row.next_action, row.next_action_prompt, JSON.stringify(row.matched_symptom_categories),
     JSON.stringify(row.planned_evidence), row.current_evidence_prompt,
+    JSON.stringify(row.next_service_destination),
   ];
 }
 
