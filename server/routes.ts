@@ -2124,6 +2124,18 @@ res.status(400).json({ message: "Update step completion could not be processed."
       });
     }
 
+    const vinParam = req.query.vin;
+    if (typeof vinParam === "string" && vinParam.trim()) {
+      const normalizedVin = vinParam.trim().toUpperCase();
+      if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(normalizedVin)) {
+        return res.status(400).json({
+          found: false,
+          message: "VIN must be 17 characters and cannot contain I, O, or Q",
+          code: "INVALID_VIN"
+        });
+      }
+    }
+
     const parseJsonArray = (value: unknown): string[] => {
       if (Array.isArray(value)) {
         return value.filter((item): item is string => typeof item === "string");

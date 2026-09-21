@@ -1211,6 +1211,65 @@ async function main() {
     return `status ${response.status}`;
   });
 
+  await check("valid VIN parameter (17 chars, no I/O/Q) is accepted in query", async () => {
+    const response = await get(`${baseUrl}/api/buyer-risk/vehicle-knowledge?year=2015&make=Toyota&model=Camry&vin=1HGBH41JXMN109186`);
+    const body = await jsonResponse(response);
+    assert(response.status === 503 || response.status === 200 || response.status === 400, `unexpected status ${response.status}`);
+    if (response.status === 400) {
+      assert(body.code === "INVALID_VIN", `expected INVALID_VIN for valid VIN got ${body.code}`);
+    }
+    return `status ${response.status}`;
+  });
+
+  await check("VIN parameter with wrong length (16 chars) -> 400 INVALID_VIN", async () => {
+    const response = await get(`${baseUrl}/api/buyer-risk/vehicle-knowledge?year=2015&make=Toyota&model=Camry&vin=1HGBH41JXMN10918`);
+    const body = await jsonResponse(response);
+    assert(response.status === 400, `expected 400 got ${response.status}`);
+    assert(body.code === "INVALID_VIN", `expected INVALID_VIN got ${body.code}`);
+    return "ok";
+  });
+
+  await check("VIN parameter with wrong length (18 chars) -> 400 INVALID_VIN", async () => {
+    const response = await get(`${baseUrl}/api/buyer-risk/vehicle-knowledge?year=2015&make=Toyota&model=Camry&vin=1HGBH41JXMN1091867`);
+    const body = await jsonResponse(response);
+    assert(response.status === 400, `expected 400 got ${response.status}`);
+    assert(body.code === "INVALID_VIN", `expected INVALID_VIN got ${body.code}`);
+    return "ok";
+  });
+
+  await check("VIN parameter containing I -> 400 INVALID_VIN", async () => {
+    const response = await get(`${baseUrl}/api/buyer-risk/vehicle-knowledge?year=2015&make=Toyota&model=Camry&vin=1HGBH41IXMN109186`);
+    const body = await jsonResponse(response);
+    assert(response.status === 400, `expected 400 got ${response.status}`);
+    assert(body.code === "INVALID_VIN", `expected INVALID_VIN got ${body.code}`);
+    return "ok";
+  });
+
+  await check("VIN parameter containing O -> 400 INVALID_VIN", async () => {
+    const response = await get(`${baseUrl}/api/buyer-risk/vehicle-knowledge?year=2015&make=Toyota&model=Camry&vin=1HGBH41OXMN109186`);
+    const body = await jsonResponse(response);
+    assert(response.status === 400, `expected 400 got ${response.status}`);
+    assert(body.code === "INVALID_VIN", `expected INVALID_VIN got ${body.code}`);
+    return "ok";
+  });
+
+  await check("VIN parameter containing Q -> 400 INVALID_VIN", async () => {
+    const response = await get(`${baseUrl}/api/buyer-risk/vehicle-knowledge?year=2015&make=Toyota&model=Camry&vin=1HGBH41QXMN109186`);
+    const body = await jsonResponse(response);
+    assert(response.status === 400, `expected 400 got ${response.status}`);
+    assert(body.code === "INVALID_VIN", `expected INVALID_VIN got ${body.code}`);
+    return "ok";
+  });
+
+  await check("VIN parameter provided without year/make/model -> 400 missing required fields", async () => {
+    const response = await get(`${baseUrl}/api/buyer-risk/vehicle-knowledge?vin=1HGBH41JXMN109186`);
+    const body = await jsonResponse(response);
+    assert(response.status === 400, `expected 400 got ${response.status}`);
+    assert(Array.isArray(body.required), "expected required fields list");
+    assert(body.required.includes("year") || body.required.includes("make") || body.required.includes("model"), "must require year/make/model even with VIN");
+    return "ok";
+  });
+
   if (DATABASE_URL) {
     await check("(db mode) buyer-check unknown vehicle with no stored pack -> 200 found:false with fallbackPrompts, never fabricated", async () => {
       const response = await get(`${baseUrl}/api/buyer-risk/vehicle-knowledge?year=1919&make=QAUnknown&model=NoSuchModel`);
