@@ -622,14 +622,14 @@ export function buildNextAction(state: JourneyState, caseData: JourneyCase): {
       const topSymptom = caseData.matchedSymptomCategories[0];
       if (confidenceLevel === "insufficient_information") {
         return {
-          action: "evaluate",
-          prompt: `Thanks — that evidence is saved. With only ${evidenceCount} piece${evidenceCount !== 1 ? "s" : ""} of evidence, confidence is still building. Add one more item when you can, or continue to review what you have shared.`,
+          action: "add_more_evidence",
+          prompt: `Thanks — that evidence is saved. With only ${evidenceCount} piece${evidenceCount !== 1 ? "s" : ""} of evidence, confidence is still building. Add one more item when you can safely capture it.`,
         };
       }
       if (confidenceLevel === "low") {
         return {
-          action: "evaluate",
-          prompt: `Thanks — that evidence is saved. Confidence is currently low at ${confidenceLevel}. Add one more piece of evidence when you can to help clarify the issue, or continue to review what you have shared.`,
+          action: "add_more_evidence",
+          prompt: `Thanks — that evidence is saved. Confidence is currently low at ${confidenceLevel}. Add one more piece of evidence when you can to help clarify the issue before we evaluate.`,
         };
       }
       if (topSymptom) {
