@@ -246,7 +246,7 @@ test("journey evidence submit with photo and text", async () => {
   });
 });
 
-test("journey evaluate transitions to evaluating and ready_diagnosis", async () => {
+test("journey evidence route auto-evaluates to diagnosis_ready", async () => {
   await withJourneyServer(async (origin) => {
     const startRes = await fetch(`${origin}/api/journey/start`, {
       method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({
@@ -254,6 +254,7 @@ test("journey evaluate transitions to evaluating and ready_diagnosis", async () 
         description: "Check engine light is on, car runs rough at idle",
         timing: "Idle",
         urgency: "Safe to Drive",
+        canDrive: "Yes",
       }),
     });
     const caseData = await jsonOf(startRes);
@@ -269,23 +270,21 @@ test("journey evaluate transitions to evaluating and ready_diagnosis", async () 
     });
     assert.equal(ackRes.status, 200);
 
-    const submitEvRes = await fetch(`${origin}/api/journey/${caseId}/advance`, {
-      method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition: "submit_evidence" }),
+    // Submit evidence via the evidence endpoint — the evidence route
+    // calls tryAutoEvaluate which completes evaluate → ready_diagnosis
+    // so the customer immediately sees a useful decision.
+    const evidenceRes = await fetch(`${origin}/api/journey/${caseId}/evidence`, {
+      method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({
+        kind: "photo",
+        description: "Check engine light photo",
+      }),
     });
-    assert.equal(submitEvRes.status, 200);
-
-    const evalRes = await fetch(`${origin}/api/journey/${caseId}/advance`, {
-      method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition: "evaluate" }),
-    });
-    const afterEval = await jsonOf(evalRes);
-    assert.equal(afterEval.state, "evaluating");
-
-    const readyRes = await fetch(`${origin}/api/journey/${caseId}/advance`, {
-      method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition: "ready_diagnosis" }),
-    });
-    const afterReady = await jsonOf(readyRes);
-    assert.equal(afterReady.state, "diagnosis_ready");
-    assert.ok(afterReady.outcome, "Should have determined an outcome");
+    assert.equal(evidenceRes.status, 200);
+    const afterEvidence = await jsonOf(evidenceRes);
+    assert.equal(afterEvidence.state, "diagnosis_ready");
+    assert.ok(afterEvidence.outcome, "Should have determined an outcome via auto-evaluation");
+    assert.ok(afterEvidence.decisionPacket, "diagnosis_ready must include a decisionPacket");
+    assert.ok(afterEvidence.evidence.length >= 1, "Evidence should be present");
   });
 });
 

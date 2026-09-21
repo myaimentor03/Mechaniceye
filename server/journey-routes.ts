@@ -293,9 +293,14 @@ async function tryAutoEvaluate(caseData: JourneyCase): Promise<JourneyCase> {
   }
 
   const previousState = caseData.state;
-  const evaluated = advanceJourney(caseData, "evaluate", { evidenceItems });
-  setJourneyCase(evaluated);
-  logStateTransition(evaluated, previousState, "evaluate");
+  const alreadyEvaluating = caseData.state === "evaluating";
+  const evaluated = alreadyEvaluating
+    ? caseData
+    : advanceJourney(caseData, "evaluate", { evidenceItems });
+  if (!alreadyEvaluating) {
+    setJourneyCase(evaluated);
+    logStateTransition(evaluated, previousState, "evaluate");
+  }
 
   // Complete to diagnosis_ready so the customer immediately sees a
   // useful FIX/SELL/MONITOR decision without an extra click. This mirrors
@@ -497,50 +502,67 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
 
       setJourneyCase(updated);
 
+      // Auto-evaluate when the customer advances from evidence_received
+      // to evaluate — complete to diagnosis_ready so they see a useful
+      // FIX/SELL/MONITOR/STOP decision without an extra click. This makes
+      // the advance endpoint consistent with the evidence submission routes.
+      let finalCase = updated;
+      let didAutoEvaluate = false;
+      if (effectiveTransition === "evaluate" && caseData.state === "evidence_received") {
+        finalCase = await tryAutoEvaluate(updated);
+        didAutoEvaluate = finalCase.state !== updated.state;
+      }
+
       // Log the state transition to the durable event timeline.
       // Pass the UPDATED case plus the previous state so from→to is truthful.
-      const previousState = caseData.state;
-      logStateTransition(updated, previousState, effectiveTransition);
+      // When auto-evaluation happened, tryAutoEvaluate already logged the
+      // transitions and notifications — skip the duplicate here.
+      if (!didAutoEvaluate) {
+        const previousState = caseData.state;
+        logStateTransition(finalCase, previousState, effectiveTransition);
+      }
 
       // Create customer notification for meaningful state transitions (P0 #6)
-      if (updated.customerId && updated.customerId === req.drivableCustomer!.id) {
+      // When auto-evaluate happened, tryAutoEvaluate already created notifications.
+      if (!didAutoEvaluate && finalCase.customerId && finalCase.customerId === req.drivableCustomer!.id) {
         notifyStateTransition({
-          caseId: updated.id,
-          customerId: updated.customerId,
-          fromState: previousState,
-          toState: updated.state,
+          caseId: finalCase.id,
+          customerId: finalCase.customerId,
+          fromState: caseData.state,
+          toState: finalCase.state,
           transition: effectiveTransition,
-          safetyTriggered: updated.safetyTriggered,
-          outcome: updated.outcome,
+          safetyTriggered: finalCase.safetyTriggered,
+          outcome: finalCase.outcome,
         }).catch(() => {}); // fire-and-forget, never block response
       }
 
       // Customer asked for a human safety-valve review — record the request.
-      if (effectiveTransition === "request_human_review") {
-        logReviewAction(updated.id, updated.customerId, "requested", updated.customerId || "customer");
+      if (!didAutoEvaluate && effectiveTransition === "request_human_review") {
+        logReviewAction(finalCase.id, finalCase.customerId, "requested", finalCase.customerId || "customer");
       }
 
       // Resolutions close the loop — record the outcome event for the timeline.
-      if (effectiveTransition === "resolve" || effectiveTransition === "resolve_stop_driving") {
-        logCaseResolved(updated, effectiveTransition, previousState);
+      if (!didAutoEvaluate && (effectiveTransition === "resolve" || effectiveTransition === "resolve_stop_driving")) {
+        const previousState = caseData.state;
+        logCaseResolved(finalCase, effectiveTransition, previousState);
       }
 
       // When a case enters human_review, automatically create a review draft
-      if (updated.state === "human_review" && caseData.state !== "human_review") {
-        journeyReviewBridge.createReviewForCase(updated);
+      if (finalCase.state === "human_review" && caseData.state !== "human_review") {
+        journeyReviewBridge.createReviewForCase(finalCase);
       }
 
       logEvent("journey.advanced", {
-        caseId: updated.id,
+        caseId: finalCase.id,
         fromState: caseData.state,
-        toState: updated.state,
+        toState: finalCase.state,
         transition: effectiveTransition,
-        safetyTriggered: updated.safetyTriggered,
-        confidenceScore: updated.confidenceScore,
-        outcome: updated.outcome,
+        safetyTriggered: finalCase.safetyTriggered,
+        confidenceScore: finalCase.confidenceScore,
+        outcome: finalCase.outcome,
       });
 
-      res.json(safeJourneyResponse(updated));
+      res.json(safeJourneyResponse(finalCase));
     } catch (error) {
       logEventError("journey.advance_failed", error, { caseId: req.params.caseId });
       journeyError(res, error);
