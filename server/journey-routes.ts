@@ -382,8 +382,8 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         submit_intake: { intake: "submit_intake" },
         acknowledge_triage: { triage: "acknowledge_triage" },
         request_evidence: { triage: "request_evidence", evidence_requested: "request_evidence" },
-        submit_evidence: { triage: "submit_evidence", evidence_requested: "submit_evidence" },
-        add_more_evidence: { evidence_received: "add_more_evidence" },
+        submit_evidence: { triage: "submit_evidence", evidence_requested: "submit_evidence", escalation_required: "submit_evidence" },
+        add_more_evidence: { evidence_received: "add_more_evidence", escalation_required: "add_more_evidence" },
         add_followup_evidence: { resolved: "add_followup_evidence" },
         finish_evidence: { evidence_requested: "finish_evidence" },
         evaluate: { evidence_received: "evaluate" },
@@ -473,8 +473,8 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         return;
       }
 
-      if (caseData.state !== "evidence_requested" && caseData.state !== "triage" && caseData.state !== "evidence_received" && caseData.state !== "resolved") {
-        res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested, during triage, after first evidence, or as follow-up to a resolved case." });
+      if (caseData.state !== "evidence_requested" && caseData.state !== "triage" && caseData.state !== "evidence_received" && caseData.state !== "escalation_required" && caseData.state !== "resolved") {
+        res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested, during triage, after first evidence, during escalation, or as follow-up to a resolved case." });
         return;
       }
 
@@ -545,8 +545,8 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           res.status(404).json({ ok: false, error: "Journey case not found." });
           return;
         }
-        if (caseData.state !== "evidence_requested" && caseData.state !== "triage" && caseData.state !== "evidence_received" && caseData.state !== "resolved") {
-          res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested, during triage, after first evidence, or as follow-up to a resolved case." });
+        if (caseData.state !== "evidence_requested" && caseData.state !== "triage" && caseData.state !== "evidence_received" && caseData.state !== "escalation_required" && caseData.state !== "resolved") {
+          res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested, during triage, after first evidence, during escalation, or as follow-up to a resolved case." });
           return;
         }
 
@@ -650,8 +650,8 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           res.status(404).json({ ok: false, error: "Journey case not found." });
           return;
         }
-        if (caseData.state !== "evidence_requested" && caseData.state !== "triage" && caseData.state !== "evidence_received" && caseData.state !== "resolved") {
-          res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested, during triage, after first evidence, or as follow-up to a resolved case." });
+        if (caseData.state !== "evidence_requested" && caseData.state !== "triage" && caseData.state !== "evidence_received" && caseData.state !== "escalation_required" && caseData.state !== "resolved") {
+          res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested, during triage, after first evidence, during escalation, or as follow-up to a resolved case." });
           return;
         }
 
@@ -754,8 +754,8 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           res.status(404).json({ ok: false, error: "Journey case not found." });
           return;
         }
-        if (caseData.state !== "evidence_requested" && caseData.state !== "triage" && caseData.state !== "evidence_received" && caseData.state !== "resolved") {
-          res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested, during triage, after first evidence, or as follow-up to a resolved case." });
+        if (caseData.state !== "evidence_requested" && caseData.state !== "triage" && caseData.state !== "evidence_received" && caseData.state !== "escalation_required" && caseData.state !== "resolved") {
+          res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested, during triage, after first evidence, during escalation, or as follow-up to a resolved case." });
           return;
         }
 
@@ -857,8 +857,8 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           res.status(404).json({ ok: false, error: "Journey case not found." });
           return;
         }
-        if (caseData.state !== "evidence_requested" && caseData.state !== "triage" && caseData.state !== "evidence_received" && caseData.state !== "resolved") {
-          res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested, during triage, after first evidence, or as follow-up to a resolved case." });
+        if (caseData.state !== "evidence_requested" && caseData.state !== "triage" && caseData.state !== "evidence_received" && caseData.state !== "escalation_required" && caseData.state !== "resolved") {
+          res.status(409).json({ ok: false, error: "Evidence can only be submitted when requested, during triage, after first evidence, during escalation, or as follow-up to a resolved case." });
           return;
         }
 

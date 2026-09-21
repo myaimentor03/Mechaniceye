@@ -732,9 +732,83 @@ test("journey add_followup_evidence via evidence endpoint on resolved case", asy
       }),
     });
     assert.equal(evidenceRes.status, 200);
-    const evidenceData = await jsonOf(evidenceRes);
-    assert.equal(evidenceData.state, "evidence_received");
-    assert.equal(evidenceData.outcome, undefined);
-    assert.ok(evidenceData.evidence.some((e: any) => e.description === "Follow-up: check engine light is now flashing"));
+const evidenceData = await jsonOf(evidenceRes);
+     assert.equal(evidenceData.state, "evidence_received");
+     assert.equal(evidenceData.outcome, undefined);
+     assert.ok(evidenceData.evidence.some((e: any) => e.description === "Follow-up: check engine light is now flashing"));
+   });
+ });
+
+ test("journey evidence can be submitted from escalation_required state", async () => {
+   await withJourneyServer(async (origin) => {
+     const startRes = await fetch(`${origin}/api/journey/start`, {
+       method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({
+         vehicleInfo: "2020 Ford F-150",
+         description: "Brakes failed completely, cannot stop the truck",
+         urgency: "Not Safe to Drive",
+       }),
+     });
+     assert.equal(startRes.status, 201);
+     const started = await jsonOf(startRes);
+     assert.equal(started.state, "escalation_required");
+     const caseId = started.id;
+
+     // Evidence can be submitted from escalation_required
+     const evidenceRes = await fetch(`${origin}/api/journey/${caseId}/evidence`, {
+       method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({
+         kind: "photo",
+         description: "Brake failure photo",
+       }),
+     });
+     assert.equal(evidenceRes.status, 200);
+     const afterEvidence = await jsonOf(evidenceRes);
+     assert.equal(afterEvidence.state, "evidence_received");
+     assert.equal(afterEvidence.evidence.length, 1);
+     assert.ok(afterEvidence.evidence.some((e: any) => e.description === "Brake failure photo"));
+   });
+ });
+
+ test("journey submit_evidence advance works from escalation_required", async () => {
+    await withJourneyServer(async (origin) => {
+      const startRes = await fetch(`${origin}/api/journey/start`, {
+        method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({
+          vehicleInfo: "2020 Ford F-150",
+          description: "Brakes failed completely, cannot stop the truck",
+          urgency: "Not Safe to Drive",
+        }),
+      });
+      assert.equal(startRes.status, 201);
+      const started = await jsonOf(startRes);
+      const caseId = started.id;
+
+      // Submit evidence via advance endpoint — escalation_required → evidence_received
+      const submitRes = await fetch(`${origin}/api/journey/${caseId}/advance`, {
+        method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition: "submit_evidence" }),
+      });
+      assert.equal(submitRes.status, 200);
+      const afterSubmit = await jsonOf(submitRes);
+      assert.equal(afterSubmit.state, "evidence_received");
+
+      // Evaluate → ready_diagnosis → request_human_review
+      const evalRes = await fetch(`${origin}/api/journey/${caseId}/advance`, {
+        method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition: "evaluate" }),
+      });
+      assert.equal(evalRes.status, 200);
+      const afterEval = await jsonOf(evalRes);
+      assert.equal(afterEval.state, "evaluating");
+
+      const readyRes = await fetch(`${origin}/api/journey/${caseId}/advance`, {
+        method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition: "ready_diagnosis" }),
+      });
+      assert.equal(readyRes.status, 200);
+      const afterReady = await jsonOf(readyRes);
+      assert.equal(afterReady.state, "diagnosis_ready");
+
+      const reviewRes = await fetch(`${origin}/api/journey/${caseId}/advance`, {
+        method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition: "request_human_review" }),
+      });
+      assert.equal(reviewRes.status, 200);
+      const afterReview = await jsonOf(reviewRes);
+      assert.equal(afterReview.state, "human_review");
+    });
   });
-});

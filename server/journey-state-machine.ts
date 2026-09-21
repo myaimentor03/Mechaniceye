@@ -104,7 +104,7 @@ const VALID_TRANSITIONS: Record<JourneyState, JourneyTransition[]> = {
   evidence_received: ["add_more_evidence", "evaluate", "escalate", "resolve_stop_driving"],
   evaluating: ["ready_diagnosis", "escalate", "resolve_stop_driving"],
   diagnosis_ready: ["resolve", "request_human_review", "escalate"],
-  escalation_required: ["request_human_review", "resolve", "resolve_stop_driving"],
+  escalation_required: ["request_human_review", "submit_evidence", "add_more_evidence", "resolve", "resolve_stop_driving"],
   human_review: ["resolve", "resolve_stop_driving"],
   resolved: ["add_followup_evidence"],
 };
@@ -552,11 +552,33 @@ export function buildNextAction(state: JourneyState, caseData: JourneyCase): {
         prompt: "Upload one photo or describe one more detail when you can. When you are ready, let us know you are done.",
       };
     }
-    case "evidence_received":
+    case "evidence_received": {
+      const confidenceLevel = caseData.confidenceLevel;
+      const evidenceCount = caseData.evidence.length;
+      const topSymptom = caseData.matchedSymptomCategories[0];
+      if (confidenceLevel === "insufficient_information") {
+        return {
+          action: "evaluate",
+          prompt: `Thanks — that evidence is saved. With only ${evidenceCount} piece${evidenceCount !== 1 ? "s" : ""} of evidence, confidence is still building. Add one more item when you can, or continue to review what you have shared.`,
+        };
+      }
+      if (confidenceLevel === "low") {
+        return {
+          action: "evaluate",
+          prompt: `Thanks — that evidence is saved. Confidence is currently low at ${confidenceLevel}. Add one more piece of evidence when you can to help clarify the issue, or continue to review what you have shared.`,
+        };
+      }
+      if (topSymptom) {
+        return {
+          action: "evaluate",
+          prompt: `Thanks — that evidence is saved. We detected a possible issue: ${topSymptom.label}. Add one more item if it helps, or continue to review what you have shared.`,
+        };
+      }
       return {
         action: "evaluate",
-        prompt: "Thanks — that evidence is saved to your case. You can add one more item if it helps, or continue to review what you have shared.",
+        prompt: "Thanks — that evidence is saved. You can add one more item if it helps, or continue to review what you have shared.",
       };
+    }
     case "evaluating":
       return {
         action: "ready_diagnosis",
@@ -592,11 +614,20 @@ export function buildNextAction(state: JourneyState, caseData: JourneyCase): {
           };
       }
     }
-    case "escalation_required":
+    case "escalation_required": {
+      const safetyFlags = caseData.safetyFlags.filter((f) => f.matched);
+      const evidenceCount = caseData.evidence.length;
+      if (evidenceCount === 0) {
+        return {
+          action: "submit_evidence",
+          prompt: "Your case has been flagged for safety review. Please share one piece of evidence that helps us understand the concern — such as a photo, audio clip, or description — so it can be reviewed thoroughly.",
+        };
+      }
       return {
         action: "request_human_review",
-        prompt: "This case needs a human reviewer to help ensure safety. We will flag it for priority review.",
+        prompt: "Your case has been flagged for safety review. You have shared evidence that will help the reviewer. Would you like to request a human review now?",
       };
+    }
     case "human_review":
       return {
         action: "resolve",

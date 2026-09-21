@@ -338,19 +338,83 @@ it("escalates when requested", () => {
      });
 
 it("resolves with resolve_stop_driving", () => {
-       let caseData = createJourneyCase({
-         vehicleInfo: "2020 Ford F-150",
-         description: "Brakes failed completely, cannot stop the truck",
-         urgency: "Not Safe to Drive",
-       });
-       assert.equal(caseData.state, "escalation_required");
+        let caseData = createJourneyCase({
+          vehicleInfo: "2020 Ford F-150",
+          description: "Brakes failed completely, cannot stop the truck",
+          urgency: "Not Safe to Drive",
+        });
+        assert.equal(caseData.state, "escalation_required");
 
-       caseData = advanceJourney(caseData, "resolve_stop_driving");
-       assert.equal(caseData.state, "resolved");
-       assert.equal(caseData.outcome, "stop_driving");
-     });
+        caseData = advanceJourney(caseData, "resolve_stop_driving");
+        assert.equal(caseData.state, "resolved");
+        assert.equal(caseData.outcome, "stop_driving");
+      });
 
-it("request_human_review transitions to human_review state", () => {
+ it("allows submit_evidence from escalation_required to evidence_received", () => {
+        let caseData = createJourneyCase({
+          vehicleInfo: "2020 Ford F-150",
+          description: "Brakes failed completely, cannot stop the truck",
+          urgency: "Not Safe to Drive",
+        });
+        assert.equal(caseData.state, "escalation_required");
+
+        caseData = advanceJourney(caseData, "submit_evidence", {
+          evidence: [{ kind: "photo", description: "Brake failure photo" }],
+        });
+        assert.equal(caseData.state, "evidence_received");
+        assert.equal(caseData.evidence.length, 1);
+      });
+
+ it("allows add_more_evidence from escalation_required", () => {
+        let caseData = createJourneyCase({
+          vehicleInfo: "2020 Ford F-150",
+          description: "Brakes failed completely, cannot stop the truck",
+          urgency: "Not Safe to Drive",
+        });
+        assert.equal(caseData.state, "escalation_required");
+
+        caseData = advanceJourney(caseData, "submit_evidence", {
+          evidence: [{ kind: "photo", description: "Brake failure photo" }],
+        });
+        assert.equal(caseData.state, "evidence_received");
+
+        caseData = advanceJourney(caseData, "add_more_evidence", {
+          evidence: [{ kind: "text", description: "Additional brake noise description" }],
+        });
+        assert.equal(caseData.state, "evidence_received");
+        assert.equal(caseData.evidence.length, 2);
+      });
+
+ it("buildNextAction guides evidence submission from escalation_required when no evidence", () => {
+        let caseData = createJourneyCase({
+          vehicleInfo: "2020 Ford F-150",
+          description: "Brakes failed completely, cannot stop the truck",
+          urgency: "Not Safe to Drive",
+        });
+        assert.equal(caseData.state, "escalation_required");
+        assert.equal(caseData.evidence.length, 0);
+
+        const action = buildNextAction("escalation_required", caseData);
+        assert.equal(action.action, "submit_evidence");
+        assert.ok(action.prompt.includes("evidence"));
+      });
+
+ it("buildNextAction guides human review request from escalation_required when evidence exists", () => {
+        let caseData = createJourneyCase({
+          vehicleInfo: "2020 Ford F-150",
+          description: "Brakes failed completely, cannot stop the truck",
+          urgency: "Not Safe to Drive",
+        });
+        caseData = advanceJourney(caseData, "submit_evidence", {
+          evidence: [{ kind: "photo", description: "Brake failure photo" }],
+        });
+        assert.equal(caseData.evidence.length, 1);
+
+        const action = buildNextAction("escalation_required", caseData);
+        assert.equal(action.action, "request_human_review");
+      });
+
+ it("request_human_review transitions to human_review state", () => {
         let caseData = createJourneyCase({
           vehicleInfo: "2018 Honda Civic",
           description: "Car makes a grinding noise when braking at low speeds",
@@ -732,16 +796,17 @@ it("request_human_review transitions to human_review state", () => {
       assert.equal(action.action, "submit_intake");
     });
 
-    it("returns safety warning for triage with safety trigger", () => {
-      const caseData = createJourneyCase({
-        vehicleInfo: "2020 Ford F-150",
-        description: "Brakes failed completely",
-        urgency: "Not Safe to Drive",
-      });
+it("returns safety evidence guidance for escalation_required with no evidence", () => {
+       const caseData = createJourneyCase({
+         vehicleInfo: "2020 Ford F-150",
+         description: "Brakes failed completely",
+         urgency: "Not Safe to Drive",
+       });
 
-      const action = buildNextAction("escalation_required", caseData);
-      assert.ok(action.prompt.includes("human reviewer") || action.prompt.includes("human"));
-    });
+       const action = buildNextAction("escalation_required", caseData);
+       assert.ok(action.prompt.includes("evidence"));
+       assert.equal(action.action, "submit_evidence");
+     });
 
     it("returns outcome-specific prompts for diagnosis_ready", () => {
       const caseData: JourneyCase = {
