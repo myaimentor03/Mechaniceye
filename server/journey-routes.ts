@@ -220,6 +220,7 @@ function safeJourneyResponse(caseData: JourneyCase) {
     escalationReason: caseData.escalationReason,
     nextAction: caseData.nextAction,
     nextActionPrompt: caseData.nextActionPrompt,
+    nextServiceDestination: caseData.nextServiceDestination,
     evidenceCount: caseData.evidence.length,
     evidenceTypes: [...new Set(caseData.evidence.map((e) => e.kind))],
     evidence: caseData.evidence.map((e) => ({
@@ -1551,6 +1552,77 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       res.setHeader("Cache-Control", "no-store");
       res.json({ ok: true, ...status });
     } catch (error) {
+      journeyError(res, error);
+    }
+  });
+
+  // ── Service handoff endpoint (P0 #10 / outcome routing) ─────────────────
+  // Returns structured handoff data for the next service based on the
+  // resolved case outcome. Evidence belongs to the vehicle/case and is
+  // reusable across FIX/SELL flows.
+  app.get("/api/journey/:caseId/handoff", requireCustomer, async (req, res) => {
+    try {
+      const caseData = getJourneyCase(req.params.caseId);
+      if (!caseData) {
+        res.status(404).json({ ok: false, error: "Journey case not found." });
+        return;
+      }
+      if (!assertOwner(caseData, req.drivableCustomer!.id)) {
+        res.status(404).json({ ok: false, error: "Journey case not found." });
+        return;
+      }
+      if (caseData.state !== "resolved") {
+        res.status(409).json({
+          ok: false,
+          error: "Case must be resolved before handoff. Current state: " + caseData.state,
+          currentState: caseData.state,
+        });
+        return;
+      }
+
+      const destination = caseData.nextServiceDestination;
+      if (!destination) {
+        res.status(404).json({ ok: false, error: "No service destination available for this case outcome." });
+        return;
+      }
+
+      const evidenceSummary = {
+        totalCount: caseData.evidence.length,
+        persistedCount: caseData.evidence.filter((e) => e.status === "persisted").length,
+        types: [...new Set(caseData.evidence.map((e) => e.kind))],
+        attachmentIds: caseData.evidence
+          .filter((e) => e.attachmentId)
+          .map((e) => e.attachmentId),
+      };
+
+      res.setHeader("Cache-Control", "no-store");
+      res.json({
+        ok: true,
+        destination,
+        caseSummary: {
+          id: caseData.id,
+          vehicleInfo: caseData.vehicleInfo,
+          description: caseData.description.slice(0, 300),
+          outcome: caseData.outcome,
+          decisionPath: caseData.decisionPath,
+          confidenceLevel: caseData.confidenceLevel,
+          confidenceScore: caseData.confidenceScore,
+          riskLevel: caseData.riskLevel,
+          safetyTriggered: caseData.safetyTriggered,
+          matchedSymptoms: caseData.matchedSymptomCategories.map((m) => ({
+            label: m.label,
+            confidence: m.confidence,
+          })),
+        },
+        evidenceSummary,
+        handoffUrl: destination.service === "mechanic_match"
+          ? `/mechanic-match?caseId=${caseData.id}`
+          : destination.service === "clearsale"
+          ? `/clearsale?caseId=${caseData.id}`
+          : null,
+      });
+    } catch (error) {
+      logEventError("journey.handoff_failed", error, { caseId: req.params.caseId });
       journeyError(res, error);
     }
   });

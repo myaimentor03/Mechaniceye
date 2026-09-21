@@ -52,6 +52,15 @@ export type EvidenceRecord = {
   status?: "persisted" | "text_only";
 };
 
+export type ServiceDestination = {
+  service: "mechanic_match" | "clearsale" | "find_my_car" | "none";
+  label: string;
+  description: string;
+  caseId: string;
+  evidenceReusable: boolean;
+  outcome: OwnerOutcome;
+};
+
 export type JourneyCase = {
   id: string;
   state: JourneyState;
@@ -77,6 +86,7 @@ export type JourneyCase = {
   escalationReason?: string;
   nextAction?: string;
   nextActionPrompt?: string;
+  nextServiceDestination?: ServiceDestination;
   matchedSymptomCategories: MatchedSymptom[];
   plannedEvidence: PlannedEvidenceItem[];
   currentEvidencePrompt?: string;
@@ -312,6 +322,53 @@ export function determineDecisionPath(outcome: OwnerOutcome, confidenceLevel: Co
       return "monitor_wait";
     case "stop_driving":
       return undefined;
+  }
+}
+
+export function determineServiceDestination(
+  outcome: OwnerOutcome,
+  caseData: JourneyCase,
+): ServiceDestination | undefined {
+  const hasPersistedEvidence = caseData.evidence.some((e) => e.status === "persisted");
+  const evidenceCount = caseData.evidence.length;
+
+  switch (outcome) {
+    case "fix":
+      return {
+        service: "mechanic_match",
+        label: "Mechanic Match",
+        description: "Route your case evidence to qualified mechanics who can inspect and repair this issue.",
+        caseId: caseData.id,
+        evidenceReusable: hasPersistedEvidence || evidenceCount > 0,
+        outcome,
+      };
+    case "sell":
+      return {
+        service: "clearsale",
+        label: "ClearSale",
+        description: "Create an honest, evidence-backed as-is listing for your vehicle.",
+        caseId: caseData.id,
+        evidenceReusable: hasPersistedEvidence || evidenceCount > 0,
+        outcome,
+      };
+    case "monitor":
+      return {
+        service: "none",
+        label: "Monitor & Re-evaluate",
+        description: "Watch for changes and re-run the journey if symptoms evolve.",
+        caseId: caseData.id,
+        evidenceReusable: true,
+        outcome,
+      };
+    case "stop_driving":
+      return {
+        service: "none",
+        label: "Seek In-Person Help",
+        description: "Do not drive. Arrange towing or emergency assistance, then start a new journey after inspection.",
+        caseId: caseData.id,
+        evidenceReusable: true,
+        outcome,
+      };
   }
 }
 
@@ -643,11 +700,19 @@ export function buildNextAction(state: JourneyState, caseData: JourneyCase): {
         action: "wait_for_review",
         prompt: "A human reviewer is looking at your case. No action is needed right now — you will be notified when the decision is ready.",
       };
-    case "resolved":
+    case "resolved": {
+      const dest = caseData.nextServiceDestination;
+      if (dest && dest.service !== "none") {
+        return {
+          action: "",
+          prompt: `Your case is resolved. Next step: ${dest.label} — ${dest.description}`,
+        };
+      }
       return {
         action: "",
         prompt: "Your case is resolved. Thank you for using Drivable.",
       };
+    }
   }
 }
 
@@ -772,6 +837,7 @@ if ((transition === "submit_evidence" || transition === "add_more_evidence" || t
     updated.decisionPath = undefined;
     updated.resolutionNote = undefined;
     updated.humanReviewRequested = false;
+    updated.nextServiceDestination = undefined;
   }
 
   updated.confidenceScore = calculateConfidence(updated).score;
@@ -796,6 +862,7 @@ if ((transition === "submit_evidence" || transition === "add_more_evidence" || t
       : additionalData?.outcome || determineOutcome(updated);
     updated.resolutionNote = additionalData?.resolutionNote;
     updated.decisionPath = determineDecisionPath(updated.outcome, updated.confidenceLevel);
+    updated.nextServiceDestination = determineServiceDestination(updated.outcome, updated);
   }
 
   if (transition === "ready_diagnosis") {

@@ -58,6 +58,15 @@ type DecisionPacket = {
   reusableForFixSell: boolean;
 };
 
+type ServiceDestination = {
+  service: "mechanic_match" | "clearsale" | "find_my_car" | "none";
+  label: string;
+  description: string;
+  caseId: string;
+  evidenceReusable: boolean;
+  outcome: string;
+};
+
 type JourneyCaseResponse = {
   id: string;
   state: string;
@@ -118,6 +127,7 @@ type JourneyCaseResponse = {
   }[];
   currentEvidencePrompt?: string;
   decisionPacket?: DecisionPacket;
+  nextServiceDestination?: ServiceDestination;
 };
 
 const STORAGE_KEY = "drivable.journey.caseId";
@@ -998,16 +1008,40 @@ export function GuidedJourney() {
           )}
 
           {caseData.state === "resolved" && caseData.outcome === "fix" && (
-            <div className="notice-strip">Next: <button className="secondary-btn" onClick={() => navigateFrontend("/mechanic-match")}>Go to Mechanic Match</button> to route qualified help for this issue. Evidence stays with this vehicle case.</div>
+            <div className="notice-strip" style={{ borderColor: "rgba(100,200,255,0.5)", background: "rgba(20,60,120,0.3)" }}>
+              <strong>Next step: Mechanic Match</strong>
+              <p>{caseData.nextServiceDestination?.description || "Route your case evidence to qualified mechanics who can inspect and repair this issue."}</p>
+              {caseData.nextServiceDestination?.evidenceReusable && (
+                <p className="helper-text">Your evidence ({caseData.evidenceCount} item(s)) belongs to this vehicle case and will transfer to the mechanic.</p>
+              )}
+              <button className="primary-btn" style={{ marginTop: "8px" }} onClick={() => navigateFrontend(`/mechanic-match?caseId=${caseData.id}`)}>
+                Go to Mechanic Match
+              </button>
+            </div>
           )}
           {caseData.state === "resolved" && caseData.outcome === "sell" && (
-            <div className="notice-strip">Next: <button className="secondary-btn" onClick={() => navigateFrontend("/clearsale")}>Go to ClearSale</button> for an honest, evidence-backed as-is listing. Evidence from this journey can back the listing.</div>
+            <div className="notice-strip" style={{ borderColor: "rgba(100,220,150,0.5)", background: "rgba(20,60,40,0.3)" }}>
+              <strong>Next step: ClearSale</strong>
+              <p>{caseData.nextServiceDestination?.description || "Create an honest, evidence-backed as-is listing for your vehicle."}</p>
+              {caseData.nextServiceDestination?.evidenceReusable && (
+                <p className="helper-text">Your evidence ({caseData.evidenceCount} item(s)) belongs to this vehicle case and can back the listing.</p>
+              )}
+              <button className="primary-btn" style={{ marginTop: "8px" }} onClick={() => navigateFrontend(`/clearsale?caseId=${caseData.id}`)}>
+                Go to ClearSale
+              </button>
+            </div>
           )}
           {caseData.state === "resolved" && caseData.outcome === "monitor" && (
-            <div className="notice-strip">Monitor plan: note if the symptom changes frequency, gets louder, triggers a warning light, or affects drivability — then re-evaluate or escalate.</div>
+            <div className="notice-strip">
+              <strong>Monitor plan:</strong> Note if the symptom changes frequency, gets louder, triggers a warning light, or affects drivability — then re-evaluate or escalate.
+              <p className="helper-text">You can add follow-up evidence at any time if the situation changes.</p>
+            </div>
           )}
           {caseData.state === "resolved" && caseData.outcome === "stop_driving" && (
-            <div className="warning-box">Do not drive. Seek in-person inspection, towing, or roadside assistance. Re-open or start a new journey after inspection for next steps.</div>
+            <div className="warning-box">
+              <strong>Do not drive.</strong> {caseData.nextServiceDestination?.description || "Seek in-person inspection, towing, or roadside assistance."}
+              <p className="helper-text">Re-open or start a new journey after inspection for next steps.</p>
+            </div>
           )}
         </div>
 

@@ -12,6 +12,7 @@ import {
   generateJourneyCaseId,
   buildDecisionPacket,
   shouldAutoEvaluate,
+  determineServiceDestination,
   type JourneyCase,
   type SafetyFlag,
   type DecisionPacket,
@@ -1192,6 +1193,177 @@ it("returns safety evidence guidance for escalation_required with no evidence", 
       };
 
       assert.equal(shouldAutoEvaluate(caseData), false);
+    });
+  });
+
+  describe("determineServiceDestination", () => {
+    const baseCaseData: JourneyCase = {
+      id: "test",
+      state: "resolved",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      vehicleInfo: "2020 Toyota RAV4",
+      description: "Check engine light is on, car runs rough at idle",
+      timing: "Idle",
+      urgency: "Safe to Drive",
+      canDrive: "Yes",
+      evidence: [
+        { id: "1", kind: "photo", addedAt: new Date().toISOString(), status: "persisted" },
+        { id: "2", kind: "text", addedAt: new Date().toISOString(), status: "text_only" },
+      ],
+      safetyFlags: [],
+      safetyTriggered: false,
+      confidenceScore: 60,
+      confidenceLevel: "moderate",
+      riskLevel: "medium",
+      outcome: "fix",
+      humanReviewRequested: false,
+      matchedSymptomCategories: [],
+      plannedEvidence: [],
+    };
+
+    it("returns mechanic_match destination for fix outcome", () => {
+      const dest = determineServiceDestination("fix", baseCaseData);
+      assert.ok(dest);
+      assert.equal(dest.service, "mechanic_match");
+      assert.equal(dest.label, "Mechanic Match");
+      assert.equal(dest.caseId, "test");
+      assert.equal(dest.evidenceReusable, true);
+      assert.equal(dest.outcome, "fix");
+    });
+
+    it("returns clearsale destination for sell outcome", () => {
+      const dest = determineServiceDestination("sell", baseCaseData);
+      assert.ok(dest);
+      assert.equal(dest.service, "clearsale");
+      assert.equal(dest.label, "ClearSale");
+      assert.equal(dest.caseId, "test");
+      assert.equal(dest.evidenceReusable, true);
+      assert.equal(dest.outcome, "sell");
+    });
+
+    it("returns none destination for monitor outcome", () => {
+      const dest = determineServiceDestination("monitor", baseCaseData);
+      assert.ok(dest);
+      assert.equal(dest.service, "none");
+      assert.equal(dest.label, "Monitor & Re-evaluate");
+      assert.equal(dest.outcome, "monitor");
+    });
+
+    it("returns none destination for stop_driving outcome", () => {
+      const dest = determineServiceDestination("stop_driving", baseCaseData);
+      assert.ok(dest);
+      assert.equal(dest.service, "none");
+      assert.equal(dest.label, "Seek In-Person Help");
+      assert.equal(dest.outcome, "stop_driving");
+    });
+
+    it("marks evidenceReusable true when persisted evidence exists", () => {
+      const dest = determineServiceDestination("fix", baseCaseData);
+      assert.ok(dest);
+      assert.equal(dest.evidenceReusable, true);
+    });
+
+    it("marks evidenceReusable true when only text evidence exists", () => {
+      const caseData = {
+        ...baseCaseData,
+        evidence: [
+          { id: "1", kind: "text" as const, addedAt: new Date().toISOString(), status: "text_only" as const },
+        ],
+      };
+      const dest = determineServiceDestination("fix", caseData);
+      assert.ok(dest);
+      assert.equal(dest.evidenceReusable, true);
+    });
+  });
+
+  describe("advanceJourney with service destination", () => {
+    it("sets nextServiceDestination on resolve", () => {
+      let caseData = createJourneyCase({
+        vehicleInfo: "2020 Toyota RAV4",
+        description: "Check engine light is on, car runs rough at idle",
+        timing: "Idle",
+        urgency: "Safe to Drive",
+      });
+      caseData = advanceJourney(caseData, "submit_intake");
+      caseData = advanceJourney(caseData, "acknowledge_triage");
+      caseData = advanceJourney(caseData, "finish_evidence");
+      caseData = advanceJourney(caseData, "evaluate");
+      caseData = advanceJourney(caseData, "ready_diagnosis");
+      caseData = advanceJourney(caseData, "resolve");
+
+      assert.ok(caseData.nextServiceDestination, "Should have a service destination after resolve");
+      assert.equal(caseData.nextServiceDestination!.service, "mechanic_match");
+      assert.equal(caseData.nextServiceDestination!.outcome, "fix");
+    });
+
+    it("sets clearsale destination for sell outcome", () => {
+      let caseData = createJourneyCase({
+        vehicleInfo: "2012 Nissan Altima",
+        description: "Transmission slips badly, thinking about selling the car as-is",
+        timing: "Constantly",
+        urgency: "Safe to Drive",
+      });
+      caseData = advanceJourney(caseData, "submit_intake");
+      caseData = advanceJourney(caseData, "acknowledge_triage");
+      caseData = advanceJourney(caseData, "finish_evidence");
+      caseData = advanceJourney(caseData, "evaluate");
+      caseData = advanceJourney(caseData, "ready_diagnosis");
+      caseData = advanceJourney(caseData, "resolve");
+
+      assert.ok(caseData.nextServiceDestination);
+      assert.equal(caseData.nextServiceDestination!.service, "clearsale");
+    });
+
+    it("clears nextServiceDestination on add_followup_evidence", () => {
+      let caseData = createJourneyCase({
+        vehicleInfo: "2020 Toyota RAV4",
+        description: "Check engine light is on, car runs rough at idle",
+        timing: "Idle",
+        urgency: "Safe to Drive",
+      });
+      caseData = advanceJourney(caseData, "submit_intake");
+      caseData = advanceJourney(caseData, "acknowledge_triage");
+      caseData = advanceJourney(caseData, "finish_evidence");
+      caseData = advanceJourney(caseData, "evaluate");
+      caseData = advanceJourney(caseData, "ready_diagnosis");
+      caseData = advanceJourney(caseData, "resolve");
+      assert.ok(caseData.nextServiceDestination);
+
+      caseData = advanceJourney(caseData, "add_followup_evidence", {
+        evidence: [{ kind: "text", description: "New symptom: engine stalling" }],
+      });
+      assert.equal(caseData.nextServiceDestination, undefined, "Service destination should be cleared on follow-up");
+    });
+
+    it("buildNextAction includes service destination info for resolved state", () => {
+      const caseData: JourneyCase = {
+        id: "test",
+        state: "resolved",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        vehicleInfo: "2020 Toyota RAV4",
+        description: "Check engine light",
+        evidence: [],
+        safetyFlags: [],
+        safetyTriggered: false,
+        confidenceScore: 60,
+        confidenceLevel: "moderate",
+        riskLevel: "medium",
+        outcome: "fix",
+        humanReviewRequested: false,
+        nextServiceDestination: {
+          service: "mechanic_match",
+          label: "Mechanic Match",
+          description: "Route your case evidence to qualified mechanics.",
+          caseId: "test",
+          evidenceReusable: true,
+          outcome: "fix",
+        },
+      };
+
+      const action = buildNextAction("resolved", caseData);
+      assert.ok(action.prompt.includes("Mechanic Match"));
     });
   });
 });
