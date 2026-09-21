@@ -258,3 +258,82 @@ test("vehicle-knowledge handles very long make/model strings without crashing", 
     assert.ok(res.status === 503 || res.status === 200);
   });
 });
+
+// ── Validation: 400 for invalid VIN ──
+
+test("vehicle-knowledge returns 400 when VIN has wrong length (16 chars)", async () => {
+  await withServer(async (origin) => {
+    const res = await fetch(`${origin}${knowledgeUrl({ year: "2015", make: "Honda", model: "Civic", vin: "1HGCM82633A00435" })}`);
+    assert.equal(res.status, 400);
+    const body = await res.json();
+    assert.equal(body.found, false);
+    assert.equal(body.code, "INVALID_VIN");
+    assert.ok(body.message.includes("17 characters"));
+  });
+});
+
+test("vehicle-knowledge returns 400 when VIN has wrong length (18 chars)", async () => {
+  await withServer(async (origin) => {
+    const res = await fetch(`${origin}${knowledgeUrl({ year: "2015", make: "Honda", model: "Civic", vin: "1HGCM82633A0043521" })}`);
+    assert.equal(res.status, 400);
+    const body = await res.json();
+    assert.equal(body.found, false);
+    assert.equal(body.code, "INVALID_VIN");
+    assert.ok(body.message.includes("17 characters"));
+  });
+});
+
+test("vehicle-knowledge returns 400 when VIN contains I", async () => {
+  await withServer(async (origin) => {
+    const res = await fetch(`${origin}${knowledgeUrl({ year: "2015", make: "Honda", model: "Civic", vin: "1HGCM82633A00435I" })}`);
+    assert.equal(res.status, 400);
+    const body = await res.json();
+    assert.equal(body.found, false);
+    assert.equal(body.code, "INVALID_VIN");
+    assert.ok(body.message.includes("I, O, or Q"));
+  });
+});
+
+test("vehicle-knowledge returns 400 when VIN contains O", async () => {
+  await withServer(async (origin) => {
+    const res = await fetch(`${origin}${knowledgeUrl({ year: "2015", make: "Honda", model: "Civic", vin: "1HGCM82633A00435O" })}`);
+    assert.equal(res.status, 400);
+    const body = await res.json();
+    assert.equal(body.found, false);
+    assert.equal(body.code, "INVALID_VIN");
+    assert.ok(body.message.includes("I, O, or Q"));
+  });
+});
+
+test("vehicle-knowledge returns 400 when VIN contains Q", async () => {
+  await withServer(async (origin) => {
+    const res = await fetch(`${origin}${knowledgeUrl({ year: "2015", make: "Honda", model: "Civic", vin: "1HGCM82633A00435Q" })}`);
+    assert.equal(res.status, 400);
+    const body = await res.json();
+    assert.equal(body.found, false);
+    assert.equal(body.code, "INVALID_VIN");
+    assert.ok(body.message.includes("I, O, or Q"));
+  });
+});
+
+test("vehicle-knowledge returns 400 when VIN is provided without year/make/model", async () => {
+  await withServer(async (origin) => {
+    const res = await fetch(`${origin}${knowledgeUrl({ vin: "1HGCM82633A004352" })}`);
+    assert.equal(res.status, 400);
+    const body = await res.json();
+    assert.equal(body.found, false);
+    assert.ok(Array.isArray(body.required));
+    assert.ok(body.required.includes("year") || body.required.includes("make") || body.required.includes("model"));
+  });
+});
+
+test("vehicle-knowledge accepts valid VIN (17 chars, no I/O/Q) and proceeds to DB check", async () => {
+  await withServer(async (origin) => {
+    const res = await fetch(`${origin}${knowledgeUrl({ year: "2015", make: "Honda", model: "Civic", vin: "1HGCM82633A004352" })}`);
+    // Valid VIN passes format validation; without DB it returns 503
+    assert.equal(res.status, 503);
+    const body = await res.json();
+    assert.equal(body.found, false);
+    assert.ok(body.message.includes("DATABASE_URL"));
+  });
+});
