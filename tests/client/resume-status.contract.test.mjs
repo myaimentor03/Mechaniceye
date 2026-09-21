@@ -19,6 +19,24 @@ test("dismiss action uses sessionStorage removeItem inside try/catch for mobile 
   assert.match(backend, /try \{ sessionStorage\.removeItem\("drivable-last-case-id"\)/);
 });
 
+test("diagnosis success stamps the shared case pointer with its originating flow", () => {
+  // The marketplace confirmation states share drivable-last-case-id but have
+  // no status endpoint to verify it. Stamping diagnosis-intake origin keeps a
+  // Drivable Check id from ever rendering as buyer interest / ClearSale received.
+  assert.match(backend, /sessionStorage\.setItem\("drivable-last-case-id", data\.id\)/);
+  assert.match(backend, /sessionStorage\.setItem\("drivable-last-case-origin", "diagnosis-intake"\)/);
+});
+
+test("dismiss clears the case origin alongside the case id", () => {
+  assert.match(backend, /sessionStorage\.removeItem\("drivable-last-case-origin"\)/);
+});
+
+test("stale-pointer cleanup on 404 clears the case origin alongside the case id", () => {
+  const restoreBlock = backend.slice(backend.indexOf("server-verified case restore"));
+  assert.match(restoreBlock, /if \(res\.status === 404\)/);
+  assert.match(restoreBlock, /sessionStorage\.removeItem\("drivable-last-case-origin"\)/);
+});
+
 test("dismiss shows toast for confirmation", () => {
   assert.match(backend, /toast\(\{ title: "Cleared"/);
 });

@@ -11,6 +11,15 @@ import { getFrontendRoutePath, navigateFrontend } from "../frontendRouting";
 const MARKETPLACE_SELLER_INTAKE_ENDPOINT = "/api/marketplace/seller-intake";
 const MARKETPLACE_BUYER_INTEREST_ENDPOINT = "/api/marketplace/buyer-interest";
 const SUBMISSION_TIMEOUT_MS = 20000;
+// QA lane (Nov 2 paid beta): the shared "drivable-last-case-id" pointer can
+// hold a Drivable Check, ClearSale, or buyer-interest id. Marketplace ids are
+// webhook-forwarded with no customer-scoped status endpoint, so a raw pointer
+// can never be server-verified here. The origin key records which flow wrote
+// the pointer so each confirmation restores only its own flow's state and can
+// never fabricate another flow's success card.
+const MARKETPLACE_CASE_ORIGIN_KEY = "drivable-last-case-origin";
+const MARKETPLACE_SELLER_ORIGIN = "marketplace-seller-intake";
+const MARKETPLACE_BUYER_ORIGIN = "marketplace-buyer-interest";
 
 const MARKETPLACE_PUBLIC_NAVIGATION: readonly PublicNavigationItem[] = Object.freeze([
   { label: "Drivable Check", href: "/drivable-check" },
@@ -319,7 +328,8 @@ function SellerIntakePage() {
   useEffect(() => {
     try {
       const savedCaseId = sessionStorage.getItem("drivable-last-case-id");
-      if (savedCaseId) {
+      const savedOrigin = sessionStorage.getItem(MARKETPLACE_CASE_ORIGIN_KEY);
+      if (savedCaseId && savedOrigin === MARKETPLACE_SELLER_ORIGIN) {
         setRestoredCaseId(savedCaseId);
       }
     } catch {}
@@ -468,7 +478,10 @@ function SellerIntakePage() {
       }
 
       if (data?.id) {
-        try { sessionStorage.setItem("drivable-last-case-id", data.id); } catch {}
+        try {
+          sessionStorage.setItem("drivable-last-case-id", data.id);
+          sessionStorage.setItem(MARKETPLACE_CASE_ORIGIN_KEY, MARKETPLACE_SELLER_ORIGIN);
+        } catch {}
       }
 
       // Rotate clientRequestId after successful intake so next submission is not collapsed as duplicate
@@ -521,7 +534,12 @@ function BuyerInterestPage() {
   useEffect(() => {
     try {
       const savedCaseId = sessionStorage.getItem("drivable-last-case-id");
-      if (savedCaseId) {
+      const savedOrigin = sessionStorage.getItem(MARKETPLACE_CASE_ORIGIN_KEY);
+      // Fail closed: only restore the "Interest received" success state when
+      // this session's pointer was written by the buyer-interest flow. A
+      // Drivable Check or ClearSale pointer must never render as buyer
+      // interest received.
+      if (savedCaseId && savedOrigin === MARKETPLACE_BUYER_ORIGIN) {
         setRestoredCaseId(savedCaseId);
         setSubmitted(true);
       }
@@ -652,7 +670,10 @@ function BuyerInterestPage() {
       }
 
       if (data?.id) {
-        try { sessionStorage.setItem("drivable-last-case-id", data.id); } catch {}
+        try {
+          sessionStorage.setItem("drivable-last-case-id", data.id);
+          sessionStorage.setItem(MARKETPLACE_CASE_ORIGIN_KEY, MARKETPLACE_BUYER_ORIGIN);
+        } catch {}
         setRestoredCaseId(data.id);
       }
 
@@ -701,7 +722,11 @@ function SubmittedPage() {
   useEffect(() => {
     try {
       const savedCaseId = sessionStorage.getItem("drivable-last-case-id");
-      if (savedCaseId) setRestoredCaseId(savedCaseId);
+      const savedOrigin = sessionStorage.getItem(MARKETPLACE_CASE_ORIGIN_KEY);
+      // Fail closed: the "request received" confirmation may only reference a
+      // pointer written by the seller-intake flow, never a Drivable Check or
+      // buyer-interest id from the shared pointer.
+      if (savedCaseId && savedOrigin === MARKETPLACE_SELLER_ORIGIN) setRestoredCaseId(savedCaseId);
     } catch {}
   }, []);
   return (

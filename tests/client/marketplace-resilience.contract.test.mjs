@@ -225,3 +225,71 @@ test("buyer interest rotation uses try/catch for mobile private mode (QuotaExcee
   assert.match(block, /try \{\s*const storageKey = "drivable-client-request-id"/);
   assert.match(block, /catch \{\}/);
 });
+
+function buyerMountEffect() {
+  const start = marketplace.indexOf("function BuyerInterestPage");
+  assert.ok(start !== -1, "BuyerInterestPage must exist");
+  const page = marketplace.slice(start, start + 2000);
+  const effectStart = page.indexOf("useEffect(");
+  assert.ok(effectStart !== -1, "BuyerInterestPage mount effect must exist");
+  return page.slice(effectStart, effectStart + 800);
+}
+
+test("buyer interest restores submitted state only when the pointer origin is buyer-interest", () => {
+  // Launch blocker (Nov 2 paid beta): the shared drivable-last-case-id pointer
+  // can hold a Drivable Check or ClearSale id, and marketplace ids have no
+  // customer-scoped status endpoint to verify against. Restoring "Interest
+  // received" from a raw pointer would fabricate another flow's success.
+  const mount = buyerMountEffect();
+  assert.match(mount, /sessionStorage\.getItem\("drivable-last-case-id"\)/);
+  assert.match(mount, /sessionStorage\.getItem\(MARKETPLACE_CASE_ORIGIN_KEY\)/);
+  assert.match(mount, /savedOrigin === MARKETPLACE_BUYER_ORIGIN/);
+  assert.match(mount, /setSubmitted\(true\)/);
+  assert.match(marketplace, /const MARKETPLACE_BUYER_ORIGIN = "marketplace-buyer-interest"/);
+});
+
+test("buyer interest never fabricates submitted state from a foreign pointer", () => {
+  const mount = buyerMountEffect();
+  // The old bare `if (savedCaseId)` restore must be gone: submitted state
+  // requires the origin guard.
+  assert.doesNotMatch(mount, /if \(savedCaseId\) \{\s*setRestoredCaseId/);
+  assert.match(mount, /savedOrigin === MARKETPLACE_BUYER_ORIGIN/);
+});
+
+test("buyer interest stamps flow origin alongside the case id on success", () => {
+  const block = buyerSubmitBlock();
+  assert.match(block, /sessionStorage\.setItem\("drivable-last-case-id", data\.id\)/);
+  assert.match(block, /sessionStorage\.setItem\(MARKETPLACE_CASE_ORIGIN_KEY, MARKETPLACE_BUYER_ORIGIN\)/);
+});
+
+test("seller intake stamps flow origin alongside the case id on success", () => {
+  const block = sellerSubmitBlock();
+  assert.match(block, /sessionStorage\.setItem\("drivable-last-case-id", data\.id\)/);
+  assert.match(block, /sessionStorage\.setItem\(MARKETPLACE_CASE_ORIGIN_KEY, MARKETPLACE_SELLER_ORIGIN\)/);
+});
+
+test("seller intake reference restores only for a seller-origin pointer", () => {
+  const start = marketplace.indexOf("function SellerIntakePage");
+  assert.ok(start !== -1, "SellerIntakePage must exist");
+  const page = marketplace.slice(start, start + 2000);
+  assert.match(page, /savedOrigin === MARKETPLACE_SELLER_ORIGIN/);
+  assert.doesNotMatch(page, /if \(savedCaseId\) \{\s*setRestoredCaseId/);
+});
+
+test("marketplace submitted page references only a seller-origin pointer", () => {
+  const submittedPageStart = marketplace.indexOf("function SubmittedPage");
+  assert.ok(submittedPageStart !== -1, "SubmittedPage must exist");
+  const submittedPage = marketplace.slice(submittedPageStart, submittedPageStart + 3000);
+  assert.match(submittedPage, /sessionStorage\.getItem\(MARKETPLACE_CASE_ORIGIN_KEY\)/);
+  assert.match(submittedPage, /MARKETPLACE_SELLER_ORIGIN/);
+  assert.match(marketplace, /const MARKETPLACE_CASE_ORIGIN_KEY = "drivable-last-case-origin"/);
+  assert.match(marketplace, /const MARKETPLACE_SELLER_ORIGIN = "marketplace-seller-intake"/);
+  assert.match(submittedPage, /setRestoredCaseId/);
+  assert.match(submittedPage, /Reference:/);
+});
+
+test("marketplace origin key uses sessionStorage (not localStorage) for mobile safety", () => {
+  assert.match(marketplace, /sessionStorage\.getItem\(MARKETPLACE_CASE_ORIGIN_KEY\)/);
+  assert.doesNotMatch(marketplace, /localStorage\.getItem\(MARKETPLACE_CASE_ORIGIN_KEY\)/);
+  assert.doesNotMatch(marketplace, /localStorage\.setItem\(MARKETPLACE_CASE_ORIGIN_KEY\)/);
+});

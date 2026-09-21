@@ -1323,7 +1323,7 @@ const [manualEngine, setManualEngine] = useState("");
             // only 404 for a well-formed id means the saved pointer is stale,
             // so drop it instead of restoring a case that is not ours.
             if (res.status === 404) {
-              try { sessionStorage.removeItem("drivable-last-case-id"); } catch {}
+              try { sessionStorage.removeItem("drivable-last-case-id"); sessionStorage.removeItem("drivable-last-case-origin"); } catch {}
             }
             return;
           }
@@ -1643,7 +1643,10 @@ const endpoints = [PUBLIC_API_ENDPOINT];
     setResult(data);
     setError("");
     if (data?.id) {
-      try { sessionStorage.setItem("drivable-last-case-id", data.id); } catch {}
+      // Stamp the shared case pointer with its originating flow so the
+      // marketplace confirmation states never mistake a Drivable Check id
+      // for their own success (see MARKETPLACE_CASE_ORIGIN_KEY).
+      try { sessionStorage.setItem("drivable-last-case-id", data.id); sessionStorage.setItem("drivable-last-case-origin", "diagnosis-intake"); } catch {}
     }
     try {
       const storageKey = "drivable-client-request-id";
@@ -1825,7 +1828,7 @@ const endpoints = [PUBLIC_API_ENDPOINT];
                   type="button"
                   className="secondary-btn"
                   onClick={() => {
-                    try { sessionStorage.removeItem("drivable-last-case-id"); } catch {}
+                    try { sessionStorage.removeItem("drivable-last-case-id"); sessionStorage.removeItem("drivable-last-case-origin"); } catch {}
                     setResult(null);
                     toast({ title: "Cleared", description: "Ready for a new check." });
                   }}
