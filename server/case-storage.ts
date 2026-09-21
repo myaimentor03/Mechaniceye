@@ -254,6 +254,10 @@ export function generateCaseId() {
 return `CASE-${stamp}-${randomBytes(4).toString("hex")}`;
 }
 
+function cleanUpCaseFolder(caseFolder: string) {
+  try { fs.rmSync(caseFolder, { recursive: true, force: true }); } catch {}
+}
+
 export function createStoredDiagnosisCase(input: IncomingDiagnosisCase): StoredDiagnosisCase {
   ensureDir(casesRoot);
 
@@ -293,19 +297,30 @@ export function createStoredDiagnosisCase(input: IncomingDiagnosisCase): StoredD
     JSON.stringify(stored.rawVehicleSelection ?? {}, null, 2)
   ].join("\n");
 
-  fs.writeFileSync(
-    path.join(caseFolder, "case.json"),
-    JSON.stringify(stored, null, 2),
-    "utf8"
-  );
+  let writeFailed = false;
+  try {
+    fs.writeFileSync(
+      path.join(caseFolder, "case.json"),
+      JSON.stringify(stored, null, 2),
+      "utf8"
+    );
 
-  fs.writeFileSync(
-    path.join(caseFolder, "summary.txt"),
-    summary,
-    "utf8"
-  );
+    fs.writeFileSync(
+      path.join(caseFolder, "summary.txt"),
+      summary,
+      "utf8"
+    );
 
-  appendTrackerRow(buildTrackerRow(stored, metadata));
+    appendTrackerRow(buildTrackerRow(stored, metadata));
+  } catch (error: any) {
+    writeFailed = true;
+    cleanUpCaseFolder(caseFolder);
+    throw error;
+  }
+
+  if (!writeFailed) {
+    appendTrackerRow(buildTrackerRow(stored, metadata));
+  }
 
   return stored;
 }
