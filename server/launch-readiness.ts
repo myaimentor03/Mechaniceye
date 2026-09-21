@@ -33,7 +33,13 @@ function validPublicOrigin(value: string | undefined): boolean {
 }
 
 export function isEmailDeliveryConfigured(env: NodeJS.ProcessEnv): boolean {
-  return configured(env, "SENDGRID_API_KEY") || configured(env, "MAILGUN_API_KEY") || configured(env, "POSTMARK_API_KEY") || configured(env, "EMAIL_PROVIDER_API_KEY");
+  const minEmailKeyLength = 8;
+  return (
+    configured(env, "SENDGRID_API_KEY", minEmailKeyLength) ||
+    configured(env, "MAILGUN_API_KEY", minEmailKeyLength) ||
+    configured(env, "POSTMARK_API_KEY", minEmailKeyLength) ||
+    configured(env, "EMAIL_PROVIDER_API_KEY", minEmailKeyLength)
+  );
 }
 
 export function evaluateLaunchReadiness(
