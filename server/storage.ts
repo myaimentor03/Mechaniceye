@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "./db";
+import { generateCaseId } from "./case-storage.js";
 import { diagnoses } from "./shared/shared/schema";
 
 type DiagnosisRow = typeof diagnoses.$inferSelect;
@@ -189,7 +190,7 @@ export class LocalStorage {
 
   async createDiagnosis(data: Partial<DiagnosisRecord>) {
     const diagnosis: DiagnosisRecord = {
-      id: data.id || Date.now().toString(),
+      id: data.id || generateCaseId(),
       userId: data.userId || "",
       vehicleInfo: data.vehicleInfo || "",
       description: data.description || "",

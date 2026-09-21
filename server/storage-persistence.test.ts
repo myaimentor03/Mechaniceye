@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mapDiagnosisRowToRecord, storage } from "./storage.js";
 
+const CASE_ID_PATTERN = /^CASE-\d{17}-[0-9a-f]{8}$/;
+
 function dbRow(overrides: Record<string, unknown> = {}) {
   return {
     id: "case-db-1",
@@ -89,6 +91,23 @@ test("LocalStorage getRecentDiagnoses returns in-memory records without a databa
     });
     const recent = await storage.getRecentDiagnoses(10);
     assert.ok(recent.some((record) => record.id === "case-recent-1"));
+  } finally {
+    if (original) process.env.DATABASE_URL = original;
+    else delete process.env.DATABASE_URL;
+  }
+});
+
+test("createDiagnosis generates case IDs compatible with /api/my-cases/:id regex", async () => {
+  const original = process.env.DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  try {
+    const created = await storage.createDiagnosis({
+      description: "id format test",
+      vehicleInfo: "Test Vehicle",
+    });
+    assert.ok(CASE_ID_PATTERN.test(created.id), `id ${created.id} must match CASE-\\d{17}-[0-9a-f]{8}`);
+    const found = await storage.getDiagnosis(created.id);
+    assert.equal(found?.id, created.id);
   } finally {
     if (original) process.env.DATABASE_URL = original;
     else delete process.env.DATABASE_URL;
