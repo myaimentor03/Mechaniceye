@@ -35,6 +35,15 @@ import {
 import { requireReviewer } from "./reviewer-auth";
 import { buildFollowUpEvidenceBoundary } from "./follow-up-evidence-boundary";
 import { logCaseStarted, logStateTransition, logEvidenceAdded, logReviewAction, logCaseResolved, getCaseEvents } from "./journey-case-events";
+import {
+  getCustomerNotifications,
+  getUnreadCount,
+  getCaseUnreadCount,
+  markAsRead,
+  markNotificationRead,
+  notifyStateTransition,
+} from "./journey-notifications";
+import { getUnattendedWorkerStatus } from "./journey-unattended-worker";
 import { InMemoryReviewRepository } from "./review/in-memory-review-repository";
 import { HumanReviewReleaseGate } from "./review/release-gate";
 import type { ReviewRepository } from "./review/types";
@@ -467,6 +476,19 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       // Pass the UPDATED case plus the previous state so from→to is truthful.
       const previousState = caseData.state;
       logStateTransition(updated, previousState, effectiveTransition);
+
+      // Create customer notification for meaningful state transitions (P0 #6)
+      if (updated.customerId && updated.customerId === req.drivableCustomer!.id) {
+        notifyStateTransition({
+          caseId: updated.id,
+          customerId: updated.customerId,
+          fromState: previousState,
+          toState: updated.state,
+          transition: effectiveTransition,
+          safetyTriggered: updated.safetyTriggered,
+          outcome: updated.outcome,
+        }).catch(() => {}); // fire-and-forget, never block response
+      }
 
       // Customer asked for a human safety-valve review — record the request.
       if (effectiveTransition === "request_human_review") {
@@ -1285,6 +1307,19 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       logStateTransition(updated, caseData.state, "resolve");
       logCaseResolved(updated, "resolve", caseData.state);
 
+      // Notify customer that review is complete (P0 #6)
+      if (updated.customerId) {
+        notifyStateTransition({
+          caseId: updated.id,
+          customerId: updated.customerId,
+          fromState: caseData.state,
+          toState: updated.state,
+          transition: "resolve",
+          safetyTriggered: updated.safetyTriggered,
+          outcome: updated.outcome,
+        }).catch(() => {});
+      }
+
       logEvent("journey.review_approved_and_resolved", {
         caseId: updated.id,
         approvalId: approval.approvalId,
@@ -1347,6 +1382,18 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         reasonCode,
       });
 
+      // Notify customer that review was rejected (P0 #6)
+      if (caseData.customerId) {
+        notifyStateTransition({
+          caseId: caseData.id,
+          customerId: caseData.customerId,
+          fromState: caseData.state,
+          toState: caseData.state,
+          transition: "request_human_review",
+          safetyTriggered: caseData.safetyTriggered,
+        }).catch(() => {});
+      }
+
       logEvent("journey.review_rejected", {
         caseId: caseData.id,
         rejectionId: rejection.rejectionId,
@@ -1385,6 +1432,78 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       });
     } catch (error) {
       logEventError("journey.review.release-check_failed", error, { caseId: req.params.caseId });
+      journeyError(res, error);
+    }
+  });
+
+  // ── Customer notification routes (P0 #6) ────────────────────────────────
+
+  app.get("/api/journey/notifications/unread-count", requireCustomer, async (req, res) => {
+    try {
+      const customerId = req.drivableCustomer!.id;
+      const count = getUnreadCount(customerId);
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ ok: true, unreadCount: count });
+    } catch (error) {
+      journeyError(res, error);
+    }
+  });
+
+  app.get("/api/journey/notifications", requireCustomer, async (req, res) => {
+    try {
+      const customerId = req.drivableCustomer!.id;
+      const unreadOnly = req.query.unread === "true";
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+      const notifications = getCustomerNotifications(customerId, { unreadOnly, limit });
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ ok: true, notifications });
+    } catch (error) {
+      journeyError(res, error);
+    }
+  });
+
+  app.get("/api/journey/:caseId/unread-count", requireCustomer, async (req, res) => {
+    try {
+      const caseData = getJourneyCase(req.params.caseId);
+      if (!caseData) {
+        res.status(404).json({ ok: false, error: "Journey case not found." });
+        return;
+      }
+      if (!assertOwner(caseData, req.drivableCustomer!.id)) {
+        res.status(404).json({ ok: false, error: "Journey case not found." });
+        return;
+      }
+      const count = getCaseUnreadCount(req.drivableCustomer!.id, caseData.id);
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ ok: true, unreadCount: count });
+    } catch (error) {
+      journeyError(res, error);
+    }
+  });
+
+  app.post("/api/journey/notifications/mark-read", requireCustomer, async (req, res) => {
+    try {
+      const customerId = req.drivableCustomer!.id;
+      const { notificationId, caseId } = req.body || {};
+
+      if (notificationId) {
+        const marked = markNotificationRead(notificationId, customerId);
+        res.json({ ok: true, marked });
+      } else {
+        const count = markAsRead(customerId, caseId);
+        res.json({ ok: true, markedCount: count });
+      }
+    } catch (error) {
+      journeyError(res, error);
+    }
+  });
+
+  app.get("/api/journey/system/unattended-status", requireReviewer, async (_req, res) => {
+    try {
+      const status = getUnattendedWorkerStatus();
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ ok: true, ...status });
+    } catch (error) {
       journeyError(res, error);
     }
   });

@@ -12,6 +12,7 @@ tmp/
 # Local journey persistence fallbacks (durable per worktree, never committed)
 data/journey-store.json
 data/journey-events.json
+data/journey-notifications.json
 # Session task instructions (worktree-only, never committed)
 MARATHON_TASK.txt
 ANTIGRAVITY_BETA_TASK.txt

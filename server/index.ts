@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { DRIVABLE_ALLOWED_ORIGINS, enforceOriginForStateChanging } from "./origin-guard";
 import { logEventError } from "./observability/safe-log";
+import { startUnattendedWorker } from "./journey-unattended-worker";
 import path from "path";
 import fs from "fs";
 
@@ -93,6 +94,14 @@ app.use(express.urlencoded({ extended: false }));
 
   server.listen(port, () => {
     console.log(`Server running on port ${port}`);
+
+    // Start unattended case evaluator — auto-evaluates cases stuck in
+    // evidence_received when the customer doesn't return (P0 #6).
+    try {
+      startUnattendedWorker();
+    } catch (err) {
+      logEventError("journey.unattended_worker_startup_failed", err, {});
+    }
   });
 })();
 

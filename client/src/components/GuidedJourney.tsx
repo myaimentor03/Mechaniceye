@@ -141,6 +141,9 @@ export function GuidedJourney() {
   const [myCases, setMyCases] = useState<JourneyCaseResponse[]>([]);
   const [caseEvents, setCaseEvents] = useState<JourneyEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifications, setNotifications] = useState<{ notificationId: string; title: string; message: string; readAt: string | null; createdAt: string }[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [evidenceKind, setEvidenceKind] = useState("text");
@@ -205,6 +208,37 @@ export function GuidedJourney() {
     }
   }
 
+  async function fetchUnreadCount() {
+    try {
+      const res = await fetch("/api/journey/notifications/unread-count", { credentials: "include" });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.ok) setUnreadCount(data.unreadCount);
+    } catch { /* ignore */ }
+  }
+
+  async function fetchNotifications() {
+    try {
+      const res = await fetch("/api/journey/notifications?limit=20", { credentials: "include" });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.notifications)) setNotifications(data.notifications);
+    } catch { /* ignore */ }
+  }
+
+  async function markNotificationsRead(caseId?: string) {
+    try {
+      await fetch("/api/journey/notifications/mark-read", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caseId }),
+      });
+      setUnreadCount(0);
+      setNotifications((prev) => prev.map((n) => ({ ...n, readAt: new Date().toISOString() })));
+    } catch { /* ignore */ }
+  }
+
   useEffect(() => {
     fetchAuth();
   }, []);
@@ -225,6 +259,7 @@ export function GuidedJourney() {
   useEffect(() => {
     if (!caseData?.id) { setCaseEvents([]); return; }
     fetchCaseEvents(caseData.id);
+    fetchUnreadCount();
   }, [caseData?.id, caseData?.updatedAt]);
 
   // ── Mobile recovery + unattended automation (P0 #6 / #9) ─────────────
@@ -240,6 +275,7 @@ export function GuidedJourney() {
       if (document.visibilityState === "visible" && caseData?.id) {
         fetchCase(caseData.id).catch(() => {});
         fetchCaseEvents(caseData.id).catch(() => {});
+        fetchUnreadCount().catch(() => {});
       }
     }
     document.addEventListener("visibilitychange", onVisible);
@@ -264,6 +300,7 @@ export function GuidedJourney() {
     pollTimerRef.current = setInterval(() => {
       if (inFlightRef.current) return; // don't poll during a user action
       fetchCase(caseData.id).catch(() => {});
+      fetchUnreadCount().catch(() => {});
     }, 12_000);
     return () => {
       if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
@@ -617,12 +654,108 @@ export function GuidedJourney() {
       <div className="topbar">
         <div className="brand">Drivable Guided Journey</div>
         <div className="nav">
+          {unreadCount > 0 && (
+            <button
+              onClick={() => { setShowNotifications(!showNotifications); if (!showNotifications) fetchNotifications(); }}
+              style={{ position: "relative" }}
+            >
+              Notifications
+              <span style={{
+                position: "absolute",
+                top: "-4px",
+                right: "-4px",
+                background: "#ef4444",
+                color: "white",
+                borderRadius: "50%",
+                width: "18px",
+                height: "18px",
+                fontSize: "11px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: "bold",
+              }}>
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            </button>
+          )}
+          {unreadCount === 0 && (
+            <button onClick={() => { setShowNotifications(!showNotifications); if (!showNotifications) fetchNotifications(); }}>
+              Notifications
+            </button>
+          )}
           <button onClick={() => { window.localStorage.removeItem(STORAGE_KEY); setCaseData(null); fetchMyCases(); }}>Start new</button>
           <button onClick={() => navigateFrontend("/mechanic-match")}>Mechanic Match</button>
           <button onClick={() => navigateFrontend("/clearsale")}>ClearSale</button>
           <button onClick={() => navigateFrontend("/")}>Public App</button>
         </div>
       </div>
+
+      {showNotifications && (
+        <div style={{
+          position: "absolute",
+          top: "48px",
+          right: "16px",
+          width: "360px",
+          maxHeight: "400px",
+          overflowY: "auto",
+          background: "rgba(15,25,45,0.97)",
+          border: "1px solid rgba(100,200,255,0.2)",
+          borderRadius: "8px",
+          padding: "12px",
+          zIndex: 100,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+            <strong>Notifications</strong>
+            <div>
+              {unreadCount > 0 && (
+                <button
+                  onClick={() => markNotificationsRead()}
+                  style={{ fontSize: "12px", padding: "2px 8px", marginRight: "8px" }}
+                >
+                  Mark all read
+                </button>
+              )}
+              <button onClick={() => setShowNotifications(false)} style={{ fontSize: "12px", padding: "2px 8px" }}>
+                Close
+              </button>
+            </div>
+          </div>
+          {notifications.length === 0 && (
+            <p style={{ color: "rgba(200,220,255,0.6)", fontSize: "13px" }}>No notifications yet.</p>
+          )}
+          {notifications.map((n) => (
+            <div
+              key={n.notificationId}
+              onClick={() => {
+                markNotificationsRead(n.notificationId);
+                // If notification has a caseId, navigate to it
+                const caseNotif = n as any;
+                if (caseNotif.caseId && caseNotif.caseId !== caseData?.id) {
+                  fetchCase(caseNotif.caseId);
+                }
+                setShowNotifications(false);
+              }}
+              style={{
+                padding: "8px",
+                marginBottom: "6px",
+                borderRadius: "6px",
+                background: n.readAt ? "transparent" : "rgba(100,200,255,0.08)",
+                border: n.readAt ? "1px solid transparent" : "1px solid rgba(100,200,255,0.15)",
+                cursor: "pointer",
+                transition: "background 0.15s",
+              }}
+            >
+              <div style={{ fontSize: "12px", fontWeight: "bold", color: "rgba(200,220,255,0.9)" }}>{n.title}</div>
+              <div style={{ fontSize: "12px", color: "rgba(200,220,255,0.6)", marginTop: "2px" }}>{n.message}</div>
+              <div style={{ fontSize: "10px", color: "rgba(200,220,255,0.4)", marginTop: "4px" }}>
+                {new Date(n.createdAt).toLocaleString()}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="content-shell">
         {caseData.safetyTriggered && (
