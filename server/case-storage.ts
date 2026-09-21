@@ -26,8 +26,8 @@ export type StoredDiagnosisCase = IncomingDiagnosisCase & {
 };
 
 const operationsRoot = "C:\\MechanicsEye_Operations";
-const casesRoot = path.join(operationsRoot, "Cases", "Open");
-const trackerCsvPath = path.join(
+export const casesRoot = path.join(operationsRoot, "Cases", "Open");
+export const trackerCsvPath = path.join(
   operationsRoot,
   "Command_Center",
   "ME_Case_Tracker.csv"
@@ -88,7 +88,7 @@ function ensureDir(dir: string) {
   }
 }
 
-function safeFileName(value: string) {
+export function safeFileName(value: string) {
   return value.replace(/[<>:"/\\|?*\x00-\x1F]/g, "_").trim();
 }
 
@@ -310,8 +310,6 @@ export function createStoredDiagnosisCase(input: IncomingDiagnosisCase): StoredD
       summary,
       "utf8"
     );
-
-    appendTrackerRow(buildTrackerRow(stored, metadata));
   } catch (error: any) {
     writeFailed = true;
     cleanUpCaseFolder(caseFolder);

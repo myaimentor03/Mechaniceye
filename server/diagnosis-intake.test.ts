@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
+import { readFileSync, rmSync } from "node:fs";
+import path from "node:path";
 import test from "node:test";
 import express from "express";
 import { registerRoutes } from "./routes.js";
 import { createEvidenceStoreFromEnvironment } from "./evidence-storage.js";
 import { createSessionToken, type CustomerIdentity } from "./customer-auth.js";
+import { createStoredDiagnosisCase, getStoredDiagnosisCase, safeFileName, casesRoot, trackerCsvPath } from "./case-storage.js";
 
 function upload(buffer: Buffer, originalname = "dash.jpg", mimetype = "image/jpeg") {
   return { buffer, originalname, mimetype, size: buffer.length } as Express.Multer.File;
@@ -919,6 +922,19 @@ test("case-storage getStoredDiagnosisCase round-trips local case for resume", as
   const path = await import("node:path");
   try { fs.rmSync(stored.caseFolder, { recursive: true, force: true }); } catch {}
   // remove tracker row header if needed — leave file
+});
+
+test("createStoredDiagnosisCase appends exactly one tracker row per case (no duplicate CSV rows)", async () => {
+  const input = {
+    description: "Customer Email: uniquecase2@example.com\nVIN: 1HGCM82633A004352\nMileage: 100000\nEngine runs rough",
+    vehicleInfo: "2016 Toyota Corolla",
+    rawVehicleSelection: { year: "2016", make: "Toyota", model: "Corolla", engine: "1.8L" },
+  };
+  const trackerBefore = readFileSync(trackerCsvPath, "utf8").split("\n").filter(Boolean).length;
+  const stored = createStoredDiagnosisCase(input);
+  const trackerAfter = readFileSync(trackerCsvPath, "utf8").split("\n").filter(Boolean).length;
+  assert.equal(trackerAfter - trackerBefore, 1, "createStoredDiagnosisCase must append exactly one tracker row, not duplicate");
+  try { rmSync(stored.caseFolder, { recursive: true, force: true }); } catch {}
 });
 
 // ---------------------------------------------------------------------------
