@@ -9,6 +9,7 @@ export type PublicNavigationItem = Readonly<{
 
 export const DRIVABLE_PUBLIC_NAVIGATION: readonly PublicNavigationItem[] = Object.freeze([
   { label: "Home", href: "/" },
+  { label: "Guided Journey", href: "/journey" },
   { label: "Drivable Check", href: "/drivable-check" },
   { label: "ClearSale", href: "/clearsale" },
   { label: "Buyer Check", href: "/buyer-check" },

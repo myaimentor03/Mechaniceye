@@ -9,5 +9,11 @@ vite.config.ts.*
 data/nhtsa/vehicle-knowledge-packs/*.json
 # Local scratch/output from preflight and dry-run import scripts (never committed)
 tmp/
+# Local journey persistence fallbacks (durable per worktree, never committed)
+data/journey-store.json
+data/journey-events.json
+data/journey-notifications.json
 # Session task instructions (worktree-only, never committed)
 MARATHON_TASK.txt
+ANTIGRAVITY_BETA_TASK.txt
+MARATHON_TASK-BEFORE-MOBILE-SWARM-20260909-135526.txt

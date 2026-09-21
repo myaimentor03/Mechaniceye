@@ -86,6 +86,7 @@ import {
 } from "./r2-evidence-storage";
 import { requireAllowedOrigin } from "./origin-guard";
 import { logEvent, logEventError } from "./observability/safe-log";
+import { registerJourneyRoutes } from "./journey-routes";
 import { serializeErrorSafely } from "./observability/errors";
 import { sslConfigForDatabaseUrl } from "./database-ssl";
 import { fetchWebhookWithTimeout } from "./webhook-fetch";
@@ -1622,6 +1623,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   registerCustomerAuthRoutes(app);
   registerDurableReviewRoutes(app);
+  registerJourneyRoutes(app);
   const publicFormLimit = createRateLimit({ scope: "public-form", windowMs: 10 * 60_000, max: 15 });
   const vehicleKnowledgeLimit = createRateLimit({ scope: "buyer-vehicle-knowledge", windowMs: 5 * 60_000, max: 120 });
   const customerIntakeLimit = createRateLimit({
