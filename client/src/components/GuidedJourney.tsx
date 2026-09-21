@@ -1,5 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { navigateFrontend } from "../frontendRouting";
+
+// ── Weak-network + duplicate-tap resilience ──────────────────────────────
+// Retry transient fetch failures (network drop, background tab) with short
+// backoff.  Guarded by an in-flight ref so duplicate taps never double-
+// submit evidence or advance twice on slow/mobile networks.
+async function fetchWithRetry(
+  input: RequestInfo,
+  init: RequestInit,
+  retries = 2,
+): Promise<Response> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(input, init);
+      return res;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < retries) await new Promise((r) => setTimeout(r, 350 * (attempt + 1)));
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("Network unavailable. Please try again.");
+}
 
 type DecisionPacket = {
   outcome: string;
@@ -127,6 +149,10 @@ export function GuidedJourney() {
   const [audioFiles, setAudioFiles] = useState<FileList | null>(null);
   const [videoFiles, setVideoFiles] = useState<FileList | null>(null);
   const [vibrationFiles, setVibrationFiles] = useState<FileList | null>(null);
+  // Duplicate-tap guard: any in-flight journey mutation blocks new taps.
+  const inFlightRef = useRef(false);
+  // Track polling timer so we can clean up on unmount / case change.
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // intake form state
   const [vehicleInfo, setVehicleInfo] = useState("");
@@ -201,12 +227,57 @@ export function GuidedJourney() {
     fetchCaseEvents(caseData.id);
   }, [caseData?.id, caseData?.updatedAt]);
 
+  // ── Mobile recovery + unattended automation (P0 #6 / #9) ─────────────
+  // 1) Background/foreground: when the user returns to the tab (common on
+  //    mobile after camera/audio recording or app switch), immediately
+  //    refresh the case so resume/status is never stale.
+  // 2) Polling: when the case is in an unattended state (human_review,
+  //    evaluating, escalation_required) the reviewer may resolve it while
+  //    the customer is away. Poll every 12s so the UI updates without a
+  //    manual refresh — the customer sees the decision as soon as it lands.
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState === "visible" && caseData?.id) {
+        fetchCase(caseData.id).catch(() => {});
+        fetchCaseEvents(caseData.id).catch(() => {});
+      }
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [caseData?.id]);
+
+  useEffect(() => {
+    const shouldPoll =
+      caseData?.state === "human_review" ||
+      caseData?.state === "evaluating" ||
+      caseData?.state === "escalation_required";
+    if (!shouldPoll || !caseData?.id) {
+      if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+      return;
+    }
+    // Already polling
+    if (pollTimerRef.current) return;
+    pollTimerRef.current = setInterval(() => {
+      if (inFlightRef.current) return; // don't poll during a user action
+      fetchCase(caseData.id).catch(() => {});
+    }, 12_000);
+    return () => {
+      if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+    };
+  }, [caseData?.id, caseData?.state]);
+
   async function handleStart(e: React.FormEvent) {
     e.preventDefault();
+    if (inFlightRef.current || loading) return;
+    inFlightRef.current = true;
     setError("");
     setLoading(true);
     try {
-      const res = await fetch("/api/journey/start", {
+      const res = await fetchWithRetry("/api/journey/start", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -218,7 +289,7 @@ export function GuidedJourney() {
       window.localStorage.setItem(STORAGE_KEY, data.id);
       if (data.state === "intake") {
         try {
-          const adv = await fetch(`/api/journey/${data.id}/advance`, {
+          const adv = await fetchWithRetry(`/api/journey/${data.id}/advance`, {
             method: "POST",
             credentials: "include",
             headers: { "Content-Type": "application/json" },
@@ -230,18 +301,22 @@ export function GuidedJourney() {
       }
       await fetchMyCases();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Start failed.");
+      const msg = err instanceof Error ? err.message : "Start failed.";
+      // Weak-network hint when fetch itself throws (not a 4xx/5xx)
+      setError(msg.includes("Network") ? `${msg} Your progress is saved — please try again when the connection improves.` : msg);
     } finally {
       setLoading(false);
+      inFlightRef.current = false;
     }
   }
 
   async function handleAdvance(transition: string) {
-    if (!caseData) return;
+    if (!caseData || inFlightRef.current || loading) return;
+    inFlightRef.current = true;
     setError("");
     setLoading(true);
     try {
-      const res = await fetch(`/api/journey/${caseData.id}/advance`, {
+      const res = await fetchWithRetry(`/api/journey/${caseData.id}/advance`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -252,19 +327,22 @@ export function GuidedJourney() {
       setCaseData(data);
       await fetchMyCases();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Advance failed.");
+      const msg = err instanceof Error ? err.message : "Advance failed.";
+      setError(msg.includes("Network") ? `${msg} Your progress is saved — please try again when the connection improves.` : msg);
     } finally {
       setLoading(false);
+      inFlightRef.current = false;
     }
   }
 
   async function handleAddEvidence(e: React.FormEvent) {
     e.preventDefault();
-    if (!caseData) return;
+    if (!caseData || inFlightRef.current || loading) return;
+    inFlightRef.current = true;
     setError("");
     setLoading(true);
     try {
-      const res = await fetch(`/api/journey/${caseData.id}/evidence`, {
+      const res = await fetchWithRetry(`/api/journey/${caseData.id}/evidence`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -276,18 +354,22 @@ export function GuidedJourney() {
       setEvidenceDesc("");
       await fetchMyCases();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Evidence failed.");
+      const msg = err instanceof Error ? err.message : "Evidence failed.";
+      setError(msg.includes("Network") ? `${msg} Your progress is saved — please try again when the connection improves.` : msg);
     } finally {
       setLoading(false);
+      inFlightRef.current = false;
     }
   }
 
   async function handlePhotoUpload(e: React.FormEvent) {
     e.preventDefault();
+    if (inFlightRef.current || loading) return;
     if (!caseData || !photoFiles || photoFiles.length === 0) {
       setError("Select at least one photo (jpeg/png/webp/heic, max 12 MB each, up to 8).");
       return;
     }
+    inFlightRef.current = true;
     setError("");
     setLoading(true);
     try {
@@ -309,18 +391,22 @@ export function GuidedJourney() {
       if (el) el.value = "";
       await fetchMyCases();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Photo upload failed.");
+      const msg = err instanceof Error ? err.message : "Photo upload failed.";
+      setError(msg.includes("Network") ? `${msg} Your evidence is safe locally — please retry when the connection improves.` : msg);
     } finally {
       setLoading(false);
+      inFlightRef.current = false;
     }
   }
 
   async function handleAudioUpload(e: React.FormEvent) {
     e.preventDefault();
+    if (inFlightRef.current || loading) return;
     if (!caseData || !audioFiles || audioFiles.length === 0) {
       setError("Select at least one audio clip (mp3/wav/m4a/ogg/webm, max 12 MB each, up to 4).");
       return;
     }
+    inFlightRef.current = true;
     setError("");
     setLoading(true);
     try {
@@ -341,18 +427,22 @@ export function GuidedJourney() {
       if (el) el.value = "";
       await fetchMyCases();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Audio upload failed.");
+      const msg = err instanceof Error ? err.message : "Audio upload failed.";
+      setError(msg.includes("Network") ? `${msg} Your evidence is safe locally — please retry when the connection improves.` : msg);
     } finally {
       setLoading(false);
+      inFlightRef.current = false;
     }
   }
 
   async function handleVideoUpload(e: React.FormEvent) {
     e.preventDefault();
+    if (inFlightRef.current || loading) return;
     if (!caseData || !videoFiles || videoFiles.length === 0) {
       setError("Select at least one video clip (mp4/mov/webm/avi, max 50 MB each, up to 2).");
       return;
     }
+    inFlightRef.current = true;
     setError("");
     setLoading(true);
     try {
@@ -373,18 +463,22 @@ export function GuidedJourney() {
       if (el) el.value = "";
       await fetchMyCases();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Video upload failed.");
+      const msg = err instanceof Error ? err.message : "Video upload failed.";
+      setError(msg.includes("Network") ? `${msg} Your evidence is safe locally — please retry when the connection improves.` : msg);
     } finally {
       setLoading(false);
+      inFlightRef.current = false;
     }
   }
 
   async function handleVibrationUpload(e: React.FormEvent) {
     e.preventDefault();
+    if (inFlightRef.current || loading) return;
     if (!caseData || !vibrationFiles || vibrationFiles.length === 0) {
       setError("Select at least one vibration recording (JSON with x/y/z samples, max 2 MB each, up to 2).");
       return;
     }
+    inFlightRef.current = true;
     setError("");
     setLoading(true);
     try {
@@ -405,9 +499,11 @@ export function GuidedJourney() {
       if (el) el.value = "";
       await fetchMyCases();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Vibration upload failed.");
+      const msg = err instanceof Error ? err.message : "Vibration upload failed.";
+      setError(msg.includes("Network") ? `${msg} Your evidence is safe locally — please retry when the connection improves.` : msg);
     } finally {
       setLoading(false);
+      inFlightRef.current = false;
     }
   }
 
