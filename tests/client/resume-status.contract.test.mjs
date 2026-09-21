@@ -23,18 +23,19 @@ test("diagnosis success stamps the shared case pointer with its originating flow
   // The marketplace confirmation states share drivable-last-case-id but have
   // no status endpoint to verify it. Stamping diagnosis-intake origin keeps a
   // Drivable Check id from ever rendering as buyer interest / ClearSale received.
+  // The stamp uses the shared module-scope constants (no literal drift).
   assert.match(backend, /sessionStorage\.setItem\("drivable-last-case-id", data\.id\)/);
-  assert.match(backend, /sessionStorage\.setItem\("drivable-last-case-origin", "diagnosis-intake"\)/);
+  assert.match(backend, /sessionStorage\.setItem\(DRIVABLE_LAST_CASE_ORIGIN_KEY, DIAGNOSIS_INTAKE_ORIGIN\)/);
 });
 
 test("dismiss clears the case origin alongside the case id", () => {
-  assert.match(backend, /sessionStorage\.removeItem\("drivable-last-case-origin"\)/);
+  assert.match(backend, /sessionStorage\.removeItem\(DRIVABLE_LAST_CASE_ORIGIN_KEY\)/);
 });
 
 test("stale-pointer cleanup on 404 clears the case origin alongside the case id", () => {
   const restoreBlock = backend.slice(backend.indexOf("server-verified case restore"));
   assert.match(restoreBlock, /if \(res\.status === 404\)/);
-  assert.match(restoreBlock, /sessionStorage\.removeItem\("drivable-last-case-origin"\)/);
+  assert.match(restoreBlock, /sessionStorage\.removeItem\(DRIVABLE_LAST_CASE_ORIGIN_KEY\)/);
 });
 
 test("dismiss shows toast for confirmation", () => {
