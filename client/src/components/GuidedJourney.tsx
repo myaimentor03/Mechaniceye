@@ -937,8 +937,11 @@ export function GuidedJourney() {
             )}
           </div>
 
-          {(caseData.state === "intake" || caseData.state === "triage" || caseData.state === "evidence_requested" || caseData.state === "evidence_received" || caseData.state === "resolved") && (
+          {(caseData.state === "intake" || caseData.state === "triage" || caseData.state === "evidence_requested" || caseData.state === "evidence_received" || caseData.state === "escalation_required" || caseData.state === "resolved") && (
             <>
+              {caseData.state === "escalation_required" && (
+                <div className="notice-strip">Your case is flagged for safety review. Adding evidence here is safe: it stays on your vehicle case and your safety flags are preserved. After you submit, the case moves to evidence review — you can still flag for human review.</div>
+              )}
               <form onSubmit={handleAddEvidence} className="top-gap">
                 <div className="field-grid">
                   <div className="field"><label>Evidence type</label><select value={evidenceKind} onChange={(e) => setEvidenceKind(e.target.value)}><option value="text">Text detail</option><option value="photo">Photo (describe — or upload below)</option><option value="audio">Audio (describe — or upload below)</option><option value="video">Video (describe)</option><option value="vibration">Vibration (describe)</option></select></div>
