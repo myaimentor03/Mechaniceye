@@ -636,9 +636,12 @@ export function buildNextAction(state: JourneyState, caseData: JourneyCase): {
       };
     }
     case "human_review":
+      // Reviewer-only resolution: the customer has no self-resolve action here.
+      // They wait for the reviewer decision (client polls); the only safe
+      // customer-side acknowledgment is STOP DRIVING via resolve_stop_driving.
       return {
-        action: "resolve",
-        prompt: "A human reviewer is looking at your case. You will be notified when it is ready.",
+        action: "wait_for_review",
+        prompt: "A human reviewer is looking at your case. No action is needed right now — you will be notified when the decision is ready.",
       };
     case "resolved":
       return {
@@ -784,7 +787,11 @@ if ((transition === "submit_evidence" || transition === "add_more_evidence" || t
   }
 
   if (transition === "resolve" || transition === "resolve_stop_driving") {
-    updated.outcome = transition === "resolve_stop_driving"
+    // Safety boundary: a safety-triggered case always resolves as stop_driving,
+    // even if a caller supplies a different outcome (e.g. a stale client
+    // sending outcome=fix). Only the reviewer path resolves human_review cases,
+    // and it lands here too — forced to the safe outcome.
+    updated.outcome = transition === "resolve_stop_driving" || updated.safetyTriggered
       ? "stop_driving"
       : additionalData?.outcome || determineOutcome(updated);
     updated.resolutionNote = additionalData?.resolutionNote;

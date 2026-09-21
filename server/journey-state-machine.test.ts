@@ -415,7 +415,7 @@ it("resolves with resolve_stop_driving", () => {
         assert.equal(action.action, "request_human_review");
       });
 
- it("request_human_review transitions to human_review state", () => {
+    it("request_human_review transitions to human_review state", () => {
         let caseData = createJourneyCase({
           vehicleInfo: "2018 Honda Civic",
           description: "Car makes a grinding noise when braking at low speeds",
@@ -431,6 +431,31 @@ it("resolves with resolve_stop_driving", () => {
         caseData = advanceJourney(caseData, "request_human_review");
 
         assert.equal(caseData.state, "human_review");
+      });
+
+      it("forces stop_driving when resolving a safety-triggered case with a supplied fix outcome", () => {
+        let caseData = createJourneyCase({
+          vehicleInfo: "2020 Ford F-150",
+          description: "Brakes failed completely, cannot stop the truck",
+          urgency: "Not Safe to Drive",
+        });
+        assert.equal(caseData.state, "escalation_required");
+        assert.equal(caseData.safetyTriggered, true);
+
+        caseData = advanceJourney(caseData, "resolve", { outcome: "fix" });
+
+        assert.equal(caseData.state, "resolved");
+        assert.equal(caseData.outcome, "stop_driving");
+      });
+
+      it("guides human_review as a reviewer wait with no customer resolve action", () => {
+        const caseData = createJourneyCase({
+          vehicleInfo: "2018 Honda Civic",
+          description: "Grinding noise when braking at low speeds",
+        });
+        const action = buildNextAction("human_review", caseData);
+        assert.equal(action.action, "wait_for_review");
+        assert.ok(action.prompt.length > 0);
       });
 
       it("add_followup_evidence transitions from resolved to evidence_received and clears outcome", () => {

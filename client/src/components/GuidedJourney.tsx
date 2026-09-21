@@ -787,7 +787,15 @@ export function GuidedJourney() {
             {caseData.state === "diagnosis_ready" && <button className="secondary-btn" disabled={loading} onClick={() => handleAdvance("request_human_review")}>Ask for human review instead</button>}
             {caseData.state === "escalation_required" && <button className="primary-btn" disabled={loading} onClick={() => handleAdvance("request_human_review")}>Flag for human review (safety valve)</button>}
             {caseData.state === "escalation_required" && <button className="secondary-btn" disabled={loading} onClick={() => handleAdvance("resolve_stop_driving")}>Resolve as STOP DRIVING</button>}
-            {caseData.state === "human_review" && <button className="primary-btn" disabled={loading} onClick={() => handleAdvance("resolve")}>Mark human review complete</button>}
+            {/* human_review is reviewer-only: the customer waits (auto-poll refreshes
+                when the reviewer decides). The only customer action here is the
+                safe STOP DRIVING acknowledgment when a safety signal exists. */}
+            {caseData.state === "human_review" && !caseData.safetyTriggered && (
+              <span className="helper-text">Waiting for reviewer decision — this page updates automatically, no action needed.</span>
+            )}
+            {caseData.state === "human_review" && caseData.safetyTriggered && (
+              <button className="secondary-btn" disabled={loading} onClick={() => handleAdvance("resolve_stop_driving")}>Acknowledge STOP DRIVING</button>
+            )}
             {caseData.state === "resolved" && (
               <>
                 <span className="helper-text">Resolved. Outcome: {outcomeCopy(caseData.outcome)}</span>

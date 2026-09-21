@@ -775,7 +775,7 @@ const evidenceData = await jsonOf(evidenceRes);
    });
  });
 
- test("journey submit_evidence advance works from escalation_required", async () => {
+  test("journey submit_evidence advance works from escalation_required", async () => {
     await withJourneyServer(async (origin) => {
       const startRes = await fetch(`${origin}/api/journey/start`, {
         method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({
@@ -817,5 +817,100 @@ const evidenceData = await jsonOf(evidenceRes);
       assert.equal(reviewRes.status, 200);
       const afterReview = await jsonOf(reviewRes);
       assert.equal(afterReview.state, "human_review");
+    });
+  });
+
+  test("customer resolve from human_review is rejected — only the reviewer resolves", async () => {
+    await withJourneyServer(async (origin) => {
+      const startRes = await fetch(`${origin}/api/journey/start`, {
+        method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({
+          vehicleInfo: "2018 Honda Civic",
+          description: "Grinding noise when braking at low speeds, started last week",
+          timing: "Braking",
+          urgency: "Safe to Drive",
+        }),
+      });
+      const caseData = await jsonOf(startRes);
+      const caseId = caseData.id;
+
+      for (const transition of ["submit_intake", "acknowledge_triage", "finish_evidence", "evaluate", "ready_diagnosis", "request_human_review"]) {
+        const res = await fetch(`${origin}/api/journey/${caseId}/advance`, {
+          method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition }),
+        });
+        assert.equal(res.status, 200);
+      }
+
+      const statusRes = await fetch(`${origin}/api/journey/${caseId}/status`, { headers: makeCustomerHeader() });
+      assert.equal((await jsonOf(statusRes)).state, "human_review");
+
+      // Customer self-resolve must be rejected with reviewer-wait guidance.
+      const resolveRes = await fetch(`${origin}/api/journey/${caseId}/advance`, {
+        method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition: "resolve" }),
+      });
+      assert.equal(resolveRes.status, 409);
+      const resolveBody = await jsonOf(resolveRes);
+      assert.equal(resolveBody.ok, false);
+      assert.ok(!resolveBody.availableActions.includes("resolve"), "resolve must not be offered in human_review");
+
+      // Reviewer decision still lands via the reviewer approve path.
+      const approveRes = await fetch(`${origin}/api/journey/review/${caseId}/approve`, {
+        method: "POST", headers: makeReviewerHeader(), body: JSON.stringify({ highRiskAcknowledged: true }),
+      });
+      assert.equal(approveRes.status, 200);
+      const approved = await jsonOf(approveRes);
+      assert.equal(approved.case.state, "resolved");
+    });
+  });
+
+  test("customer resolve_stop_driving from human_review stays available as safe acknowledgment", async () => {
+    await withJourneyServer(async (origin) => {
+      const startRes = await fetch(`${origin}/api/journey/start`, {
+        method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({
+          vehicleInfo: "2020 Ford F-150",
+          description: "Brakes failed completely, cannot stop the truck",
+          urgency: "Not Safe to Drive",
+        }),
+      });
+      const started = await jsonOf(startRes);
+      assert.equal(started.state, "escalation_required");
+      const caseId = started.id;
+
+      const reviewRes = await fetch(`${origin}/api/journey/${caseId}/advance`, {
+        method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition: "request_human_review" }),
+      });
+      assert.equal(reviewRes.status, 200);
+      assert.equal((await jsonOf(reviewRes)).state, "human_review");
+
+      const stopRes = await fetch(`${origin}/api/journey/${caseId}/advance`, {
+        method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition: "resolve_stop_driving" }),
+      });
+      assert.equal(stopRes.status, 200);
+      const stopped = await jsonOf(stopRes);
+      assert.equal(stopped.state, "resolved");
+      assert.equal(stopped.outcome, "stop_driving");
+    });
+  });
+
+  test("customer resolve with fix outcome on a safety case coerces to stop_driving", async () => {
+    await withJourneyServer(async (origin) => {
+      const startRes = await fetch(`${origin}/api/journey/start`, {
+        method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({
+          vehicleInfo: "2020 Ford F-150",
+          description: "Brakes failed completely, cannot stop the truck",
+          urgency: "Not Safe to Drive",
+        }),
+      });
+      const started = await jsonOf(startRes);
+      assert.equal(started.safetyTriggered, true);
+      const caseId = started.id;
+
+      // A stale/tampered client must not be able to force FIX on a safety case.
+      const resolveRes = await fetch(`${origin}/api/journey/${caseId}/advance`, {
+        method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition: "resolve", outcome: "fix" }),
+      });
+      assert.equal(resolveRes.status, 200);
+      const resolved = await jsonOf(resolveRes);
+      assert.equal(resolved.state, "resolved");
+      assert.equal(resolved.outcome, "stop_driving");
     });
   });

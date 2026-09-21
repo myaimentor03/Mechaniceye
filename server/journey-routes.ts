@@ -413,7 +413,10 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         evaluate: { evidence_received: "evaluate" },
         ready_diagnosis: { evaluating: "ready_diagnosis" },
         escalate: { triage: "escalate", evidence_requested: "escalate", evidence_received: "escalate", evaluating: "escalate", diagnosis_ready: "escalate" },
-        resolve: { diagnosis_ready: "resolve", escalation_required: "resolve", human_review: "resolve" },
+        // Customer self-resolve is NOT allowed from human_review: only the
+        // reviewer decides there (approve path resolves server-side). The
+        // customer may still acknowledge STOP DRIVING via resolve_stop_driving.
+        resolve: { diagnosis_ready: "resolve", escalation_required: "resolve" },
         resolve_stop_driving: { triage: "resolve_stop_driving", evidence_requested: "resolve_stop_driving", evidence_received: "resolve_stop_driving", evaluating: "resolve_stop_driving", diagnosis_ready: "resolve_stop_driving", escalation_required: "resolve_stop_driving", human_review: "resolve_stop_driving" },
         request_human_review: { diagnosis_ready: "request_human_review", escalation_required: "request_human_review" },
     };
@@ -422,7 +425,11 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       if (!mappedTransition) {
         res.status(409).json({
           ok: false,
-          error: `Cannot "${transition}" in state "${caseData.state}".`,
+          // In human_review the customer waits for the reviewer decision;
+          // resolve_stop_driving remains available as the safe acknowledgment.
+          error: caseData.state === "human_review" && transition === "resolve"
+            ? "This case is waiting for human review. Only the reviewer can resolve it — no action is needed right now."
+            : `Cannot "${transition}" in state "${caseData.state}".`,
           currentState: caseData.state,
           availableActions: Object.keys(validTransitions).filter((key) => {
             const map = validTransitions[key];
@@ -432,6 +439,14 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         return;
       }
 
+      // Safety boundary at the API edge: a safety-triggered case can never
+      // resolve to FIX/SELL/MONITOR via the customer path, even if a stale or
+      // tampered client sends outcome=fix. Coerce to the safe transition so
+      // the stored outcome is truthfully stop_driving.
+      const effectiveTransition = caseData.safetyTriggered && mappedTransition === "resolve"
+        ? "resolve_stop_driving" as typeof mappedTransition
+        : mappedTransition;
+
       let evidenceItems: any[] = [];
       try {
         evidenceItems = await db.select().from(drivableSeedEvidenceItems);
@@ -439,7 +454,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         // Seed tables may not exist yet; fall back to empty
       }
 
-      const updated = advanceJourney(caseData, mappedTransition, {
+      const updated = advanceJourney(caseData, effectiveTransition, {
         outcome: outcome as OwnerOutcome | undefined,
         resolutionNote: typeof resolutionNote === "string" ? resolutionNote : undefined,
         escalationReason: typeof escalationReason === "string" ? escalationReason : undefined,
@@ -451,16 +466,16 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       // Log the state transition to the durable event timeline.
       // Pass the UPDATED case plus the previous state so from→to is truthful.
       const previousState = caseData.state;
-      logStateTransition(updated, previousState, mappedTransition);
+      logStateTransition(updated, previousState, effectiveTransition);
 
       // Customer asked for a human safety-valve review — record the request.
-      if (mappedTransition === "request_human_review") {
+      if (effectiveTransition === "request_human_review") {
         logReviewAction(updated.id, updated.customerId, "requested", updated.customerId || "customer");
       }
 
       // Resolutions close the loop — record the outcome event for the timeline.
-      if (mappedTransition === "resolve" || mappedTransition === "resolve_stop_driving") {
-        logCaseResolved(updated, mappedTransition, previousState);
+      if (effectiveTransition === "resolve" || effectiveTransition === "resolve_stop_driving") {
+        logCaseResolved(updated, effectiveTransition, previousState);
       }
 
       // When a case enters human_review, automatically create a review draft
@@ -472,7 +487,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         caseId: updated.id,
         fromState: caseData.state,
         toState: updated.state,
-        transition: mappedTransition,
+        transition: effectiveTransition,
         safetyTriggered: updated.safetyTriggered,
         confidenceScore: updated.confidenceScore,
         outcome: updated.outcome,
@@ -1234,10 +1249,15 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       const reviewerRef = req.drivableReviewer!.ref;
       const highRiskAcknowledged = req.body?.highRiskAcknowledged === true;
 
-      // Ensure a review draft exists, create if needed
+      // Ensure a review record exists and is finalized (awaiting review):
+      // cases entering human_review via the customer flow only have a draft,
+      // which the repository refuses to approve — finalize it here so the
+      // reviewer decision lands in one step with a truthful audit trail.
       let reviewStatus = journeyReviewBridge.getReviewStatus(caseData.id);
       if (!reviewStatus) {
         journeyReviewBridge.createReviewForCase(caseData);
+        journeyReviewBridge.finalizeReviewForCase(caseData);
+      } else if (reviewStatus.reviewStatus === "draft") {
         journeyReviewBridge.finalizeReviewForCase(caseData);
       }
 
@@ -1305,10 +1325,15 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         return;
       }
 
-      // Ensure a review draft exists, create if needed
+      // Ensure a review record exists and is finalized (awaiting review):
+      // cases entering human_review via the customer flow only have a draft,
+      // which the repository refuses to reject — finalize it here so the
+      // reviewer decision lands in one step with a truthful audit trail.
       let reviewStatus = journeyReviewBridge.getReviewStatus(caseData.id);
       if (!reviewStatus) {
         journeyReviewBridge.createReviewForCase(caseData);
+        journeyReviewBridge.finalizeReviewForCase(caseData);
+      } else if (reviewStatus.reviewStatus === "draft") {
         journeyReviewBridge.finalizeReviewForCase(caseData);
       }
 
