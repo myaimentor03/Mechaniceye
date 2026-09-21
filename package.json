@@ -12,6 +12,7 @@
     "test:journey-routes": "tsx --test server/journey-routes.test.ts",
     "test:journey-pg-store": "tsx --test server/journey-store-pg.test.ts",
     "test:journey-events": "tsx --test server/journey-case-events.test.ts",
+    "test:journey-evidence-planner": "tsx --test server/journey-evidence-planner.test.ts",
     "test:evidence": "tsx --test server/evidence-storage.test.ts",
     "test:security": "tsx --test server/reviewer-auth.test.ts",
     "test:auth": "tsx --test server/customer-auth.test.ts",
