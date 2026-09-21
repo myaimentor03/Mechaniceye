@@ -167,19 +167,22 @@ export function generateAdditionalQuestions(diagnosisTitle: string, iterationCou
     ]
   };
 
-  let questions = [...baseQuestions];
-  
-  if (specificQuestions[diagnosisTitle]) {
-    questions = [...questions, ...specificQuestions[diagnosisTitle]];
-  }
+  // Start with iteration-specific questions when present, since they are
+  // critical for follow-up diagnosis quality and must not be sliced off.
+  const questions: string[] = [];
 
-  // Add iteration-specific questions for follow-ups
   if (iterationCount > 1) {
     questions.push(
       "Which of the previous suggested fixes have you already tried?",
       "Did any of the previous suggestions make the problem better or worse?",
       "Have any new symptoms appeared since the last diagnosis?"
     );
+  }
+
+  questions.push(...baseQuestions);
+
+  if (specificQuestions[diagnosisTitle]) {
+    questions.push(...specificQuestions[diagnosisTitle]);
   }
 
   return questions.slice(0, 5); // Limit to 5 questions to avoid overwhelming
