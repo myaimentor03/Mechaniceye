@@ -1142,6 +1142,30 @@ async function main() {
       assert(halfCredential.stderr.includes("Both S3 evidence credentials must be configured together"), "startup error must be honest about the credential mismatch");
       return `exit ${exit.code}`;
     });
+
+    await check("case recovery flow: submit intake on legacy server -> get caseId -> verify GET /api/my-cases/:id returns correct fail-closed shape", async () => {
+      const submitResponse = await postMultipart(`${legacyUrl}/api/diagnoses`, intakeForm(), {
+        cookie: sessionCookieHeader({ id: "qa-recovery-1", email: "qa-recovery1@example.test", secret: SESSION_SECRET })
+      });
+      const submitBody = await jsonResponse(submitResponse);
+      assert(submitResponse.status === 503, `expected 503 got ${submitResponse.status}`);
+      assert(submitBody.persisted === false, "must report persisted:false");
+      assert(typeof submitBody.caseId === "string" && submitBody.caseId.length > 0, "expected caseId in intake response");
+
+      const recoveryResponse = await get(`${legacyUrl}/api/my-cases/${encodeURIComponent(submitBody.caseId)}`, {
+        cookie: sessionCookieHeader({ id: "qa-recovery-1", email: "qa-recovery1@example.test", secret: SESSION_SECRET })
+      });
+      const recoveryBody = await jsonResponse(recoveryResponse);
+      assert(recoveryResponse.status === 404, `expected 404 got ${recoveryResponse.status}`);
+      assert(recoveryBody.code === "CASE_NOT_FOUND", `expected CASE_NOT_FOUND got ${recoveryBody.code}`);
+      assert(recoveryBody.persisted === false, "must report persisted:false");
+      assert(!("description" in recoveryBody), "must not leak description PII");
+      assert(!("email" in recoveryBody) && !("customerEmail" in recoveryBody), "must not leak email PII");
+      assert(!("attachments" in recoveryBody), "must not leak attachments");
+      assert(!("evidence" in recoveryBody), "must not leak evidence");
+      assert(!("photos" in recoveryBody), "must not leak photos");
+      return `caseId ${submitBody.caseId.slice(0, 16)}`;
+    });
   }
 
   // -------------------------------------------------------------- BUYER CHECK
