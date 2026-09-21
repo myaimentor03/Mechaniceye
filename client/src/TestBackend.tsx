@@ -52,6 +52,8 @@ const CAPABILITIES_TIMEOUT_MS = 10000;
 // duplicate:true instead of creating a second request.
 const MECHANIC_CLIENT_REQUEST_STORAGE_KEY = "drivable-mechanic-request-id";
 const CONCIERGE_CLIENT_REQUEST_STORAGE_KEY = "drivable-concierge-request-id";
+const DRIVABLE_LAST_CASE_ORIGIN_KEY = "drivable-last-case-origin";
+const DIAGNOSIS_INTAKE_ORIGIN = "diagnosis-intake";
 
 function newStableClientRequestId(): string {
   return `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -1301,13 +1303,21 @@ const [manualEngine, setManualEngine] = useState("");
   // fabricate a "received" case, never show another customer's case, and
   // never leave a stale id restoring forever. Offline/network failure keeps
   // the saved id for retry without claiming a verified status.
+  // Origin-scoped: the shared drivable-last-case-id pointer can hold a
+  // ClearSale or buyer-interest id. Those ids have no customer-scoped status
+  // endpoint and must never be verified as a Drivable Check case — fail
+  // closed by skipping non-diagnosis origins and preserving the pointer for
+  // its own flow's confirmation.
   useEffect(() => {
     if (!result && authChecked && customer) {
       let savedCaseId: string | null = null;
+      let savedOrigin: string | null = null;
       try {
         savedCaseId = sessionStorage.getItem("drivable-last-case-id");
+        savedOrigin = sessionStorage.getItem(DRIVABLE_LAST_CASE_ORIGIN_KEY);
       } catch {}
       if (!savedCaseId) return;
+      if (savedOrigin !== DIAGNOSIS_INTAKE_ORIGIN) return;
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), CASE_RECOVERY_TIMEOUT_MS);
       fetch(`/api/my-cases/${encodeURIComponent(savedCaseId)}`, { credentials: "same-origin", signal: controller.signal })
@@ -1323,7 +1333,7 @@ const [manualEngine, setManualEngine] = useState("");
             // only 404 for a well-formed id means the saved pointer is stale,
             // so drop it instead of restoring a case that is not ours.
             if (res.status === 404) {
-              try { sessionStorage.removeItem("drivable-last-case-id"); sessionStorage.removeItem("drivable-last-case-origin"); } catch {}
+              try { sessionStorage.removeItem("drivable-last-case-id"); sessionStorage.removeItem(DRIVABLE_LAST_CASE_ORIGIN_KEY); } catch {}
             }
             return;
           }
@@ -1646,7 +1656,7 @@ const endpoints = [PUBLIC_API_ENDPOINT];
       // Stamp the shared case pointer with its originating flow so the
       // marketplace confirmation states never mistake a Drivable Check id
       // for their own success (see MARKETPLACE_CASE_ORIGIN_KEY).
-      try { sessionStorage.setItem("drivable-last-case-id", data.id); sessionStorage.setItem("drivable-last-case-origin", "diagnosis-intake"); } catch {}
+      try { sessionStorage.setItem("drivable-last-case-id", data.id); sessionStorage.setItem(DRIVABLE_LAST_CASE_ORIGIN_KEY, DIAGNOSIS_INTAKE_ORIGIN); } catch {}
     }
     try {
       const storageKey = "drivable-client-request-id";
@@ -1716,7 +1726,12 @@ const endpoints = [PUBLIC_API_ENDPOINT];
     useEffect(() => {
       try {
         const savedCaseId = sessionStorage.getItem("drivable-last-case-id");
-        if (savedCaseId) {
+        const savedOrigin = sessionStorage.getItem(DRIVABLE_LAST_CASE_ORIGIN_KEY);
+        // Fail closed: only restore Previous Case Reference when the pointer
+        // was written by the diagnosis-intake flow. A ClearSale or
+        // buyer-interest id from the shared pointer must never render as a
+        // Drivable Check case (see marketplace origin scoping ce945c4).
+        if (savedCaseId && savedOrigin === DIAGNOSIS_INTAKE_ORIGIN) {
           setRestoredCaseId(savedCaseId);
         }
       } catch {}
@@ -1828,7 +1843,7 @@ const endpoints = [PUBLIC_API_ENDPOINT];
                   type="button"
                   className="secondary-btn"
                   onClick={() => {
-                    try { sessionStorage.removeItem("drivable-last-case-id"); sessionStorage.removeItem("drivable-last-case-origin"); } catch {}
+                    try { sessionStorage.removeItem("drivable-last-case-id"); sessionStorage.removeItem(DRIVABLE_LAST_CASE_ORIGIN_KEY); } catch {}
                     setResult(null);
                     toast({ title: "Cleared", description: "Ready for a new check." });
                   }}
