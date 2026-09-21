@@ -301,7 +301,7 @@ export class S3PrivateEvidenceStore implements EvidenceStore {
     const writtenKeys: string[] = [];
     try {
       for (const file of files) {
-        const buffer = file.buffer?.length ? file.buffer : await fs.readFile(file.path);
+        const buffer = file.buffer !== undefined ? file.buffer : await fs.readFile(file.path);
         if (!buffer?.length || file.size <= 0) throw new Error("Empty photo rejected");
         if (file.size > PHOTO_LIMITS.maxBytesEach) throw new Error("Photo is too large");
         const verified = verifiedImageType(buffer);

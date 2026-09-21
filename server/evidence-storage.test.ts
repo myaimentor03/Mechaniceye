@@ -10,6 +10,10 @@ function upload(buffer: Buffer, originalname = "dash.jpg", mimetype = "image/jpe
   return { buffer, originalname, mimetype, size: buffer.length } as Express.Multer.File;
 }
 
+function singlePhotoEmpty(buffer: Buffer, originalname = "empty.jpg", mimetype = "image/jpeg") {
+  return { buffer, originalname, mimetype, size: buffer.length } as Express.Multer.File;
+}
+
 test("shared intake supports diagnose, buy, and sell without duplication", () => {
   for (const mode of ["diagnose", "buy", "sell"] as const) {
     const parsed = drivableEvidenceIntakeSchema.parse({
@@ -646,6 +650,59 @@ test("S3 store rolls back already-written audio when second audio file is empty 
   const empty = { buffer: Buffer.alloc(0), originalname: "empty.mp3", mimetype: "audio/mpeg", size: 0 } as Express.Multer.File;
   await assert.rejects(() => store.saveAudio("CASE-S3-PARTIAL-AUDIO", [good, empty]), /Empty audio rejected|Media has no readable content/);
   assert.equal(written.size, 0, "S3 partial audio batch must be fully rolled back");
+});
+
+test("S3 store rolls back single empty photo (no objects written)", async () => {
+  const written = new Set<string>();
+  const client = {
+    async send(command: any) {
+      const name = command.constructor.name;
+      const key = command.input.Key as string;
+      if (name === "PutObjectCommand") { written.add(key); return {}; }
+      if (name === "DeleteObjectCommand") { written.delete(key); return {}; }
+      throw new Error(`Unexpected ${name}`);
+    },
+  };
+  const store = new S3PrivateEvidenceStore({ bucket: "private-test", region: "test-1" }, client);
+  const good = singlePhotoEmpty(Buffer.from([0xff, 0xd8, 0xff, 0xe0]), "good.jpg", "image/jpeg");
+  const empty = singlePhotoEmpty(Buffer.alloc(0), "empty.jpg", "image/jpeg");
+  await assert.rejects(() => store.savePhotos("CASE-S3-EMPTY-PHOTO", [good, empty]), /Empty photo rejected|Media has no readable content/);
+  assert.equal(written.size, 0, "S3 single empty photo must be fully rolled back");
+});
+
+test("S3 store rolls back single empty photo when first photo is empty (no objects written)", async () => {
+  const written = new Set<string>();
+  const client = {
+    async send(command: any) {
+      const name = command.constructor.name;
+      const key = command.input.Key as string;
+      if (name === "PutObjectCommand") { written.add(key); return {}; }
+      if (name === "DeleteObjectCommand") { written.delete(key); return {}; }
+      throw new Error(`Unexpected ${name}`);
+    },
+  };
+  const store = new S3PrivateEvidenceStore({ bucket: "private-test", region: "test-1" }, client);
+  const empty = singlePhotoEmpty(Buffer.alloc(0), "empty.jpg", "image/jpeg");
+  await assert.rejects(() => store.savePhotos("CASE-S3-FIRST-EMPTY", [empty]), /Empty photo rejected|Media has no readable content/);
+  assert.equal(written.size, 0, "S3 single empty first photo must be fully rolled back");
+});
+
+test("S3 store rolls back single empty photo when second photo is empty (no objects written)", async () => {
+  const written = new Set<string>();
+  const client = {
+    async send(command: any) {
+      const name = command.constructor.name;
+      const key = command.input.Key as string;
+      if (name === "PutObjectCommand") { written.add(key); return {}; }
+      if (name === "DeleteObjectCommand") { written.delete(key); return {}; }
+      throw new Error(`Unexpected ${name}`);
+    },
+  };
+  const store = new S3PrivateEvidenceStore({ bucket: "private-test", region: "test-1" }, client);
+  const good = singlePhotoEmpty(Buffer.from([0xff, 0xd8, 0xff, 0xe0]), "good.jpg", "image/jpeg");
+  const empty = singlePhotoEmpty(Buffer.alloc(0), "empty.jpg", "image/jpeg");
+  await assert.rejects(() => store.savePhotos("CASE-S3-SECOND-EMPTY", [good, empty]), /Empty photo rejected|Media has no readable content/);
+  assert.equal(written.size, 0, "S3 single empty second photo must be fully rolled back");
 });
 
 
