@@ -1393,6 +1393,48 @@ function validateConciergeRequest(input: ConciergeRequest) {
   };
 }
 
+interface ConsultationIntake {
+  diagnosisId: string;
+  mechanicId: string;
+  userId: string;
+}
+
+function pickConsultationString(body: any, field: string): string {
+  const value = body?.[field];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function buildConsultationIntake(body: any): ConsultationIntake {
+  return {
+    diagnosisId: pickConsultationString(body, "diagnosisId"),
+    mechanicId: pickConsultationString(body, "mechanicId"),
+    userId: pickConsultationString(body, "userId")
+  };
+}
+
+function validateConsultationIntake(input: ConsultationIntake) {
+  const requiredFields: Array<keyof ConsultationIntake> = [
+    "diagnosisId",
+    "mechanicId",
+    "userId"
+  ];
+  const missingFields = requiredFields.filter((field) => !input[field]);
+  const invalidFields: string[] = [];
+
+  for (const field of requiredFields) {
+    const value = input[field];
+    if (value && value.length > 160) {
+      invalidFields.push(field);
+    }
+  }
+
+  return {
+    ok: missingFields.length === 0 && invalidFields.length === 0,
+    missingFields,
+    invalidFields
+  };
+}
+
 async function deliverMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
   const submittedAt = new Date().toISOString();
   const packet = {
@@ -2816,12 +2858,22 @@ if (photoFiles.length) {
   // Start mechanic consultation
   app.post("/api/consultations", requireReviewer, async (req, res) => {
     try {
-      const { diagnosisId, mechanicId, userId } = req.body;
-      
+      const input = buildConsultationIntake(req.body || {});
+      const validation = validateConsultationIntake(input);
+
+      if (!validation.ok) {
+        if (validation.invalidFields.length > 0) {
+          res.status(400).json({ ok: false, error: `Invalid fields: ${validation.invalidFields.join(", ")}`, invalidFields: validation.invalidFields });
+          return;
+        }
+        res.status(400).json({ ok: false, error: `Missing required fields: ${validation.missingFields.join(", ")}` });
+        return;
+      }
+
       const consultation = await storage.createConsultation({
-        diagnosisId,
-        mechanicId, 
-        userId,
+        diagnosisId: input.diagnosisId,
+        mechanicId: input.mechanicId,
+        userId: input.userId,
         status: "pending"
       });
 
