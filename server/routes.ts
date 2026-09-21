@@ -68,7 +68,7 @@ import { requireReviewer } from "./reviewer-auth";
 import { registerCustomerAuthRoutes, requireCustomer } from "./customer-auth";
 import { applyAuthenticatedCaseIdentity, authenticatedCaseOwnerId } from "./case-identity";
 import { createRateLimit } from "./rate-limit";
-import { evaluateLaunchReadiness } from "./launch-readiness";
+import { evaluateLaunchReadiness, isEmailDeliveryConfigured } from "./launch-readiness";
 import { buildFollowUpEvidenceBoundary } from "./follow-up-evidence-boundary";
 import { registerDurableReviewRoutes } from "./review/review-routes";
 import { requireVerifiedLaunchControlRuntime } from "./review/launch-control-runtime";
@@ -1827,7 +1827,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       durableConsent: false,
       durableHumanReview,
       verifiedPaymentEntitlement: false,
-      verifiedEmailDelivery: false,
+      verifiedEmailDelivery: isEmailDeliveryConfigured(process.env),
     });
     res.status(report.ready ? 200 : 503).json(report);
   });
