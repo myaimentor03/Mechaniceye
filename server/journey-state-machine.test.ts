@@ -11,6 +11,7 @@ import {
   buildNextAction,
   generateJourneyCaseId,
   buildDecisionPacket,
+  shouldAutoEvaluate,
   type JourneyCase,
   type SafetyFlag,
   type DecisionPacket,
@@ -1000,6 +1001,172 @@ it("returns safety evidence guidance for escalation_required with no evidence", 
       assert.equal(packet.matchedSymptoms[0].confidence, 0.9);
       assert.equal(packet.matchedSymptoms[0].possibleRiskLevel, "high");
       assert.equal(packet.matchedSymptoms[1].label, "Check Engine Light");
+    });
+  });
+
+  describe("shouldAutoEvaluate", () => {
+    it("returns true when in evidence_received with moderate confidence and evidence", () => {
+      const caseData: JourneyCase = {
+        id: "test",
+        state: "evidence_received",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        vehicleInfo: "2020 Toyota RAV4",
+        description: "Check engine light is on, car runs rough at idle",
+        timing: "Idle",
+        urgency: "Safe to Drive",
+        canDrive: "Yes",
+        evidence: [
+          { id: "1", kind: "photo", addedAt: new Date().toISOString() },
+          { id: "2", kind: "text", addedAt: new Date().toISOString() },
+        ],
+        safetyFlags: [],
+        safetyTriggered: false,
+        confidenceScore: 55,
+        confidenceLevel: "moderate",
+        riskLevel: "medium",
+        humanReviewRequested: false,
+        matchedSymptomCategories: [],
+        plannedEvidence: [],
+      };
+
+      assert.equal(shouldAutoEvaluate(caseData), true);
+    });
+
+    it("returns true when in evidence_received with high confidence", () => {
+      const caseData: JourneyCase = {
+        id: "test",
+        state: "evidence_received",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        vehicleInfo: "2020 Toyota RAV4",
+        description: "Check engine light is on, car runs rough at idle, shaking felt through steering wheel",
+        timing: "Idle",
+        urgency: "Safe to Drive",
+        canDrive: "Yes",
+        evidence: [
+          { id: "1", kind: "photo", addedAt: new Date().toISOString() },
+          { id: "2", kind: "photo", addedAt: new Date().toISOString() },
+          { id: "3", kind: "text", addedAt: new Date().toISOString() },
+          { id: "4", kind: "audio", addedAt: new Date().toISOString() },
+        ],
+        safetyFlags: [],
+        safetyTriggered: false,
+        confidenceScore: 75,
+        confidenceLevel: "high",
+        riskLevel: "low",
+        humanReviewRequested: false,
+        matchedSymptomCategories: [],
+        plannedEvidence: [],
+      };
+
+      assert.equal(shouldAutoEvaluate(caseData), true);
+    });
+
+    it("returns false when in evidence_received with low confidence", () => {
+      const caseData: JourneyCase = {
+        id: "test",
+        state: "evidence_received",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        vehicleInfo: "Car",
+        description: "Weird noise",
+        evidence: [
+          { id: "1", kind: "text", addedAt: new Date().toISOString() },
+        ],
+        safetyFlags: [],
+        safetyTriggered: false,
+        confidenceScore: 20,
+        confidenceLevel: "low",
+        riskLevel: "high",
+        humanReviewRequested: false,
+      };
+
+      assert.equal(shouldAutoEvaluate(caseData), false);
+    });
+
+    it("returns false when in evidence_received with insufficient information", () => {
+      const caseData: JourneyCase = {
+        id: "test",
+        state: "evidence_received",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        vehicleInfo: "Car",
+        description: "Noise",
+        evidence: [],
+        safetyFlags: [],
+        safetyTriggered: false,
+        confidenceScore: 5,
+        confidenceLevel: "insufficient_information",
+        riskLevel: "high",
+        humanReviewRequested: false,
+      };
+
+      assert.equal(shouldAutoEvaluate(caseData), false);
+    });
+
+    it("returns false when safety triggered", () => {
+      const caseData: JourneyCase = {
+        id: "test",
+        state: "evidence_received",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        vehicleInfo: "2020 Ford F-150",
+        description: "Brakes failed completely",
+        evidence: [
+          { id: "1", kind: "photo", addedAt: new Date().toISOString() },
+        ],
+        safetyFlags: [{ triggerId: "brakes", label: "Brake Safety Risk", matched: true }],
+        safetyTriggered: true,
+        confidenceScore: 55,
+        confidenceLevel: "moderate",
+        riskLevel: "critical",
+        humanReviewRequested: false,
+      };
+
+      assert.equal(shouldAutoEvaluate(caseData), false);
+    });
+
+    it("returns false from non-evidence_received states", () => {
+      const caseData: JourneyCase = {
+        id: "test",
+        state: "triage",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        vehicleInfo: "2020 Toyota RAV4",
+        description: "Check engine light",
+        evidence: [
+          { id: "1", kind: "photo", addedAt: new Date().toISOString() },
+        ],
+        safetyFlags: [],
+        safetyTriggered: false,
+        confidenceScore: 55,
+        confidenceLevel: "moderate",
+        riskLevel: "medium",
+        humanReviewRequested: false,
+      };
+
+      assert.equal(shouldAutoEvaluate(caseData), false);
+    });
+
+    it("returns false when no evidence exists", () => {
+      const caseData: JourneyCase = {
+        id: "test",
+        state: "evidence_received",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        vehicleInfo: "Car",
+        description: "Weird noise",
+        evidence: [],
+        safetyFlags: [],
+        safetyTriggered: false,
+        confidenceScore: 50,
+        confidenceLevel: "moderate",
+        riskLevel: "medium",
+        humanReviewRequested: false,
+      };
+
+      assert.equal(shouldAutoEvaluate(caseData), false);
     });
   });
 });

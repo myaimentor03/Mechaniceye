@@ -661,11 +661,16 @@ test("journey add_followup_evidence re-opens resolved case for new evidence", as
     });
     assert.equal(evidenceRes.status, 200);
     const evidenceData = await jsonOf(evidenceRes);
-    assert.equal(evidenceData.state, "evidence_received");
+    // With auto-evaluate, if confidence is moderate+ the case advances to evaluating
+    assert.ok(evidenceData.state === "evidence_received" || evidenceData.state === "evaluating",
+      `Expected evidence_received or evaluating, got ${evidenceData.state}`);
     assert.ok(evidenceData.evidence.some((e: any) => e.description === "New symptom: engine stalling at stops"));
 
-    // Continue through evaluation
-    for (const transition of ["evaluate", "ready_diagnosis", "resolve"]) {
+    // Continue through evaluation — if already evaluating, skip evaluate transition
+    const remainingTransitions = evidenceData.state === "evaluating"
+      ? ["ready_diagnosis", "resolve"]
+      : ["evaluate", "ready_diagnosis", "resolve"];
+    for (const transition of remainingTransitions) {
       const res = await fetch(`${origin}/api/journey/${caseId}/advance`, {
         method: "POST", headers: makeCustomerHeader(), body: JSON.stringify({ transition }),
       });
@@ -731,9 +736,11 @@ test("journey add_followup_evidence via evidence endpoint on resolved case", asy
         description: "Follow-up: check engine light is now flashing",
       }),
     });
-    assert.equal(evidenceRes.status, 200);
+     assert.equal(evidenceRes.status, 200);
 const evidenceData = await jsonOf(evidenceRes);
-     assert.equal(evidenceData.state, "evidence_received");
+     // With auto-evaluate, if confidence is moderate+ the case advances to evaluating
+     assert.ok(evidenceData.state === "evidence_received" || evidenceData.state === "evaluating",
+       `Expected evidence_received or evaluating, got ${evidenceData.state}`);
      assert.equal(evidenceData.outcome, undefined);
      assert.ok(evidenceData.evidence.some((e: any) => e.description === "Follow-up: check engine light is now flashing"));
    });

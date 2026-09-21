@@ -5,6 +5,7 @@ import {
   evaluateSafetyFlags,
   calculateConfidence,
   buildDecisionPacket,
+  shouldAutoEvaluate,
   type JourneyCase,
   type JourneyState,
   type JourneyTransition,
@@ -272,6 +273,29 @@ function assertOwner(caseData: JourneyCase, customerId: string): boolean {
   return caseData.customerId === customerId;
 }
 
+async function tryAutoEvaluate(caseData: JourneyCase): Promise<JourneyCase> {
+  if (!shouldAutoEvaluate(caseData)) return caseData;
+
+  let evidenceItems: any[] = [];
+  try {
+    evidenceItems = await db.select().from(drivableSeedEvidenceItems);
+  } catch {
+    // Seed tables may not exist yet; fall back to empty
+  }
+
+  const evaluated = advanceJourney(caseData, "evaluate", { evidenceItems });
+  setJourneyCase(evaluated);
+  logStateTransition(evaluated, caseData.state, "evaluate");
+  logEvent("journey.auto_evaluate", {
+    caseId: evaluated.id,
+    confidenceScore: evaluated.confidenceScore,
+    confidenceLevel: evaluated.confidenceLevel,
+    evidenceCount: evaluated.evidence.length,
+  });
+
+  return evaluated;
+}
+
 export function registerJourneyRoutes(app: Express): void {
   app.get("/api/journey/my-cases", requireCustomer, async (req, res) => {
     try {
@@ -521,7 +545,9 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         confidenceScore: updated.confidenceScore,
       });
 
-      res.json(safeJourneyResponse(updated));
+      const finalCase = await tryAutoEvaluate(updated);
+
+      res.json(safeJourneyResponse(finalCase));
     } catch (error) {
       logEventError("journey.evidence_failed", error, { caseId: req.params.caseId });
       journeyError(res, error);
@@ -616,8 +642,10 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           evidenceCount: updated.evidence.length,
         });
 
+        const finalCase = await tryAutoEvaluate(updated);
+
         res.json({
-          ...safeJourneyResponse(updated),
+          ...safeJourneyResponse(finalCase),
           persistedAttachments: attachments,
           evidencePersistence: {
             durability: journeyEvidenceStore.durability,
@@ -720,8 +748,10 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           evidenceCount: updated.evidence.length,
         });
 
+        const finalCase = await tryAutoEvaluate(updated);
+
         res.json({
-          ...safeJourneyResponse(updated),
+          ...safeJourneyResponse(finalCase),
           persistedAttachments: attachments,
           evidencePersistence: {
             durability: journeyEvidenceStore.durability,
@@ -823,8 +853,10 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           evidenceCount: updated.evidence.length,
         });
 
+        const finalCase = await tryAutoEvaluate(updated);
+
         res.json({
-          ...safeJourneyResponse(updated),
+          ...safeJourneyResponse(finalCase),
           persistedAttachments: attachments,
           evidencePersistence: {
             durability: journeyEvidenceStore.durability,
@@ -927,8 +959,10 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           evidenceCount: updated.evidence.length,
         });
 
+        const finalCase = await tryAutoEvaluate(updated);
+
         res.json({
-          ...safeJourneyResponse(updated),
+          ...safeJourneyResponse(finalCase),
           persistedAttachments: attachments,
           evidencePersistence: {
             durability: journeyEvidenceStore.durability,

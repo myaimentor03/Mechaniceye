@@ -458,6 +458,13 @@ function buildStopDrivingGuidance(caseData: JourneyCase): DecisionPacket["guidan
   };
 }
 
+export function shouldAutoEvaluate(caseData: JourneyCase): boolean {
+  if (caseData.state !== "evidence_received") return false;
+  if (caseData.safetyTriggered) return false;
+  if (caseData.evidence.length === 0) return false;
+  return caseData.confidenceLevel === "moderate" || caseData.confidenceLevel === "high";
+}
+
 export function buildDecisionPacket(caseData: JourneyCase): DecisionPacket {
   const evidenceSummary = {
     photos: caseData.evidence.filter((e) => e.kind === "photo").length,
