@@ -1,60 +1,53 @@
-import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Settings, CheckCircle, Clock, Loader2 } from "lucide-react";
+import { CheckCircle, Clock, Loader2, Shield } from "lucide-react";
 
-export function AnalysisProgress() {
-  const [progress, setProgress] = useState(0);
-  const [currentStep, setCurrentStep] = useState(0);
+interface AnalysisProgressProps {
+  uploadProgress?: number;
+}
+
+export function AnalysisProgress({ uploadProgress = 0 }: AnalysisProgressProps) {
+  const progress = uploadProgress;
 
   const steps = [
-    { label: "Processing audio data", completed: false },
-    { label: "Matching sound patterns", completed: false },
-    { label: "Generating diagnosis", completed: false },
+    { label: "Uploading your evidence", threshold: 0 },
+    { label: "Verifying file integrity", threshold: 50 },
+    { label: "Storing evidence securely", threshold: 85 },
   ];
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        const newProgress = prev + Math.random() * 15;
-        
-        if (newProgress >= 33 && currentStep < 1) {
-          setCurrentStep(1);
-        } else if (newProgress >= 66 && currentStep < 2) {
-          setCurrentStep(2);
-        }
-        
-        return Math.min(newProgress, 95);
-      });
-    }, 500);
+  const currentStepIndex = steps.findIndex((step, index) => {
+    const nextThreshold = steps[index + 1]?.threshold ?? 100;
+    return progress >= step.threshold && progress < nextThreshold;
+  });
 
-    return () => clearInterval(interval);
-  }, [currentStep]);
+  const safeCurrentStepIndex = currentStepIndex === -1 ? steps.length - 1 : currentStepIndex;
 
   return (
     <Card>
       <CardContent className="p-8">
         <div className="text-center">
-          <div className="w-20 h-20 bg-automotive-orange bg-opacity-10 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Settings className="w-8 h-8 text-automotive-orange animate-spin" />
+          <div className="w-20 h-20 bg-automotive-blue bg-opacity-10 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Shield className="w-8 h-8 text-automotive-blue animate-spin" />
           </div>
-          
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Analyzing Your Vehicle</h2>
-          <p className="text-gray-600 mb-8">Our AI is processing your data to identify the issue</p>
-          
+
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Storing Your Evidence</h2>
+          <p className="text-gray-600 mb-8">
+            Your photos, audio, and video are being saved securely. Evidence is not analyzed yet.
+          </p>
+
           {/* Progress Steps */}
           <div className="space-y-4 max-w-md mx-auto">
             {steps.map((step, index) => {
-              const isCompleted = index < currentStep;
-              const isActive = index === currentStep;
-              const isPending = index > currentStep;
-              
+              const isCompleted = index < safeCurrentStepIndex;
+              const isActive = index === safeCurrentStepIndex && progress < 100;
+              const isPending = index > safeCurrentStepIndex;
+
               return (
-                <div 
+                <div
                   key={index}
                   className={`flex items-center justify-between p-4 rounded-lg border ${
-                    isCompleted 
-                      ? "bg-green-50 border-green-200" 
-                      : isActive 
+                    isCompleted
+                      ? "bg-green-50 border-green-200"
+                      : isActive
                       ? "bg-blue-50 border-blue-200"
                       : "bg-gray-50 border-gray-200"
                   }`}
@@ -68,9 +61,9 @@ export function AnalysisProgress() {
                       <Clock className="w-5 h-5 text-gray-400" />
                     )}
                     <span className={`font-medium ${
-                      isCompleted 
-                        ? "text-green-800" 
-                        : isActive 
+                      isCompleted
+                        ? "text-green-800"
+                        : isActive
                         ? "text-blue-800"
                         : "text-gray-600"
                     }`}>
@@ -78,32 +71,36 @@ export function AnalysisProgress() {
                     </span>
                   </div>
                   <span className={`text-sm ${
-                    isCompleted 
-                      ? "text-green-600" 
-                      : isActive 
+                    isCompleted
+                      ? "text-green-600"
+                      : isActive
                       ? "text-blue-600"
                       : "text-gray-500"
                   }`}>
-                    {isCompleted ? "Complete" : isActive ? "In progress" : "Pending"}
+                    {isCompleted ? "Done" : isActive ? "In progress" : "Pending"}
                   </span>
                 </div>
               );
             })}
           </div>
-          
+
           {/* Progress Bar */}
           <div className="mt-8">
             <div className="flex justify-between text-sm text-gray-600 mb-2">
-              <span>Analysis Progress</span>
+              <span>Evidence Storage Progress</span>
               <span>{Math.round(progress)}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-automotive-orange h-2 rounded-full transition-all duration-500"
-                style={{ width: `${progress}%` }}
+              <div
+                className="bg-automotive-blue h-2 rounded-full transition-all duration-300"
+                style={{ width: `${Math.min(progress, 100)}%` }}
               ></div>
             </div>
           </div>
+
+          <p className="text-xs text-gray-500 mt-4">
+            Your evidence is stored privately. It will not be analyzed until a mechanic or reviewer reviews it.
+          </p>
         </div>
       </CardContent>
     </Card>

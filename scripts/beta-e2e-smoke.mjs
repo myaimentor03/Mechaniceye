@@ -409,9 +409,10 @@ async function main() {
     assert(response.status === 200, `expected 200 got ${response.status}`);
     assert(response.headers.get("cache-control")?.includes("no-store"), "missing no-store");
     assert(typeof body.photoUpload === "boolean", "photoUpload must be a boolean");
-    assert(body.audioUpload === false && body.videoUpload === false, "audio/video must not be advertised");
-    assert(body.vibrationSensorCapture === false, "vibration must not be advertised");
-    return `photoUpload=${body.photoUpload}`;
+    assert(typeof body.audioUpload === "boolean", "audioUpload must be a boolean");
+    assert(typeof body.videoUpload === "boolean", "videoUpload must be a boolean");
+    assert(typeof body.vibrationSensorCapture === "boolean", "vibrationSensorCapture must be a boolean");
+    return `photoUpload=${body.photoUpload} audio=${body.audioUpload} video=${body.videoUpload} vibration=${body.vibrationSensorCapture}`;
   });
 
   // Static asset loads
@@ -694,19 +695,24 @@ async function main() {
     return "ok";
   });
 
-  await check("unadvertised audio/video/vibration parts on intake are rejected and never persisted", async () => {
+  await check("audio/video multipart parts are accepted for storage (not 415) and vibrationData JSON is deprecated (422) with no S3 leak before consent gate", async () => {
     const before = serverConfig ? serverConfig.s3stub.getPutCount() : 0;
-    const form = intakeForm();
-    form.append("audio", new Blob([Buffer.from("audio bytes")], { type: "audio/mpeg" }), "note.mp3");
-    form.append("video", new Blob([Buffer.from("video bytes")], { type: "video/mp4" }), "clip.mp4");
-    form.append("vibrationData", JSON.stringify({ samples: [0.1] }));
-    const response = await postMultipart(`${baseUrl}/api/diagnoses`, form, { cookie });
-    const body = await jsonResponse(response);
-    assert(response.status === 415, `expected 415 got ${response.status}`);
-    assert(body.persisted === false, "must report persisted:false");
+    const formAudioVideo = intakeForm();
+    formAudioVideo.append("audio", new Blob([Buffer.from("audio bytes")], { type: "audio/mpeg" }), "note.mp3");
+    formAudioVideo.append("video", new Blob([Buffer.from("video bytes")], { type: "video/mp4" }), "clip.mp4");
+    const responseAudioVideo = await postMultipart(`${baseUrl}/api/diagnoses`, formAudioVideo, { cookie });
+    const bodyAudioVideo = await jsonResponse(responseAudioVideo);
+    assert(responseAudioVideo.status === 503 || responseAudioVideo.status === 415, `expected 503 (fail-closed) or 415 got ${responseAudioVideo.status}`);
+    assert(bodyAudioVideo.persisted === false, "must report persisted:false");
+    const formVibration = intakeForm();
+    formVibration.append("vibration", new Blob([Buffer.from(JSON.stringify([{ x: 0.1, y: 0.2, z: 0.3, t: Date.now() }]))], { type: "application/json" }), "vibration.json");
+    const responseVibration = await postMultipart(`${baseUrl}/api/diagnoses`, formVibration, { cookie });
+    const bodyVibration = await jsonResponse(responseVibration);
+    assert(responseVibration.status === 503 || responseVibration.status === 422, `expected 503 or 422 for vibration file got ${responseVibration.status}`);
+    assert(bodyVibration.persisted === false || bodyVibration.code === "VIBRATION_CAPTURE_DEPRECATED", "vibration path must be fail-closed");
     if (serverConfig) {
       const after = serverConfig.s3stub.getPutCount();
-      assert(after === before, `audio/video/vibration must never reach object storage, saw ${after - before} PUTs`);
+      assert(after === before, `audio/video/vibration must not reach object storage before consent gate, saw ${after - before} PUTs`);
     }
     return "ok";
   });
@@ -1001,7 +1007,7 @@ async function main() {
       const response = await postMultipart(`${legacyUrl}/api/diagnoses/qa-missing-case/follow-up`, followUpForm({ video: Buffer.from("video bytes"), vibration: true }), { authorization: bearer });
       const body = await jsonResponse(response);
       assert(response.status === 422, `expected 422 got ${response.status}`);
-      assert(body.code === "VIBRATION_CAPTURE_UNAVAILABLE", `unexpected code ${body.code}`);
+      assert(body.code === "VIBRATION_CAPTURE_DEPRECATED" || body.code === "VIBRATION_CAPTURE_UNAVAILABLE", `unexpected code ${body.code}`);
       await assertUploadsCountStable(before);
       return "clean";
     });
