@@ -1183,10 +1183,31 @@ function validateInternalReviewInput(input: InternalReviewInput) {
     "messageBody"
   ];
   const missingFields = requiredFields.filter((field) => !input[field]);
+  const invalidFields: string[] = [];
+
+  if (input.customerEmail && !isValidMarketplaceEmail(input.customerEmail)) {
+    invalidFields.push("customerEmail");
+  }
+  if (input.vehicleYear && !isValidMarketplaceYear(input.vehicleYear)) {
+    invalidFields.push("vehicleYear");
+  }
+  for (const field of ["caseId", "customerName", "make", "model", "responseType", "confidenceScore", "confidenceBand", "followUpNeeded"] as const) {
+    const value = input[field];
+    if (value && value.length > 160) {
+      invalidFields.push(field);
+    }
+  }
+  for (const field of ["symptomsSummary", "messageBody", "adminNotes"] as const) {
+    const value = input[field];
+    if (value && value.length > 4000) {
+      invalidFields.push(field);
+    }
+  }
 
   return {
-    ok: missingFields.length === 0,
-    missingFields
+    ok: missingFields.length === 0 && invalidFields.length === 0,
+    missingFields,
+    invalidFields
   };
 }
 
@@ -1883,6 +1904,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validation = validateInternalReviewInput(input);
 
       if (!validation.ok) {
+        if (validation.invalidFields.length > 0) {
+          res.status(400).json({ ok: false, error: `Invalid fields: ${validation.invalidFields.join(", ")}`, invalidFields: validation.invalidFields });
+          return;
+        }
         res.status(400).json({ ok: false, error: `Missing required fields: ${validation.missingFields.join(", ")}` });
         return;
       }
