@@ -1771,11 +1771,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/capabilities", (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
+    const durableEvidence = evidenceStore.durability === "private_object_storage";
+    const uploadEnabled = process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && durableEvidence;
     res.json({
-      photoUpload: process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && evidenceStore.durability === "private_object_storage",
-      audioUpload: process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && evidenceStore.durability === "private_object_storage",
-      videoUpload: process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && evidenceStore.durability === "private_object_storage",
-      vibrationSensorCapture: process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && evidenceStore.durability === "private_object_storage",
+      photoUpload: uploadEnabled,
+      audioUpload: uploadEnabled,
+      videoUpload: uploadEnabled,
+      vibrationSensorCapture: uploadEnabled,
     });
   });
 
