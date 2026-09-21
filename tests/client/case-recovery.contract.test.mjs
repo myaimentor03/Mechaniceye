@@ -94,3 +94,19 @@ test("diagnosis submission handles 500 server error with fail-closed behavior", 
   assert.doesNotMatch(submitBlock, /setResult\(/);
   assert.doesNotMatch(submitBlock, /sessionStorage\.setItem/);
 });
+
+test("case recovery on 500 preserves the saved id for retry without claiming status", () => {
+   const restoreStart = backend.indexOf("server-verified case restore");
+   const restoreEnd = backend.indexOf("}, [authChecked, customer, result]);", restoreStart);
+   const restoreBlock = backend.slice(restoreStart, restoreEnd);
+   // 500 falls through the !res.ok block without matching 401 or 404,
+   // so it must NOT remove the saved case id and must NOT setResult.
+   assert.match(restoreBlock, /if \(res\.status === 401\)/);
+   assert.match(restoreBlock, /if \(res\.status === 404\)/);
+   // No explicit 500 handler means fallthrough to return, preserving sessionStorage.
+   // Verify no explicit 500 block calls sessionStorage.removeItem (only in 404 block).
+   assert.doesNotMatch(restoreBlock, /if \(res\.status === 500\)[\s\S]{0,200}sessionStorage\.removeItem/);
+   // Verify 500 is not explicitly handled with an if statement (only mentioned in comment)
+   const explicit500Handler = restoreBlock.match(/if \(res\.status === 500\) \{/);
+   assert.ok(!explicit500Handler, "500 should not have an explicit if handler; it falls through correctly");
+});
