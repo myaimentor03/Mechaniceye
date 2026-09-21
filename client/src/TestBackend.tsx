@@ -690,10 +690,75 @@ function ConciergeHelpPage() {
   );
 }
 
-function MechanicMatchFlow() {
+function MechanicMatchFlow({ journeyCaseId }: { journeyCaseId?: string } = {}) {
   const path = getFrontendRoutePath();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [journeyLoaded, setJourneyLoaded] = useState(false);
+  const [journeyLoadError, setJourneyLoadError] = useState("");
+
+  const [vehicleYear, setVehicleYear] = useState("");
+  const [make, setMake] = useState("");
+  const [model, setModel] = useState("");
+  const [symptoms, setSymptoms] = useState("");
+  const [canDrive, setCanDrive] = useState("");
+  const [urgency, setUrgency] = useState("");
+  const [existingCaseId, setExistingCaseId] = useState("");
+  const [drivableCheckUsed, setDrivableCheckUsed] = useState("");
+
+  useEffect(() => {
+    if (!journeyCaseId) return;
+    setExistingCaseId(journeyCaseId);
+    setDrivableCheckUsed("Yes");
+    (async () => {
+      try {
+        const res = await fetch(`/api/journey/${journeyCaseId}/status`, { credentials: "include" });
+        if (!res.ok) throw new Error("Case not found");
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "Failed to load case");
+
+        const vehicleInfo: string = data.vehicleInfo || "";
+        const parts = vehicleInfo.match(/^(\d{4})\s+(.+?)\s+(.+)$/);
+        if (parts) {
+          setVehicleYear(parts[1]);
+          setMake(parts[2]);
+          setModel(parts[3]);
+        } else if (vehicleInfo) {
+          setModel(vehicleInfo);
+        }
+
+        const descParts: string[] = [];
+        if (data.description) descParts.push(data.description);
+        if (data.matchedSymptomCategories?.length) {
+          descParts.push("Matched symptoms: " + data.matchedSymptomCategories.map((s: any) => s.label).join(", "));
+        }
+        if (data.decisionPacket?.guidance?.immediateSteps?.length) {
+          descParts.push("Recommended steps: " + data.decisionPacket.guidance.immediateSteps.join("; "));
+        }
+        if (descParts.length) setSymptoms(descParts.join("\n\n"));
+
+        if (data.canDrive) {
+          const cd = data.canDrive.toLowerCase();
+          if (cd.includes("no")) setCanDrive("No");
+          else if (cd.includes("short")) setCanDrive("Short distance only");
+          else if (cd === "yes") setCanDrive("Yes");
+          else setCanDrive("Not sure");
+        }
+        if (data.urgency) {
+          const u = data.urgency.toLowerCase();
+          if (u.includes("not safe") || u.includes("will not")) setUrgency("Vehicle feels unsafe");
+          else if (u.includes("short")) setUrgency("This week");
+          else setUrgency("Planning ahead");
+        }
+        if (data.photosOrVideoAvailable) {
+          // already has evidence
+        }
+        setJourneyLoaded(true);
+      } catch (err) {
+        setJourneyLoadError(err instanceof Error ? err.message : "Could not load journey case. You can fill in the details manually.");
+      }
+    })();
+  }, [journeyCaseId]);
 
   async function submitMechanicMatchRequest(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -790,6 +855,10 @@ function MechanicMatchFlow() {
             <NeedHelpPanel topic="Help finding a mechanic" compact />
 
             {submitError && <div className="alert-card warning">{submitError}</div>}
+            {journeyLoadError && <div className="notice-strip">{journeyLoadError}</div>}
+            {journeyLoaded && <div className="notice-strip" style={{ borderColor: "rgba(100,200,255,0.5)", background: "rgba(20,60,120,0.3)" }}>
+              Pre-filled from your Guided Journey case <strong>{journeyCaseId}</strong>. Your evidence and diagnosis context transfer automatically.
+            </div>}
 
             <form className="step-card" onSubmit={submitMechanicMatchRequest}>
               <div className="step-header">
@@ -815,20 +884,20 @@ function MechanicMatchFlow() {
               <fieldset className="form-fieldset">
                 <legend>Vehicle</legend>
                 <div className="field-grid">
-                  <div className="field"><label>Vehicle Year</label><input name="vehicleYear" inputMode="numeric" required /></div>
-                  <div className="field"><label>Make</label><input name="make" required /></div>
-                  <div className="field"><label>Model</label><input name="model" required /></div>
+                  <div className="field"><label>Vehicle Year</label><input name="vehicleYear" inputMode="numeric" value={vehicleYear} onChange={(e) => setVehicleYear(e.target.value)} required /></div>
+                  <div className="field"><label>Make</label><input name="make" value={make} onChange={(e) => setMake(e.target.value)} required /></div>
+                  <div className="field"><label>Model</label><input name="model" value={model} onChange={(e) => setModel(e.target.value)} required /></div>
                   <div className="field"><label>Mileage</label><input name="mileage" inputMode="numeric" /></div>
                   <div className="field">
                     <label>Drivable Check Used?</label>
-                    <select name="drivableCheckUsed">
+                    <select name="drivableCheckUsed" value={drivableCheckUsed} onChange={(e) => setDrivableCheckUsed(e.target.value)}>
                       <option value="">Choose one</option>
                       <option>Yes</option>
                       <option>No</option>
                       <option>Not sure</option>
                     </select>
                   </div>
-                  <div className="field"><label>Existing Diagnosis Case ID</label><input name="existingDiagnosisCaseId" placeholder="Optional" /></div>
+                  <div className="field"><label>Existing Diagnosis Case ID</label><input name="existingDiagnosisCaseId" placeholder="Optional" value={existingCaseId} onChange={(e) => setExistingCaseId(e.target.value)} /></div>
                 </div>
               </fieldset>
 
@@ -844,7 +913,7 @@ function MechanicMatchFlow() {
                   </div>
                   <div className="field">
                     <label>Can Drive</label>
-                    <select name="canDrive" required>
+                    <select name="canDrive" value={canDrive} onChange={(e) => setCanDrive(e.target.value)} required>
                       <option value="">Choose one</option>
                       <option>Yes</option>
                       <option>Short distance only</option>
@@ -854,7 +923,7 @@ function MechanicMatchFlow() {
                   </div>
                   <div className="field">
                     <label>Urgency</label>
-                    <select name="urgency" required>
+                    <select name="urgency" value={urgency} onChange={(e) => setUrgency(e.target.value)} required>
                       <option value="">Choose urgency</option>
                       <option>Same day if possible</option>
                       <option>This week</option>
@@ -905,7 +974,7 @@ function MechanicMatchFlow() {
                 </div>
                 <div className="section-block">
                   <h3>Symptoms</h3>
-                  <textarea name="symptoms" rows={7} required placeholder="Describe what is happening, when it happens, warning lights/codes, noises, leaks, recent repairs, and what has already been checked." />
+                  <textarea name="symptoms" rows={7} required placeholder="Describe what is happening, when it happens, warning lights/codes, noises, leaks, recent repairs, and what has already been checked." value={symptoms} onChange={(e) => setSymptoms(e.target.value)} />
                 </div>
               </fieldset>
 
@@ -1022,6 +1091,11 @@ export default function TestBackend() {
   }
 
   if (routePath === "/mechanic-match") {
+    const searchParams = getFrontendSearchParams();
+    const journeyCaseId = searchParams.get("caseId");
+    if (journeyCaseId) {
+      return <MechanicMatchFlow journeyCaseId={journeyCaseId} />;
+    }
     return <MechanicMatchPreview />;
   }
 
