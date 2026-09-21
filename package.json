@@ -21,6 +21,7 @@
     "test:consent-revocation": "tsx --test server/consent/consent-revocation.test.ts",
     "test:consent-hardening": "tsx --test server/consent-hardening.test.ts",
     "test:consent-enforcement": "node --test tests/client/consent-enforcement.contract.test.mjs",
+    "test:consent-revoke-route": "tsx --test server/consent-revoke-route.contract.test.ts",
     "test:origin-guard": "tsx --test server/origin-guard.test.ts",
     "test:routes-security": "tsx --test server/routes-security.test.ts",
     "test:safe-log": "tsx --test server/observability/safe-log.test.ts",
