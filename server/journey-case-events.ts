@@ -216,29 +216,29 @@ export async function logCaseStarted(caseData: JourneyCase): Promise<void> {
   });
 }
 
-/** Log a state transition event. */
+/** Log a state transition event. Pass the UPDATED case plus the previous state. */
 export async function logStateTransition(
-  caseData: JourneyCase,
+  updatedCase: JourneyCase,
   previousState: JourneyState,
   transition: JourneyTransition,
 ): Promise<void> {
-  const message = customerMessageForTransition(previousState, caseData.state, transition, caseData.safetyTriggered);
+  const message = customerMessageForTransition(previousState, updatedCase.state, transition, updatedCase.safetyTriggered);
   await logJourneyCaseEvent({
-    caseId: caseData.id,
-    customerId: caseData.customerId,
-    eventType: caseData.safetyTriggered && caseData.state === "escalation_required"
+    caseId: updatedCase.id,
+    customerId: updatedCase.customerId,
+    eventType: updatedCase.safetyTriggered && updatedCase.state === "escalation_required"
       ? "safety_escalated"
       : "state_transition",
     fromState: previousState,
-    toState: caseData.state,
+    toState: updatedCase.state,
     transition,
-    outcome: caseData.outcome,
+    outcome: updatedCase.outcome,
     message,
     payload: {
-      confidenceScore: caseData.confidenceScore,
-      confidenceLevel: caseData.confidenceLevel,
-      riskLevel: caseData.riskLevel,
-      humanReviewRequested: caseData.humanReviewRequested,
+      confidenceScore: updatedCase.confidenceScore,
+      confidenceLevel: updatedCase.confidenceLevel,
+      riskLevel: updatedCase.riskLevel,
+      humanReviewRequested: updatedCase.humanReviewRequested,
     },
   });
 }
@@ -296,16 +296,17 @@ export async function logReviewAction(
   });
 }
 
-/** Log a case resolution event. */
+/** Log a case resolution event. Pass the UPDATED (resolved) case. */
 export async function logCaseResolved(
   caseData: JourneyCase,
   transition: JourneyTransition,
+  previousState: JourneyState = "diagnosis_ready",
 ): Promise<void> {
   await logJourneyCaseEvent({
     caseId: caseData.id,
     customerId: caseData.customerId,
     eventType: "case_resolved",
-    fromState: "diagnosis_ready",
+    fromState: previousState,
     toState: "resolved",
     transition,
     outcome: caseData.outcome,

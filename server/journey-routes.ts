@@ -424,8 +424,20 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
 
       setJourneyCase(updated);
 
-      // Log the state transition to the durable event timeline
-      logStateTransition(caseData, caseData.state, mappedTransition);
+      // Log the state transition to the durable event timeline.
+      // Pass the UPDATED case plus the previous state so from→to is truthful.
+      const previousState = caseData.state;
+      logStateTransition(updated, previousState, mappedTransition);
+
+      // Customer asked for a human safety-valve review — record the request.
+      if (mappedTransition === "request_human_review") {
+        logReviewAction(updated.id, updated.customerId, "requested", updated.customerId || "customer");
+      }
+
+      // Resolutions close the loop — record the outcome event for the timeline.
+      if (mappedTransition === "resolve" || mappedTransition === "resolve_stop_driving") {
+        logCaseResolved(updated, mappedTransition, previousState);
+      }
 
       // When a case enters human_review, automatically create a review draft
       if (updated.state === "human_review" && caseData.state !== "human_review") {
@@ -1000,7 +1012,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           escalationReason: "Safety re-evaluation triggered during case progression",
         });
         journeyReviewBridge.createReviewForCase(escalated);
-        logStateTransition(caseData, caseData.state, "escalate");
+        logStateTransition(escalated, updated.state, "escalate");
         setJourneyCase(escalated);
         res.json(safeJourneyResponse(escalated));
         return;
@@ -1214,6 +1226,10 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       logReviewAction(updated.id, updated.customerId, "approved", reviewerRef, {
         resolutionNote: `Approved by reviewer ${reviewerRef}`,
       });
+
+      // Keep the customer-visible timeline truthful for the review→resolve hop.
+      logStateTransition(updated, caseData.state, "resolve");
+      logCaseResolved(updated, "resolve", caseData.state);
 
       logEvent("journey.review_approved_and_resolved", {
         caseId: updated.id,
