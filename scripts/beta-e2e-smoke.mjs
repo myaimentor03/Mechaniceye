@@ -1166,6 +1166,44 @@ async function main() {
       assert(!("photos" in recoveryBody), "must not leak photos");
       return `caseId ${submitBody.caseId.slice(0, 16)}`;
     });
+
+    await check("Mechanic Match mobile double-submit: same clientRequestId returns the original id with duplicate:true and fires the webhook exactly once", async () => {
+      const key = "req-qa-e2e-mech-idem-003";
+      const matchBody = { ...mechanicMatchBody(), clientRequestId: key };
+      const before = webhook.received.filter((entry) => entry.body && entry.body.intakeType === "mechanic-match-request" && entry.body.customerName === "PiiMechIdemDriver343").length;
+      const first = await postJson(`${legacyUrl}/api/mechanic-match/request`, matchBody);
+      const firstBody = await jsonResponse(first);
+      assert(first.status === 200, `first submit expected 200 got ${first.status}`);
+      assert(firstBody.ok === true && typeof firstBody.id === "string" && firstBody.id.length > 0, "first submit must return a request id");
+      assert(firstBody.duplicate === false, "first submit must not be marked duplicate");
+      const retry = await postJson(`${legacyUrl}/api/mechanic-match/request`, matchBody);
+      const retryBody = await jsonResponse(retry);
+      assert(retry.status === 200, `retry expected 200 got ${retry.status}`);
+      assert(retryBody.id === firstBody.id, "retry must return the ORIGINAL request id");
+      assert(retryBody.duplicate === true, "retry must be marked duplicate:true");
+      const hits = webhook.received.filter((entry) => entry.body && entry.body.intakeType === "mechanic-match-request" && entry.body.customerName === "PiiMechIdemDriver343").length - before;
+      assert(hits === 1, `one tap must fire exactly one mechanic webhook (got ${hits})`);
+      return `id ${firstBody.id}`;
+    });
+
+    await check("concierge mobile double-submit: same clientRequestId returns the original id with duplicate:true and fires the webhook exactly once", async () => {
+      const key = "req-qa-e2e-conc-idem-004";
+      const helpBody = { ...conciergeBody(), clientRequestId: key };
+      const before = webhook.received.filter((entry) => entry.body && entry.body.intakeType === "support-concierge-request" && entry.body.customerName === "PiiConciergeIdemDriver344").length;
+      const first = await postJson(`${legacyUrl}/api/support/concierge-request`, helpBody);
+      const firstBody = await jsonResponse(first);
+      assert(first.status === 200, `first submit expected 200 got ${first.status}`);
+      assert(firstBody.ok === true && typeof firstBody.id === "string" && firstBody.id.length > 0, "first submit must return a request id");
+      assert(firstBody.duplicate === false, "first submit must not be marked duplicate");
+      const retry = await postJson(`${legacyUrl}/api/support/concierge-request`, helpBody);
+      const retryBody = await jsonResponse(retry);
+      assert(retry.status === 200, `retry expected 200 got ${retry.status}`);
+      assert(retryBody.id === firstBody.id, "retry must return the ORIGINAL request id");
+      assert(retryBody.duplicate === true, "retry must be marked duplicate:true");
+      const hits = webhook.received.filter((entry) => entry.body && entry.body.intakeType === "support-concierge-request" && entry.body.customerName === "PiiConciergeIdemDriver344").length - before;
+      assert(hits === 1, `one tap must fire exactly one concierge webhook (got ${hits})`);
+      return `id ${firstBody.id}`;
+    });
   }
 
   // -------------------------------------------------------------- BUYER CHECK
@@ -1756,39 +1794,6 @@ await check("follow-up with vibrationData returns 404 for missing case after med
       assert(retryBody.duplicate === true, "retry must be marked duplicate:true");
       const hits = webhook.received.filter((entry) => entry.body && entry.body.buyerName === "PiiBuyerIdemEcho342").length - before;
       assert(hits === 1, `one tap must fire exactly one buyer webhook (got ${hits})`);
-      return `id ${firstBody.id}`;
-    });
-
-    await check("Mechanic Match mobile double-submit: same clientRequestId returns the original id with duplicate:true and fires the webhook exactly once", async () => {
-      const key = "req-qa-e2e-mech-idem-003";
-      const matchBody = { ...mechanicMatchBody(), clientRequestId: key };
-      const before = webhook.received.filter((entry) => entry.body && entry.body.intakeType === "mechanic-match-request" && entry.body.customerName === "PiiMechIdemDriver343").length;
-      const first = await postJson(`${baseUrl}/api/mechanic-match/request`, matchBody);
-      const firstBody = await jsonResponse(first);
-      assert(first.status === 200, `first submit expected 200 got ${first.status}`);
-      assert(firstBody.ok === true && typeof firstBody.id === "string" && firstBody.id.length > 0, "first submit must return a request id");
-      assert(firstBody.duplicate === false, "first submit must not be marked duplicate");
-      const retry = await postJson(`${baseUrl}/api/mechanic-match/request`, matchBody);
-      const retryBody = await jsonResponse(retry);
-      assert(retry.status === 200, `retry expected 200 got ${retry.status}`);
-      assert(retryBody.id === firstBody.id, "retry must return the ORIGINAL request id");
-      assert(retryBody.duplicate === true, "retry must be marked duplicate:true");
-      const hits = webhook.received.filter((entry) => entry.body && entry.body.intakeType === "mechanic-match-request" && entry.body.customerName === "PiiMechIdemDriver343").length - before;
-      assert(hits === 1, `one tap must fire exactly one mechanic webhook (got ${hits})`);
-      return `id ${firstBody.id}`;
-    });
-
-    await check("concierge happy path forwards payload (200, exactly one webhook)", async () => {
-      const key = "req-qa-e2e-conc-idem-004";
-      const helpBody = { ...conciergeBody(), clientRequestId: key };
-      const before = webhook.received.filter((entry) => entry.body && entry.body.intakeType === "support-concierge-request" && entry.body.customerName === "PiiConciergeIdemDriver344").length;
-      const first = await postJson(`${baseUrl}/api/support/concierge-request`, helpBody);
-      const firstBody = await jsonResponse(first);
-      assert(first.status === 200, `first submit expected 200 got ${first.status}`);
-      assert(firstBody.ok === true && typeof firstBody.id === "string" && firstBody.id.length > 0, "first submit must return a request id");
-      assert(firstBody.duplicate === false, "first submit must not be marked duplicate");
-      const hits = webhook.received.filter((entry) => entry.body && entry.body.intakeType === "support-concierge-request" && entry.body.customerName === "PiiConciergeIdemDriver344").length - before;
-      assert(hits === 1, `one submit must fire exactly one concierge webhook (got ${hits})`);
       return `id ${firstBody.id}`;
     });
 
