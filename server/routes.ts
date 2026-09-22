@@ -2772,6 +2772,7 @@ try {
               analysisStatus: "uploaded_not_analyzed",
             };
           }
+          await removeIntakeTempFiles({ audio: audioFiles, video: videoFiles, vibration: vibrationFiles });
         } catch (storageError) {
           logEventError("api.media_evidence_persistence_failed", storageError);
           await removeIntakeTempFiles({ audio: audioFiles, video: videoFiles, vibration: vibrationFiles });
