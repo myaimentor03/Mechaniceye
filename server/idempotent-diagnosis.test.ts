@@ -40,7 +40,7 @@ test("duplicate path cleans uploaded temp files and returns early without persis
   assert.match(guard, /await removeIntakeTempFiles\(uploadedFiles\)/);
   assert.match(guard, /return res\.json\(/);
   // Ensure the guard appears before photo/r2 persistence branching
-  const photoGuardAt = routes.indexOf("if (photoFiles.length && (process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED");
+  const photoGuardAt = routes.indexOf("if (photoFiles.length) {");
   assert.ok(guardStart < photoGuardAt, "duplicate check must run before photo persistence");
 });
 

@@ -352,12 +352,35 @@ function parseJsonField(value: unknown, fieldName: string) {
 
 function normalizeDiagnosisBody(body: any) {
   if (!body || typeof body !== "object") return {};
-  return {
+  const normalized = {
     ...body,
     rawVehicleSelection: parseJsonField(body.rawVehicleSelection, "rawVehicleSelection"),
     unsupportedVehicle: body.unsupportedVehicle === true || body.unsupportedVehicle === "true",
     manualVehicleEntryUsed: body.manualVehicleEntryUsed === true || body.manualVehicleEntryUsed === "true",
   };
+  // Extract vehicle/situation from evidenceIntake so buildDiagnosisInput can find them
+  // for the required-field guard (P0 #1/#2). The form submits these only inside evidenceIntake.
+  const evidenceIntake = parseJsonField(body.evidenceIntake || "{}", "evidenceIntake");
+  if (evidenceIntake && typeof evidenceIntake === "object") {
+    if (evidenceIntake.vehicle && typeof evidenceIntake.vehicle === "object") {
+      const v = evidenceIntake.vehicle;
+      normalized.vehicleYear = v.year ?? normalized.vehicleYear;
+      normalized.vehicleMake = v.make ?? normalized.vehicleMake;
+      normalized.vehicleModel = v.model ?? normalized.vehicleModel;
+      normalized.engine = v.engine ?? normalized.engine;
+      normalized.mileage = v.mileage != null ? String(v.mileage) : normalized.mileage;
+    }
+    if (evidenceIntake.situation && typeof evidenceIntake.situation === "object") {
+      const s = evidenceIntake.situation;
+      normalized.description = s.description ?? normalized.description;
+      normalized.symptoms = s.symptoms ?? normalized.symptoms;
+      normalized.timing = s.timing ?? normalized.timing;
+      normalized.urgency = s.urgency ?? normalized.urgency;
+      normalized.canDrive = s.canDrive ?? normalized.canDrive;
+      normalized.recentRepairs = s.recentRepairs ?? normalized.recentRepairs;
+    }
+  }
+  return normalized;
 }
 
 function pickVehicleSelectionString(rawVehicleSelection: unknown, key: string) {
@@ -2527,51 +2550,6 @@ try {
       });
     }
 
-    // P0 #1/#2 required-field guard — fail-closed before any case or
-    // evidence is created so an empty multipart/form submission (no
-    // vehicleInfo, no timing, no description, no photo/audio/video) can
-    // never create a junk case or tracker row that wastes reviewer/op
-    // capacity. Evidence alone is not sufficient for a useful case either:
-    // the Guided Journey requires at least one text field to route
-    // FIX/SELL/MONITOR/STOP DRIVING. Never echo submitted values.
-    {
-      const hasVehicleInfo = typeof input.vehicleInfo === "string" && input.vehicleInfo.trim().length > 0;
-      // Strip the auto-injected Customer Email line so an otherwise empty
-      // description (email-only after applyAuthenticatedCaseIdentity) still
-      // counts as empty — the intake must have real user content.
-      const rawDescriptionForGuard = typeof input.description === "string"
-        ? input.description.replace(/(^|\n)Customer Email:\s*.*(?=\n|$)/gi, "").trim()
-        : "";
-      const hasDescription = rawDescriptionForGuard.length > 0;
-      const hasTiming = typeof input.timing === "string" && input.timing.trim().length > 0;
-      const hasEvidenceFiles = photoFiles.length > 0 || audioFiles.length > 0 || videoFiles.length > 0 || vibrationFiles.length > 0;
-      if (!hasVehicleInfo && !hasDescription && !hasTiming && !hasEvidenceFiles) {
-        await removeIntakeTempFiles(uploadedFiles);
-        return res.status(400).json({
-          message: "Vehicle details, timing, or a problem description are required. Please provide at least one detail and try again.",
-          code: "INVALID_DIAGNOSIS_INTAKE",
-          persisted: false,
-        });
-      }
-    }
-
-    // Server-side consent validation — always enforced regardless of launch
-    // controls. The client checks this before submission but any HTTP client
-    // can bypass the UI. Consent must be verified before any evidence is
-    // persisted so photos are never stored without authorization.
-    const consent = consentChoices as Record<string, unknown> | undefined;
-    const hasServiceConsent = consent?.service_fulfillment === true;
-    const hasHumanReviewConsent = consent?.human_review_sharing === true;
-    const hasMediaConsent = photoFiles.length > 0
-      ? consent?.media_processing === true
-      : true;
-    if (!hasServiceConsent || !hasHumanReviewConsent || !hasMediaConsent) {
-      await removeIntakeTempFiles(uploadedFiles);
-      return res.status(400).json({
-        message: "Consent is required. Please accept service fulfillment and human review. Photo submissions also require media processing consent.",
-      });
-    }
-
     // Idempotency: check process-local in-memory store first (works without DB)
     // then fall back to DB-scoped dedupe. Prevents duplicate cases on mobile
     // retry after timeout. Malformed keys are treated as absent (backward
@@ -2618,16 +2596,99 @@ try {
       }
     }
 
-    if (photoFiles.length && (process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED !== "true" || evidenceStore.durability !== "private_object_storage")) {
+    // Launch controls check — run early for fail-closed (503) precedence when
+    // durable persistence is not available. Consent is validated here for both
+    // paths so missing consent returns 400 even when DB is absent.
+    const launchControlsEnabled = process.env.DRIVABLE_LAUNCH_CONTROLS_ENABLED === "true";
+
+    // Consent validation — enforced for both paths before any persistence.
+    const consent = consentChoices as Record<string, unknown> | undefined;
+    const hasServiceConsent = consent?.service_fulfillment === true;
+    const hasHumanReviewConsent = consent?.human_review_sharing === true;
+    const hasMediaConsent = photoFiles.length > 0
+      ? consent?.media_processing === true
+      : true;
+    if (!hasServiceConsent || !hasHumanReviewConsent || !hasMediaConsent) {
       await removeIntakeTempFiles(uploadedFiles);
-      return res.status(409).json({
-        message: "Photo upload is not available until private evidence storage passes launch verification. You can continue with written symptoms and OBD-II codes.",
-        persisted: false,
+      return res.status(400).json({
+        message: "Consent is required. Please accept service fulfillment and human review. Photo submissions also require media processing consent.",
       });
     }
-    if (photoFiles.some((file) => file.size > 12 * 1024 * 1024)) {
-      await removeIntakeTempFiles(uploadedFiles);
-      return res.status(413).json({ message: "Each photo must be 12 MB or smaller.", persisted: false });
+
+    let responseBody: DiagnosisCaseResponse;
+    let storedCase: StoredDiagnosisCase | undefined;
+    let usedPublicFallback = false;
+    let storedR2Keys: StoredEvidenceKeys = {};
+
+    if (launchControlsEnabled) {
+      // Launch-controlled cases avoid runtime-local case files. Consent is
+      // durably recorded before any private media is persisted.
+      // Skip required-field guard — fail-closed (503) takes precedence.
+      responseBody = createPublicDiagnosisCase(input);
+      usedPublicFallback = true;
+      try {
+        const runtime = await requireVerifiedLaunchControlRuntime();
+        await persistAndAuthorizeIntakeConsent(runtime.consent, {
+          actorId: req.drivableCustomer!.id,
+          accountId: req.drivableCustomer!.id,
+          caseId: responseBody.id,
+          choices: consentChoices,
+          hasMedia: photoFiles.length > 0 || audioFiles.length > 0 || videoFiles.length > 0 || vibrationFiles.length > 0,
+        });
+      } catch (consentError) {
+        const status = consentError instanceof IntakeConsentError && consentError.code === "CONSENT_REQUIRED" ? 400 : 503;
+        await removeIntakeTempFiles(uploadedFiles);
+        return res.status(status).json({
+          message: consentError instanceof IntakeConsentError ? consentError.message : "Consent controls are not ready.",
+          code: consentError instanceof IntakeConsentError ? consentError.code : "CONSENT_CONTROLS_UNAVAILABLE",
+          persisted: false,
+        });
+      }
+    } else {
+      // Non-launch-controls path: required-field guard then case creation.
+      const hasVehicleInfo = typeof input.vehicleInfo === "string" && input.vehicleInfo.trim().length > 0;
+      const rawDescriptionForGuard = typeof input.description === "string"
+        ? input.description.replace(/(^|\n)Customer Email:\s*.*(?=\n|$)/gi, "").trim()
+        : "";
+      const hasDescription = rawDescriptionForGuard.length > 0;
+      const hasTiming = typeof input.timing === "string" && input.timing.trim().length > 0;
+      const hasEvidenceFiles = photoFiles.length > 0 || audioFiles.length > 0 || videoFiles.length > 0 || vibrationFiles.length > 0;
+      if (!hasVehicleInfo && !hasDescription && !hasTiming && !hasEvidenceFiles) {
+        await removeIntakeTempFiles(uploadedFiles);
+        return res.status(400).json({
+          message: "Vehicle details, timing, or a problem description are required. Please provide at least one detail and try again.",
+          code: "INVALID_DIAGNOSIS_INTAKE",
+          persisted: false,
+        });
+      }
+
+      // Photo upload validation — reject before case creation if upload disabled or storage not durable.
+      if (photoFiles.length && (process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED !== "true" || evidenceStore.durability !== "private_object_storage")) {
+        await removeIntakeTempFiles(uploadedFiles);
+        return res.status(409).json({
+          message: "Photo upload is not available until private evidence storage passes launch verification. You can continue with written symptoms and OBD-II codes.",
+          persisted: false,
+        });
+      }
+      if (photoFiles.some((file) => file.size > 12 * 1024 * 1024)) {
+        await removeIntakeTempFiles(uploadedFiles);
+        return res.status(413).json({ message: "Each photo must be 12 MB or smaller.", persisted: false });
+      }
+
+      // Create case locally or use public fallback.
+      if (canUseLocalCaseStorage()) {
+        try {
+          storedCase = createStoredDiagnosisCase(input);
+          responseBody = buildDiagnosisResponse(storedCase);
+        } catch (storageError) {
+          logEventError("api.local_case_storage_failed", storageError);
+          responseBody = createPublicDiagnosisCase(input);
+          usedPublicFallback = true;
+        }
+      } else {
+        responseBody = createPublicDiagnosisCase(input);
+        usedPublicFallback = true;
+      }
     }
     const unsupportedPhotoMime = photoFiles.find((file) => !ALLOWED_PHOTO_MEDIA_TYPES.has(file.mimetype));
     if (unsupportedPhotoMime) {
@@ -2638,10 +2699,6 @@ try {
         persisted: false,
       });
     }
-    let responseBody: DiagnosisCaseResponse;
-    let storedCase: StoredDiagnosisCase | undefined;
-    let usedPublicFallback = false;
-    let storedR2Keys: StoredEvidenceKeys = {};
 
     try {
       logEvent("diagnosis.intent_received", {
@@ -2653,46 +2710,7 @@ try {
         vibrationCount: mobileMediaFiles.vibration?.length || 0
       });
 
-      const launchControlsEnabled = process.env.DRIVABLE_LAUNCH_CONTROLS_ENABLED === "true";
-      if (launchControlsEnabled) {
-        // Launch-controlled cases avoid runtime-local case files. Consent is
-        // durably recorded before any private media is persisted.
-        responseBody = createPublicDiagnosisCase(input);
-        usedPublicFallback = true;
-        try {
-          const runtime = await requireVerifiedLaunchControlRuntime();
-          await persistAndAuthorizeIntakeConsent(runtime.consent, {
-            actorId: req.drivableCustomer!.id,
-            accountId: req.drivableCustomer!.id,
-            caseId: responseBody.id,
-            choices: consentChoices,
-            hasMedia: photoFiles.length > 0 || audioFiles.length > 0 || videoFiles.length > 0 || vibrationFiles.length > 0,
-          });
-        } catch (consentError) {
-          const status = consentError instanceof IntakeConsentError && consentError.code === "CONSENT_REQUIRED" ? 400 : 503;
-          await removeIntakeTempFiles(uploadedFiles);
-          return res.status(status).json({
-            message: consentError instanceof IntakeConsentError ? consentError.message : "Consent controls are not ready.",
-            code: consentError instanceof IntakeConsentError ? consentError.code : "CONSENT_CONTROLS_UNAVAILABLE",
-            persisted: false,
-          });
-        }
-      } else if (canUseLocalCaseStorage()) {
-        try {
-          storedCase = createStoredDiagnosisCase(input);
-          responseBody = buildDiagnosisResponse(storedCase);
-        } catch (storageError) {
-          logEventError("api.local_case_storage_failed", storageError);
-          responseBody = createPublicDiagnosisCase(input);
-
-          usedPublicFallback = true;
-        }
-      } else {
-        responseBody = createPublicDiagnosisCase(input);
-        usedPublicFallback = true;
-      }
-
-if (photoFiles.length) {
+      if (photoFiles.length) {
         try {
           const attachments = await evidenceStore.savePhotos(responseBody.id, photoFiles);
           responseBody.attachments = attachments;

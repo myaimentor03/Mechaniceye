@@ -55,6 +55,10 @@ function validConsent() {
   });
 }
 
+function emptyEvidenceIntake() {
+  return JSON.stringify({});
+}
+
 function validEvidenceIntake() {
   return JSON.stringify({
     mode: "diagnose",
@@ -86,13 +90,13 @@ test("diagnosis intake rejects empty case (no vehicleInfo/description/timing/evi
     async (origin, sessionCookie) => {
       const cookie = sessionCookie;
       const form = new FormData();
-      // Intentionally leave vehicleInfo/description/timing empty — but consent
-      // and evidenceIntake must parse so we reach the required-field guard.
+      // Intentionally leave vehicleInfo/description/timing empty — and evidenceIntake
+      // empty so the required-field guard catches it (launch controls not enabled).
       form.append("vehicleInfo", "");
       form.append("description", "");
       form.append("timing", "");
       form.append("consent", validConsent());
-      form.append("evidenceIntake", validEvidenceIntake());
+      form.append("evidenceIntake", emptyEvidenceIntake());
       form.append("clientRequestId", "req-empty-required-fields-001");
 
       const res = await fetch(`${origin}/api/diagnoses`, {
@@ -163,7 +167,7 @@ test("diagnosis intake rejects whitespace-only fields as empty (no leak, cleans 
       form.append("description", " \t\n ");
       form.append("timing", "  ");
       form.append("consent", validConsent());
-      form.append("evidenceIntake", validEvidenceIntake());
+      form.append("evidenceIntake", emptyEvidenceIntake());
       form.append("clientRequestId", "req-whitespace-empty-003");
 
       const res = await fetch(`${origin}/api/diagnoses`, {
