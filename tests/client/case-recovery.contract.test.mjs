@@ -110,3 +110,46 @@ test("case recovery on 500 preserves the saved id for retry without claiming sta
    const explicit500Handler = restoreBlock.match(/if \(res\.status === 500\) \{/);
    assert.ok(!explicit500Handler, "500 should not have an explicit if handler; it falls through correctly");
 });
+
+test("case recovery sessionStorage getItem for saved case id is wrapped in try/catch for private browsing mode", () => {
+   const restoreBlock = backend.slice(backend.indexOf("server-verified case restore"));
+   // The getItem calls must be inside a try/catch block to handle Safari/iOS private mode
+   assert.match(restoreBlock, /try \{[\s\S]*savedCaseId = sessionStorage\.getItem\("drivable-last-case-id"\)/);
+   assert.match(restoreBlock, /try \{[\s\S]*savedOrigin = sessionStorage\.getItem\(DRIVABLE_LAST_CASE_ORIGIN_KEY\)/);
+   assert.match(restoreBlock, /\} catch \{\}/);
+});
+
+test("IntakePage restored case reference sessionStorage getItem is wrapped in try/catch for private browsing mode", () => {
+   const intakeStart = backend.indexOf("function IntakePage");
+   assert.ok(intakeStart !== -1, "IntakePage must exist");
+   const intake = backend.slice(intakeStart, intakeStart + 8000);
+   const restoredCaseIdEffect = intake.slice(intake.indexOf("restoredCaseId"));
+   assert.match(restoredCaseIdEffect, /try \{[\s\S]*savedCaseId = sessionStorage\.getItem\("drivable-last-case-id"\)/);
+   assert.match(restoredCaseIdEffect, /try \{[\s\S]*savedOrigin = sessionStorage\.getItem\(DRIVABLE_LAST_CASE_ORIGIN_KEY\)/);
+   assert.match(restoredCaseIdEffect, /\} catch \{\}/);
+});
+
+test("case recovery sessionStorage setItem for case pointer on success is wrapped in try/catch", () => {
+   const submitBlock = backend.slice(backend.indexOf("async function applyDiagnosisResult"));
+   assert.match(submitBlock, /try \{ sessionStorage\.setItem\("drivable-last-case-id", data\.id\)/);
+   assert.match(submitBlock, /sessionStorage\.setItem\(DRIVABLE_LAST_CASE_ORIGIN_KEY, DIAGNOSIS_INTAKE_ORIGIN\)/);
+   assert.match(submitBlock, /\} catch \{\}/);
+});
+
+test("case recovery sessionStorage removeItem on dismiss is wrapped in try/catch for private browsing mode", () => {
+   const dismissHandlerStart = backend.indexOf("try { sessionStorage.removeItem(\"drivable-last-case-id\")");
+   assert.ok(dismissHandlerStart !== -1, "dismiss handler with sessionStorage.removeItem must exist");
+   const dismissHandlerEnd = backend.indexOf("}}", dismissHandlerStart);
+   const dismissHandler = backend.slice(dismissHandlerStart, dismissHandlerEnd + 2);
+   assert.match(dismissHandler, /try \{ sessionStorage\.removeItem\("drivable-last-case-id"\)/);
+   assert.match(dismissHandler, /sessionStorage\.removeItem\(DRIVABLE_LAST_CASE_ORIGIN_KEY\)/);
+   assert.match(dismissHandler, /\} catch \{\}/);
+});
+
+test("case recovery sessionStorage removeItem on 404 is wrapped in try/catch for private browsing mode", () => {
+   const restoreBlock = backend.slice(backend.indexOf("server-verified case restore"));
+   const removeBlock = restoreBlock.slice(restoreBlock.indexOf("if (res.status === 404)"));
+   assert.match(removeBlock, /try \{ sessionStorage\.removeItem\("drivable-last-case-id"\)/);
+   assert.match(removeBlock, /sessionStorage\.removeItem\(DRIVABLE_LAST_CASE_ORIGIN_KEY\)/);
+   assert.match(removeBlock, /\} catch \{\}/);
+});
