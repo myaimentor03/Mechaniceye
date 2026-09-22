@@ -20,6 +20,18 @@ const SUBMISSION_TIMEOUT_MS = 20000;
 const MARKETPLACE_CASE_ORIGIN_KEY = "drivable-last-case-origin";
 const MARKETPLACE_SELLER_ORIGIN = "marketplace-seller-intake";
 const MARKETPLACE_BUYER_ORIGIN = "marketplace-buyer-interest";
+// QA lane (Nov 2 paid beta): per-flow idempotency keys. Seller intake,
+// buyer interest, and the Drivable Check diagnosis form previously shared
+// the single "drivable-client-request-id" sessionStorage key. A success in
+// one flow rotates the key, so a pending mobile retry in another flow would
+// re-read the rotated value and arrive at the server as a NEW request —
+// defeating exactly-once retry and risking duplicate listings/requests.
+// Each flow keeps its own key (rotated only after its own success), matching
+// the server's per-endpoint idempotency namespaces and the existing
+// mechanic/concierge precedent (drivable-mechanic-request-id,
+// drivable-concierge-request-id).
+const SELLER_CLIENT_REQUEST_STORAGE_KEY = "drivable-seller-intake-request-id";
+const BUYER_CLIENT_REQUEST_STORAGE_KEY = "drivable-buyer-interest-request-id";
 
 const MARKETPLACE_PUBLIC_NAVIGATION: readonly PublicNavigationItem[] = Object.freeze([
   { label: "Drivable Check", href: "/drivable-check" },
@@ -336,7 +348,7 @@ function SellerIntakePage() {
   }, []);
 
   const [clientRequestId, setClientRequestId] = useState(() => {
-    const storageKey = "drivable-client-request-id";
+    const storageKey = SELLER_CLIENT_REQUEST_STORAGE_KEY;
     const fallbackId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
     try {
       const existing = window.sessionStorage.getItem(storageKey);
@@ -351,7 +363,7 @@ function SellerIntakePage() {
   });
 
   function generateClientRequestId() {
-    const storageKey = "drivable-client-request-id";
+    const storageKey = SELLER_CLIENT_REQUEST_STORAGE_KEY;
     try {
       const existing = window.sessionStorage.getItem(storageKey);
       if (existing) {
@@ -486,7 +498,7 @@ function SellerIntakePage() {
 
       // Rotate clientRequestId after successful intake so next submission is not collapsed as duplicate
       try {
-        const storageKey = "drivable-client-request-id";
+        const storageKey = SELLER_CLIENT_REQUEST_STORAGE_KEY;
         sessionStorage.removeItem(storageKey);
         const nextId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
         try { sessionStorage.setItem(storageKey, nextId); } catch {}
@@ -547,7 +559,7 @@ function BuyerInterestPage() {
   }, []);
 
   const [clientRequestId, setClientRequestId] = useState(() => {
-    const storageKey = "drivable-client-request-id";
+    const storageKey = BUYER_CLIENT_REQUEST_STORAGE_KEY;
     const fallbackId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
     try {
       const existing = window.sessionStorage.getItem(storageKey);
@@ -562,7 +574,7 @@ function BuyerInterestPage() {
   });
 
   function generateClientRequestId() {
-    const storageKey = "drivable-client-request-id";
+    const storageKey = BUYER_CLIENT_REQUEST_STORAGE_KEY;
     try {
       const existing = window.sessionStorage.getItem(storageKey);
       if (existing) {
@@ -679,7 +691,7 @@ function BuyerInterestPage() {
 
       // Rotate clientRequestId after successful intake so next submission is not collapsed as duplicate
       try {
-        const storageKey = "drivable-client-request-id";
+        const storageKey = BUYER_CLIENT_REQUEST_STORAGE_KEY;
         sessionStorage.removeItem(storageKey);
         const nextId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
         try { sessionStorage.setItem(storageKey, nextId); } catch {}

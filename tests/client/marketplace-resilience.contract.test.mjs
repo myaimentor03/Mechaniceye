@@ -24,7 +24,7 @@ test("marketplace seller intake generates and uses clientRequestId for idempoten
   const sellerPageStart = marketplace.indexOf("function SellerIntakePage");
   const sellerPage = marketplace.slice(sellerPageStart, sellerPageStart + 8000);
   assert.match(sellerPage, /clientRequestId/);
-  assert.match(sellerPage, /drivable-client-request-id/);
+  assert.match(sellerPage, /SELLER_CLIENT_REQUEST_STORAGE_KEY/);
   assert.match(sellerPage, /sessionStorage\.getItem\(/);
   assert.match(sellerPage, /sessionStorage\.setItem\(/);
 });
@@ -81,7 +81,7 @@ test("marketplace buyer interest generates and uses clientRequestId for idempote
   const buyerPageStart = marketplace.indexOf("function BuyerInterestPage");
   const buyerPage = marketplace.slice(buyerPageStart, buyerPageStart + 5000);
   assert.match(buyerPage, /clientRequestId/);
-  assert.match(buyerPage, /drivable-client-request-id/);
+  assert.match(buyerPage, /BUYER_CLIENT_REQUEST_STORAGE_KEY/);
   assert.match(buyerPage, /sessionStorage\.getItem\(/);
   assert.match(buyerPage, /sessionStorage\.setItem\(/);
 });
@@ -175,7 +175,7 @@ function buyerSubmitBlock() {
 test("seller intake rotates clientRequestId after successful submission so next case is not collapsed", () => {
   const block = sellerSubmitBlock();
   assert.match(block, /sessionStorage\.setItem\("drivable-last-case-id", data\.id\)/);
-  assert.match(block, /drivable-client-request-id/);
+  assert.match(block, /SELLER_CLIENT_REQUEST_STORAGE_KEY/);
   assert.match(block, /sessionStorage\.removeItem\(storageKey\)/);
   assert.match(block, /const nextId = `req-/);
   assert.match(block, /sessionStorage\.setItem\(storageKey, nextId\)/);
@@ -195,14 +195,14 @@ test("seller intake rotation happens after case ID persisted and before navigati
 
 test("seller intake rotation uses try/catch for mobile private mode (QuotaExceeded / blocked storage)", () => {
   const block = sellerSubmitBlock();
-  assert.match(block, /try \{\s*const storageKey = "drivable-client-request-id"/);
+  assert.match(block, /try \{\s*const storageKey = SELLER_CLIENT_REQUEST_STORAGE_KEY/);
   assert.match(block, /catch \{\}/);
 });
 
 test("buyer interest rotates clientRequestId after successful submission so next case is not collapsed", () => {
   const block = buyerSubmitBlock();
   assert.match(block, /sessionStorage\.setItem\("drivable-last-case-id", data\.id\)/);
-  assert.match(block, /drivable-client-request-id/);
+  assert.match(block, /BUYER_CLIENT_REQUEST_STORAGE_KEY/);
   assert.match(block, /sessionStorage\.removeItem\(storageKey\)/);
   assert.match(block, /const nextId = `req-/);
   assert.match(block, /sessionStorage\.setItem\(storageKey, nextId\)/);
@@ -222,7 +222,7 @@ test("buyer interest rotation happens after case ID persisted and before form re
 
 test("buyer interest rotation uses try/catch for mobile private mode (QuotaExceeded / blocked storage)", () => {
   const block = buyerSubmitBlock();
-  assert.match(block, /try \{\s*const storageKey = "drivable-client-request-id"/);
+  assert.match(block, /try \{\s*const storageKey = BUYER_CLIENT_REQUEST_STORAGE_KEY/);
   assert.match(block, /catch \{\}/);
 });
 
@@ -292,4 +292,38 @@ test("marketplace origin key uses sessionStorage (not localStorage) for mobile s
   assert.match(marketplace, /sessionStorage\.getItem\(MARKETPLACE_CASE_ORIGIN_KEY\)/);
   assert.doesNotMatch(marketplace, /localStorage\.getItem\(MARKETPLACE_CASE_ORIGIN_KEY\)/);
   assert.doesNotMatch(marketplace, /localStorage\.setItem\(MARKETPLACE_CASE_ORIGIN_KEY\)/);
+});
+
+test("seller and buyer idempotency keys are distinct per-flow constants", () => {
+  // Launch blocker (Nov 2 paid beta): seller intake, buyer interest, and the
+  // Drivable Check diagnosis form shared one "drivable-client-request-id"
+  // sessionStorage key. A success in one flow rotates the key, so a pending
+  // mobile retry in another flow re-reads the rotated value and arrives as a
+  // NEW request — defeating exactly-once retry and risking duplicate
+  // listings. Each flow must keep its own key (server namespaces are already
+  // per-endpoint), matching the mechanic/concierge precedent.
+  assert.match(marketplace, /const SELLER_CLIENT_REQUEST_STORAGE_KEY = "drivable-seller-intake-request-id"/);
+  assert.match(marketplace, /const BUYER_CLIENT_REQUEST_STORAGE_KEY = "drivable-buyer-interest-request-id"/);
+});
+
+test("seller flow never touches the buyer key or the shared diagnosis key", () => {
+  const block = sellerSubmitBlock();
+  assert.doesNotMatch(block, /BUYER_CLIENT_REQUEST_STORAGE_KEY/);
+  assert.doesNotMatch(block, /getItem\("drivable-client-request-id"/);
+  assert.doesNotMatch(block, /setItem\("drivable-client-request-id"/);
+  assert.doesNotMatch(block, /removeItem\("drivable-client-request-id"/);
+  // All three key touchpoints (init, generate, rotation) use the seller key.
+  const uses = block.match(/SELLER_CLIENT_REQUEST_STORAGE_KEY/g) || [];
+  assert.ok(uses.length >= 3, `seller flow must reference its key at init/generate/rotation (found ${uses.length})`);
+});
+
+test("buyer flow never touches the seller key or the shared diagnosis key", () => {
+  const block = buyerSubmitBlock();
+  assert.doesNotMatch(block, /SELLER_CLIENT_REQUEST_STORAGE_KEY/);
+  assert.doesNotMatch(block, /getItem\("drivable-client-request-id"/);
+  assert.doesNotMatch(block, /setItem\("drivable-client-request-id"/);
+  assert.doesNotMatch(block, /removeItem\("drivable-client-request-id"/);
+  // All three key touchpoints (init, generate, rotation) use the buyer key.
+  const uses = block.match(/BUYER_CLIENT_REQUEST_STORAGE_KEY/g) || [];
+  assert.ok(uses.length >= 3, `buyer flow must reference its key at init/generate/rotation (found ${uses.length})`);
 });
