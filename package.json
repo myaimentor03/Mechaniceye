@@ -54,6 +54,7 @@
     "test:fix-flow-id": "tsx --test server/fix-flow-diagnosis-id-validation.test.ts",
     "test:safety-gate-parity": "tsx --test server/safety-gate-parity.test.ts",
     "test:follow-up-validation": "tsx --test server/follow-up-additional-info-validation.test.ts",
+    "test:follow-up-id": "tsx --test server/follow-up-diagnosis-id-validation.test.ts",
     "test:internal-review-validation": "tsx --test server/internal-review-validation.test.ts",
     "test:load-cert": "node --test tests/load/load-cert.test.mjs",
     "test:production-smoke": "node --test tests/production-smoke.test.mjs",

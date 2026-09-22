@@ -2861,8 +2861,13 @@ try {
     const cleanupTemporaryFiles = async () => {
       await Promise.all(uploadedPaths.map((filePath) => fs.promises.unlink(filePath).catch(() => undefined)));
     };
+    let diagnosisId = "";
     try {
-      const diagnosisId = req.params.id;
+      // Fail closed on hostile/malformed ids (P0 #2 Guided Journey, P0 #9
+      // reliability): trim, reject empty/oversized/control-char ids before
+      // they reach storage or log context. Matches the FIX/decision flow
+      // guard (parseDiagnosisRouteId) used by steps/fix-complete/export-chat.
+      diagnosisId = parseDiagnosisRouteId(req.params.id);
 
       // Get original diagnosis
       const originalDiagnosis = await storage.getDiagnosis(diagnosisId);
@@ -2941,7 +2946,16 @@ try {
         analysisBoundary: evidenceBoundary.analysisBoundary,
       });
     } catch (error: any) {
-      logEventError("api.follow_up_creation_failed", error);
+      if (error instanceof TypeError) {
+        logEventError("api.follow_up_creation_failed", error);
+        await cleanupTemporaryFiles();
+
+        res.status(400).json({
+          message: "Failed to create follow-up. Please try again."
+        });
+        return;
+      }
+      logEventError("api.follow_up_creation_failed", error, { diagnosisId });
       await cleanupTemporaryFiles();
 
       res.status(400).json({ 
