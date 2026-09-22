@@ -122,3 +122,22 @@ test("rate-limit error preserves form state for mobile retry — no reset of des
   assert.doesNotMatch(backend, /if \(res\.status === 429\)[\s\S]*?setDescription\(""\)/);
   assert.doesNotMatch(backend, /if \(res\.status === 429\)[\s\S]*?setPhotoFiles\(\[\]\)/);
 });
+
+test("submission handles 507 photo evidence persistence failure with server message and preserves form state", () => {
+  // 507 (Insufficient Storage) is returned when photo evidence fails to persist.
+  // The server returns a specific user-friendly message and caseId.
+  // Client must handle 507 explicitly, surface the server message, and preserve
+  // form state (photos, description, etc.) for mobile retry without clearing
+  // the clientRequestId so the retry can be idempotent.
+  assert.match(backend, /if \(res\.status === 507\)/);
+  assert.match(backend, /const errorText = await res\.text\(\)/);
+  assert.match(backend, /parsed\?\.message/);
+  assert.match(backend, /lastError = serverMsg/);
+  assert.match(backend, /continue;/);
+  // Form state preservation: 507 branch must not clear photoFiles or description
+  assert.doesNotMatch(backend, /if \(res\.status === 507\)[\s\S]*?setPhotoFiles\(\[\]\)/);
+  assert.doesNotMatch(backend, /if \(res\.status === 507\)[\s\S]*?setDescription\(""\)/);
+  // clientRequestId must not be rotated on 507 so retry resends the same key
+  assert.doesNotMatch(backend, /if \(res\.status === 507\)[\s\S]*?sessionStorage\.removeItem\("drivable-client-request-id"\)/);
+  assert.doesNotMatch(backend, /if \(res\.status === 507\)[\s\S]*?rotateStableClientRequestId/);
+});

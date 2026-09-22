@@ -1593,6 +1593,21 @@ const endpoints = [PUBLIC_API_ENDPOINT];
               lastError = `Too many requests.${retryHint}`;
               continue;
             }
+            if (res.status === 507) {
+              try {
+                const errorText = await res.text();
+                if (errorText) {
+                  const parsed = JSON.parse(errorText) as any;
+                  const serverMsg = parsed?.message || parsed?.error;
+                  if (typeof serverMsg === "string" && serverMsg.trim()) {
+                    lastError = serverMsg;
+                    continue;
+                  }
+                }
+              } catch {}
+              lastError = "Photo evidence could not be saved. Please try again.";
+              continue;
+            }
             try {
               const errorText = await res.text();
               if (errorText) {
