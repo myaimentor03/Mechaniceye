@@ -21,17 +21,21 @@ export function registerDurableReviewRoutes(app: Express, runtimeProvider: Runti
 
   app.post("/api/internal/review/:caseId/:versionId/final", requireReviewer, async (req, res) => {
     try {
+      const caseId = assertSafePathId(req.params.caseId, "caseId");
+      const versionId = assertSafePathId(req.params.versionId, "versionId");
       const runtime = await runtimeProvider();
-      const input = versionInput({ ...req.body, caseId: req.params.caseId });
-      res.status(201).json(await runtime.writer.createFinal({ ...input, sourceVersionId: req.params.versionId }));
+      const input = versionInput({ ...req.body, caseId });
+      res.status(201).json(await runtime.writer.createFinal({ ...input, sourceVersionId: versionId }));
     } catch (error) { reviewError(res, error); }
   });
 
   app.post("/api/internal/review/:caseId/:versionId/approve", requireReviewer, async (req, res) => {
     try {
+      const caseId = assertSafePathId(req.params.caseId, "caseId");
+      const versionId = assertSafePathId(req.params.versionId, "versionId");
       const runtime = await runtimeProvider();
       res.json(await runtime.writer.approve({
-        caseId: req.params.caseId, versionId: req.params.versionId,
+        caseId, versionId,
         reviewerRef: req.drivableReviewer!.ref,
         highRiskAcknowledged: req.body?.highRiskAcknowledged === true,
       }));
@@ -40,11 +44,13 @@ export function registerDurableReviewRoutes(app: Express, runtimeProvider: Runti
 
   app.post("/api/internal/review/:caseId/:versionId/reject", requireReviewer, async (req, res) => {
     try {
+      const caseId = assertSafePathId(req.params.caseId, "caseId");
+      const versionId = assertSafePathId(req.params.versionId, "versionId");
       const reasonCode = req.body?.reasonCode;
       if (!REJECTION_REASONS.includes(reasonCode)) throw new TypeError("A valid rejection reason is required");
       const runtime = await runtimeProvider();
       res.json(await runtime.writer.reject({
-        caseId: req.params.caseId, versionId: req.params.versionId,
+        caseId, versionId,
         reviewerRef: req.drivableReviewer!.ref, reasonCode,
       }));
     } catch (error) { reviewError(res, error); }
@@ -52,18 +58,22 @@ export function registerDurableReviewRoutes(app: Express, runtimeProvider: Runti
 
   app.post("/api/internal/review/:caseId/:versionId/supersede", requireReviewer, async (req, res) => {
     try {
+      const caseId = assertSafePathId(req.params.caseId, "caseId");
+      const versionId = assertSafePathId(req.params.versionId, "versionId");
       const runtime = await runtimeProvider();
-      res.json(await runtime.writer.supersede({ caseId: req.params.caseId, versionId: req.params.versionId }));
+      res.json(await runtime.writer.supersede({ caseId, versionId }));
     } catch (error) { reviewError(res, error); }
   });
 
   app.post("/api/internal/review/:caseId/:versionId/release-decision", requireReviewer, async (req, res) => {
     try {
+      const caseId = assertSafePathId(req.params.caseId, "caseId");
+      const versionId = assertSafePathId(req.params.versionId, "versionId");
       const runtime = await runtimeProvider();
       const bindings = versionBindings(req.body);
       const recipient = recipientBinding(req.body?.recipient);
       const decision = await runtime.releaseGate.decide({
-        caseId: req.params.caseId, versionId: req.params.versionId, recipient, ...bindings,
+        caseId, versionId, recipient, ...bindings,
       });
       res.status(decision.allowed ? 200 : 409).json(decision);
     } catch (error) { reviewError(res, error); }
@@ -91,6 +101,13 @@ function recipientBinding(value: any) {
 function requiredText(value: unknown, field: string): string {
   if (typeof value !== "string" || !value.trim()) throw new TypeError(`${field} is required`);
   return value;
+}
+const CASE_ID_RE = /^[A-Za-z0-9._-]{1,200}$/;
+function assertSafePathId(value: unknown, field: string): string {
+  const s = typeof value === "string" ? value.trim() : "";
+  if (!s || !CASE_ID_RE.test(s)) throw new TypeError(`${field} contains invalid characters`);
+  if (s.includes("..") || s.includes("/") || s.includes("\\")) throw new TypeError(`${field} path traversal is not allowed`);
+  return s;
 }
 function reviewError(res: Response, error: unknown): void {
   res.setHeader("Cache-Control", "no-store");

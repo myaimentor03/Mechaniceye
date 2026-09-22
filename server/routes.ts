@@ -2100,7 +2100,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(result);
     } catch (error) {
       logEventError("api.step_completion_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
-res.status(400).json({ message: "Update step completion could not be processed." });
+      if (error instanceof TypeError) {
+        return res.status(400).json({ message: "Update step completion could not be processed." });
+      }
+      res.status(500).json({ message: "Update step completion could not be processed." });
     }
   });
 
@@ -2125,7 +2128,9 @@ res.status(400).json({ message: "Update step completion could not be processed."
       res.json(result);
     } catch (error) {
       logEventError("api.fix_complete_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
-
+      if (error instanceof TypeError) {
+        return res.status(400).json({ message: "Failed to mark fix complete" });
+      }
       res.status(500).json({ message: "Failed to mark fix complete" });
     }
   });
@@ -2340,6 +2345,7 @@ try {
       }
       res.json(diagnosis);
     } catch (error) {
+      logEventError("api.diagnosis_fetch_failed", error, { diagnosisId: String(req.params?.id ?? "") });
       res.status(500).json({ message: "Failed to fetch diagnosis" });
     }
   });
@@ -2851,6 +2857,7 @@ if (photoFiles.length) {
       const mechanics = await storage.getActiveMechanics();
       res.json(mechanics);
     } catch (error) {
+      logEventError("api.mechanics_fetch_failed", error);
       res.status(500).json({ message: "Failed to fetch mechanics" });
     }
   });

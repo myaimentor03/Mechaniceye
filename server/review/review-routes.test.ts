@@ -406,3 +406,87 @@ test("release-decision returns 503 when launch controls are unavailable", async 
     });
   } finally { if (prior === undefined) delete process.env.DRIVABLE_REVIEWER_TOKEN; else process.env.DRIVABLE_REVIEWER_TOKEN = prior; }
 });
+
+// --- PATH PARAMETER TRAVERSAL GUARDS ---
+
+test("approve rejects path traversal in caseId", async () => {
+  const prior = process.env.DRIVABLE_REVIEWER_TOKEN; process.env.DRIVABLE_REVIEWER_TOKEN = token;
+  let accessed = false;
+  const runtime = { writer: { async approve(input: any) { accessed = true; return input; } } };
+  try {
+    await withServer(runtime, async (origin) => {
+      const response = await fetch(`${origin}/api/internal/review/..%2F..%2Fetc%2Fpasswd/version_12345678/approve`, {
+        method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({ highRiskAcknowledged: true }),
+      });
+      assert.equal(response.status, 400, "traversal caseId must be 400");
+      assert.equal(accessed, false, "writer must not be called for traversal");
+      const body = await response.json();
+      assert.equal(body.code, "INVALID_REVIEW_INPUT");
+    });
+  } finally { if (prior === undefined) delete process.env.DRIVABLE_REVIEWER_TOKEN; else process.env.DRIVABLE_REVIEWER_TOKEN = prior; }
+});
+
+test("approve rejects path traversal in versionId", async () => {
+  const prior = process.env.DRIVABLE_REVIEWER_TOKEN; process.env.DRIVABLE_REVIEWER_TOKEN = token;
+  let accessed = false;
+  const runtime = { writer: { async approve(input: any) { accessed = true; return input; } } };
+  try {
+    await withServer(runtime, async (origin) => {
+      const response = await fetch(`${origin}/api/internal/review/CASE-1/..%2F..%2Fetc%2Fpasswd/approve`, {
+        method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({ highRiskAcknowledged: true }),
+      });
+      assert.equal(response.status, 400, "traversal versionId must be 400");
+      assert.equal(accessed, false, "writer must not be called for traversal");
+    });
+  } finally { if (prior === undefined) delete process.env.DRIVABLE_REVIEWER_TOKEN; else process.env.DRIVABLE_REVIEWER_TOKEN = prior; }
+});
+
+test("supersede rejects path traversal in caseId", async () => {
+  const prior = process.env.DRIVABLE_REVIEWER_TOKEN; process.env.DRIVABLE_REVIEWER_TOKEN = token;
+  let accessed = false;
+  const runtime = { writer: { async supersede(input: any) { accessed = true; return input; } } };
+  try {
+    await withServer(runtime, async (origin) => {
+      const response = await fetch(`${origin}/api/internal/review/..%2F..%2Fsecret/version_v1/supersede`, {
+        method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      assert.equal(response.status, 400);
+      assert.equal(accessed, false);
+    });
+  } finally { if (prior === undefined) delete process.env.DRIVABLE_REVIEWER_TOKEN; else process.env.DRIVABLE_REVIEWER_TOKEN = prior; }
+});
+
+test("reject rejects path traversal in caseId", async () => {
+  const prior = process.env.DRIVABLE_REVIEWER_TOKEN; process.env.DRIVABLE_REVIEWER_TOKEN = token;
+  let accessed = false;
+  const runtime = { writer: { async reject(input: any) { accessed = true; return input; } } };
+  try {
+    await withServer(runtime, async (origin) => {
+      const response = await fetch(`${origin}/api/internal/review/..%2F..%2Fetc%2Fpasswd/version_v1/reject`, {
+        method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({ reasonCode: "other" }),
+      });
+      assert.equal(response.status, 400);
+      assert.equal(accessed, false);
+    });
+  } finally { if (prior === undefined) delete process.env.DRIVABLE_REVIEWER_TOKEN; else process.env.DRIVABLE_REVIEWER_TOKEN = prior; }
+});
+
+test("final rejects path traversal in versionId", async () => {
+  const prior = process.env.DRIVABLE_REVIEWER_TOKEN; process.env.DRIVABLE_REVIEWER_TOKEN = token;
+  let accessed = false;
+  const runtime = { writer: { async createFinal(input: any) { accessed = true; return input; } } };
+  try {
+    await withServer(runtime, async (origin) => {
+      const response = await fetch(`${origin}/api/internal/review/CASE-1/..%2F..%2Fetc%2Fpasswd/final`, {
+        method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({ riskLevel: "low", artifactDigest: "abc", policyVersion: "p1", modelVersion: "m1", evidenceVersion: "e1", recipient: validRecipient }),
+      });
+      assert.equal(response.status, 400);
+      assert.equal(accessed, false);
+    });
+  } finally { if (prior === undefined) delete process.env.DRIVABLE_REVIEWER_TOKEN; else process.env.DRIVABLE_REVIEWER_TOKEN = prior; }
+});
