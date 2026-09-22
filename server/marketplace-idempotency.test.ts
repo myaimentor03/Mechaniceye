@@ -367,3 +367,80 @@ test("failed webhook forward (502) never records the key, so retry still deliver
     await webhook.close();
   }
 });
+
+test("webhook timeout (stalled endpoint) never records the key, so retry attempts delivery again", async () => {
+  const priorWebhook = process.env.MASTER_INTAKE_WEBHOOK_URL;
+  const stalledWebhook = await startStalledWebhookStub();
+  try {
+    process.env.MASTER_INTAKE_WEBHOOK_URL = stalledWebhook.url;
+    await withServer(async (origin) => {
+      const key = "req-qa-seller-timeout-retry-001";
+      const failed = await postJson(origin, "/api/marketplace/seller-intake", validSellerIntake({ clientRequestId: key }));
+      assert.equal(failed.status, 502, "webhook timeout must return 502 to client");
+      assert.ok(
+        failed.body.error?.includes("forwarded") || failed.body.error?.includes("try again"),
+        "error message must indicate forwarding failure"
+      );
+
+      const stalledHitsBeforeRetry = stalledWebhook.hits.length;
+      await stalledWebhook.close();
+
+      const workingWebhook = await startWebhookStub();
+      process.env.MASTER_INTAKE_WEBHOOK_URL = workingWebhook.url;
+      const retry = await postJson(origin, "/api/marketplace/seller-intake", validSellerIntake({ clientRequestId: key }));
+      assert.equal(retry.status, 200, "retry after timeout must succeed when webhook recovers");
+      assert.equal(retry.body.duplicate, false, "retry after timeout must be treated as first delivery");
+      assert.equal(workingWebhook.hits.length, 1, "retry must attempt webhook delivery again");
+      await workingWebhook.close();
+    });
+  } finally {
+    if (priorWebhook === undefined) delete process.env.MASTER_INTAKE_WEBHOOK_URL;
+    else process.env.MASTER_INTAKE_WEBHOOK_URL = priorWebhook;
+  }
+});
+
+test("webhook timeout (stalled endpoint) never records the key for buyer-interest, so retry attempts delivery again", async () => {
+  const priorWebhook = process.env.MASTER_INTAKE_WEBHOOK_URL;
+  const stalledWebhook = await startStalledWebhookStub();
+  try {
+    process.env.MASTER_INTAKE_WEBHOOK_URL = stalledWebhook.url;
+    await withServer(async (origin) => {
+      const key = "req-qa-buyer-timeout-retry-001";
+      const failed = await postJson(origin, "/api/marketplace/buyer-interest", validBuyerInterest({ clientRequestId: key }));
+      assert.equal(failed.status, 502, "webhook timeout must return 502 to client");
+
+      const stalledHitsBeforeRetry = stalledWebhook.hits.length;
+      await stalledWebhook.close();
+
+      const workingWebhook = await startWebhookStub();
+      process.env.MASTER_INTAKE_WEBHOOK_URL = workingWebhook.url;
+      const retry = await postJson(origin, "/api/marketplace/buyer-interest", validBuyerInterest({ clientRequestId: key }));
+      assert.equal(retry.status, 200, "retry after timeout must succeed when webhook recovers");
+      assert.equal(retry.body.duplicate, false, "retry after timeout must be treated as first delivery");
+      assert.equal(workingWebhook.hits.length, 1, "retry must attempt webhook delivery again");
+      await workingWebhook.close();
+    });
+  } finally {
+    if (priorWebhook === undefined) delete process.env.MASTER_INTAKE_WEBHOOK_URL;
+    else process.env.MASTER_INTAKE_WEBHOOK_URL = priorWebhook;
+  }
+});
+
+async function startStalledWebhookStub(): Promise<{ url: string; hits: unknown[]; close: () => Promise<void> }> {
+  const stub = express();
+  stub.use(express.json());
+  const hits: unknown[] = [];
+  stub.post("/hook", (_req, _res) => {
+    hits.push({});
+    // Never respond - simulates a stalled/hanging webhook endpoint
+  });
+  const server = stub.listen(0, "127.0.0.1");
+  await new Promise<void>((resolve) => server.on("listening", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  return {
+    url: `http://127.0.0.1:${address.port}/hook`,
+    hits,
+    close: () => new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))),
+  };
+}
