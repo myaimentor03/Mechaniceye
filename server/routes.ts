@@ -1889,6 +1889,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/marketplace/seller-intake", requireAllowedOrigin, publicFormLimit, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     try {
       const intake = buildMarketplaceSellerIntake(req.body || {});
       const validation = validateMarketplaceSellerIntake(intake);
@@ -1935,6 +1936,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/marketplace/buyer-interest", requireAllowedOrigin, publicFormLimit, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     try {
       const intake = buildMarketplaceBuyerInterest(req.body || {});
       const validation = validateMarketplaceBuyerInterest(intake);
@@ -2003,6 +2005,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/mechanic-match/request", requireAllowedOrigin, publicFormLimit, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     try {
       const input = buildMechanicMatchRequest(req.body || {});
       const validation = validateMechanicMatchRequest(input);
@@ -2049,6 +2052,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/support/concierge-request", requireAllowedOrigin, publicFormLimit, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     try {
       const input = buildConciergeRequest(req.body || {});
       const validation = validateConciergeRequest(input);

@@ -165,6 +165,7 @@ export function registerCustomerAuthRoutes(app: Express) {
   });
 
   app.post("/api/auth/register", registrationLimit, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     const parsed = registrationSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ ok: false, error: "Use the beta invite code, a valid email, and a password of at least 12 characters." });
     if (!configuredSecret()) return res.status(503).json({ ok: false, error: "Customer accounts are not configured." });
@@ -193,6 +194,7 @@ export function registerCustomerAuthRoutes(app: Express) {
   });
 
   app.post("/api/auth/login", loginIpLimit, loginAccountLimit, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     const parsed = credentialsSchema.safeParse(req.body);
     if (!parsed.success || !configuredSecret()) return res.status(401).json({ ok: false, error: "Invalid email or password." });
     try {

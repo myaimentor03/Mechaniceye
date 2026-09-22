@@ -737,3 +737,112 @@ test("register rejects non-JSON content type gracefully", async () => {
     }
   );
 });
+
+// ---------------------------------------------------------------------------
+// Cache-Control hardening (P0 #5 customer identity, P0 #1 mobile recovery)
+// Login/register must never be cached — they carry email/password/session
+// material and are the entry point for every paid case. Public intake
+// POSTs also carry PII and must be no-store.
+// ---------------------------------------------------------------------------
+
+test("login 401 (invalid input) sets Cache-Control: no-store", async () => {
+  await withServer({ DRIVABLE_SESSION_SECRET: TEST_SESSION_SECRET }, async (origin) => {
+    const res = await fetch(`${origin}/api/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "bad-email", password: "short" }),
+    });
+    assert.equal(res.status, 401);
+    assert.match(res.headers.get("cache-control") || "", /no-store/, "login 401 must be cache-proof");
+  });
+});
+
+test("login 401 (no DB / wrong password) sets Cache-Control: no-store", async () => {
+  await withServer({ DRIVABLE_SESSION_SECRET: TEST_SESSION_SECRET, DATABASE_URL: undefined }, async (origin) => {
+    const res = await fetch(`${origin}/api/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(validLoginBody()),
+    });
+    assert.ok(res.status === 401 || res.status === 503);
+    assert.match(res.headers.get("cache-control") || "", /no-store/, "login failure must be cache-proof");
+  });
+});
+
+test("register 400 (validation) sets Cache-Control: no-store", async () => {
+  await withServer(
+    { DRIVABLE_SESSION_SECRET: TEST_SESSION_SECRET, DRIVABLE_BETA_INVITE_CODE: TEST_BETA_INVITE },
+    async (origin) => {
+      const res = await fetch(`${origin}/api/auth/register`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      assert.equal(res.status, 400);
+      assert.match(res.headers.get("cache-control") || "", /no-store/, "register 400 must be cache-proof");
+    }
+  );
+});
+
+test("register 403 (bad invite) sets Cache-Control: no-store", async () => {
+  await withServer(
+    { DRIVABLE_SESSION_SECRET: TEST_SESSION_SECRET, DRIVABLE_BETA_INVITE_CODE: TEST_BETA_INVITE },
+    async (origin) => {
+      const res = await fetch(`${origin}/api/auth/register`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(validRegisterBody({ inviteCode: "WRONG" })),
+      });
+      assert.equal(res.status, 403);
+      assert.match(res.headers.get("cache-control") || "", /no-store/, "register 403 must be cache-proof");
+    }
+  );
+});
+
+test("marketplace seller-intake 400 sets Cache-Control: no-store", async () => {
+  await withServer({}, async (origin) => {
+    const res = await fetch(`${origin}/api/marketplace/seller-intake`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    assert.equal(res.status, 400);
+    assert.match(res.headers.get("cache-control") || "", /no-store/, "seller-intake 400 must be cache-proof");
+  });
+});
+
+test("marketplace buyer-interest 400 sets Cache-Control: no-store", async () => {
+  await withServer({}, async (origin) => {
+    const res = await fetch(`${origin}/api/marketplace/buyer-interest`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    assert.equal(res.status, 400);
+    assert.match(res.headers.get("cache-control") || "", /no-store/, "buyer-interest 400 must be cache-proof");
+  });
+});
+
+test("mechanic-match 400 sets Cache-Control: no-store", async () => {
+  await withServer({}, async (origin) => {
+    const res = await fetch(`${origin}/api/mechanic-match/request`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    assert.equal(res.status, 400);
+    assert.match(res.headers.get("cache-control") || "", /no-store/, "mechanic-match 400 must be cache-proof");
+  });
+});
+
+test("concierge 400 sets Cache-Control: no-store", async () => {
+  await withServer({}, async (origin) => {
+    const res = await fetch(`${origin}/api/support/concierge-request`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    assert.equal(res.status, 400);
+    assert.match(res.headers.get("cache-control") || "", /no-store/, "concierge 400 must be cache-proof");
+  });
+});
