@@ -86,7 +86,8 @@
     "verify:packs-count": "node scripts/count-vehicle-knowledge-packs.mjs",
     "verify:packs-sample": "node scripts/verify-vehicle-knowledge-packs.mjs",
     "preflight:safe": "node scripts/run-safe-preflight.mjs",
-    "preflight:acceptance": "node scripts/acceptance-buyer-data-readiness.mjs"
+    "preflight:acceptance": "node scripts/acceptance-buyer-data-readiness.mjs",
+    "test:full-journey": "tsx --test tests/integration/full-customer-journey.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1122.0",
