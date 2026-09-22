@@ -45,6 +45,22 @@ function toOptionalText(value: unknown, field: string): string | undefined {
   if (typeof value !== "string" || value.length > 4_000) throw new TypeError(`${field} must be a string of at most 4000 characters`);
   return value;
 }
+
+// Fail-closed guard for :diagnosisId / :id route params on the reviewer
+// FIX/decision flow (P0 #3 Guided Journey/FIX decision, P0 #9 reliability).
+// Trims, rejects empty/oversized/control-char ids before they reach storage
+// or log context, so hostile ids answer 400 instead of 500. Deliberately
+// format-agnostic (unlike the customer CASE- resume check): reviewer routes
+// accept legacy numeric ids too, so only shape — never format — is enforced.
+const DIAGNOSIS_ROUTE_ID_MAX_LENGTH = 160;
+
+function parseDiagnosisRouteId(value: unknown): string {
+  const id = typeof value === "string" ? value.trim() : "";
+  if (!id || id.length > DIAGNOSIS_ROUTE_ID_MAX_LENGTH || /[\x00-\x1f\x7f]/.test(id)) {
+    throw new TypeError("diagnosisId must be a non-empty id of at most 160 characters");
+  }
+  return id;
+}
 import { performEnhancedAnalysis } from "./enhanced-analysis";
 import multer from "multer";
 import path from "path";
@@ -2070,12 +2086,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Fix History Log endpoints
   app.get("/api/fix-history/:diagnosisId", requireReviewer, async (req, res) => {
+    let diagnosisId = "";
     try {
-      const { diagnosisId } = req.params;
+      diagnosisId = parseDiagnosisRouteId(req.params?.diagnosisId);
       const history = await storage.getFixHistory(diagnosisId);
       res.json(history);
     } catch (error) {
-      logEventError("api.fix_history_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
+      if (error instanceof TypeError) {
+        logEventError("api.fix_history_failed", error);
+        return res.status(400).json({ message: "Failed to fetch fix history" });
+      }
+      logEventError("api.fix_history_failed", error, { diagnosisId });
 
       res.status(500).json({ message: "Failed to fetch fix history" });
     }
@@ -2083,8 +2104,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Update step completion
   app.post("/api/diagnoses/:diagnosisId/steps", requireReviewer, reviewerWriteLimit, async (req, res) => {
+    let diagnosisId = "";
     try {
-      const { diagnosisId } = req.params;
+      diagnosisId = parseDiagnosisRouteId(req.params?.diagnosisId);
       const suggestionIndex = toIndex(req.body?.suggestionIndex, "suggestionIndex");
       const stepIndex = toIndex(req.body?.stepIndex, "stepIndex");
       const completed = req.body?.completed === true;
@@ -2099,18 +2121,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(result);
     } catch (error) {
-      logEventError("api.step_completion_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
       if (error instanceof TypeError) {
+        logEventError("api.step_completion_failed", error);
         return res.status(400).json({ message: "Update step completion could not be processed." });
       }
+      logEventError("api.step_completion_failed", error, { diagnosisId });
       res.status(500).json({ message: "Update step completion could not be processed." });
     }
   });
 
   // Mark fix as complete
   app.post("/api/diagnoses/:diagnosisId/fix-complete", requireReviewer, reviewerWriteLimit, async (req, res) => {
+    let diagnosisId = "";
     try {
-      const { diagnosisId } = req.params;
+      diagnosisId = parseDiagnosisRouteId(req.params?.diagnosisId);
       const suggestionIndex = toIndex(req.body?.suggestionIndex, "suggestionIndex");
       const wasSuccessful = req.body?.wasSuccessful === true;
       const feedback = toOptionalText(req.body?.feedback, "feedback");
@@ -2127,22 +2151,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(result);
     } catch (error) {
-      logEventError("api.fix_complete_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
       if (error instanceof TypeError) {
+        logEventError("api.fix_complete_failed", error);
         return res.status(400).json({ message: "Failed to mark fix complete" });
       }
+      logEventError("api.fix_complete_failed", error, { diagnosisId });
       res.status(500).json({ message: "Failed to mark fix complete" });
     }
   });
 
   // Export chat for mechanic
   app.post("/api/diagnoses/:diagnosisId/export-chat", requireReviewer, async (req, res) => {
+    let diagnosisId = "";
     try {
-      const { diagnosisId } = req.params;
+      diagnosisId = parseDiagnosisRouteId(req.params?.diagnosisId);
       const exportData = await storage.exportChatForMechanic(diagnosisId);
       res.json(exportData);
     } catch (error) {
-      logEventError("api.export_chat_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
+      if (error instanceof TypeError) {
+        logEventError("api.export_chat_failed", error);
+        return res.status(400).json({ message: "Failed to export chat" });
+      }
+      logEventError("api.export_chat_failed", error, { diagnosisId });
 
       res.status(500).json({ message: "Failed to export chat" });
     }
@@ -2150,12 +2180,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Send to mechanic
   app.post("/api/diagnoses/:diagnosisId/send-to-mechanic", requireReviewer, async (req, res) => {
+    let diagnosisId = "";
     try {
-      const { diagnosisId } = req.params;
+      diagnosisId = parseDiagnosisRouteId(req.params?.diagnosisId);
       const result = await storage.sendToMechanic(diagnosisId);
       res.json(result);
     } catch (error) {
-      logEventError("api.send_to_mechanic_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
+      if (error instanceof TypeError) {
+        logEventError("api.send_to_mechanic_failed", error);
+        return res.status(400).json({ message: "Failed to send to mechanic" });
+      }
+      logEventError("api.send_to_mechanic_failed", error, { diagnosisId });
 
       res.status(500).json({ message: "Failed to send to mechanic" });
     }
@@ -2338,14 +2373,20 @@ try {
 
   // Get specific diagnosis
   app.get("/api/diagnoses/:id", requireReviewer, async (req, res) => {
+    let diagnosisId = "";
     try {
-      const diagnosis = await storage.getDiagnosis(req.params.id);
+      diagnosisId = parseDiagnosisRouteId(req.params?.id);
+      const diagnosis = await storage.getDiagnosis(diagnosisId);
       if (!diagnosis) {
         return res.status(404).json({ message: "Diagnosis not found" });
       }
       res.json(diagnosis);
     } catch (error) {
-      logEventError("api.diagnosis_fetch_failed", error, { diagnosisId: String(req.params?.id ?? "") });
+      if (error instanceof TypeError) {
+        logEventError("api.diagnosis_fetch_failed", error);
+        return res.status(400).json({ message: "Failed to fetch diagnosis" });
+      }
+      logEventError("api.diagnosis_fetch_failed", error, { diagnosisId });
       res.status(500).json({ message: "Failed to fetch diagnosis" });
     }
   });
