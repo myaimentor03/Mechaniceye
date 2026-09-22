@@ -93,7 +93,8 @@ async function removeTemporaryFiles(files: UploadedEvidenceFiles) {
   await Promise.all(
     Object.values(files)
       .flat()
-      .map((file) => rm(file.path, { force: true }))
+      .filter((file): file is Express.Multer.File & { path: string } => typeof file?.path === "string" && file.path.length > 0)
+      .map((file) => rm(file.path, { force: true }).catch(() => undefined))
   );
 }
 

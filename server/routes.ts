@@ -2486,6 +2486,34 @@ try {
       });
     }
 
+    // P0 #1/#2 required-field guard — fail-closed before any case or
+    // evidence is created so an empty multipart/form submission (no
+    // vehicleInfo, no timing, no description, no photo/audio/video) can
+    // never create a junk case or tracker row that wastes reviewer/op
+    // capacity. Evidence alone is not sufficient for a useful case either:
+    // the Guided Journey requires at least one text field to route
+    // FIX/SELL/MONITOR/STOP DRIVING. Never echo submitted values.
+    {
+      const hasVehicleInfo = typeof input.vehicleInfo === "string" && input.vehicleInfo.trim().length > 0;
+      // Strip the auto-injected Customer Email line so an otherwise empty
+      // description (email-only after applyAuthenticatedCaseIdentity) still
+      // counts as empty — the intake must have real user content.
+      const rawDescriptionForGuard = typeof input.description === "string"
+        ? input.description.replace(/(^|\n)Customer Email:\s*.*(?=\n|$)/gi, "").trim()
+        : "";
+      const hasDescription = rawDescriptionForGuard.length > 0;
+      const hasTiming = typeof input.timing === "string" && input.timing.trim().length > 0;
+      const hasEvidenceFiles = photoFiles.length > 0 || audioFiles.length > 0 || videoFiles.length > 0 || vibrationFiles.length > 0;
+      if (!hasVehicleInfo && !hasDescription && !hasTiming && !hasEvidenceFiles) {
+        await removeIntakeTempFiles(uploadedFiles);
+        return res.status(400).json({
+          message: "Vehicle details, timing, or a problem description are required. Please provide at least one detail and try again.",
+          code: "INVALID_DIAGNOSIS_INTAKE",
+          persisted: false,
+        });
+      }
+    }
+
     // Server-side consent validation — always enforced regardless of launch
     // controls. The client checks this before submission but any HTTP client
     // can bypass the UI. Consent must be verified before any evidence is
