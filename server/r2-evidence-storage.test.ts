@@ -19,11 +19,12 @@ async function makeTemporaryFiles(files: UploadedEvidenceFiles): Promise<{ root:
     withPath[field] = [];
     for (const file of list ?? []) {
       const filename = path.join(root, `${file.originalname}`);
-      await writeFile(filename, file.buffer || Buffer.from("test-content"));
+      const content = file.buffer || Buffer.from("test-content");
+      await writeFile(filename, content);
       withPath[field]?.push({
         ...file,
         path: filename,
-        size: file.buffer?.length ?? file.size,
+        size: content.length,
       } as Express.Multer.File);
     }
   }
@@ -157,6 +158,113 @@ test("rolls back already-uploaded objects and removes temporary files on failure
     await assert.rejects(() => storeEvidenceFilesWithClient("CASE-ROLLBACK-1", files, store), /unavailable/);
     assert.equal(store.objects.size, 0);
     await assert.rejects(() => rm(tempFiles));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("rejects 0-byte audio/video/vibration files with no objects written and temp files cleaned", async () => {
+  const store = memoryStore();
+  const root = await mkdtemp(path.join(tmpdir(), "r2-empty-test-"));
+  try {
+    const emptyAudio = {
+      originalname: "empty.mp3",
+      mimetype: "audio/mpeg",
+      size: 0,
+      buffer: Buffer.alloc(0),
+      path: path.join(root, "empty.mp3"),
+    } as unknown as Express.Multer.File;
+    await writeFile(emptyAudio.path, Buffer.alloc(0));
+    await assert.rejects(
+      () => storeEvidenceFilesWithClient("CASE-EMPTY-AUDIO-1", { audio: [emptyAudio] }, store),
+      /Empty audio file rejected|Empty media file rejected/,
+    );
+    assert.equal(store.objects.size, 0);
+    await assert.rejects(() => rm(emptyAudio.path), /ENOENT/);
+
+    const emptyVideo = {
+      originalname: "empty.mp4",
+      mimetype: "video/mp4",
+      size: 0,
+      buffer: Buffer.alloc(0),
+      path: path.join(root, "empty.mp4"),
+    } as unknown as Express.Multer.File;
+    await writeFile(emptyVideo.path, Buffer.alloc(0));
+    await assert.rejects(
+      () => storeEvidenceFilesWithClient("CASE-EMPTY-VIDEO-1", { video: [emptyVideo] }, store),
+      /Empty video file rejected|Empty media file rejected/,
+    );
+    assert.equal(store.objects.size, 0);
+
+    const emptyVib = {
+      originalname: "empty.bin",
+      mimetype: "application/octet-stream",
+      size: 0,
+      buffer: Buffer.alloc(0),
+      path: path.join(root, "empty.bin"),
+    } as unknown as Express.Multer.File;
+    await writeFile(emptyVib.path, Buffer.alloc(0));
+    await assert.rejects(
+      () => storeEvidenceFilesWithClient("CASE-EMPTY-VIB-1", { vibration: [emptyVib] }, store),
+      /Empty vibration file rejected|Empty media file rejected/,
+    );
+    assert.equal(store.objects.size, 0);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("rolls back already-uploaded R2 object when second audio file is 0-byte (no orphan, atomic)", async () => {
+  const store = memoryStore();
+  const root = await mkdtemp(path.join(tmpdir(), "r2-partial-empty-"));
+  try {
+    const goodAudio = {
+      originalname: "good.mp3",
+      mimetype: "audio/mpeg",
+      size: 12,
+      buffer: Buffer.from("test-content"),
+      path: path.join(root, "good.mp3"),
+    } as unknown as Express.Multer.File;
+    await writeFile(goodAudio.path, goodAudio.buffer);
+    const emptyAudio = {
+      originalname: "empty.mp3",
+      mimetype: "audio/mpeg",
+      size: 0,
+      buffer: Buffer.alloc(0),
+      path: path.join(root, "empty.mp3"),
+    } as unknown as Express.Multer.File;
+    await writeFile(emptyAudio.path, Buffer.alloc(0));
+
+    await assert.rejects(
+      () => storeEvidenceFilesWithClient("CASE-PARTIAL-EMPTY-1", { audio: [goodAudio, emptyAudio] }, store),
+      /Empty audio file rejected|Empty media file rejected/,
+    );
+    assert.equal(store.objects.size, 0, "partial batch with empty second file must roll back first upload");
+    await assert.rejects(() => rm(goodAudio.path), /ENOENT/);
+    await assert.rejects(() => rm(emptyAudio.path), /ENOENT/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("rejects 0-byte R2 file that is disk-backed without buffer (mobile multer disk storage, size 0)", async () => {
+  const store = memoryStore();
+  const root = await mkdtemp(path.join(tmpdir(), "r2-disk-empty-"));
+  try {
+    const diskEmpty = path.join(root, "disk-empty.mp3");
+    await writeFile(diskEmpty, Buffer.alloc(0));
+    const diskFile = {
+      originalname: "disk-empty.mp3",
+      mimetype: "audio/mpeg",
+      size: 0,
+      path: diskEmpty,
+    } as unknown as Express.Multer.File;
+
+    await assert.rejects(
+      () => storeEvidenceFilesWithClient("CASE-DISK-EMPTY-1", { audio: [diskFile] }, store),
+      /Empty audio file rejected|Empty media file rejected/,
+    );
+    assert.equal(store.objects.size, 0);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

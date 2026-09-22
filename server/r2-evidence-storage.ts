@@ -24,7 +24,11 @@ function safeCaseSegment(value: string) {
 }
 
 function getFileBody(file: Express.Multer.File): Buffer | Readable {
-  if (file.buffer && file.buffer.length > 0) return file.buffer;
+  if (!file || file.size <= 0) throw new Error(`Empty media file rejected: ${file?.originalname || "unknown"}`);
+  if (file.buffer) {
+    if (file.buffer.length === 0) throw new Error(`Empty media file rejected: ${file.originalname}`);
+    return file.buffer;
+  }
   if (file.path && existsSync(file.path)) return createReadStream(file.path);
   throw new Error(`Media file ${file.originalname} has no readable content`);
 }
@@ -122,6 +126,9 @@ export async function storeEvidenceFilesWithClient(
       storedKeys[field] = [];
 
       for (const file of fieldFiles) {
+        if (!file || file.size <= 0 || (file.buffer && file.buffer.length === 0)) {
+          throw new Error(`Empty ${field} file rejected`);
+        }
         const key = `evidence/${safeCaseId}/${field}/${randomUUID()}${extensionFor(file)}`;
         await store.send(new PutObjectCommand({
           Bucket: store.bucket,
