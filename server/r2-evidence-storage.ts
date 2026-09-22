@@ -1,4 +1,5 @@
-import { createReadStream } from "fs";
+import { createReadStream, existsSync } from "fs";
+import { Readable } from "stream";
 import { rm } from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
@@ -20,6 +21,12 @@ function safeCaseSegment(value: string) {
   if (value === ".." || value.includes("..")) throw new Error("Invalid server case ID");
   if (!/^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9])?$/.test(value)) throw new Error("Invalid server case ID");
   return value;
+}
+
+function getFileBody(file: Express.Multer.File): Buffer | Readable {
+  if (file.buffer && file.buffer.length > 0) return file.buffer;
+  if (file.path && existsSync(file.path)) return createReadStream(file.path);
+  throw new Error(`Media file ${file.originalname} has no readable content`);
 }
 
 function getR2Configuration() {
@@ -118,7 +125,7 @@ export async function storeEvidenceFilesWithClient(
         await store.send(new PutObjectCommand({
           Bucket: store.bucket,
           Key: key,
-          Body: createReadStream(file.path),
+          Body: getFileBody(file),
           ContentType: file.mimetype,
           CacheControl: "private, no-store",
           Metadata: {
