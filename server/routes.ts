@@ -2958,7 +2958,7 @@ try {
       logEventError("api.follow_up_creation_failed", error, { diagnosisId });
       await cleanupTemporaryFiles();
 
-      res.status(400).json({ 
+      res.status(500).json({
         message: "Failed to create follow-up. Please try again."
       });
     }
@@ -3080,12 +3080,16 @@ const filename = path.basename(String(req.params.filename || ""));
       return;
     }
 
-    if (fs.existsSync(filepath) && fs.statSync(filepath).isFile()) {
-      res.setHeader("X-Content-Type-Options", "nosniff");
-      res.setHeader("Cache-Control", "no-store");
-      res.sendFile(filepath);
-
-    } else {
+    try {
+      const stat = fs.statSync(filepath);
+      if (stat.isFile()) {
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("Cache-Control", "no-store");
+        res.sendFile(filepath);
+      } else {
+        res.status(404).json({ message: "File not found" });
+      }
+    } catch {
       res.status(404).json({ message: "File not found" });
     }
   });
