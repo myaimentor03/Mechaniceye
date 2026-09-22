@@ -29,6 +29,31 @@ test("marketplace seller intake generates and uses clientRequestId for idempoten
   assert.match(sellerPage, /sessionStorage\.setItem\(/);
 });
 
+test("seller intake clientRequestId initialization read from sessionStorage is wrapped in try/catch for mobile private mode", () => {
+  const sellerPageStart = marketplace.indexOf("function SellerIntakePage");
+  const sellerPage = marketplace.slice(sellerPageStart, sellerPageStart + 8000);
+  const initBlock = sellerPage.slice(sellerPage.indexOf("const [clientRequestId, setClientRequestId]"));
+  assert.match(initBlock, /try \{/);
+  assert.match(initBlock, /sessionStorage\.getItem\(/);
+  assert.match(initBlock, /SELLER_CLIENT_REQUEST_STORAGE_KEY/);
+  assert.match(initBlock, /catch \{[\s\S]*?return/);
+});
+
+test("seller intake clientRequestId initialization write to sessionStorage never throws — guarded inner try/catch", () => {
+  const sellerPageStart = marketplace.indexOf("function SellerIntakePage");
+  const sellerPage = marketplace.slice(sellerPageStart, sellerPageStart + 8000);
+  const initBlock = sellerPage.slice(sellerPage.indexOf("const [clientRequestId, setClientRequestId]"));
+  assert.match(initBlock, /try \{ window\.sessionStorage\.setItem\(/);
+});
+
+test("seller intake clientRequestId initialization falls back to in-memory id when storage is blocked", () => {
+  const sellerPageStart = marketplace.indexOf("function SellerIntakePage");
+  const sellerPage = marketplace.slice(sellerPageStart, sellerPageStart + 8000);
+  const initBlock = sellerPage.slice(sellerPage.indexOf("const [clientRequestId, setClientRequestId]"));
+  assert.match(initBlock, /const fallbackId = `req-/);
+  assert.match(initBlock, /return fallbackId;/);
+});
+
 test("marketplace seller intake persists case ID to sessionStorage on success", () => {
   const sellerPageStart = marketplace.indexOf("function SellerIntakePage");
   const sellerPage = marketplace.slice(sellerPageStart, sellerPageStart + 8000);
@@ -84,6 +109,31 @@ test("marketplace buyer interest generates and uses clientRequestId for idempote
   assert.match(buyerPage, /BUYER_CLIENT_REQUEST_STORAGE_KEY/);
   assert.match(buyerPage, /sessionStorage\.getItem\(/);
   assert.match(buyerPage, /sessionStorage\.setItem\(/);
+});
+
+test("buyer interest clientRequestId initialization read from sessionStorage is wrapped in try/catch for mobile private mode", () => {
+  const buyerPageStart = marketplace.indexOf("function BuyerInterestPage");
+  const buyerPage = marketplace.slice(buyerPageStart, buyerPageStart + 8000);
+  const initBlock = buyerPage.slice(buyerPage.indexOf("const [clientRequestId, setClientRequestId]"));
+  assert.match(initBlock, /try \{/);
+  assert.match(initBlock, /sessionStorage\.getItem\(/);
+  assert.match(initBlock, /BUYER_CLIENT_REQUEST_STORAGE_KEY/);
+  assert.match(initBlock, /catch \{[\s\S]*?return/);
+});
+
+test("buyer interest clientRequestId initialization write to sessionStorage never throws — guarded inner try/catch", () => {
+  const buyerPageStart = marketplace.indexOf("function BuyerInterestPage");
+  const buyerPage = marketplace.slice(buyerPageStart, buyerPageStart + 8000);
+  const initBlock = buyerPage.slice(buyerPage.indexOf("const [clientRequestId, setClientRequestId]"));
+  assert.match(initBlock, /try \{ window\.sessionStorage\.setItem\(/);
+});
+
+test("buyer interest clientRequestId initialization falls back to in-memory id when storage is blocked", () => {
+  const buyerPageStart = marketplace.indexOf("function BuyerInterestPage");
+  const buyerPage = marketplace.slice(buyerPageStart, buyerPageStart + 8000);
+  const initBlock = buyerPage.slice(buyerPage.indexOf("const [clientRequestId, setClientRequestId]"));
+  assert.match(initBlock, /const fallbackId = `req-/);
+  assert.match(initBlock, /return fallbackId;/);
 });
 
 test("marketplace buyer interest persists case ID to sessionStorage on success", () => {
