@@ -3128,6 +3128,50 @@ const filename = path.basename(String(req.params.filename || ""));
     }
   });
 
+  // P0 #9 mobile recovery: fail-closed JSON transport envelope. Any host that
+  // boots registerRoutes(app) with bare express.json() (contract harnesses,
+  // review tooling, future Render entry points) otherwise answers malformed
+  // JSON with HTML 400 leaking SyntaxError internals, oversized bodies with
+  // HTML 413, and unknown /api/* routes with HTML 404 -- all of which break
+  // mobile JSON parsing. Production server/index.ts keeps its outer handlers
+  // as belt-and-braces; these inner ones answer first with the same
+  // fail-closed { ok:false, code } shape the intake routes use. Status codes
+  // are unchanged (400/413/404); only the envelope becomes parseable JSON
+  // with no-store and zero raw-input echo.
+  app.use("/api", (_req: any, res: any) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.status(404).json({ ok: false, error: "API route not found.", code: "API_NOT_FOUND" });
+  });
+
+  app.use((err: any, req: any, res: any, _next: any) => {
+    const rawStatus = err?.status ?? err?.statusCode;
+    const bodyParserType = typeof err?.type === "string" ? err.type : "";
+    let status = 500;
+    let code = "REQUEST_FAILED";
+    let message = "Request could not be completed.";
+    if (bodyParserType === "entity.parse.failed" || (err instanceof SyntaxError && rawStatus === 400)) {
+      status = 400;
+      code = "INVALID_JSON";
+      message = "Request body is not valid JSON. Please retry the request.";
+    } else if (bodyParserType === "entity.too.large" || rawStatus === 413) {
+      status = 413;
+      code = "PAYLOAD_TOO_LARGE";
+      message = "Request body is too large. Please retry with smaller input.";
+    } else if (typeof rawStatus === "number" && Number.isInteger(rawStatus) && rawStatus >= 400 && rawStatus <= 599) {
+      status = rawStatus;
+    }
+    // Log status/code/path only -- never the error object, whose message can
+    // carry excerpts of the offending body.
+    logEventError("http.transport_error", undefined, {
+      status,
+      code,
+      path: typeof req?.path === "string" ? req.path : "",
+      method: typeof req?.method === "string" ? req.method : "",
+    });
+    res.setHeader("Cache-Control", "no-store");
+    res.status(status).json({ ok: false, error: message, code });
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
