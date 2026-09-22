@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { randomBytes } from "node:crypto";
+import { logEventError } from "./observability/safe-log";
 
 export type IncomingDiagnosisCase = {
   description: string;
@@ -317,7 +318,11 @@ export function createStoredDiagnosisCase(input: IncomingDiagnosisCase): StoredD
   }
 
   if (!writeFailed) {
-    appendTrackerRow(buildTrackerRow(stored, metadata));
+    try {
+      appendTrackerRow(buildTrackerRow(stored, metadata));
+    } catch (_error: any) {
+      logEventError("case.tracker_row_failed", _error);
+    }
   }
 
   return stored;
