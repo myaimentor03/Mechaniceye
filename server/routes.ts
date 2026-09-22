@@ -2493,9 +2493,26 @@ try {
     }
   });
 
+  // P0 #1 evidence retrieval: fail-closed on hostile ids. A traversal or
+  // malformed case/attachment id must never reach storage as a 502 (which
+  // leaks internal handling differences and can distinguish existence). Validate
+  // shape before storage so invalid ids answer 400 consistently, missing ids
+  // answer 404, and only true storage outages answer 502.
+  function isValidEvidenceSegment(value: unknown): boolean {
+    if (typeof value !== "string" || !value) return false;
+    if (value.includes("..") || value.includes("/") || value.includes("\\")) return false;
+    if (value.length > 128) return false;
+    return /^[a-zA-Z0-9](?:[a-zA-Z0-9._-]{0,126}[a-zA-Z0-9])?$/.test(value);
+  }
+
   app.get("/api/internal/evidence/:caseId/:attachmentId", requireReviewer, async (req, res) => {
+    const rawCaseId = typeof req.params.caseId === "string" ? req.params.caseId : "";
+    const rawAttachmentId = typeof req.params.attachmentId === "string" ? req.params.attachmentId : "";
+    if (!isValidEvidenceSegment(rawCaseId) || !isValidEvidenceSegment(rawAttachmentId)) {
+      return res.status(400).json({ ok: false, error: "Invalid evidence identifier.", code: "INVALID_EVIDENCE_ID" });
+    }
     try {
-      const result = await evidenceStore.getAttachment(req.params.caseId, req.params.attachmentId);
+      const result = await evidenceStore.getAttachment(rawCaseId, rawAttachmentId);
       if (!result) return res.status(404).json({ ok: false, error: "Evidence attachment not found." });
       res.setHeader("Content-Type", result.attachment.mimeType);
       res.setHeader("Content-Length", String(result.bytes.length));

@@ -198,3 +198,77 @@ test("reviewer evidence retrieval returns attachment with correct headers", asyn
     await cleanupTestCase(TEST_CASE_ID);
   }
 });
+
+test("reviewer evidence retrieval returns 400 INVALID_EVIDENCE_ID for traversal in case ID (fail-closed)", async () => {
+  await withServer({}, async (origin) => {
+    const response = await fetch(`${origin}/api/internal/evidence/..%2F..%2Fetc%2Fpasswd/${TEST_ATTACHMENT_ID}`, {
+      headers: { authorization: `Bearer ${TEST_REVIEWER_TOKEN}` }
+    });
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.equal(body.ok, false);
+    assert.equal(body.code, "INVALID_EVIDENCE_ID");
+    assert.equal(body.error, "Invalid evidence identifier.");
+    const text = JSON.stringify(body);
+    assert.ok(!text.includes("stack"), "must not leak stack");
+    assert.ok(!text.includes("Error"), "must not leak internal error");
+  });
+});
+
+test("reviewer evidence retrieval returns 400 INVALID_EVIDENCE_ID for traversal in attachment ID (fail-closed)", async () => {
+  await withServer({}, async (origin) => {
+    const response = await fetch(`${origin}/api/internal/evidence/${TEST_CASE_ID}/..%2F..%2Fetc%2Fpasswd`, {
+      headers: { authorization: `Bearer ${TEST_REVIEWER_TOKEN}` }
+    });
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.equal(body.ok, false);
+    assert.equal(body.code, "INVALID_EVIDENCE_ID");
+    const text = JSON.stringify(body);
+    assert.ok(!text.includes("stack"));
+  });
+});
+
+test("reviewer evidence retrieval returns 400 for blank attachment ID", async () => {
+  await withServer({}, async (origin) => {
+    const response = await fetch(`${origin}/api/internal/evidence/${TEST_CASE_ID}/%20`, {
+      headers: { authorization: `Bearer ${TEST_REVIEWER_TOKEN}` }
+    });
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.equal(body.code, "INVALID_EVIDENCE_ID");
+  });
+});
+
+test("reviewer evidence retrieval returns 400 for oversized case ID", async () => {
+  await withServer({}, async (origin) => {
+    const oversized = "a".repeat(200);
+    const response = await fetch(`${origin}/api/internal/evidence/${oversized}/${TEST_ATTACHMENT_ID}`, {
+      headers: { authorization: `Bearer ${TEST_REVIEWER_TOKEN}` }
+    });
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.equal(body.code, "INVALID_EVIDENCE_ID");
+  });
+});
+
+test("reviewer evidence retrieval returns 404 for well-formed but missing attachment (no stack, no PII)", async () => {
+  await createTestAttachment(TEST_CASE_ID, TEST_ATTACHMENT_ID);
+  try {
+    await withServer({}, async (origin) => {
+      const missingId = randomUUID();
+      const response = await fetch(`${origin}/api/internal/evidence/${TEST_CASE_ID}/${missingId}`, {
+        headers: { authorization: `Bearer ${TEST_REVIEWER_TOKEN}` }
+      });
+      assert.equal(response.status, 404);
+      const body = await response.json();
+      assert.equal(body.ok, false);
+      assert.equal(body.error, "Evidence attachment not found.");
+      const text = JSON.stringify(body);
+      assert.ok(!text.includes("stack"));
+      assert.ok(!text.includes("evidence"));
+    });
+  } finally {
+    await cleanupTestCase(TEST_CASE_ID);
+  }
+});
