@@ -1,4 +1,4 @@
- import type { Express } from "express";
+﻿ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage, getStorageImpl } from "./storage";
 // local fallback validation while DB/schema layer is disabled
@@ -51,7 +51,7 @@ function toOptionalText(value: unknown, field: string): string | undefined {
 // Trims, rejects empty/oversized/control-char ids before they reach storage
 // or log context, so hostile ids answer 400 instead of 500. Deliberately
 // format-agnostic (unlike the customer CASE- resume check): reviewer routes
-// accept legacy numeric ids too, so only shape — never format — is enforced.
+// accept legacy numeric ids too, so only shape â€” never format â€” is enforced.
 const DIAGNOSIS_ROUTE_ID_MAX_LENGTH = 160;
 
 function parseDiagnosisRouteId(value: unknown): string {
@@ -1953,7 +1953,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      // Idempotency: same contract as seller intake — a buyer-interest
+      // Idempotency: same contract as seller intake â€” a buyer-interest
       // retry with the same clientRequestId returns the ORIGINAL id
       // without re-firing the webhook.
       const buyerIdempotencyKey = normalizeIdempotencyKey((req.body || {}).clientRequestId);
@@ -2067,7 +2067,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
 
-      // Idempotency: same contract as Mechanic Match — a support concierge
+      // Idempotency: same contract as Mechanic Match â€” a support concierge
       // retry with the same clientRequestId returns the ORIGINAL id without
       // re-firing the webhook, so a mobile timeout never creates two tickets.
       const conciergeIdempotencyKey = normalizeIdempotencyKey((req.body || {}).clientRequestId);
@@ -2093,7 +2093,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  
+
   // Get recent diagnoses
   app.get("/api/diagnoses/recent", requireReviewer, async (req, res) => {
     try {
@@ -2134,14 +2134,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const stepIndex = toIndex(req.body?.stepIndex, "stepIndex");
       const completed = req.body?.completed === true;
       const timeSpent = toOptionalNumber(req.body?.timeSpent, "timeSpent");
-      
+
       const result = await storage.updateStepCompletion(diagnosisId, {
         suggestionIndex,
         stepIndex,
         completed,
         timeSpent
       });
-      
+
       res.json(result);
     } catch (error) {
       if (error instanceof TypeError) {
@@ -2163,7 +2163,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const feedback = toOptionalText(req.body?.feedback, "feedback");
       const timeSpent = toOptionalNumber(req.body?.timeSpent, "timeSpent");
       const stepsCompleted = toOptionalCount(req.body?.stepsCompleted, "stepsCompleted");
-      
+
       const result = await storage.markFixComplete(diagnosisId, {
         suggestionIndex,
         wasSuccessful,
@@ -2171,7 +2171,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         timeSpent,
         stepsCompleted
       });
-      
+
       res.json(result);
     } catch (error) {
       if (error instanceof TypeError) {
@@ -2416,8 +2416,8 @@ try {
 
   // Customer resume/status: a signed-in customer can list their own cases
   // (mobile recovery after sessionStorage wipe, new device, Copy Case ID
-  // loss). Minimal payload only — id/status/createdAt, never description,
-  // email, attachments, or evidence metadata — with no-store. Fail-closed:
+  // loss). Minimal payload only â€” id/status/createdAt, never description,
+  // email, attachments, or evidence metadata â€” with no-store. Fail-closed:
   // storage errors answer a generic 500, never a partial or foreign list.
   app.get("/api/my-cases", requireCustomer, async (req, res) => {
     try {
@@ -2447,7 +2447,7 @@ try {
   // Customer resume/status: a signed-in customer can verify their own case
   // (mobile recovery, Copy Case ID flow, cross-device resume). Reviewer-only
   // GET /api/diagnoses/:id never serves customers, and client sessionStorage
-  // restore alone cannot verify a case server-side — this closes that gap.
+  // restore alone cannot verify a case server-side â€” this closes that gap.
   // Fail-closed + enumeration-safe: missing, foreign, and ownerless cases all
   // answer the identical 404 so one customer can never read another's case
   // or probe for its existence. Success returns a minimal payload (no
@@ -2567,6 +2567,25 @@ try {
       });
     }
 
+    // Server-side consent validation â€” always enforced regardless of launch controls
+    const consent = consentChoices as Record<string, unknown> | undefined;
+    const hasServiceConsent = consent?.service_fulfillment === true;
+    const hasHumanReviewConsent = consent?.human_review_sharing === true;
+    const hasMediaConsent = photoFiles.length > 0
+      ? consent?.media_processing === true
+      : true;
+    if (!hasServiceConsent || !hasHumanReviewConsent || !hasMediaConsent) {
+      await removeIntakeTempFiles(uploadedFiles);
+      return res.status(400).json({
+        message: "Consent is required. Please accept service fulfillment and human review. Photo submissions also require media processing consent.",
+      });
+    }
+
+    // Launch controls check â€” run early for fail-closed (503) precedence when
+    // durable persistence is not available. Consent is validated here for both
+    // paths so missing consent returns 400 even when DB is absent.
+    const launchControlsEnabled = process.env.DRIVABLE_LAUNCH_CONTROLS_ENABLED === "true";
+
     // Idempotency: check process-local in-memory store first (works without DB)
     // then fall back to DB-scoped dedupe. Prevents duplicate cases on mobile
     // retry after timeout. Malformed keys are treated as absent (backward
@@ -2613,25 +2632,6 @@ try {
       }
     }
 
-    // Launch controls check — run early for fail-closed (503) precedence when
-    // durable persistence is not available. Consent is validated here for both
-    // paths so missing consent returns 400 even when DB is absent.
-    const launchControlsEnabled = process.env.DRIVABLE_LAUNCH_CONTROLS_ENABLED === "true";
-
-    // Consent validation — enforced for both paths before any persistence.
-    const consent = consentChoices as Record<string, unknown> | undefined;
-    const hasServiceConsent = consent?.service_fulfillment === true;
-    const hasHumanReviewConsent = consent?.human_review_sharing === true;
-    const hasMediaConsent = photoFiles.length > 0
-      ? consent?.media_processing === true
-      : true;
-    if (!hasServiceConsent || !hasHumanReviewConsent || !hasMediaConsent) {
-      await removeIntakeTempFiles(uploadedFiles);
-      return res.status(400).json({
-        message: "Consent is required. Please accept service fulfillment and human review. Photo submissions also require media processing consent.",
-      });
-    }
-
     let responseBody: DiagnosisCaseResponse;
     let storedCase: StoredDiagnosisCase | undefined;
     let usedPublicFallback = false;
@@ -2640,7 +2640,7 @@ try {
     if (launchControlsEnabled) {
       // Launch-controlled cases avoid runtime-local case files. Consent is
       // durably recorded before any private media is persisted.
-      // Skip required-field guard — fail-closed (503) takes precedence.
+      // Skip required-field guard â€” fail-closed (503) takes precedence.
       responseBody = createPublicDiagnosisCase(input);
       usedPublicFallback = true;
       try {
@@ -2679,7 +2679,7 @@ try {
         });
       }
 
-      // Photo upload validation — reject before case creation if upload disabled or storage not durable.
+      // Photo upload validation â€” reject before case creation if upload disabled or storage not durable.
       if (photoFiles.length && (process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED !== "true" || evidenceStore.durability !== "private_object_storage")) {
         await removeIntakeTempFiles(uploadedFiles);
         return res.status(409).json({
@@ -2876,7 +2876,7 @@ try {
         return res.status(404).json({ message: "Original diagnosis not found" });
       }
 
-      // Validate additionalInfo early — must be a non-empty string so the
+      // Validate additionalInfo early â€” must be a non-empty string so the
       // follow-up description never becomes "Follow-up #N: undefined".
       const rawAdditionalInfo = toOptionalText(req.body.additionalInfo, "additionalInfo");
       if (!rawAdditionalInfo || !rawAdditionalInfo.trim()) {
@@ -2932,7 +2932,7 @@ try {
         videoFile: followUpData.newVideoFile,
         vibrationData: followUpData.newVibrationData,
         confidenceScore: analysisResults.primaryDiagnosis?.confidence || 0,
-        confidenceLevel: analysisResults.primaryDiagnosis?.confidence >= 80 ? "high" : 
+        confidenceLevel: analysisResults.primaryDiagnosis?.confidence >= 80 ? "high" :
                        analysisResults.primaryDiagnosis?.confidence >= 60 ? "medium" : "low",
         // Only text reaches performEnhancedAnalysis. Media remains reviewer evidence
         // and must never be labeled as an analyzed model input.
@@ -3005,7 +3005,7 @@ try {
       res.json(consultation);
     } catch (error: any) {
       logEventError("api.consultation_start_failed", error);
-      res.status(400).json({ 
+      res.status(400).json({
         message: "Failed to start consultation. Please try again."
       });
     }
@@ -3022,15 +3022,15 @@ try {
         return;
       }
       const feedbackData = consultationFeedbackSchema.parse(req.body);
-      
+
       // Calculate overall score (average of ratings, with wasFixed bonus)
       const ratingAverage = (
-        feedbackData.politenessRating + 
-        feedbackData.effectivenessRating + 
+        feedbackData.politenessRating +
+        feedbackData.effectivenessRating +
         feedbackData.easeOfWorkRating
       ) / 3;
-      
-      const overallScore = feedbackData.wasFixed ? 
+
+      const overallScore = feedbackData.wasFixed ?
         Math.min(ratingAverage + 1, 10) : ratingAverage;
 
       const consultation = await storage.updateConsultation(consultationId, {
@@ -3057,7 +3057,7 @@ try {
       res.json(consultation);
     } catch (error: any) {
       logEventError("api.consultation_feedback_failed", error);
-      res.status(400).json({ 
+      res.status(400).json({
         message: "Failed to submit feedback. Please try again."
       });
     }
@@ -3175,6 +3175,3 @@ const filename = path.basename(String(req.params.filename || ""));
   const httpServer = createServer(app);
   return httpServer;
 }
-
-
-
