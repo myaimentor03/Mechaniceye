@@ -371,6 +371,9 @@ function SellerIntakePage() {
         return existing;
       }
     } catch {}
+    if (clientRequestId && clientRequestId.trim()) {
+      return clientRequestId;
+    }
     const newId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
     try {
       window.sessionStorage.setItem(storageKey, newId);
@@ -582,6 +585,9 @@ function BuyerInterestPage() {
         return existing;
       }
     } catch {}
+    if (clientRequestId && clientRequestId.trim()) {
+      return clientRequestId;
+    }
     const newId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
     try {
       window.sessionStorage.setItem(storageKey, newId);

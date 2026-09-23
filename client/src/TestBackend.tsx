@@ -59,15 +59,26 @@ function newStableClientRequestId(): string {
   return `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+const fallbackRequestIdByKey = new Map<string, string>();
 function getOrCreateStableClientRequestId(storageKey: string): string {
   try {
     const existing = window.sessionStorage.getItem(storageKey);
-    if (existing && existing.trim()) return existing;
+    if (existing && existing.trim()) {
+      fallbackRequestIdByKey.set(storageKey, existing);
+      return existing;
+    }
+    const cached = fallbackRequestIdByKey.get(storageKey);
+    if (cached) return cached;
     const created = newStableClientRequestId();
     try { window.sessionStorage.setItem(storageKey, created); } catch {}
+    fallbackRequestIdByKey.set(storageKey, created);
     return created;
   } catch {
-    return newStableClientRequestId();
+    const cached = fallbackRequestIdByKey.get(storageKey);
+    if (cached) return cached;
+    const created = newStableClientRequestId();
+    fallbackRequestIdByKey.set(storageKey, created);
+    return created;
   }
 }
 
@@ -1212,6 +1223,9 @@ type PublicPage = "home" | "intake" | "sell" | "help" | "disclaimer" | "terms" |
         return existing;
       }
     } catch {}
+    if (clientRequestId && clientRequestId.trim()) {
+      return clientRequestId;
+    }
     const newId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
     try { window.sessionStorage.setItem("drivable-client-request-id", newId); } catch {}
     setClientRequestId(newId);
