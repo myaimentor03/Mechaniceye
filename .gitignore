@@ -10,3 +10,14 @@ data/nhtsa/vehicle-knowledge-packs/*.json
 tmp/
 # Session task instructions (worktree-only, never committed)
 MARATHON_TASK.txt
+MARATHON_TASK-*.txt
+# Local scratch output from verification/preflight sessions (never committed)
+output.txt
+seed.txt
+testrun.txt
+testrun2.txt
+dir_listing.txt
+gitdiff.txt
+inventory.txt
+preflight-output.txt
+tsc-output.txt

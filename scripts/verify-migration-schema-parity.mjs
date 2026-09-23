@@ -15,6 +15,9 @@
  *      schema-declared indexes.
  *   5. The runtime schema mirror (server/shared/shared/schema.ts) is
  *      byte-identical to the canonical shared/schema.ts.
+ *   6. Migration order is sound: every foreign-key REFERENCES target exists
+ *      (CREATE TABLE in the same migration or an earlier one, per filename
+ *      sort), so applying migrations 0001..N in order cannot fail.
  *
  * Exits non-zero on any drift.
  */
@@ -87,18 +90,47 @@ const migrationFiles = fs
 const sqlTables = new Map();
 const sqlUniqueIndexes = new Set();
 const sqlIndexes = new Set();
+const tablesByFile = new Map();
 
 for (const file of migrationFiles) {
   const sql = fs.readFileSync(path.join(migrationsDir, file), "utf8");
+  const created = new Set();
   for (const match of sql.matchAll(/create table if not exists ([a-z0-9_]+)/gi)) {
     const name = match[1];
     if (!sqlTables.has(name)) sqlTables.set(name, file);
+    created.add(name);
   }
+  tablesByFile.set(file, created);
   for (const match of sql.matchAll(/create unique index if not exists ([a-z0-9_]+)/gi)) {
     sqlUniqueIndexes.add(match[1]);
   }
   for (const match of sql.matchAll(/create index if not exists ([a-z0-9_]+)/gi)) {
     sqlIndexes.add(match[1]);
+  }
+}
+
+{
+  const total = migrationFiles.length;
+  let orderOk = true;
+  for (let i = 0; i < total; i++) {
+    const file = migrationFiles[i];
+    const sql = fs
+      .readFileSync(path.join(migrationsDir, file), "utf8")
+      .replace(/--[^\n]*/g, "");
+    const reachable = new Set();
+    for (let j = 0; j <= i; j++) {
+      for (const table of tablesByFile.get(migrationFiles[j]) ?? []) reachable.add(table);
+    }
+    for (const match of sql.matchAll(/references\s+([a-z0-9_]+)/gi)) {
+      const target = match[1];
+      if (!reachable.has(target)) {
+        orderOk = false;
+        fail(`migration order ${file}`, `FK references ${target}, which is not created by any migration up to ${file}`);
+      }
+    }
+  }
+  if (orderOk) {
+    ok("migration order", "all FK REFERENCES targets are created in the same or an earlier migration (filename order)");
   }
 }
 
