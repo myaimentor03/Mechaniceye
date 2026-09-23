@@ -86,6 +86,23 @@ export async function verifyPassword(password: string, stored: string): Promise<
   }
 }
 
+/**
+ * Timing-equalization target for accounts that do not exist. Login for an
+ * unknown email must still run a full scrypt verification so the response time
+ * is indistinguishable from an existing account (prevents timing-based account
+ * enumeration). This hash never authenticates anyone.
+ */
+export const DUMMY_PASSWORD_HASH =
+  "scrypt$HrRGpIXOk0iCphGSY5ONmw$4Z_fIDrKWoSU9rLZlMNBAB-NfmVEgrlTmKkwqL441HyW_jN7Rzb2QTZXR2o1EFm4Q2gwgkNKEf4Ja9x_Czia_A";
+
+/** RUNS scrypt against the stored hash (or a fixed dummy hash when the account is unknown). */
+export async function verifyPasswordWithFallback(
+  provided: string,
+  stored: string | null | undefined,
+): Promise<boolean> {
+  return verifyPassword(provided, stored ?? DUMMY_PASSWORD_HASH);
+}
+
 export function createSessionToken(identity: CustomerIdentity, now = Date.now()): string {
   const secret = configuredSecret();
   if (!secret) throw new Error(`${SESSION_SECRET_ENV} must contain at least 32 characters`);
@@ -197,7 +214,10 @@ export function registerCustomerAuthRoutes(app: Express) {
     if (!parsed.success || !configuredSecret()) return res.status(401).json({ ok: false, error: "Invalid email or password." });
     try {
       const [record] = await getDb().select({ id: users.id, email: users.username, password: users.password }).from(users).where(eq(users.username, parsed.data.email)).limit(1);
-      if (!record || !(await verifyPassword(parsed.data.password, record.password))) return res.status(401).json({ ok: false, error: "Invalid email or password." });
+      // Always run the scrypt verification — even for unknown accounts (against a
+      // fixed dummy hash) — so response timing cannot reveal account existence.
+      const authenticated = await verifyPasswordWithFallback(parsed.data.password, record?.password);
+      if (!record || !authenticated) return res.status(401).json({ ok: false, error: "Invalid email or password." });
       const user = { id: record.id, email: record.email };
       setSessionCookie(res, createSessionToken(user));
       return res.json({ ok: true, user });

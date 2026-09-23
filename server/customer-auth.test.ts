@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSessionToken, hashPassword, inviteMatches, readSessionToken, verifyPassword } from "./customer-auth.js";
+import { createSessionToken, DUMMY_PASSWORD_HASH, hashPassword, inviteMatches, readSessionToken, verifyPassword, verifyPasswordWithFallback } from "./customer-auth.js";
 
 process.env.DRIVABLE_SESSION_SECRET = "test-only-session-secret-with-more-than-32-characters";
 
@@ -36,4 +36,16 @@ test("session tokens carry a fresh random nonce for each issuance", () => {
   assert.notEqual(first, second);
   assert.deepEqual(readSessionToken(first, now + 1_000), identity);
   assert.deepEqual(readSessionToken(second, now + 1_000), identity);
+});
+
+test("unknown-account login runs scrypt against a fixed dummy hash", async () => {
+  const hash = await hashPassword("a real password");
+  assert.equal(await verifyPasswordWithFallback("a real password", hash), true);
+  assert.equal(await verifyPasswordWithFallback("wrong password", hash), false);
+  // The dummy fallback target is a well-formed scrypt hash that never authenticates.
+  assert.equal(DUMMY_PASSWORD_HASH.split("$").length, 3);
+  assert.equal(DUMMY_PASSWORD_HASH.startsWith("scrypt$"), true);
+  assert.equal(await verifyPassword("anything", DUMMY_PASSWORD_HASH), false);
+  assert.equal(await verifyPasswordWithFallback("anything", null), false);
+  assert.equal(await verifyPasswordWithFallback("anything", undefined), false);
 });

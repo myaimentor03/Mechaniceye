@@ -10,7 +10,7 @@
 
 ## Summary
 
-This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_0902.md`. All required P0/P1 fixes are implemented, regression-tested, and green. An additional adversarial audit pass over the full public surface produced two further small hardening fixes (bounded validation error responses and a public read rate limit) plus one P2 gap closed (consent revocation intake). A second adversarial session (0906) closed three more gaps: bounded webhook delivery timeouts across every outbound webhook, code-mapped (never raw-message) review error serialization, and same-origin API calls in the production client (removing hard-coded cross-origin coupling to a second Render host). A fourth adversarial session (0919) re-verified the P0 Beta multimodal evidence pipeline end-to-end and fixed a client↔server multipart contract mismatch that silently broke every captured-photo diagnosis submission and turned malformed follow-up evidence bodies into 500s. `npm run check`, `npm run build`, and the complete security/auth/storage/review/consent/observability test suite pass.
+This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_0902.md`. All required P0/P1 fixes are implemented, regression-tested, and green. An additional adversarial audit pass over the full public surface produced two further small hardening fixes (bounded validation error responses and a public read rate limit) plus one P2 gap closed (consent revocation intake). A second adversarial session (0906) closed three more gaps: bounded webhook delivery timeouts across every outbound webhook, code-mapped (never raw-message) review error serialization, and same-origin API calls in the production client (removing hard-coded cross-origin coupling to a second Render host). A fourth adversarial session (0919) re-verified the P0 Beta multimodal evidence pipeline end-to-end and fixed a client↔server multipart contract mismatch that silently broke every captured-photo diagnosis submission and turned malformed follow-up evidence bodies into 500s. A fifth adversarial session (0923) re-audited the full public/review surface and closed a login timing-based account-enumeration gap (unknown-account logins now run the same scrypt cost as real accounts). `npm run check`, `npm run build`, and the complete security/auth/storage/review/consent/observability test suite pass.
 
 ---
 
@@ -137,6 +137,11 @@ This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_
 - **Client aligned to the follow-up contract (`client/src/pages/follow-up.tsx`):** the page no longer appends `photo` (the follow-up endpoint stores audio/video only); a captured photo produces a clear toast instead of failing the submit.
 - **Regression coverage:** `server/routes-security.test.ts` gains two tests — an authenticated follow-up with a `photo` part returns `400 persisted:false` (not 500), and the follow-up evidence upload stays behind the reviewer/auth gate (401/503, gate runs before multipart parsing). `test:routes-security` is now 7 tests; `npm run check`, `npm run build`, and all 26 suites pass.
 
+### Fifth adversarial session (0923) — login timing-based account enumeration
+
+- **Unknown-account login ran scrypt only for real accounts (`server/customer-auth.ts`):** `POST /api/auth/login` short-circuited with a generic `401` without running `verifyPassword` when the email did not exist, so an unauthenticated caller could distinguish "no such account" from "wrong password" by response time — a timing-based account-enumeration variant on the login path (the audit had flagged only the register-path `409`, which is already fixed). Login now always runs the full scrypt verification: `verifyPasswordWithFallback(password, record?.password)` uses a fixed `DUMMY_PASSWORD_HASH` (a well-formed scrypt hash that can never authenticate anyone) when no record exists, so both outcomes cost the same scrypt work and are indistinguishable by time. The `401`/`503` bodies are unchanged and the per-IP/per-account rate limits still bound abuse.
+  **Regression coverage:** `server/customer-auth.test.ts` — "unknown-account login runs scrypt against a fixed dummy hash" asserts the dummy target is a well-formed non-authenticating scrypt hash and that `verifyPasswordWithFallback` returns `false` for `null`/`undefined` stored hashes while still verifying real hashes.
+
 ---
 
 ## Verification
@@ -147,7 +152,7 @@ This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_
 | Test suite | Result | Focus |
 |---|---|---|
 | `test:security` (reviewer-auth) | PASS (4) | Bearer extraction, timing-safe compare, fail-closed unconfigured, opaque identity |
-| `test:auth` (customer-auth) | PASS (4) | scrypt hashing, HMAC session tamper/expiry rejection, invite exact-match, per-session nonce uniqueness |
+| `test:auth` (customer-auth) | PASS (5) | scrypt hashing, HMAC session tamper/expiry rejection, invite exact-match, per-session nonce uniqueness, unknown-account login runs scrypt against a fixed dummy hash (timing-equalization) |
 | `test:identity` (case-identity) | PASS (2) | Authenticated identity overrides body; delivery email fail closed |
 | `test:rate-limit` | PASS (3) | Bounded window limiter, fail-closed on capacity, no client key echo |
 | `test:evidence` | PASS (7) | Server IDs, controlled extensions, honest analysis state, rollback on failure, `..` traversal rejected |
@@ -177,7 +182,7 @@ This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_
 ## Adversarial Audit Results (re-verified this branch)
 
 - **All public state-changing routes** (`/api/auth/register`, `/api/auth/login`, `/api/auth/logout`, diagnosis intake, four public forms, consent revoke) are covered by the global origin enforcement and/or `requireAllowedOrigin`, plus `SameSite=Lax` on the session cookie.
-- **Authentication/sessions:** scrypt-salted passwords, HMAC-signed stateless sessions (expiry, version check, timing-safe compare), `HttpOnly`/`Secure`(prod)/`SameSite=Lax` cookie. Reviewer API uses a separate 32-char secret, timing-safe, `not_configured` → 503.
+- **Authentication/sessions:** scrypt-salted passwords, HMAC-signed stateless sessions (expiry, version check, timing-safe compare), `HttpOnly`/`Secure`(prod)/`SameSite=Lax` cookie. Reviewer API uses a separate 32-char secret, timing-safe, `not_configured` → 503. Register responses are indistinguishable for new/existing emails; login runs the full scrypt verification even for unknown accounts so response timing cannot enumerate accounts.
 - **Reviewer endpoints:** every `/api/internal/*` and evidence/file/consultation route requires the reviewer credential; review identity is derived server-side (`reviewer_ref`), never from the request body.
 - **Uploads:** photo intake requires authenticated customer + launch-controlled private-object storage; MIME allowlist with byte verification at storage time; server-generated keys; `X-Content-Type-Options: nosniff` on retrieval; local `uploads/` is gitignored and never treated as durable; follow-up evidence accepts only `audio`/`video` parts and rejects unexpected multipart fields as 400 (never a 500).
 - **R2/S3 evidence:** private objects only, case-prefixed keys, server-generated attachment IDs, no public URLs, rollback on partial failure (re-verified via `media/private-object-storage.contract.test.ts`).
@@ -215,7 +220,7 @@ This branch remediates the audit findings from `DRIVABLE_RELEASE_SECURITY_AUDIT_
 
 ## Release Verdict
 
-**CONDITIONAL GO** for the invite-only, controlled beta — the two P0 items are fixed, all P1 items are fixed, every regression suite passes, webhook delivery is time-bounded, review errors never echo internal messages, the client is same-origin only, evidence/consent/case segments are traversal-hardened, session tokens carry per-issuance entropy, case IDs use cryptographic randomness, consultation ratings are bounded, and the fail-closed design is preserved.
+**CONDITIONAL GO** for the invite-only, controlled beta — the two P0 items are fixed, all P1 items are fixed, every regression suite passes, webhook delivery is time-bounded, review errors never echo internal messages, the client is same-origin only, evidence/consent/case segments are traversal-hardened, session tokens carry per-issuance entropy, case IDs use cryptographic randomness, consultation ratings are bounded, login timing cannot enumerate accounts, and the fail-closed design is preserved.
 
 Conditions before go-live (unchanged from the audit):
 - Configure unique random `DRIVABLE_REVIEWER_TOKEN`, `DRIVABLE_SESSION_SECRET`, `DRIVABLE_BETA_INVITE_CODE`, approved consent/terms/privacy versions, and a durable `DATABASE_URL`.
