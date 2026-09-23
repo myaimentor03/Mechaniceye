@@ -44,10 +44,16 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 (async () => {
-  const server = await registerRoutes(app);
+  let server;
+  try {
+    server = await registerRoutes(app);
+  } catch (err) {
+    logEventError("server.startup.failed", err as Error);
+    process.exit(1);
+  }
 
   // Error handler with secret redaction
-  // Unknown or invalid API routes must answer JSON 404, never Express's
+  // Unknown / invalid API routes must answer JSON 404, never Express's
   // default HTML, never the SPA shell, and never a stack trace. This also
   // covers unsupported HTTP methods on otherwise-valid routes.
   app.use("/api", (_req, res) => {
