@@ -86,7 +86,7 @@ npm run test:beta-e2e       # node:test wrapper (smoke + helper unit tests)
 - `/api/auth/me`: anonymous and **expired-session** reads degrade to `user:null` and never expose a paid/entitlement flag
 - `/api/internal/review/drafts`, release-decision, `/api/internal-review`, `/api/diagnoses/recent`: no token → 401; token + no DB → 503 (launch controls unavailable), except `/api/diagnoses/recent` which is reviewer-gated against in-memory storage → 200 `[]`
 - `/api/internal-review` invalid input with token → 400; valid input forwards to webhook → 200
-- Follow-up with `vibrationData` → 422 `VIBRATION_CAPTURE_UNAVAILABLE` before any DB lookup
+- Follow-up with `vibrationData` → 422 `VIBRATION_CAPTURE_DEPRECATED` before any DB lookup
 - `/api/files/:filename` path traversal (`..%2F..%2F..`) → 404/403, never 200; plain missing file → 404
 - Weak reviewer token (<32 chars) → 503 `REVIEWER_ACCESS_NOT_CONFIGURED` on every reviewer route
 
@@ -100,7 +100,7 @@ npm run test:beta-e2e       # node:test wrapper (smoke + helper unit tests)
 ### Repo hygiene
 - Client source: zero `onrender.com` / legacy `lifeos.living` hardcoded URLs; **zero absolute `http(s)` API URLs baked into app code (all calls are same-origin relative `/api/...`)**
 - Server source: only allowlisted production URL references
-- **Client copy regression: homepage/offer/guidance/FAQ no longer promise audio/video/vibration capture that the photo-first intake rejects** (the offending strings disappeared)
+- **Client copy regression: homepage/offer/guidance/FAQ no longer promise analyzed media, and no longer claim unsupported capture** — copy truthfully states uploaded photos/audio/video/vibration are stored as case evidence when private hosted storage passes launch verification and are not visually analyzed by the current AI path
 - **Buyer-interest form ships no pipelined sample/default listing title** (the old `2012 Ford F-150 XLT` default that could be submitted by mistake is gone)
 - **`uploads/` temp directory returns to its baseline after every intake, mid-upload abort, and follow-up 404 (no leaked temp files)**
 - Mock/simulated sources are not wired anywhere an end user could read them as real phenomena: `server/mock-drivable-report.ts` is only consulted for `buildDrivableAiPayloadFields` (AI-forward packet shaping), and `client/src/lib/mock-analysis.ts` has no importers (dead code, not the diagnosis backend). No TODO/FIXME-gated fake endpoints remain in `server/` or `client/src/`.
@@ -115,7 +115,7 @@ These were verified broken in the candidate build and fixed + covered by the har
 2. **CORS rejected the canonical production origin.** `server/index.ts` now derives an additional allowed origin from `DRIVABLE_PUBLIC_ORIGIN` (trailing slashes stripped) in addition to the existing allowlist.
 3. **Logs leaked customer PII.** Marketplace seller/buyer `console.log(..._RECEIVED)` included name/email/phone/address; marketplace, internal-review, mechanic-match, concierge, diagnosis, and follow-up `console.error(...FAILED, error)` routes logged full error objects (often containing request bodies). All converted to message-only (`error instanceof Error ? error.message : String(error)`).
 4. **`/api/files/:filename` path traversal.** Arbitrary file reads were possible via `..` segments; now guarded with `path.basename` + `path.resolve` containment → 404/403.
-5. **Homepage/preview copy promised unsupported media capture.** The beta is photo-first (server rejects audio/video with 415, vibration with 422), but offer copy claimed "sounds, photos, video"; the Evidence Support card and FAQ promised "audio, video, and vibration inputs". Now photo-first and consistent with intake.
+5. **Homepage/preview copy claimed media capture and analysis that were not yet true.** Earlier offer copy claimed "sounds, photos, video"; the Evidence Support card and FAQ promised "audio, video, and vibration inputs" and implied analysis. Copy is now truthful and consistent with intake: photo/audio/video/vibration uploads are stored as case evidence only when private hosted storage passes launch verification, and the current AI path does not analyze uploaded media.
 6. **Buyer-interest form pipelined a sample listing.** `<input name="listingTitle" defaultValue="2012 Ford F-150 XLT" required>` meant an accidental submit would create a queue entry for a fake listing; replaced with a placeholder and no default.
 7. **Bare `/api/health` returned 404.** Only `/live`, `/readiness`, `/db` existed, so monitor/load-balancer probes hitting the ladder root got 404. Added `GET /api/health` → 200 aggregate `{ok:true,live:true}` with `no-store`; fine-grained gates stay at `/live`, `/readiness`, `/db`.
 8. **Unknown `/api/*` routes answered Express's default HTML 404.** That is neither JSON nor SPA-aware and varies by environment. Added an `/api` catch-all in `server/index.ts` so every unmatched `/api/*` request (including unsupported methods on valid routes) answers a JSON `404 {"message":"Not found"}` with no stack trace — and never the SPA shell.
@@ -127,7 +127,7 @@ These were verified broken in the candidate build and fixed + covered by the har
 | Finding | Impact | Recommendation |
 |---------|--------|----------------|
 | The public-form rate limiter is a **single shared** `FixedWindowRateLimiter` instance (15/10 min, key `scope:public-form:sha256(ip)`) across seller-intake, buyer-interest, mechanic-match, and concierge | A burst on one form throttles every other public form from the same IP | Confirm intended; if not, key by route |
-| Audio/video/vibration capture inputs are truthfully **not advertised or analyzed** in this beta build (capabilities return `false`; intake rejects audio/video fields with 415; follow-up rejects `vibrationData` with 422 `VIBRATION_CAPTURE_UNAVAILABLE`) | Mobile multimodal capture is a roadmap item, not a beta claim | Keep copy and capabilities truthful until real sensor/audio/video capture + human-review/analysis pipeline is shipped; the smoke pins `photoUpload` advertising to the flag and asserts audio/video/vibration stay off |
+| Audio/video/vibration capture is **advertised only when durable private evidence storage is provisioned** (capabilities flags all gate on `hasDurableStorage` or dev-local; production without storage reports all four `false`, and intake/follow-up reject with 409) | A production process must never advertise or accept uploads it can only persist to ephemeral disk | Keep capabilities and copy gated on durable storage; the smoke asserts capabilities flip with storage provisioning and that intake/follow-up fail closed (409/404) when storage is not configured |
 | Correcting prior assumption: `intakeType` for seller webhook packet is `marketplace-seller` (not `marketplace-seller-intake`) | Documentation/assets mapping | Keep `DRIVABLE_MASTER_WORKBOOK_*` docs aligned |
 | **Resolved in this acceptance: S3 evidence objects carry retention metadata.** Earlier finding that objects "lack retention/`delete_after` metadata" is closed — `evidenceObjectMetadata` writes `retention-days=30` + ISO `delete-after` + `evidence-status` + `case-id`, and the harness asserts it on stored objects | Old evidence is covered by metadata; lifecycle pruning is still a deployment task | Confirm R2 lifecycle rules prune `delete-after` objects before GA |
 
@@ -141,7 +141,7 @@ The harness defaults to no `DATABASE_URL` to prove fail-closed behavior. Set `DA
 
 ## 7. Mobile / iPhone Manual Checklist (required on device)
 
-Local automation proves transport and gating; nothing replaces a real-device pass. This checklist is the acceptance gate for Safari/iPhone. The beta is photo-first: audio/video/vibration capture is **not** advertised or accepted (the server rejects audio/video at intake with 415 and vibration at follow-up with 422), so mark the corresponding rows N/A-until-shipped on this build.
+Local automation proves transport and gating; nothing replaces a real-device pass. This checklist is the acceptance gate for Safari/iPhone. In this build, audio/video/vibration capture is **advertised and accepted only when durable private hosted storage is configured** (capabilities all `false` and intake/follow-up 409 otherwise); uploaded media is stored for human review and never analyzed by the AI path. Mark the corresponding rows N/A-until-storage until storage is provisioned on the device target.
 
 ### General UI
 - [ ] iPhone 15/16 (iOS 17+): homepage loads, vehicle year/make/model dropdowns scrollable and selectable

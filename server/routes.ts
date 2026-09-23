@@ -1669,12 +1669,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const isDevelopment = process.env.NODE_ENV !== "production";
     const localPhotoUpload = isDevelopment && evidenceStore.durability === "runtime_local";
     const hasDurableStorage = s3Configured || r2Configured;
-    const hasAnyStorage = hasDurableStorage || evidenceStore.durability === "runtime_local";
+    // All media persistence requires durable storage (or local dev). A production
+    // process must never advertise uploads it can only persist to ephemeral disk.
+    const mediaUploadAvailable = hasDurableStorage || localPhotoUpload;
     res.json({
       photoUpload: (process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && hasDurableStorage) || localPhotoUpload,
-      audioUpload: hasAnyStorage,
-      videoUpload: hasAnyStorage,
-      vibrationSensorCapture: hasAnyStorage,
+      audioUpload: mediaUploadAvailable,
+      videoUpload: mediaUploadAvailable,
+      vibrationSensorCapture: mediaUploadAvailable,
     });
   });
 
@@ -2257,6 +2259,13 @@ try {
         persisted: false,
       });
     }
+    if (hasMobileMedia && !allowPhotoUpload) {
+      await removeIntakeTempFiles(uploadedFiles);
+      return res.status(409).json({
+        message: "Audio, video, and vibration upload are not available until private evidence storage passes launch verification. You can continue with written symptoms and OBD-II codes.",
+        persisted: false,
+      });
+    }
     if (photoFiles.some((file) => file.size > 12 * 1024 * 1024)) {
       await removeIntakeTempFiles(uploadedFiles);
       return res.status(413).json({ message: "Each photo must be 12 MB or smaller.", persisted: false });
@@ -2605,6 +2614,28 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
         });
       }
 
+      // Truthful gate: audio/video/vibration persistence requires durable storage or local dev
+      if ([...audioFiles, ...videoFiles, ...vibrationFiles].length > 0) {
+        const isDevelopment = process.env.NODE_ENV !== "production";
+        const allowLocalMediaUpload = isDevelopment && evidenceStore.durability === "runtime_local";
+        const allowMobileMediaUpload = allowLocalMediaUpload || evidenceStore.durability === "private_object_storage" || isDevelopment;
+        if (!allowMobileMediaUpload) {
+          await cleanupTemporaryFiles();
+          return res.status(409).json({
+            message: "Audio, video, and vibration upload are not available until private evidence storage passes launch verification.",
+            persisted: false,
+          });
+        }
+      }
+
+      // Resolve the case before accepting any private evidence so follow-up media
+      // can never be persisted (or claimed) for a case that does not exist.
+      const originalDiagnosis = await storage.getDiagnosis(diagnosisId);
+      if (!originalDiagnosis) {
+        await cleanupTemporaryFiles();
+        return res.status(404).json({ message: "Original diagnosis not found" });
+      }
+
       let vibrationStoredKeys: string[] = [];
       let photoAttachments: EvidenceAttachment[] = [];
       let audioAttachments: EvidenceAttachment[] = [];
@@ -2666,13 +2697,6 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
         }
       }
       
-      // Get original diagnosis
-      const originalDiagnosis = await storage.getDiagnosis(diagnosisId);
-      if (!originalDiagnosis) {
-        await cleanupTemporaryFiles();
-        return res.status(404).json({ message: "Original diagnosis not found" });
-      }
-
       // Create follow-up request - store first storageKey for legacy single-field, but evidence is via EvidenceStore attachments
       const audioFile = audioAttachments[0]?.storageKey || null;
       const videoFile = videoAttachments[0]?.storageKey || null;

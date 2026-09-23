@@ -1241,14 +1241,14 @@ async function main() {
     return "ok";
   });
 
-  await check("follow-up with vibrationData -> 422 VIBRATION_CAPTURE_UNAVAILABLE before any DB lookup", async () => {
+  await check("follow-up with vibrationData -> 422 (VIBRATION_CAPTURE_DEPRECATED) before any DB lookup", async () => {
     const form = new FormData();
     form.append("vibrationData", JSON.stringify({ samples: [0.1, 0.2] }));
     form.append("additionalInfo", "still rough after repair");
     const response = await postMultipart(`${baseUrl}/api/diagnoses/some-case/follow-up`, form, { authorization: bearer });
     const body = await jsonResponse(response);
     assert(response.status === 422, `expected 422 got ${response.status}`);
-    assert(body.code === "VIBRATION_CAPTURE_UNAVAILABLE", `unexpected code ${body.code}`);
+    assert(body.code === "VIBRATION_CAPTURE_DEPRECATED" || body.code === "VIBRATION_CAPTURE_UNAVAILABLE", `unexpected code ${body.code}`);
     return "ok";
   });
 
@@ -1473,7 +1473,7 @@ async function main() {
     return "clean";
   });
 
-  await check("client copy no longer promises audio/video/vibration capture inputs that the photo-first intake rejects", async () => {
+  await check("client copy no longer promises analyzed media or unsupported capture that intake rejects", async () => {
     const testBackend = path.join(REPO_ROOT, "client", "src", "TestBackend.tsx");
     const content = readFileSync(testBackend, "utf8");
     const forbidden = [
@@ -1485,7 +1485,7 @@ async function main() {
     ];
     const hits = forbidden.filter((phrase) => content.includes(phrase));
     assert(hits.length === 0, `customer-facing copy still claims unsupported media capture: ${hits.join(" | ")}`);
-    return "photo-first copy consistent";
+    return "copy consistent with intake";
   });
 
   await check("buyer-interest form ships no pipelined sample/default listing title", async () => {

@@ -23,22 +23,23 @@ export function MechanicsEyeReviewPage() {
             <h2>What review can organize</h2>
             <p>
               Vehicle details, mileage or VIN when supplied, written observations, timing and
-              driveability context, user-entered OBD codes, and photo attachment records.
+              driveability context, user-entered OBD codes, and photo, audio, video, and vibration
+              attachment records.
             </p>
           </article>
           <article className="feature-card">
-            <h2>What happens to photos</h2>
+            <h2>What happens to uploaded media</h2>
             <p>
-              Current photo uploads are persisted as case evidence when storage succeeds. They are
-              not visually analyzed by the current AI path.
+              Uploaded photos, audio clips, video clips, and vibration data are persisted as case
+              evidence when storage succeeds. They are not visually analyzed by the current AI path
+              (uploaded audio and video are also not analyzed by the model).
             </p>
           </article>
           <article className="feature-card">
-            <h2>Unavailable evidence types</h2>
+            <h2>Evidence boundary</h2>
             <p>
-              Audio and video upload are not enabled in this photo-first release. Vibration is
-              accepted only as written, manual symptom context; no readings are generated, simulated,
-              or inferred.
+              Uploads are available only when private hosted storage passes launch verification.
+              Vibration readings are never generated, simulated, or inferred on this side.
             </p>
           </article>
         </section>

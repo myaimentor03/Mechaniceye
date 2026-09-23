@@ -23,8 +23,8 @@ test("both public headers use one review route that is distinct from legal pages
 
 test("review page states the current evidence and safety boundaries", () => {
   assert.match(reviewPage, /not visually analyzed by the current AI path/i);
-  assert.match(reviewPage, /Audio and video upload are not enabled/i);
-  assert.match(reviewPage, /written, manual symptom context/i);
+  assert.match(reviewPage, /private hosted storage passes launch verification/i);
+  assert.match(reviewPage, /persisted as case\s*evidence when storage succeeds/i);
   assert.match(reviewPage, /not a confirmed\s*\n?\s*diagnosis, safety clearance, vehicle-condition certification, or certified inspection/i);
 });
 
@@ -50,7 +50,7 @@ test("active customer copy does not imply unavailable or unperformed media analy
     assert.equal(backend.includes(unsupported), false, unsupported);
   }
 
-  assert.match(backend, /Photos are stored as case evidence when persistence succeeds/);
-  assert.match(backend, /Audio and video upload are not enabled in this photo-first release/);
-  assert.match(backend, /No readings are simulated or inferred/);
+  assert.match(backend, /Photos, audio, video, and vibration data are stored as case evidence when persistence succeeds/);
+  assert.match(backend, /the current AI path does not analyze uploaded media/);
+  assert.match(backend, /not analyzed automatically/);
 });
