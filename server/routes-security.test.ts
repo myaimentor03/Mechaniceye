@@ -119,3 +119,53 @@ test("generated case IDs use cryptographic randomness, not Math.random()", () =>
   const later = generateCaseId();
   assert.notEqual(earlier, later);
 });
+
+// --- Cache-Control no-store header verification (P0 #5 #9) ---
+
+const REVIEWER_TOKEN = "routes-security-review-token-12345678901234567890123456789012";
+
+test("review routes return Cache-Control no-store headers", async () => {
+  process.env.DRIVABLE_REVIEWER_TOKEN = REVIEWER_TOKEN;
+  await withServer(async (origin) => {
+    const response = await fetch(`${origin}/api/internal/review/drafts`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${REVIEWER_TOKEN}`, "content-type": "application/json" },
+      body: JSON.stringify({ riskLevel: "low" }),
+    });
+    assert.equal(response.headers.get("cache-control"), "no-store");
+  });
+  delete process.env.DRIVABLE_REVIEWER_TOKEN;
+});
+
+test("diagnosis steps route returns Cache-Control no-store header", async () => {
+  process.env.DRIVABLE_REVIEWER_TOKEN = REVIEWER_TOKEN;
+  await withServer(async (origin) => {
+    const response = await fetch(`${origin}/api/diagnoses/fake-id/steps`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${REVIEWER_TOKEN}`, "content-type": "application/json" },
+      body: JSON.stringify({ suggestionIndex: 0, stepIndex: 0, completed: true }),
+    });
+    assert.equal(response.headers.get("cache-control"), "no-store");
+  });
+  delete process.env.DRIVABLE_REVIEWER_TOKEN;
+});
+
+test("fix-complete route returns Cache-Control no-store header", async () => {
+  process.env.DRIVABLE_REVIEWER_TOKEN = REVIEWER_TOKEN;
+  await withServer(async (origin) => {
+    const response = await fetch(`${origin}/api/diagnoses/fake-id/fix-complete`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${REVIEWER_TOKEN}`, "content-type": "application/json" },
+      body: JSON.stringify({ suggestionIndex: 0, wasSuccessful: true }),
+    });
+    assert.equal(response.headers.get("cache-control"), "no-store");
+  });
+  delete process.env.DRIVABLE_REVIEWER_TOKEN;
+});
+
+test("subscription tiers route returns Cache-Control no-store header", async () => {
+  await withServer(async (origin) => {
+    const response = await fetch(`${origin}/api/subscription/tiers`);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+  });
+});

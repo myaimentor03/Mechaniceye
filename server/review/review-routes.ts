@@ -12,6 +12,7 @@ type RuntimeProvider = typeof requireVerifiedLaunchControlRuntime;
 
 export function registerDurableReviewRoutes(app: Express, runtimeProvider: RuntimeProvider = requireVerifiedLaunchControlRuntime): void {
   app.post("/api/internal/review/drafts", requireReviewer, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     try {
       const runtime = await runtimeProvider();
       const input = versionInput(req.body);
@@ -20,6 +21,7 @@ export function registerDurableReviewRoutes(app: Express, runtimeProvider: Runti
   });
 
   app.post("/api/internal/review/:caseId/:versionId/final", requireReviewer, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     try {
       const caseId = assertSafePathId(req.params.caseId, "caseId");
       const versionId = assertSafePathId(req.params.versionId, "versionId");
@@ -30,6 +32,7 @@ export function registerDurableReviewRoutes(app: Express, runtimeProvider: Runti
   });
 
   app.post("/api/internal/review/:caseId/:versionId/approve", requireReviewer, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     try {
       const caseId = assertSafePathId(req.params.caseId, "caseId");
       const versionId = assertSafePathId(req.params.versionId, "versionId");
@@ -43,6 +46,7 @@ export function registerDurableReviewRoutes(app: Express, runtimeProvider: Runti
   });
 
   app.post("/api/internal/review/:caseId/:versionId/reject", requireReviewer, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     try {
       const caseId = assertSafePathId(req.params.caseId, "caseId");
       const versionId = assertSafePathId(req.params.versionId, "versionId");
@@ -57,6 +61,7 @@ export function registerDurableReviewRoutes(app: Express, runtimeProvider: Runti
   });
 
   app.post("/api/internal/review/:caseId/:versionId/supersede", requireReviewer, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     try {
       const caseId = assertSafePathId(req.params.caseId, "caseId");
       const versionId = assertSafePathId(req.params.versionId, "versionId");
@@ -66,6 +71,7 @@ export function registerDurableReviewRoutes(app: Express, runtimeProvider: Runti
   });
 
   app.post("/api/internal/review/:caseId/:versionId/release-decision", requireReviewer, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     try {
       const caseId = assertSafePathId(req.params.caseId, "caseId");
       const versionId = assertSafePathId(req.params.versionId, "versionId");

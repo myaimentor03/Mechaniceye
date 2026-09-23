@@ -2136,6 +2136,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Update step completion
   app.post("/api/diagnoses/:diagnosisId/steps", requireReviewer, reviewerWriteLimit, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     let diagnosisId = "";
     try {
       diagnosisId = parseDiagnosisRouteId(req.params?.diagnosisId);
@@ -2164,6 +2165,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Mark fix as complete
   app.post("/api/diagnoses/:diagnosisId/fix-complete", requireReviewer, reviewerWriteLimit, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     let diagnosisId = "";
     try {
       diagnosisId = parseDiagnosisRouteId(req.params?.diagnosisId);
@@ -2194,6 +2196,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Export chat for mechanic
   app.post("/api/diagnoses/:diagnosisId/export-chat", requireReviewer, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     let diagnosisId = "";
     try {
       diagnosisId = parseDiagnosisRouteId(req.params?.diagnosisId);
@@ -2212,6 +2215,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Send to mechanic
   app.post("/api/diagnoses/:diagnosisId/send-to-mechanic", requireReviewer, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     let diagnosisId = "";
     try {
       diagnosisId = parseDiagnosisRouteId(req.params?.diagnosisId);
@@ -2982,6 +2986,7 @@ try {
 
   // Get subscription pricing and features
   app.get("/api/subscription/tiers", (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     res.json(SUBSCRIPTION_FEATURES);
   });
 
