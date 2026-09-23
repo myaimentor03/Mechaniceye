@@ -137,6 +137,7 @@ const diagnosisPhotoUpload = multer({
 const diagnosisPhotoUploadMiddleware = (req: any, res: any, next: any) => {
   diagnosisPhotoUpload.array("photos", PHOTO_LIMITS.maxCount)(req, res, (error: unknown) => {
     if (!error) return next();
+    res.setHeader("Cache-Control", "no-store");
     const multerError = error instanceof multer.MulterError ? error : null;
     if (multerError?.code === "LIMIT_UNEXPECTED_FILE") {
       return res.status(415).json({
@@ -181,6 +182,7 @@ const diagnosisEvidenceUploadMiddleware = (req: any, res: any, next: any) => {
     { name: "vibration", maxCount: 4 }
   ])(req, res, (error: unknown) => {
     if (!error) return next();
+    res.setHeader("Cache-Control", "no-store");
     const isLimitError = error instanceof multer.MulterError;
     return res.status(isLimitError ? 413 : 415).json({
       message: isLimitError
@@ -2240,6 +2242,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Get NHTSA-backed vehicle knowledge for Buyer Risk / Buyer Check
   app.get("/api/buyer-risk/vehicle-knowledge", vehicleKnowledgeLimit, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     const vehicleYear = pickString(req.query.year, req.query.vehicleYear);
     const make = pickString(req.query.make, req.query.vehicleMake);
     const model = pickString(req.query.model, req.query.vehicleModel);
@@ -2538,6 +2541,7 @@ try {
 
   // Create new diagnosis and save to local case storage
   app.post("/api/diagnoses", requireCustomer, customerIntakeLimit, diagnosisEvidenceUploadMiddleware, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     const uploadedFiles = (req.files || {}) as UploadedEvidenceFiles;
     const photoFiles = uploadedFiles.photos || [];
     const mobileMediaFiles: UploadedEvidenceFiles = {
