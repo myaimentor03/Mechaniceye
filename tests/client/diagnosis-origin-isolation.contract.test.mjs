@@ -16,14 +16,14 @@ test("IntakePage Previous Case Reference restores only for diagnosis-intake orig
   // Must scope to diagnosis-intake, never bare savedCaseId truthiness
   assert.match(intake, /sessionStorage\.getItem\("drivable-last-case-id"\)/);
   assert.match(intake, /sessionStorage\.getItem\(DRIVABLE_LAST_CASE_ORIGIN_KEY\)/);
-  assert.match(intake, /savedOrigin === DIAGNOSIS_INTAKE_ORIGIN/);
+  assert.match(intake, /savedOrigin !== DIAGNOSIS_INTAKE_ORIGIN/);
   assert.doesNotMatch(intake, /if \(savedCaseId\) \{\s*setRestoredCaseId\(savedCaseId\)/);
 });
 
 test("IntakePage origin guard preserves fail-closed comment for marketplace isolation", () => {
   const intakeStart = backend.indexOf("function IntakePage()");
   const intake = backend.slice(intakeStart, intakeStart + 2500);
-  assert.match(intake, /Fail closed: only restore Previous Case Reference when the pointer/);
+  assert.match(intake, /Fail closed: only verify a Previous Case Reference when the pointer/);
 });
 
 test("server-verified case restore is origin-scoped to diagnosis-intake (preserves marketplace pointers)", () => {
