@@ -141,11 +141,13 @@ export const optionalCustomer: RequestHandler = (req, _res, next) => {
 export const requireCustomer: RequestHandler = (req, res, next) => {
   const secret = configuredSecret();
   if (!secret) {
+    res.setHeader("Cache-Control", "no-store");
     res.status(503).json({ ok: false, error: "Customer accounts are not configured.", code: "CUSTOMER_AUTH_NOT_CONFIGURED" });
     return;
   }
   const identity = readSessionToken(cookieValue(req.headers.cookie));
   if (!identity) {
+    res.setHeader("Cache-Control", "no-store");
     res.status(401).json({ ok: false, error: "Please sign in to continue.", code: "CUSTOMER_AUTH_REQUIRED" });
     return;
   }

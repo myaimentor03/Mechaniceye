@@ -2428,8 +2428,8 @@ try {
   // email, attachments, or evidence metadata â€” with no-store. Fail-closed:
   // storage errors answer a generic 500, never a partial or foreign list.
   app.get("/api/my-cases", requireCustomer, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     try {
-      res.setHeader("Cache-Control", "no-store");
       const requesterId = req.drivableCustomer?.id || "";
       const owned = await getStorageImpl().getDiagnosesByOwner(requesterId);
       return res.json({
@@ -2443,6 +2443,7 @@ try {
       });
     } catch (error) {
       logEventError("api.customer_case_list_failed", error);
+      res.setHeader("Cache-Control", "no-store");
       return res.status(500).json({
         ok: false,
         error: "Case list is temporarily unavailable. Please try again.",
@@ -2461,8 +2462,8 @@ try {
   // or probe for its existence. Success returns a minimal payload (no
   // description/symptom PII) with no-store.
   app.get("/api/my-cases/:id", requireCustomer, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     try {
-      res.setHeader("Cache-Control", "no-store");
       const rawId = typeof req.params.id === "string" ? req.params.id.trim() : "";
       if (!rawId || rawId.length > 128 || !/^CASE-\d{17}-[0-9a-f]{8}$/.test(rawId)) {
         return res.status(400).json({
@@ -2492,6 +2493,7 @@ try {
       });
     } catch (error) {
       logEventError("api.customer_case_resume_failed", error);
+      res.setHeader("Cache-Control", "no-store");
       return res.status(500).json({
         ok: false,
         error: "Case status is temporarily unavailable. Please try again.",
