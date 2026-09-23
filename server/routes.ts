@@ -1984,6 +1984,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/internal-review", requireReviewer, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     try {
       const input = buildInternalReviewInput(req.body || {});
       const validation = validateInternalReviewInput(input);
@@ -2986,8 +2987,9 @@ try {
 
   // Get available mechanics for consultation
   app.get("/api/mechanics", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     try {
-      const mechanics = await storage.getActiveMechanics();
+      const mechanics = await getStorageImpl().getActiveMechanics();
       res.json(mechanics);
     } catch (error) {
       logEventError("api.mechanics_fetch_failed", error);
@@ -2997,6 +2999,7 @@ try {
 
   // Start mechanic consultation
   app.post("/api/consultations", requireReviewer, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     try {
       const input = buildConsultationIntake(req.body || {});
       const validation = validateConsultationIntake(input);
@@ -3028,6 +3031,7 @@ try {
 
   // Submit consultation feedback
   app.post("/api/consultations/:id/feedback", requireReviewer, reviewerWriteLimit, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     try {
       // Fail closed on hostile/malformed ids: only a trimmed, bounded id
       // ever reaches storage. Field names only, never the submitted value.
@@ -3112,6 +3116,7 @@ const filename = path.basename(String(req.params.filename || ""));
   // Revoke durable intake consent for an authenticated customer's case.
   // Fail-closed: requires launch controls and an existing acceptance.
   app.post("/api/consent/revoke", requireCustomer, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     const accountId = req.drivableCustomer!.id;
     const actorId = req.drivableCustomer!.id;
     const caseId = String(req.body?.caseId || "").trim();

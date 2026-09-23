@@ -52,6 +52,7 @@ export const requireReviewer: RequestHandler = (req, res, next) => {
   const authorization = reviewerAuthorization(req.headers.authorization, configured);
 
   if (authorization === "not_configured") {
+    res.setHeader("Cache-Control", "no-store");
     res.status(503).json({
       ok: false,
       error: "Internal review access is not configured.",
@@ -62,6 +63,7 @@ export const requireReviewer: RequestHandler = (req, res, next) => {
 
   if (authorization === "unauthorized") {
     res.setHeader("WWW-Authenticate", 'Bearer realm="drivable-review"');
+    res.setHeader("Cache-Control", "no-store");
     res.status(401).json({
       ok: false,
       error: "Reviewer authorization is required.",

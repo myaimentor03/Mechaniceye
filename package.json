@@ -13,6 +13,7 @@
     "test:auth": "tsx --test server/customer-auth.test.ts",
     "test:my-cases": "tsx --test server/my-cases.test.ts",
     "test:my-cases-cache": "tsx --test server/my-cases-cache.test.ts",
+    "test:reviewer-auth-cache": "tsx --test server/reviewer-auth-cache.test.ts",
     "test:identity": "tsx --test server/case-identity.test.ts",
     "test:rate-limit": "tsx --test server/rate-limit.test.ts",
     "test:readiness": "tsx --test server/launch-readiness.test.ts",
