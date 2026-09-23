@@ -71,8 +71,10 @@ for (const file of previewFiles) {
   const source = fs.readFileSync(full, "utf8");
   const hasUpsert = /on\s+conflict/i.test(source);
   const destructive = new Set();
-  for (const { pattern } of DESTRUCTIVE_PATTERNS) {
-    if (pattern.test(source)) destructive.add(pattern.label);
+  for (const { pattern, label } of DESTRUCTIVE_PATTERNS) {
+    const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+    const scanner = new RegExp(pattern.source, flags);
+    if (scanner.test(source)) destructive.add(label);
   }
   if (!hasUpsert || destructive.size > 0) {
     failures.push(`${file}: expected only INSERT ... ON CONFLICT upserts (upsert=${hasUpsert}, destructive=${[...destructive].join(",") || "none"})`);

@@ -13,6 +13,8 @@
  *      constraints/indexes).
  *   4. No SQL table is missing its CREATE INDEX IF NOT EXISTS for the
  *      schema-declared indexes.
+ *   5. The runtime schema mirror (server/shared/shared/schema.ts) is
+ *      byte-identical to the canonical shared/schema.ts.
  *
  * Exits non-zero on any drift.
  */
@@ -22,6 +24,7 @@ import path from "node:path";
 
 const root = process.cwd();
 const schemaFile = path.join(root, "shared", "schema.ts");
+const mirrorFile = path.join(root, "server", "shared", "shared", "schema.ts");
 const migrationsDir = path.join(root, "migrations");
 const failures = [];
 
@@ -42,6 +45,17 @@ try {
 }
 
 const schemaSource = fs.readFileSync(schemaFile, "utf8");
+
+if (fs.existsSync(mirrorFile)) {
+  const mirrorSource = fs.readFileSync(mirrorFile, "utf8");
+  if (mirrorSource === schemaSource) {
+    ok("schema mirror", "server/shared/shared/schema.ts is byte-identical to shared/schema.ts");
+  } else {
+    fail("schema mirror", "server/shared/shared/schema.ts has drifted from shared/schema.ts");
+  }
+} else {
+  fail("schema mirror", `runtime mirror not found: ${mirrorFile}`);
+}
 
 const tablePattern = /pgTable\((["'`])([^"'`]+)\1/g;
 const tableNames = [...schemaSource.matchAll(tablePattern)].map((m) => m[2]);

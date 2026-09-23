@@ -482,6 +482,7 @@ Trace of a public diagnosis intake (`POST /api/diagnoses` in `server/routes.ts`)
 | Orphaned evidence | Evidence objects can exist without a case row only if the DB write failed after `savePhotos` — the route then calls `evidenceStore.deleteCase(responseBody.id)` to remove the orphan | Covered in the intake route; narrow tests assert DB failure does not become success. |
 | Case/evidence mismatch | Pre-0005, photo/audio/video/vibration file names were not retained on the durable case row (only `input_types` label list + coarse `audio_file`/`video_file` summaries) | Fixed by migration 0005 + `buildEvidenceMetadata()` in `server/public-case-db.ts`; `mapDiagnosisRowToRecord` surfaces them on reads. |
 | DB failure reported as success | None found: `insertPublicDiagnosisCaseToDb` returns `{ok:false}` and callers downgrade the response; the persistence-truth tests assert this behavior | Verified in `server/public-case-db.test.ts` (fails closed; redacts credentials). |
+| Sessions are DB-backed | No sessions table exists or is needed: customer sessions are stateless HMAC-signed cookies (`drivable_session` in `server/customer-auth.ts`) | Documented and verified at code level. Sessions survive a server restart out of the box because the cookie is self-contained; no migration/seed required for auth. Expiry is enforced by the cookie signature, not by row state. |
 
 ---
 
