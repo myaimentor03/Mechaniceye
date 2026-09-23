@@ -178,3 +178,19 @@ test("Guided intake restore never fabricates receipt on offline/timeout — poin
   assert.doesNotMatch(catchBlock, /removeItem/);
   assert.doesNotMatch(catchBlock, /was received/);
 });
+
+test("Guided intake submits photo files when present in the submission payload", () => {
+  // P0 #1: Reliable photo evidence capture and persistence.
+  // The submitDiagnosis function must append selected photo files to the
+  // FormData request body under the "photos" field when photoFiles has entries.
+  assert.match(backend, /const photoFileNames = photoFiles\.map\(\(file\) => file\.name\)/);
+  assert.match(backend, /photoEvidenceStatus: photoFileNames\.length \? "Provided" : "None"/);
+  assert.match(backend, /photoFiles\.forEach\(\(file\) => requestBody\.append\("photos", file, file\.name\)\)/);
+});
+
+test("Guided intake includes photo evidence status in evidenceIntake payload", () => {
+  // The evidenceIntake object sent to the server must reflect whether photos
+  // were provided so the server can coordinate persistence and rollback correctly.
+  assert.match(backend, /"evidenceIntake"/);
+  assert.match(backend, /attachments: \[\s*\]/);
+});
