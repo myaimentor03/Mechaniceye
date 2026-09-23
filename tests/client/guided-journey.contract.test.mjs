@@ -106,26 +106,75 @@ test("Missing key details warning appears in guided flow", () => {
   assert.match(backend, /Missing key details may delay your review/);
 });
 
+function intakePageBlock() {
+  const start = backend.indexOf("function IntakePage");
+  assert.ok(start !== -1, "IntakePage must exist");
+  return backend.slice(start, start + 14000);
+}
+
 test("Guided intake restores case ID from sessionStorage on mount", () => {
-  const intakeStart = backend.indexOf("function IntakePage");
-  assert.ok(intakeStart !== -1, "IntakePage must exist");
-  const intake = backend.slice(intakeStart, intakeStart + 8000);
+  const intake = intakePageBlock();
   assert.match(intake, /useEffect\(/);
   assert.match(intake, /sessionStorage\.getItem\("drivable-last-case-id"\)/);
   assert.match(intake, /setRestoredCaseId/);
 });
 
 test("Guided intake displays restored case reference when no active result", () => {
-  const intakeStart = backend.indexOf("function IntakePage");
-  const intake = backend.slice(intakeStart, intakeStart + 8000);
+  const intake = intakePageBlock();
   assert.match(intake, /restoredCaseId/);
   assert.match(intake, /Previous Case Reference/);
   assert.match(intake, /Reference:/);
 });
 
 test("Guided intake uses sessionStorage (not localStorage) for case ID persistence", () => {
-  const intakeStart = backend.indexOf("function IntakePage");
-  const intake = backend.slice(intakeStart, intakeStart + 8000);
+  const intake = intakePageBlock();
   assert.doesNotMatch(intake, /localStorage\.setItem\("drivable-last-case-id"/);
   assert.doesNotMatch(intake, /localStorage\.getItem\("drivable-last-case-id"/);
+});
+
+test("Guided intake Previous Case Reference is server-verified, never restored from the raw pointer", () => {
+  // Launch blocker (Nov 2 paid beta, P0 #5 resume/status): the shared
+  // drivable-last-case-id pointer is not proof of receipt — it can be stale,
+  // foreign, or from a signed-out session. IntakePage must verify via
+  // GET /api/my-cases/:id before claiming "was received".
+  const intake = intakePageBlock();
+  assert.match(intake, /fetch\(`\/api\/my-cases\/\$\{encodeURIComponent\(savedCaseId\)\}`/);
+  assert.doesNotMatch(intake, /setRestoredCaseId\(savedCaseId\)/);
+});
+
+test("Guided intake restore requires a signed-in customer (authChecked && customer gate)", () => {
+  // Showing a reference while signed out leaks another session's pointer
+  // and fabricates receipt for a customer who never submitted.
+  const intake = intakePageBlock();
+  assert.match(intake, /if \(!authChecked \|\| !customer\)/);
+  assert.match(intake, /\[authChecked, customer\]/);
+});
+
+test("Guided intake restore uses AbortController timeout for mobile resilience", () => {
+  const intake = intakePageBlock();
+  assert.match(intake, /const controller = new AbortController\(\)/);
+  assert.match(intake, /window\.setTimeout\(\(\) => controller\.abort\(\), CASE_RECOVERY_TIMEOUT_MS\)/);
+  assert.match(intake, /window\.clearTimeout\(timeoutId\)/);
+  assert.match(intake, /credentials: "same-origin"/);
+});
+
+test("Guided intake restore drops the stale pointer on 404 instead of rendering it forever", () => {
+  const intake = intakePageBlock();
+  assert.match(intake, /if \(res\.status === 404\)/);
+  assert.match(intake, /sessionStorage\.removeItem\("drivable-last-case-id"\)/);
+  assert.match(intake, /sessionStorage\.removeItem\(DRIVABLE_LAST_CASE_ORIGIN_KEY\)/);
+  assert.match(intake, /setRestoredCaseId\(null\)/);
+});
+
+test("Guided intake restore never fabricates receipt on offline/timeout — pointer preserved for retry", () => {
+  const intake = intakePageBlock();
+  assert.match(intake, /\.catch\(\(\) => \{/);
+  const catchAt = intake.indexOf(".catch(() => {");
+  assert.ok(catchAt !== -1, "offline catch block must exist");
+  const catchBlock = intake.slice(catchAt, catchAt + 400);
+  assert.match(catchBlock, /setRestoredCaseId\(null\)/);
+  // Fail closed: the offline path must not clear storage (retry needs the
+  // pointer) and must not render an unverified reference.
+  assert.doesNotMatch(catchBlock, /removeItem/);
+  assert.doesNotMatch(catchBlock, /was received/);
 });

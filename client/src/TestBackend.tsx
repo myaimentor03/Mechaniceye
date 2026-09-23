@@ -1738,19 +1738,59 @@ const endpoints = [PUBLIC_API_ENDPOINT];
   function IntakePage() {
     const [restoredCaseId, setRestoredCaseId] = useState<string | null>(null);
 
+    // QA lane (Nov 2 paid beta): server-verified Previous Case Reference.
+    // The shared drivable-last-case-id pointer is not proof of receipt — it
+    // can be stale (case gone), foreign (another customer's id), or from a
+    // signed-out session. Verify via GET /api/my-cases/:id (customer-scoped,
+    // enumeration-safe) before claiming "was received", and drop the pointer
+    // on 404 so a stale reference never renders forever. Offline/timeout
+    // preserves the pointer for retry without fabricating receipt.
     useEffect(() => {
+      if (!authChecked || !customer) {
+        setRestoredCaseId(null);
+        return;
+      }
+      let savedCaseId: string | null = null;
+      let savedOrigin: string | null = null;
       try {
-        const savedCaseId = sessionStorage.getItem("drivable-last-case-id");
-        const savedOrigin = sessionStorage.getItem(DRIVABLE_LAST_CASE_ORIGIN_KEY);
-        // Fail closed: only restore Previous Case Reference when the pointer
-        // was written by the diagnosis-intake flow. A ClearSale or
-        // buyer-interest id from the shared pointer must never render as a
-        // Drivable Check case (see marketplace origin scoping ce945c4).
-        if (savedCaseId && savedOrigin === DIAGNOSIS_INTAKE_ORIGIN) {
-          setRestoredCaseId(savedCaseId);
-        }
-      } catch {}
-    }, []);
+        savedCaseId = sessionStorage.getItem("drivable-last-case-id");
+        savedOrigin = sessionStorage.getItem(DRIVABLE_LAST_CASE_ORIGIN_KEY);
+      } catch {
+        return;
+      }
+      // Fail closed: only verify a Previous Case Reference when the pointer
+      // was written by the diagnosis-intake flow. A ClearSale or
+      // buyer-interest id from the shared pointer must never render as a
+      // Drivable Check case (see marketplace origin scoping ce945c4).
+      if (!savedCaseId || savedOrigin !== DIAGNOSIS_INTAKE_ORIGIN) return;
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), CASE_RECOVERY_TIMEOUT_MS);
+      fetch(`/api/my-cases/${encodeURIComponent(savedCaseId)}`, { credentials: "same-origin", signal: controller.signal })
+        .then(async (res) => {
+          window.clearTimeout(timeoutId);
+          if (!res.ok) {
+            // 404 unknown-or-foreign: the saved pointer is stale, so drop it
+            // instead of showing a reference to a case that is not ours.
+            // 400/401/500: preserve the pointer without claiming receipt.
+            if (res.status === 404) {
+              try { sessionStorage.removeItem("drivable-last-case-id"); sessionStorage.removeItem(DRIVABLE_LAST_CASE_ORIGIN_KEY); } catch {}
+            }
+            setRestoredCaseId(null);
+            return;
+          }
+          const body = await res.json().catch(() => null);
+          if (body && typeof body.id === "string") {
+            setRestoredCaseId(body.id);
+          }
+        })
+        .catch(() => {
+          window.clearTimeout(timeoutId);
+          // Offline/timeout: keep the pointer for retry, but do not render
+          // an unverified "received" reference.
+          setRestoredCaseId(null);
+        });
+      return () => { controller.abort(); window.clearTimeout(timeoutId); };
+    }, [authChecked, customer]);
 
     if (!authChecked) {
       return <div className="simple-page"><div className="step-card"><h2>Checking your account...</h2></div></div>;
