@@ -2100,6 +2100,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Get recent diagnoses
   app.get("/api/diagnoses/recent", requireReviewer, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     try {
       const requestedLimit = parseInt(req.query.limit as string, 10) || 10;
       const limit = Math.min(Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 10, 1), 200);
@@ -2113,6 +2114,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Fix History Log endpoints
   app.get("/api/fix-history/:diagnosisId", requireReviewer, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     let diagnosisId = "";
     try {
       diagnosisId = parseDiagnosisRouteId(req.params?.diagnosisId);
@@ -2225,6 +2227,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Get all diagnoses
   app.get("/api/diagnoses", requireReviewer, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     try {
       const diagnoses = await storage.getDiagnosesByUser();
       res.json(diagnoses);
@@ -2400,6 +2403,7 @@ try {
 
   // Get specific diagnosis
   app.get("/api/diagnoses/:id", requireReviewer, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     let diagnosisId = "";
     try {
       diagnosisId = parseDiagnosisRouteId(req.params?.id);
