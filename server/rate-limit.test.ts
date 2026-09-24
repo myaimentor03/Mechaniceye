@@ -35,5 +35,6 @@ test("HTTP middleware returns a retryable 429 without echoing the client key", (
   assert.equal(nextCount, 1);
   assert.equal(status, 429);
   assert.equal(headers.has("Retry-After"), true);
+  assert.equal(headers.get("Cache-Control"), "no-store");
   assert.equal(JSON.stringify(body).includes("person@example.com"), false);
 });

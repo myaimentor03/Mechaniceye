@@ -64,6 +64,7 @@ test("public seller intake rejects a disallowed origin before validation", async
     assert.equal(response.status, 403);
     const body = await response.json();
     assert.deepEqual(body, { ok: false, error: "Request origin is not allowed.", code: "ORIGIN_NOT_ALLOWED" });
+    assert.equal(response.headers.get("cache-control"), "no-store");
   });
 });
 
@@ -83,11 +84,15 @@ test("public seller intake passes the origin guard with an allow-listed origin",
 test("public buyer vehicle knowledge endpoint is per-IP rate limited before the DB", async () => {
   await withServer(async (origin) => {
     let lastStatus = 0;
+    let lastCacheControl: string | null = null;
     for (let i = 0; i < 122; i += 1) {
       const response = await fetch(`${origin}/api/buyer-risk/vehicle-knowledge?year=2015&make=Honda&model=Civic`);
       lastStatus = response.status;
+      lastCacheControl = response.headers.get("cache-control");
+      await response.arrayBuffer();
     }
     assert.equal(lastStatus, 429);
+    assert.equal(lastCacheControl, "no-store");
   });
 });
 

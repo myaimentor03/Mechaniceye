@@ -86,6 +86,8 @@ test("requireAllowedOrigin rejects disallowed origins with 403 for state-changin
     assert.equal(response.status, 403);
     const body = await response.json();
     assert.deepEqual(body, { ok: false, error: "Request origin is not allowed.", code: "ORIGIN_NOT_ALLOWED" });
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("vary"), "Origin");
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
@@ -118,6 +120,7 @@ test("enforceOriginForStateChanging rejects disallowed state changes but lets re
     });
     assert.equal(writeResponse.status, 403);
     assert.equal(reached, false);
+    assert.equal(writeResponse.headers.get("cache-control"), "no-store");
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }

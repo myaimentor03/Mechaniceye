@@ -24,6 +24,7 @@ export const requireAllowedOrigin: RequestHandler = (req, res, next) => {
   const origin = req.headers.origin;
   if (origin && !originPermitted(origin)) {
     res.setHeader("Vary", "Origin");
+    res.setHeader("Cache-Control", "no-store");
     res.status(403).json({ ok: false, error: "Request origin is not allowed.", code: "ORIGIN_NOT_ALLOWED" });
     return;
   }
@@ -41,6 +42,7 @@ export const enforceOriginForStateChanging: RequestHandler = (req, res, next) =>
   const origin = req.headers.origin;
   if (origin && !originPermitted(origin) && req.method !== "GET" && req.method !== "HEAD" && req.method !== "OPTIONS") {
     res.setHeader("Vary", "Origin");
+    res.setHeader("Cache-Control", "no-store");
     res.status(403).json({ ok: false, error: "Request origin is not allowed.", code: "ORIGIN_NOT_ALLOWED" });
     return;
   }
