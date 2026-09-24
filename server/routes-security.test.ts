@@ -169,3 +169,79 @@ test("subscription tiers route returns Cache-Control no-store header", async () 
     assert.equal(response.headers.get("cache-control"), "no-store");
   });
 });
+
+test("health readiness route returns Cache-Control no-store header (P0 #9)", async () => {
+  process.env.DRIVABLE_REVIEWER_TOKEN = REVIEWER_TOKEN;
+  await withServer(async (origin) => {
+    const response = await fetch(`${origin}/api/health/readiness`, {
+      headers: { authorization: `Bearer ${REVIEWER_TOKEN}` },
+    });
+    assert.match(response.headers.get("cache-control") || "", /no-store/);
+  });
+  delete process.env.DRIVABLE_REVIEWER_TOKEN;
+});
+
+test("health readiness without auth still returns Cache-Control no-store", async () => {
+  await withServer(async (origin) => {
+    const response = await fetch(`${origin}/api/health/readiness`);
+    assert.match(response.headers.get("cache-control") || "", /no-store/);
+  });
+});
+
+test("health db route returns Cache-Control no-store header (P0 #9)", async () => {
+  process.env.DRIVABLE_REVIEWER_TOKEN = REVIEWER_TOKEN;
+  await withServer(async (origin) => {
+    const response = await fetch(`${origin}/api/health/db`, {
+      headers: { authorization: `Bearer ${REVIEWER_TOKEN}` },
+    });
+    assert.match(response.headers.get("cache-control") || "", /no-store/);
+  });
+  delete process.env.DRIVABLE_REVIEWER_TOKEN;
+});
+
+test("follow-up route returns Cache-Control no-store header (P0 #2 Guided Journey)", async () => {
+  process.env.DRIVABLE_REVIEWER_TOKEN = REVIEWER_TOKEN;
+  await withServer(async (origin) => {
+    const response = await fetch(`${origin}/api/diagnoses/fake-case-id/follow-up`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${REVIEWER_TOKEN}`, "content-type": "application/json" },
+      body: JSON.stringify({ additionalInfo: "still happens" }),
+    });
+    assert.match(response.headers.get("cache-control") || "", /no-store/);
+  });
+  delete process.env.DRIVABLE_REVIEWER_TOKEN;
+});
+
+test("internal evidence retrieval returns Cache-Control no-store on 400 and 404 (P0 #1)", async () => {
+  process.env.DRIVABLE_REVIEWER_TOKEN = REVIEWER_TOKEN;
+  await withServer(async (origin) => {
+    const bad = await fetch(`${origin}/api/internal/evidence/..%2Fbad/bad`, {
+      headers: { authorization: `Bearer ${REVIEWER_TOKEN}` },
+    });
+    assert.equal(bad.status, 400);
+    assert.match(bad.headers.get("cache-control") || "", /no-store/);
+    const missing = await fetch(`${origin}/api/internal/evidence/CASE-00000000000000000-aaaaaaaa/valid-attachment`, {
+      headers: { authorization: `Bearer ${REVIEWER_TOKEN}` },
+    });
+    assert.equal(missing.status === 404 || missing.status === 502, true);
+    assert.match(missing.headers.get("cache-control") || "", /no-store/);
+  });
+  delete process.env.DRIVABLE_REVIEWER_TOKEN;
+});
+
+test("files route returns Cache-Control no-store on traversal and not-found (P0 #1)", async () => {
+  process.env.DRIVABLE_REVIEWER_TOKEN = REVIEWER_TOKEN;
+  await withServer(async (origin) => {
+    const traversal = await fetch(`${origin}/api/files/..%2Fsecret.txt`, {
+      headers: { authorization: `Bearer ${REVIEWER_TOKEN}` },
+    });
+    assert.equal(traversal.status === 404 || traversal.status === 403, true);
+    assert.match(traversal.headers.get("cache-control") || "", /no-store/);
+    const notFound = await fetch(`${origin}/api/files/nonexistent-12345.jpg`, {
+      headers: { authorization: `Bearer ${REVIEWER_TOKEN}` },
+    });
+    assert.equal(notFound.status, 404);
+    assert.match(notFound.headers.get("cache-control") || "", /no-store/);
+  });
+  delete process.env.DRIVABLE_REVIEWER_TOKEN;
+});

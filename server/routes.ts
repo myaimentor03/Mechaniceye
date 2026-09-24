@@ -1856,6 +1856,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/health/readiness", requireReviewer, async (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     let durableHumanReview = false;
     try {
       await requireVerifiedLaunchControlRuntime();
@@ -1886,6 +1887,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/health/db", requireReviewer, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     const result = await checkDatabaseConnection();
     res.status(result.ok ? 200 : 503).json(result);
   });
@@ -2524,14 +2526,19 @@ try {
   }
 
   app.get("/api/internal/evidence/:caseId/:attachmentId", requireReviewer, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     const rawCaseId = typeof req.params.caseId === "string" ? req.params.caseId : "";
     const rawAttachmentId = typeof req.params.attachmentId === "string" ? req.params.attachmentId : "";
     if (!isValidEvidenceSegment(rawCaseId) || !isValidEvidenceSegment(rawAttachmentId)) {
+      res.setHeader("Cache-Control", "no-store");
       return res.status(400).json({ ok: false, error: "Invalid evidence identifier.", code: "INVALID_EVIDENCE_ID" });
     }
     try {
       const result = await evidenceStore.getAttachment(rawCaseId, rawAttachmentId);
-      if (!result) return res.status(404).json({ ok: false, error: "Evidence attachment not found." });
+      if (!result) {
+        res.setHeader("Cache-Control", "no-store");
+        return res.status(404).json({ ok: false, error: "Evidence attachment not found." });
+      }
       res.setHeader("Content-Type", result.attachment.mimeType);
       res.setHeader("Content-Length", String(result.bytes.length));
       res.setHeader("Content-Disposition", `inline; filename="${result.attachment.id}"`);
@@ -2540,6 +2547,7 @@ try {
       return res.send(result.bytes);
     } catch (error) {
       logEventError("api.reviewer_evidence_retrieval_failed", error);
+      res.setHeader("Cache-Control", "no-store");
       return res.status(502).json({ ok: false, error: "Evidence could not be retrieved." });
     }
   });
@@ -2876,6 +2884,7 @@ try {
     { name: 'audio', maxCount: 1 },
     { name: 'video', maxCount: 1 }
   ]), async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     const uploadedPaths = Object.values(files || {}).flat().map((file) => file.path).filter(Boolean);
     const cleanupTemporaryFiles = async () => {
@@ -2893,6 +2902,7 @@ try {
       const originalDiagnosis = await storage.getDiagnosis(diagnosisId);
       if (!originalDiagnosis) {
         await cleanupTemporaryFiles();
+        res.setHeader("Cache-Control", "no-store");
         return res.status(404).json({ message: "Original diagnosis not found" });
       }
 
@@ -2901,6 +2911,7 @@ try {
       const rawAdditionalInfo = toOptionalText(req.body.additionalInfo, "additionalInfo");
       if (!rawAdditionalInfo || !rawAdditionalInfo.trim()) {
         await cleanupTemporaryFiles();
+        res.setHeader("Cache-Control", "no-store");
         return res.status(400).json({ message: "additionalInfo is required and must be a non-empty string" });
       }
       const additionalInfo = rawAdditionalInfo.trim();
@@ -2969,7 +2980,7 @@ try {
       if (error instanceof TypeError) {
         logEventError("api.follow_up_creation_failed", error);
         await cleanupTemporaryFiles();
-
+        res.setHeader("Cache-Control", "no-store");
         res.status(400).json({
           message: "Failed to create follow-up. Please try again."
         });
@@ -2977,7 +2988,7 @@ try {
       }
       logEventError("api.follow_up_creation_failed", error, { diagnosisId });
       await cleanupTemporaryFiles();
-
+      res.setHeader("Cache-Control", "no-store");
       res.status(500).json({
         message: "Failed to create follow-up. Please try again."
       });
@@ -3089,9 +3100,11 @@ try {
 
 // Serve uploaded files (traversal-safe)
   app.get("/api/files/:filename", requireReviewer, (req, res) => {
-const filename = path.basename(String(req.params.filename || ""));
+    res.setHeader("Cache-Control", "no-store");
+    const filename = path.basename(String(req.params.filename || ""));
 
     if (!filename || filename !== req.params.filename || filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
+      res.setHeader("Cache-Control", "no-store");
       res.status(404).json({ message: "Invalid file path" });
       return;
     }
@@ -3100,6 +3113,7 @@ const filename = path.basename(String(req.params.filename || ""));
     const filepath = path.resolve(uploadDir, filename);
 
     if (!filepath.startsWith(resolvedRoot + path.sep)) {
+      res.setHeader("Cache-Control", "no-store");
       res.status(403).json({ message: "Invalid file path" });
       return;
     }
@@ -3111,9 +3125,11 @@ const filename = path.basename(String(req.params.filename || ""));
         res.setHeader("Cache-Control", "no-store");
         res.sendFile(filepath);
       } else {
+        res.setHeader("Cache-Control", "no-store");
         res.status(404).json({ message: "File not found" });
       }
     } catch {
+      res.setHeader("Cache-Control", "no-store");
       res.status(404).json({ message: "File not found" });
     }
   });
