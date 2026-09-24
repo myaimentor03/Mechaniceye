@@ -1751,6 +1751,7 @@ const endpoints = [PUBLIC_API_ENDPOINT];
 
   function IntakePage() {
     const [restoredCaseId, setRestoredCaseId] = useState<string | null>(null);
+    const prevCustomerIdRef = useRef<string | null>(null);
 
     // QA lane (Nov 2 paid beta): server-verified Previous Case Reference.
     // The shared drivable-last-case-id pointer is not proof of receipt — it
@@ -1759,6 +1760,20 @@ const endpoints = [PUBLIC_API_ENDPOINT];
     // enumeration-safe) before claiming "was received", and drop the pointer
     // on 404 so a stale reference never renders forever. Offline/timeout
     // preserves the pointer for retry without fabricating receipt.
+    // Shared-device safety: if the signed-in customer changes (logout, account
+    // switch on a shared tablet, or session expiry → new login), any previously
+    // restored case reference must be cleared immediately. Otherwise the prior
+    // customer's Case ID would remain visible under the new customer's session
+    // until the server responds with 404.
+    useEffect(() => {
+      if (!authChecked) return;
+      const currentId = customer?.id ?? null;
+      if (prevCustomerIdRef.current !== null && prevCustomerIdRef.current !== currentId) {
+        setRestoredCaseId(null);
+      }
+      prevCustomerIdRef.current = currentId;
+    }, [authChecked, customer?.id]);
+
     useEffect(() => {
       if (!authChecked || !customer) {
         setRestoredCaseId(null);

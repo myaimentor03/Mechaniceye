@@ -32,3 +32,29 @@ test("restored case is still server-verified after isolation hardening", () => {
 test("case isolation effect is gated by authChecked to avoid clearing before auth resolves", () => {
   assert.match(backend, /if \(!authChecked\) return;/);
 });
+
+test("IntakePage shared-device safety: switching signed-in customer clears previously restored case reference", () => {
+  // Prevents customer A's Case ID reference from lingering under customer B's
+  // session on a shared tablet/phone after logout → login without reload.
+  const intakeStart = backend.indexOf("function IntakePage");
+  assert.ok(intakeStart !== -1, "IntakePage must exist");
+  const intake = backend.slice(intakeStart, intakeStart + 1500);
+  assert.match(intake, /const prevCustomerIdRef = useRef<string \| null>\(null\)/);
+  assert.match(intake, /prevCustomerIdRef\.current !== null && prevCustomerIdRef\.current !== currentId/);
+  assert.match(intake, /setRestoredCaseId\(null\)/);
+});
+
+test("IntakePage case recovery isolation tracks the signed-in customer id, not just truthiness", () => {
+  const intakeStart = backend.indexOf("function IntakePage");
+  assert.ok(intakeStart !== -1, "IntakePage must exist");
+  const intake = backend.slice(intakeStart, intakeStart + 1500);
+  assert.match(intake, /customer\?\.id/);
+  assert.match(intake, /\[authChecked, customer\?\.id\]/);
+});
+
+test("IntakePage case isolation effect is gated by authChecked to avoid clearing before auth resolves", () => {
+  const intakeStart = backend.indexOf("function IntakePage");
+  assert.ok(intakeStart !== -1, "IntakePage must exist");
+  const intake = backend.slice(intakeStart, intakeStart + 1500);
+  assert.match(intake, /if \(!authChecked\) return;/);
+});
