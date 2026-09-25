@@ -1121,6 +1121,19 @@ async function main() {
       return "clean";
     });
 
+    await check("follow-up with a vibration FILE part on a missing case returns 404 (field admitted, evidence never silently kept)", async () => {
+      const before = uploadsDirFileCount();
+      const form = followUpForm({ audio: Buffer.from("audio bytes") });
+      form.append("vibration", new Blob([Buffer.from("vibration bytes")], { type: "audio/mpeg" }), "vibration-sample.dat");
+      const response = await postMultipart(`${legacyUrl}/api/diagnoses/qa-missing-case/follow-up`, form, { authorization: bearer });
+      const body = await jsonResponse(response);
+      assert(response.status === 404, `expected 404 got ${response.status}`);
+      assert(body.code !== "UNSUPPORTED_MEDIA_TYPE", `unexpected code ${body.code}`);
+      assert(body.code !== "UPLOAD_UNEXPECTED_FIELD", `vibration file field must be admitted, got ${body.code}`);
+      await assertUploadsCountStable(before);
+      return "clean";
+    });
+
     const halfCredentialPort = await findFreePort();
     const halfCredential = spawnDrivableServer({
       port: halfCredentialPort,

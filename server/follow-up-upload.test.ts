@@ -140,6 +140,73 @@ test("follow-up oversized video file returns 413 with Cache-Control no-store (P0
   });
 });
 
+test("follow-up vibration file is accepted and recorded, never silently dropped (P0 #1 #2 #9)", async () => {
+  await withServer(async (origin) => {
+    const caseId = await createCase();
+    const form = new FormData();
+    form.append("additionalInfo", "Still rough after repair follow-up check");
+    form.append("vibration", new Blob([new Uint8Array([0x01, 0x02, 0x03])], { type: "audio/mpeg" }), "vibration-sample.dat");
+    const response = await fetch(`${origin}/api/diagnoses/${caseId}/follow-up`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${REVIEWER_TOKEN}` },
+      body: form as any,
+    });
+    const body = await response.json().catch(() => ({} as any));
+    assert.equal(response.status, 200, `vibration file must be accepted, got ${response.status}: ${JSON.stringify(body).slice(0, 200)}`);
+    assertNoStore(response, "follow-up vibration file success");
+    // The admitted file part must be recorded as case evidence, not temp-stored and forgotten.
+    assert.ok(typeof body.vibrationData === "string" && body.vibrationData.length > 0, "vibration file evidence must be recorded on the follow-up record");
+    assert.equal(body.evidenceProcessing?.vibration, "stored_for_human_review_not_analyzed");
+    const uploadsDir = path.join(process.cwd(), "uploads");
+    const remainingFiles = fs.existsSync(uploadsDir)
+      ? fs.readdirSync(uploadsDir).filter(f => f === body.vibrationData || f.endsWith(".dat"))
+      : [];
+    assert.equal(remainingFiles.length, 0, `Expected 0 vibration temp files after success, found ${remainingFiles.join(", ")}`);
+  });
+});
+
+test("follow-up vibration file on a missing case returns 404 (not 415) and cleans temp files (P0 #2 #9)", async () => {
+  await withServer(async (origin) => {
+    const uploadsDir = path.join(process.cwd(), "uploads");
+    const before = fs.existsSync(uploadsDir) ? fs.readdirSync(uploadsDir).slice().sort() : [];
+    const form = new FormData();
+    form.append("additionalInfo", "Still rough after repair follow-up check");
+    form.append("vibration", new Blob([new Uint8Array([0x04, 0x05, 0x06])], { type: "audio/mpeg" }), "vibration-sample.dat");
+    const response = await fetch(`${origin}/api/diagnoses/qa-missing-case-vibration-0001/follow-up`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${REVIEWER_TOKEN}` },
+      body: form as any,
+    });
+    assert.equal(response.status, 404, `expected 404 for missing case, got ${response.status}`);
+    assertNoStore(response, "follow-up vibration file 404");
+    const after = fs.existsSync(uploadsDir) ? fs.readdirSync(uploadsDir).slice().sort() : [];
+    assert.deepEqual(after, before, "missing-case vibration upload must leave no temp files");
+  });
+});
+
+test("follow-up oversized vibration file returns 413 PAYLOAD_TOO_LARGE envelope (P0 #2 #9)", async () => {
+  await withServer(async (origin) => {
+    const caseId = await createCase();
+    const form = new FormData();
+    form.append("additionalInfo", "Still rough after repair follow-up check");
+    const bigVibration = new Blob([new Uint8Array(51 * 1024 * 1024)], { type: "audio/mpeg" });
+    form.append("vibration", bigVibration, "big-vibration.dat");
+    const response = await fetch(`${origin}/api/diagnoses/${caseId}/follow-up`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${REVIEWER_TOKEN}` },
+      body: form as any,
+    });
+    const text = await response.text();
+    const body = JSON.parse(text || "{}");
+    assert.equal(response.status, 413, `expected 413 for oversized vibration file, got ${response.status}`);
+    assertNoStore(response, "follow-up 413 oversized vibration");
+    assert.equal(body.ok, false);
+    assert.equal(body.code, "PAYLOAD_TOO_LARGE");
+    assert.equal(body.persisted, false);
+    assert.ok(typeof body.message === "string" && body.message.length > 0);
+    assert.ok(!text.includes("MulterError") && !text.includes("LIMIT_"), "must not leak multer internals");
+  });
+});
 test("follow-up success response cleans up temporary upload files (P0 #2 #9)", async () => {
   await withServer(async (origin) => {
     const caseId = await createCase();

@@ -232,8 +232,8 @@ const followUpUploadMiddleware = (req: any, res: any, next: any) => {
       return res.status(415).json({
         ok: false,
         code: "UPLOAD_UNEXPECTED_FIELD",
-        message: "Follow-up accepts only audio and video fields. Unexpected file field rejected.",
-        error: "Follow-up accepts only audio and video fields. Unexpected file field rejected.",
+        message: "Follow-up accepts only audio, video, and vibration fields. Unexpected file field rejected.",
+        error: "Follow-up accepts only audio, video, and vibration fields. Unexpected file field rejected.",
         persisted: false,
       });
     }
@@ -242,10 +242,10 @@ const followUpUploadMiddleware = (req: any, res: any, next: any) => {
       ok: false,
       code: isLimitError ? "PAYLOAD_TOO_LARGE" : "UNSUPPORTED_MEDIA_TYPE",
       message: isLimitError
-        ? "Follow-up evidence upload exceeds the allowed limits (1 audio and 1 video max, 50 MB per file)."
+        ? "Follow-up evidence upload exceeds the allowed limits (1 audio, 1 video, and 1 vibration file max, 50 MB per file)."
         : "Follow-up evidence upload was rejected because the file type is not supported.",
       error: isLimitError
-        ? "Follow-up evidence upload exceeds the allowed limits (1 audio and 1 video max, 50 MB per file)."
+        ? "Follow-up evidence upload exceeds the allowed limits (1 audio, 1 video, and 1 vibration file max, 50 MB per file)."
         : "Follow-up evidence upload was rejected because the file type is not supported.",
       persisted: false,
     });
@@ -2966,13 +2966,17 @@ try {
       const additionalInfo = rawAdditionalInfo.trim();
 
       // Create follow-up request
+      // Vibration evidence arrives either as structured sensor JSON
+      // (vibrationData text field, preferred) or as an uploaded vibration
+      // file part. Record whichever is present so accepted evidence is never
+      // silently dropped after the upload middleware admits the field.
       const followUpData = {
         originalDiagnosisId: diagnosisId,
         userId: originalDiagnosis.userId!,
         additionalInfo,
         newAudioFile: files?.audio?.[0]?.filename || null,
         newVideoFile: files?.video?.[0]?.filename || null,
-        newVibrationData: req.body.vibrationData || null,
+        newVibrationData: req.body.vibrationData || files?.vibration?.[0]?.filename || null,
       };
 
       const followUp = await storage.createFollowUp(followUpData);
