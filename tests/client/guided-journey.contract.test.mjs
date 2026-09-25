@@ -194,3 +194,14 @@ test("Guided intake includes photo evidence status in evidenceIntake payload", (
   assert.match(backend, /"evidenceIntake"/);
   assert.match(backend, /attachments: \[\s*\]/);
 });
+
+test("Guided intake restored case reference has a Copy Case ID button", () => {
+  // Launch blocker (Nov 2 paid beta, P0 #5 resume/status): the Previous
+  // Case Reference section mentions a Copy Case ID button but must actually
+  // render one so mobile users can copy their case ID without an active result.
+  const intake = intakePageBlock();
+  assert.match(intake, /Previous Case Reference/);
+  assert.match(intake, /Copy Case ID/);
+  assert.match(intake, /navigator\.clipboard\?\.writeText/);
+  assert.match(intake, /restoredCaseId/);
+});

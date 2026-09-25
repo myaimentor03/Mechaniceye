@@ -1944,6 +1944,47 @@ const endpoints = [PUBLIC_API_ENDPOINT];
               <h3>Previous Case Reference</h3>
               <p>Your last Drivable Check submission was received.</p>
               <p><strong>Reference:</strong> {restoredCaseId}</p>
+              <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={() => {
+                    const fallbackCopy = () => {
+                      try {
+                        const ta = document.createElement("textarea");
+                        ta.value = restoredCaseId;
+                        ta.setAttribute("readonly", "");
+                        ta.style.position = "fixed";
+                        ta.style.opacity = "0";
+                        document.body.appendChild(ta);
+                        ta.select();
+                        const ok = document.execCommand("copy");
+                        document.body.removeChild(ta);
+                        if (ok) {
+                          toast({ title: "Copied", description: "Case ID copied to clipboard." });
+                        } else {
+                          toast({ title: "Copy failed", description: `Long-press to copy: ${restoredCaseId}` });
+                        }
+                      } catch {
+                        toast({ title: "Copy failed", description: `Long-press to copy: ${restoredCaseId}` });
+                      }
+                    };
+                    try {
+                      if (navigator.clipboard?.writeText) {
+                        navigator.clipboard.writeText(restoredCaseId).then(() => {
+                          toast({ title: "Copied", description: "Case ID copied to clipboard." });
+                        }).catch(() => { fallbackCopy(); });
+                      } else {
+                        fallbackCopy();
+                      }
+                    } catch {
+                      fallbackCopy();
+                    }
+                  }}
+                >
+                  Copy Case ID
+                </button>
+              </div>
               <p className="helper-text">Start a new check below or use the Copy Case ID button if you need to reference this case.</p>
             </div>
           )}
