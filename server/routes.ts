@@ -2993,6 +2993,7 @@ try {
         iterationCount,
       });
 
+      await cleanupTemporaryFiles();
       res.json({
         ...newDiagnosis,
         evidenceProcessing: evidenceBoundary.evidenceProcessing,

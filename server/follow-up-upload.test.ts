@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { tmpdir } from "node:os";
 import test from "node:test";
 import express from "express";
 import { registerRoutes } from "./routes.js";
@@ -51,7 +54,6 @@ test("follow-up unexpected file field returns 415 with Cache-Control no-store (P
     const caseId = await createCase();
     const form = new FormData();
     form.append("additionalInfo", "Still rough after repair follow-up check");
-    // Follow-up only allows audio/video — sending photos must be rejected via multer 415.
     form.append("photos", new Blob(["fake"], { type: "image/jpeg" }), "photo.jpg");
     const response = await fetch(`${origin}/api/diagnoses/${caseId}/follow-up`, {
       method: "POST",
@@ -70,8 +72,6 @@ test("follow-up valid audio field is accepted (not 415) and still returns no-sto
     const caseId = await createCase();
     const form = new FormData();
     form.append("additionalInfo", "Still rough after repair follow-up check");
-    // Use a tiny mp4-like blob; server allows audio/mp4. This should pass multer
-    // and reach handler (200 or 404/500 depending on persistence, but never 415).
     form.append("audio", new Blob([new Uint8Array([0x00, 0x01, 0x02])], { type: "audio/mp4" }), "clip.m4a");
     const response = await fetch(`${origin}/api/diagnoses/${caseId}/follow-up`, {
       method: "POST",
@@ -103,7 +103,6 @@ test("follow-up oversized audio file returns 413 with Cache-Control no-store (P0
     const caseId = await createCase();
     const form = new FormData();
     form.append("additionalInfo", "Still rough after repair follow-up check");
-    // Create a 51MB audio blob (limit is 50MB)
     const bigAudio = new Blob([new Uint8Array(51 * 1024 * 1024)], { type: "audio/mp4" });
     form.append("audio", bigAudio, "big.m4a");
     const response = await fetch(`${origin}/api/diagnoses/${caseId}/follow-up`, {
@@ -125,7 +124,6 @@ test("follow-up oversized video file returns 413 with Cache-Control no-store (P0
     const caseId = await createCase();
     const form = new FormData();
     form.append("additionalInfo", "Still rough after repair follow-up check");
-    // Create a 51MB video blob (limit is 50MB)
     const bigVideo = new Blob([new Uint8Array(51 * 1024 * 1024)], { type: "video/mp4" });
     form.append("video", bigVideo, "big.mp4");
     const response = await fetch(`${origin}/api/diagnoses/${caseId}/follow-up`, {
@@ -139,5 +137,30 @@ test("follow-up oversized video file returns 413 with Cache-Control no-store (P0
     assert.equal(body.persisted, false);
     assert.ok(typeof body.message === "string" && body.message.length > 0);
     assert.ok(!JSON.stringify(body).includes("PayloadTooLargeError"), "must not leak multer error internals");
+  });
+});
+
+test("follow-up success response cleans up temporary upload files (P0 #2 #9)", async () => {
+  await withServer(async (origin) => {
+    const caseId = await createCase();
+    const audioPath = path.join(tmpdir(), `test-followup-audio-${Date.now()}.mp3`);
+    fs.writeFileSync(audioPath, Buffer.from("fake audio content for follow-up test"));
+    const form = new FormData();
+    form.append("additionalInfo", "Still rough after repair follow-up check");
+    const audioBlob = new Blob([fs.readFileSync(audioPath)], { type: "audio/mp4" });
+    form.append("audio", audioBlob, "followup-audio.mp4");
+    const response = await fetch(`${origin}/api/diagnoses/${caseId}/follow-up`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${REVIEWER_TOKEN}` },
+      body: form as any,
+    });
+    const body = await response.json().catch(() => ({} as any));
+    assert.equal(response.status, 200, `expected 200 on success, got ${response.status}`);
+    const uploadsDir = path.join(process.cwd(), "uploads");
+    const remainingFiles = fs.existsSync(uploadsDir)
+      ? fs.readdirSync(uploadsDir).filter(f => f.startsWith("followup-audio") || f.endsWith(".mp3") || f.endsWith(".mp4"))
+      : [];
+    assert.equal(remainingFiles.length, 0, `Expected 0 follow-up temp files after success, found ${remainingFiles.join(", ")}`);
+    fs.rmSync(audioPath, { force: true });
   });
 });

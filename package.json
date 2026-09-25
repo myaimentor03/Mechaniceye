@@ -36,6 +36,7 @@
     "test:review-adapter": "tsx --test server/review/postgres-adapter.test.ts",
     "test:review-routes": "tsx --test server/review/review-routes.test.ts",
     "test:follow-up-boundary": "tsx --test server/follow-up-evidence-boundary.test.ts",
+    "test:follow-up-upload": "tsx --test server/follow-up-upload.test.ts",
     "test:delivery": "tsx --test server/jobs/delivery-outbox.contract.test.ts",
     "test:observability": "tsx --test server/observability/observability.test.ts",
     "test:media-contract": "tsx --test server/media/private-object-storage.contract.test.ts",
