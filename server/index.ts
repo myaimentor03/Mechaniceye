@@ -1,5 +1,6 @@
-import express, { type Request, Response, NextFunction } from "express";
+import express from "express";
 import { registerRoutes } from "./routes";
+import { registerProductionFallbacks } from "./production-fallbacks";
 import { DRIVABLE_ALLOWED_ORIGINS, enforceOriginForStateChanging } from "./origin-guard";
 import { logEventError } from "./observability/safe-log";
 import path from "path";
@@ -52,25 +53,11 @@ app.use(express.urlencoded({ extended: false }));
     process.exit(1);
   }
 
-  // Error handler with secret redaction
-  // Unknown / invalid API routes must answer JSON 404, never Express's
-  // default HTML, never the SPA shell, and never a stack trace. This also
-  // covers unsupported HTTP methods on otherwise-valid routes.
-  app.use("/api", (_req, res) => {
-    res.status(404).json({ message: "Not found" });
-  });
-
-  // Error handler with secret redaction
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    logEventError("http.request.error", err, { path: _req.path, method: _req.method });
-    const status = err.status || err.statusCode || 500;
-    const hasSafeStatus = typeof status === "number" && Number.isInteger(status) && status >= 400 && status <= 599;
-    if (!hasSafeStatus) {
-      res.status(500).json({ message: "Internal Server Error" });
-      return;
-    }
-    res.status(status).json({ message: "Request could not be completed." });
-  });
+  // Outer belt-and-braces fallbacks (fail-closed { ok:false, code } JSON with
+  // Cache-Control: no-store -- see server/production-fallbacks.ts). The inner
+  // transport envelope in registerRoutes answers first; this outer layer only
+  // covers fallthrough to later middleware (static assets, future routes).
+  registerProductionFallbacks(app);
 
   // Serve the frontend from dist (production)
   const distPath = path.join(process.cwd(), "dist/client");
