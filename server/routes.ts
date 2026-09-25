@@ -199,6 +199,29 @@ const removeIntakeTempFiles = async (files: UploadedEvidenceFiles) => {
     }
   }));
 };
+const followUpUploadMiddleware = (req: any, res: any, next: any) => {
+  upload.fields([
+    { name: 'audio', maxCount: 1 },
+    { name: 'video', maxCount: 1 }
+  ])(req, res, (error: unknown) => {
+    if (!error) return next();
+    res.setHeader("Cache-Control", "no-store");
+    const multerError = error instanceof multer.MulterError ? error : null;
+    if (multerError?.code === "LIMIT_UNEXPECTED_FILE") {
+      return res.status(415).json({
+        message: "Follow-up accepts only audio and video fields. Unexpected file field rejected.",
+        persisted: false,
+      });
+    }
+    const isLimitError = Boolean(multerError);
+    return res.status(isLimitError ? 413 : 415).json({
+      message: isLimitError
+        ? "Follow-up evidence upload exceeds the allowed limits (1 audio and 1 video max, 50 MB per file)."
+        : error instanceof Error ? error.message : "Follow-up evidence upload was rejected.",
+      persisted: false,
+    });
+  });
+};
 const evidenceStore = createEvidenceStoreFromEnvironment();
 
 // Subscription tier features
@@ -2880,10 +2903,7 @@ try {
   });
 
   // Create follow-up request when previous fixes didn't work
-  app.post("/api/diagnoses/:id/follow-up", requireReviewer, reviewerWriteLimit, upload.fields([
-    { name: 'audio', maxCount: 1 },
-    { name: 'video', maxCount: 1 }
-  ]), async (req, res) => {
+  app.post("/api/diagnoses/:id/follow-up", requireReviewer, reviewerWriteLimit, followUpUploadMiddleware, async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     const uploadedPaths = Object.values(files || {}).flat().map((file) => file.path).filter(Boolean);
