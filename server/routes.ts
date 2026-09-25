@@ -222,7 +222,8 @@ const removeIntakeTempFiles = async (files: UploadedEvidenceFiles) => {
 const followUpUploadMiddleware = (req: any, res: any, next: any) => {
   upload.fields([
     { name: 'audio', maxCount: 1 },
-    { name: 'video', maxCount: 1 }
+    { name: 'video', maxCount: 1 },
+    { name: 'vibration', maxCount: 1 }
   ])(req, res, (error: unknown) => {
     if (!error) return next();
     res.setHeader("Cache-Control", "no-store");
@@ -1928,7 +1929,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/capabilities", (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
     const durableEvidence = evidenceStore.durability === "private_object_storage";
-    const uploadEnabled = process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && durableEvidence;
+    const uploadEnabled = durableEvidence;
     res.json({
       photoUpload: uploadEnabled,
       audioUpload: uploadEnabled,
