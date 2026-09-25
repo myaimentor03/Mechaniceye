@@ -55,6 +55,7 @@
     "test:reviewer-evidence": "tsx --test server/reviewer-evidence-retrieval.test.ts",
     "test:route-error-handling": "tsx --test server/route-error-handling.test.ts",
     "test:transport-errors": "tsx --test server/api-transport-errors.test.ts",
+    "test:upload-envelope": "tsx --test server/upload-error-envelope.test.ts",
     "test:fix-flow-id": "tsx --test server/fix-flow-diagnosis-id-validation.test.ts",
     "test:safety-gate-parity": "tsx --test server/safety-gate-parity.test.ts",
     "test:follow-up-validation": "tsx --test server/follow-up-additional-info-validation.test.ts",

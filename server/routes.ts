@@ -141,13 +141,21 @@ const diagnosisPhotoUploadMiddleware = (req: any, res: any, next: any) => {
     const multerError = error instanceof multer.MulterError ? error : null;
     if (multerError?.code === "LIMIT_UNEXPECTED_FILE") {
       return res.status(415).json({
+        ok: false,
+        code: "UPLOAD_UNEXPECTED_FIELD",
         message: "Intake accepts only photos under the \"photos\" field. Audio, video, and other file fields are not supported at this step.",
+        error: "Intake accepts only photos under the \"photos\" field. Audio, video, and other file fields are not supported at this step.",
         persisted: false,
       });
     }
     const isLimitError = Boolean(multerError);
     return res.status(isLimitError ? 413 : 415).json({
+      ok: false,
+      code: isLimitError ? "PAYLOAD_TOO_LARGE" : "UNSUPPORTED_MEDIA_TYPE",
       message: isLimitError
+        ? `Photo upload exceeds the limit of ${PHOTO_LIMITS.maxCount} files and 12 MB per file.`
+        : "Photo upload was rejected because the file type is not supported.",
+      error: isLimitError
         ? `Photo upload exceeds the limit of ${PHOTO_LIMITS.maxCount} files and 12 MB per file.`
         : "Photo upload was rejected because the file type is not supported.",
       persisted: false,
@@ -184,10 +192,20 @@ const diagnosisEvidenceUploadMiddleware = (req: any, res: any, next: any) => {
     if (!error) return next();
     res.setHeader("Cache-Control", "no-store");
     const isLimitError = error instanceof multer.MulterError;
+    // Fail-closed envelope parity with the transport layer (P0 #9 mobile
+    // recovery): pin ok/code alongside the legacy message/persisted fields so
+    // response.json() clients can branch on body.ok. The 415 message stays
+    // static and never echoes the attacker-controlled mimetype from the
+    // fileFilter error.
     return res.status(isLimitError ? 413 : 415).json({
+      ok: false,
+      code: isLimitError ? "PAYLOAD_TOO_LARGE" : "UNSUPPORTED_MEDIA_TYPE",
       message: isLimitError
         ? "Evidence upload exceeds the allowed limits (8 photos max, 12 MB per file, 20 files max)."
-        : error instanceof Error ? error.message : "Evidence upload was rejected.",
+        : "Evidence upload was rejected because the file type is not supported.",
+      error: isLimitError
+        ? "Evidence upload exceeds the allowed limits (8 photos max, 12 MB per file, 20 files max)."
+        : "Evidence upload was rejected because the file type is not supported.",
       persisted: false,
     });
   });
@@ -211,15 +229,23 @@ const followUpUploadMiddleware = (req: any, res: any, next: any) => {
     const multerError = error instanceof multer.MulterError ? error : null;
     if (multerError?.code === "LIMIT_UNEXPECTED_FILE") {
       return res.status(415).json({
+        ok: false,
+        code: "UPLOAD_UNEXPECTED_FIELD",
         message: "Follow-up accepts only audio and video fields. Unexpected file field rejected.",
+        error: "Follow-up accepts only audio and video fields. Unexpected file field rejected.",
         persisted: false,
       });
     }
     const isLimitError = Boolean(multerError);
     return res.status(isLimitError ? 413 : 415).json({
+      ok: false,
+      code: isLimitError ? "PAYLOAD_TOO_LARGE" : "UNSUPPORTED_MEDIA_TYPE",
       message: isLimitError
         ? "Follow-up evidence upload exceeds the allowed limits (1 audio and 1 video max, 50 MB per file)."
-        : error instanceof Error ? error.message : "Follow-up evidence upload was rejected.",
+        : "Follow-up evidence upload was rejected because the file type is not supported.",
+      error: isLimitError
+        ? "Follow-up evidence upload exceeds the allowed limits (1 audio and 1 video max, 50 MB per file)."
+        : "Follow-up evidence upload was rejected because the file type is not supported.",
       persisted: false,
     });
   });
