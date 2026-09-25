@@ -97,3 +97,47 @@ test("follow-up without auth still returns Cache-Control no-store on 401 before 
     assertNoStore(response, "follow-up 401 without auth");
   });
 });
+
+test("follow-up oversized audio file returns 413 with Cache-Control no-store (P0 #2 #9)", async () => {
+  await withServer(async (origin) => {
+    const caseId = await createCase();
+    const form = new FormData();
+    form.append("additionalInfo", "Still rough after repair follow-up check");
+    // Create a 51MB audio blob (limit is 50MB)
+    const bigAudio = new Blob([new Uint8Array(51 * 1024 * 1024)], { type: "audio/mp4" });
+    form.append("audio", bigAudio, "big.m4a");
+    const response = await fetch(`${origin}/api/diagnoses/${caseId}/follow-up`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${REVIEWER_TOKEN}` },
+      body: form as any,
+    });
+    assert.equal(response.status, 413, `expected 413 for oversized audio, got ${response.status}`);
+    assertNoStore(response, "follow-up 413 oversized audio");
+    const body = await response.json().catch(() => ({} as any));
+    assert.equal(body.persisted, false);
+    assert.ok(typeof body.message === "string" && body.message.length > 0);
+    assert.ok(!JSON.stringify(body).includes("PayloadTooLargeError"), "must not leak multer error internals");
+  });
+});
+
+test("follow-up oversized video file returns 413 with Cache-Control no-store (P0 #2 #9)", async () => {
+  await withServer(async (origin) => {
+    const caseId = await createCase();
+    const form = new FormData();
+    form.append("additionalInfo", "Still rough after repair follow-up check");
+    // Create a 51MB video blob (limit is 50MB)
+    const bigVideo = new Blob([new Uint8Array(51 * 1024 * 1024)], { type: "video/mp4" });
+    form.append("video", bigVideo, "big.mp4");
+    const response = await fetch(`${origin}/api/diagnoses/${caseId}/follow-up`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${REVIEWER_TOKEN}` },
+      body: form as any,
+    });
+    assert.equal(response.status, 413, `expected 413 for oversized video, got ${response.status}`);
+    assertNoStore(response, "follow-up 413 oversized video");
+    const body = await response.json().catch(() => ({} as any));
+    assert.equal(body.persisted, false);
+    assert.ok(typeof body.message === "string" && body.message.length > 0);
+    assert.ok(!JSON.stringify(body).includes("PayloadTooLargeError"), "must not leak multer error internals");
+  });
+});
