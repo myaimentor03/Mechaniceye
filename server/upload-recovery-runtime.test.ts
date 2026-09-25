@@ -259,45 +259,46 @@ test("upload recovery: multiple media files temp cleaned up when media persisten
   });
 });
 
-test("upload recovery: audio file temp cleaned up on media persistence failure (507)", async () => {
+test("upload recovery: photo temp files cleaned up on disabled-photo-upload rejection (409)", async () => {
   await withTestServer(async (origin) => {
     cleanUploadsDir();
-    const cookie = spoofCookie({ id: "cust-upload-test-5", email: "upload-test-5@example.test" });
-    const audio = createTestAudioFile();
+    const cookie = spoofCookie({ id: "cust-upload-test-10", email: "upload-test-10@example.test" });
+    const photoPath = path.join(tmpdir(), `test-photo-${Date.now()}.png`);
+    fs.writeFileSync(photoPath, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
 
-    // Valid request but media persistence fails (no R2) -> 507
-    const result = await uploadMediaFiles(origin, cookie, { audio: audio.filepath });
+    const form = new FormData();
+    form.append("evidenceIntake", JSON.stringify({
+      mode: "diagnose",
+      vehicle: { year: "2015", make: "Toyota", model: "Corolla", mileage: 85000 },
+      situation: { description: "Engine running rough", symptoms: ["Engine running rough"], timing: "Idle", urgency: "Safe to Drive", canDrive: "Safe to Drive" },
+      obd: { codes: ["P0300"], attachmentIds: [] }, attachments: [],
+    }));
+    form.append("consent", JSON.stringify({ service_fulfillment: true, media_processing: true, human_review_sharing: true, optional_product_learning: false }));
+    form.append("clientRequestId", `req-photo-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
+    form.append("problemCategory", "Engine running rough");
+    form.append("description", "Engine running rough at idle");
+    form.append("urgency", "Safe to Drive");
+    form.append("vehicleInfo", "2015 Toyota Corolla");
+    form.append("timing", "Idle");
+    form.append("unsupportedVehicle", "false");
+    form.append("manualVehicleEntryUsed", "false");
+    form.append("photoEvidenceStatus", "None");
 
-    assert.equal(result.status, 507);
-    assert.equal(result.body.persisted, false);
-    assert.ok(result.body.message.includes("media evidence was not persisted"));
+    // Upload PNG bytes labeled image/jpeg - photo upload is disabled so server returns 409
+    const pngBlob = new Blob([Buffer.from([0x89, 0x50, 0x4e, 0x47])], { type: "image/jpeg" });
+    const pngFile = new File([pngBlob], "sneaky.png", { type: "image/jpeg" });
+    form.append("photos", pngFile);
 
-    // Temp file must be cleaned up even on 507
+    const response = await fetch(`${origin}/api/diagnoses`, { method: "POST", headers: { cookie }, body: form });
+    const body = await response.json().catch(() => ({}));
+    assert.equal(response.status, 409, `expected 409 got ${response.status}`);
+    assert.equal(body.persisted, false, "must report persisted:false");
+    assert.ok(body.message?.includes("Photo upload"), `unexpected message: ${body.message}`);
+
     const remaining = countTempFiles();
-    assert.equal(remaining, 0, `Expected 0 temp files after 507 media persistence failure, found ${remaining}`);
+    assert.equal(remaining, 0, `Expected 0 temp files after photo upload disabled, found ${remaining}`);
 
-    fs.rmSync(audio.filepath, { force: true });
-  });
-});
-
-test("upload recovery: video file temp cleaned up on media persistence failure (507)", async () => {
-  await withTestServer(async (origin) => {
-    cleanUploadsDir();
-    const cookie = spoofCookie({ id: "cust-upload-test-6", email: "upload-test-6@example.test" });
-    const video = createTestVideoFile();
-
-    // Valid request but media persistence fails (no R2) -> 507
-    const result = await uploadMediaFiles(origin, cookie, { video: video.filepath });
-
-    assert.equal(result.status, 507);
-    assert.equal(result.body.persisted, false);
-    assert.ok(result.body.message.includes("media evidence was not persisted"));
-
-    // Temp file must be cleaned up
-    const remaining = countTempFiles();
-    assert.equal(remaining, 0, `Expected 0 temp files after 507 media persistence failure, found ${remaining}`);
-
-    fs.rmSync(video.filepath, { force: true });
+    fs.rmSync(photoPath, { force: true });
   });
 });
 
