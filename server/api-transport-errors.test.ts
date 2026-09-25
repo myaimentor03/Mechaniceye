@@ -152,3 +152,42 @@ test("valid intake flow is unaffected by the transport envelope (still 502 witho
     assert.match(headers.get("content-type") || "", /application\/json/);
   });
 });
+
+// ─── Diagnosis intake transport error coverage (P0 #1 evidence, P0 #9 mobile recovery) ───
+
+test("malformed JSON on /api/diagnoses answers 400 JSON with INVALID_JSON and no parser internals", async () => {
+  await withServer(async (origin) => {
+    const marker = "DiagProbeQaXy88";
+    const { status, headers, body, text } = await postRaw(
+      origin,
+      "/api/diagnoses",
+      `{"evidenceIntake": {"vehicle": {}, "situation": {}}, "consent": {}, broken`,
+    );
+    assert.equal(status, 400);
+    assert.match(headers.get("content-type") || "", /application\/json/);
+    assert.equal(body.ok, false);
+    assert.equal(body.code, "INVALID_JSON");
+    assert.ok(typeof body.error === "string" && body.error.length > 0);
+    assert.ok(!text.includes("SyntaxError"), "must not leak parser error name");
+    assert.ok(!text.includes(marker), "must not echo the truncated body");
+    assert.ok(!text.includes("<html"), "must not answer HTML");
+    assert.ok(!text.includes("node:"), "must not leak internal paths");
+    assert.equal(headers.get("cache-control"), "no-store");
+  });
+});
+
+test("oversized JSON on /api/diagnoses answers 413 JSON with PAYLOAD_TOO_LARGE", async () => {
+  await withServer(async (origin) => {
+    const { status, headers, body, text } = await postRaw(
+      origin,
+      "/api/diagnoses",
+      JSON.stringify({ filler: "x".repeat(150 * 1024) }),
+    );
+    assert.equal(status, 413);
+    assert.match(headers.get("content-type") || "", /application\/json/);
+    assert.equal(body.ok, false);
+    assert.equal(body.code, "PAYLOAD_TOO_LARGE");
+    assert.ok(!text.includes("<html"), "must not answer HTML");
+    assert.equal(headers.get("cache-control"), "no-store");
+  });
+});
