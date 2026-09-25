@@ -377,7 +377,7 @@ test("upload recovery: unsupported media type rejected and temp cleaned (415)", 
 
     const body = await response.json().catch(() => ({}));
     assert.equal(response.status, 415);
-    assert.ok(body.message.includes("Unsupported evidence type"));
+    assert.ok(body.message.includes("Evidence upload was rejected because the file type is not supported"));
 
     // Temp file must be cleaned up
     const remaining = countTempFiles();
