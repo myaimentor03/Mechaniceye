@@ -191,3 +191,84 @@ test("oversized JSON on /api/diagnoses answers 413 JSON with PAYLOAD_TOO_LARGE",
     assert.equal(headers.get("cache-control"), "no-store");
   });
 });
+
+// ─── Public intake transport error coverage (P0 #7 ClearSale, P0 #10
+// Mechanic Match, Guided Journey concierge; P0 #9 mobile recovery) ───
+// The envelope is global, but before this lock only buyer-interest and
+// /api/diagnoses were pinned. Flaky mobile networks truncate bodies on every
+// intake surface, so the remaining public forms get the same pin: parseable
+// fail-closed JSON, no parser internals, zero raw-input echo, no-store.
+
+test("malformed JSON on /api/marketplace/seller-intake answers 400 JSON with INVALID_JSON", async () => {
+  await withServer(async (origin) => {
+    const marker = "SellProbeQaXy88";
+    const { status, headers, body, text } = await postRaw(
+      origin,
+      "/api/marketplace/seller-intake",
+      `{"sellerName": "${marker}", broken`,
+    );
+    assert.equal(status, 400);
+    assert.match(headers.get("content-type") || "", /application\/json/);
+    assert.equal(body.ok, false);
+    assert.equal(body.code, "INVALID_JSON");
+    assert.ok(typeof body.error === "string" && body.error.length > 0);
+    assert.ok(!text.includes("SyntaxError"), "must not leak parser error name");
+    assert.ok(!text.includes(marker), "must not echo the truncated body");
+    assert.ok(!text.includes("<html"), "must not answer HTML");
+    assert.ok(!text.includes("node:"), "must not leak internal paths");
+    assert.equal(headers.get("cache-control"), "no-store");
+  });
+});
+
+test("oversized JSON on /api/marketplace/seller-intake answers 413 JSON with PAYLOAD_TOO_LARGE", async () => {
+  await withServer(async (origin) => {
+    const { status, headers, body, text } = await postRaw(
+      origin,
+      "/api/marketplace/seller-intake",
+      JSON.stringify({ filler: "x".repeat(150 * 1024) }),
+    );
+    assert.equal(status, 413);
+    assert.match(headers.get("content-type") || "", /application\/json/);
+    assert.equal(body.ok, false);
+    assert.equal(body.code, "PAYLOAD_TOO_LARGE");
+    assert.ok(!text.includes("<html"), "must not answer HTML");
+    assert.equal(headers.get("cache-control"), "no-store");
+  });
+});
+
+test("malformed JSON on /api/mechanic-match/request answers 400 JSON with INVALID_JSON", async () => {
+  await withServer(async (origin) => {
+    const marker = "MechProbeQaXy88";
+    const { status, headers, body, text } = await postRaw(
+      origin,
+      "/api/mechanic-match/request",
+      `{"customerName": "${marker}", broken`,
+    );
+    assert.equal(status, 400);
+    assert.match(headers.get("content-type") || "", /application\/json/);
+    assert.equal(body.ok, false);
+    assert.equal(body.code, "INVALID_JSON");
+    assert.ok(typeof body.error === "string" && body.error.length > 0);
+    assert.ok(!text.includes("SyntaxError"), "must not leak parser error name");
+    assert.ok(!text.includes(marker), "must not echo the truncated body");
+    assert.ok(!text.includes("<html"), "must not answer HTML");
+    assert.ok(!text.includes("node:"), "must not leak internal paths");
+    assert.equal(headers.get("cache-control"), "no-store");
+  });
+});
+
+test("oversized JSON on /api/support/concierge-request answers 413 JSON with PAYLOAD_TOO_LARGE", async () => {
+  await withServer(async (origin) => {
+    const { status, headers, body, text } = await postRaw(
+      origin,
+      "/api/support/concierge-request",
+      JSON.stringify({ filler: "x".repeat(150 * 1024) }),
+    );
+    assert.equal(status, 413);
+    assert.match(headers.get("content-type") || "", /application\/json/);
+    assert.equal(body.ok, false);
+    assert.equal(body.code, "PAYLOAD_TOO_LARGE");
+    assert.ok(!text.includes("<html"), "must not answer HTML");
+    assert.equal(headers.get("cache-control"), "no-store");
+  });
+});
