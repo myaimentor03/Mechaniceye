@@ -193,11 +193,13 @@ const diagnosisEvidenceUploadMiddleware = (req: any, res: any, next: any) => {
   });
 };
 const removeIntakeTempFiles = async (files: UploadedEvidenceFiles) => {
-  await Promise.all(Object.values(files || {}).flat().map(async (file) => {
-    if (file?.path) {
-      await fs.promises.rm(file.path, { force: true }).catch(() => undefined);
-    }
-  }));
+  await Promise.all(
+    Object.values(files || {}).flat().map(async (file) => {
+      if (typeof file?.path === "string" && file.path.length > 0) {
+        await fs.promises.rm(file.path, { force: true }).catch(() => undefined);
+      }
+    })
+  );
 };
 const followUpUploadMiddleware = (req: any, res: any, next: any) => {
   upload.fields([
