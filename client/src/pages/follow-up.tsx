@@ -17,6 +17,7 @@ import type { Diagnosis } from "@shared/schema";
 
 const SUBMISSION_TIMEOUT_MS = 20000;
 const CASE_RECOVERY_TIMEOUT_MS = 20000;
+const FOLLOW_UP_ORIGIN_KEY = "drivable-last-case-origin";
 const FOLLOW_UP_ORIGIN = "diagnosis-follow-up";
 
 export default function FollowUp() {
@@ -88,7 +89,7 @@ export default function FollowUp() {
       let savedOrigin: string | null = null;
       try {
         savedCaseId = sessionStorage.getItem("drivable-last-case-id");
-        savedOrigin = sessionStorage.getItem("drivable-last-case-origin");
+        savedOrigin = sessionStorage.getItem(FOLLOW_UP_ORIGIN_KEY);
       } catch {}
       if (!savedCaseId) return;
       if (savedOrigin !== FOLLOW_UP_ORIGIN) return;
@@ -105,7 +106,7 @@ export default function FollowUp() {
               return;
             }
             if (res.status === 404) {
-              try { sessionStorage.removeItem("drivable-last-case-id"); sessionStorage.removeItem("drivable-last-case-origin"); } catch {}
+              try { sessionStorage.removeItem("drivable-last-case-id"); sessionStorage.removeItem(FOLLOW_UP_ORIGIN_KEY); } catch {}
             }
             return;
           }
@@ -133,7 +134,7 @@ export default function FollowUp() {
     },
     onSuccess: (newDiagnosis) => {
       queryClient.invalidateQueries({ queryKey: ["/api/diagnoses"] });
-      try { sessionStorage.setItem("drivable-last-case-id", newDiagnosis.id); sessionStorage.setItem("drivable-last-case-origin", FOLLOW_UP_ORIGIN); } catch {}
+      try { sessionStorage.setItem("drivable-last-case-id", newDiagnosis.id); sessionStorage.setItem(FOLLOW_UP_ORIGIN_KEY, FOLLOW_UP_ORIGIN); } catch {}
       setLocation(`/results/${newDiagnosis.id}`);
       toast({
         title: "Follow-up Submitted",
