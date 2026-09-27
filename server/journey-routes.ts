@@ -16,7 +16,7 @@ import {
 import multer from "multer";
 import { requireCustomer } from "./customer-auth";
 import { createRateLimit } from "./rate-limit";
-import { getJourneyCase, setJourneyCase, listJourneyCasesByCustomer, listAllJourneyCases } from "./journey-store";
+import { getJourneyCase, setJourneyCase, listJourneyCasesByCustomer, listAllJourneyCases, JourneyPersistenceError } from "./journey-store";
 import { logEvent, logEventError } from "./observability/safe-log";
 import { planEvidence, getNextEvidenceToRequest } from "./journey-evidence-planner";
 import { db } from "./db";
@@ -116,6 +116,22 @@ function reviewUnavailable(res: Response): void {
     code: "REVIEW_CONTROLS_UNAVAILABLE",
     error: "Human review is temporarily unavailable. No review decision was recorded.",
   });
+}
+
+/**
+ * Production media gate: matches the main intake route. Container-local disk
+ * is ephemeral, so outside development a journey photo/audio/video/vibration
+ * upload is refused rather than reporting `persisted: true` for bytes a
+ * restart would delete.
+ */
+function journeyMediaUploadAllowed(): boolean {
+  const isDevelopment = process.env.NODE_ENV !== "production";
+  if (isDevelopment) return true;
+  return journeyEvidenceStore.durability === "private_object_storage";
+}
+
+function journeyMediaDurabilityMessage(mediaLabel: string): string {
+  return `${mediaLabel} upload is not available until private evidence storage passes launch verification. You can continue with a written description of the problem.`;
 }
 
 const journeyPhotoUpload = multer({
@@ -244,6 +260,16 @@ const journeyPhotoUploadMiddleware = (req: any, res: any, next: any) => {
 
 function journeyError(res: Response, error: unknown): void {
   res.setHeader("Cache-Control", "no-store");
+  if (error instanceof JourneyPersistenceError) {
+    // Never report a journey case as saved when the durable store refused it.
+    res.status(503).json({
+      ok: false,
+      code: "JOURNEY_PERSISTENCE_UNAVAILABLE",
+      persisted: false,
+      error: "This case could not be saved durably. Nothing was recorded — please retry.",
+    });
+    return;
+  }
   if (error instanceof TypeError) {
     res.status(400).json({ ok: false, code: "INVALID_INPUT", error: "The request input is invalid." });
     return;
@@ -357,7 +383,7 @@ async function tryAutoEvaluate(caseData: JourneyCase): Promise<JourneyCase> {
     ? caseData
     : advanceJourney(caseData, "evaluate", { evidenceItems });
   if (!alreadyEvaluating) {
-    setJourneyCase(evaluated);
+    await setJourneyCase(evaluated);
     logStateTransition(evaluated, previousState, "evaluate");
   }
 
@@ -366,7 +392,7 @@ async function tryAutoEvaluate(caseData: JourneyCase): Promise<JourneyCase> {
   // the unattended worker's full auto-evaluation and ensures the
   // decisionPacket is present inline after evidence upload.
   const diagnosed = advanceJourney(evaluated, "ready_diagnosis", { evidenceItems });
-  setJourneyCase(diagnosed);
+  await setJourneyCase(diagnosed);
   logStateTransition(diagnosed, evaluated.state, "ready_diagnosis");
 
   logEvent("journey.auto_evaluate", {
@@ -440,7 +466,7 @@ export function registerJourneyRoutes(app: Express): void {
         evidenceItems,
       });
 
-      setJourneyCase(caseData);
+      await setJourneyCase(caseData);
 
       // When safety triggers at intake, automatically create a review draft
       if (caseData.state === "escalation_required") {
@@ -559,7 +585,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         evidenceItems,
       });
 
-      setJourneyCase(updated);
+      await setJourneyCase(updated);
 
       // Auto-evaluate when the customer advances from evidence_received
       // to evaluate — complete to diagnosis_ready so they see a useful
@@ -677,7 +703,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         evidenceItems,
       });
 
-      setJourneyCase(updated);
+      await setJourneyCase(updated);
 
       logEvidenceAdded(updated, [evidenceRecord]);
 
@@ -722,6 +748,10 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         const files: Express.Multer.File[] = req.files || [];
         if (!files.length) {
           res.status(400).json({ ok: false, error: "At least one photo is required under the 'photos' field." });
+          return;
+        }
+        if (!journeyMediaUploadAllowed()) {
+          res.status(409).json({ ok: false, code: "EVIDENCE_STORAGE_NOT_DURABLE", persisted: false, error: journeyMediaDurabilityMessage("Photo") });
           return;
         }
 
@@ -774,7 +804,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           evidenceItems,
         });
 
-        setJourneyCase(updated);
+        await setJourneyCase(updated);
 
         logEvidenceAdded(updated, evidenceRecords);
 
@@ -831,6 +861,10 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           res.status(400).json({ ok: false, error: "At least one audio clip is required under the 'audio' field." });
           return;
         }
+        if (!journeyMediaUploadAllowed()) {
+          res.status(409).json({ ok: false, code: "EVIDENCE_STORAGE_NOT_DURABLE", persisted: false, error: journeyMediaDurabilityMessage("Audio") });
+          return;
+        }
 
         // Persist via EvidenceStore (validates type/size/content, supports R2 or local)
         let attachments: any[] = [];
@@ -880,7 +914,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           evidenceItems,
         });
 
-        setJourneyCase(updated);
+        await setJourneyCase(updated);
 
         logEvidenceAdded(updated, evidenceRecords);
 
@@ -937,6 +971,10 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           res.status(400).json({ ok: false, error: "At least one video clip is required under the 'video' field." });
           return;
         }
+        if (!journeyMediaUploadAllowed()) {
+          res.status(409).json({ ok: false, code: "EVIDENCE_STORAGE_NOT_DURABLE", persisted: false, error: journeyMediaDurabilityMessage("Video") });
+          return;
+        }
 
         let attachments: any[] = [];
         try {
@@ -985,7 +1023,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           evidenceItems,
         });
 
-        setJourneyCase(updated);
+        await setJourneyCase(updated);
 
         logEvidenceAdded(updated, evidenceRecords);
 
@@ -1042,6 +1080,10 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           res.status(400).json({ ok: false, error: "At least one vibration recording is required under the 'vibration' field." });
           return;
         }
+        if (!journeyMediaUploadAllowed()) {
+          res.status(409).json({ ok: false, code: "EVIDENCE_STORAGE_NOT_DURABLE", persisted: false, error: journeyMediaDurabilityMessage("Vibration data") });
+          return;
+        }
 
         // Persist via EvidenceStore (validates type/size/content, supports R2 or local)
         let attachments: any[] = [];
@@ -1091,7 +1133,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           evidenceItems,
         });
 
-        setJourneyCase(updated);
+        await setJourneyCase(updated);
 
         logEvidenceAdded(updated, evidenceRecords);
 
@@ -1190,12 +1232,12 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         });
         await tryCreateReviewDraft(escalated, "safety_reevaluation");
         logStateTransition(escalated, updated.state, "escalate");
-        setJourneyCase(escalated);
+        await setJourneyCase(escalated);
         res.json(safeJourneyResponse(escalated));
         return;
       }
 
-      setJourneyCase(updated);
+      await setJourneyCase(updated);
       res.json(safeJourneyResponse(updated));
     } catch (error) {
       logEventError("journey.re-evaluate_failed", error, { caseId: req.params.caseId });
@@ -1423,7 +1465,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       // Build evidence boundary for audit
       const evidenceBoundary = journeyReviewBridge.buildEvidenceBoundary(caseData);
 
-      setJourneyCase(updated);
+      await setJourneyCase(updated);
 
       logReviewAction(updated.id, updated.customerId, "approved", reviewerRef, {
         resolutionNote: `Approved by reviewer ${reviewerRef}`,

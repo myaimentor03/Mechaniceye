@@ -9,7 +9,7 @@ import {
   advanceJourney,
   type JourneyCase,
 } from "./journey-state-machine";
-import { setJourneyCase, clearJourneyStoreForTests } from "./journey-store";
+import { seedJourneyCaseForTests, clearJourneyStoreForTests } from "./journey-store";
 import { clearJourneyEventsForTests } from "./journey-case-events";
 import { clearNotificationsForTests } from "./journey-notifications";
 
@@ -55,7 +55,7 @@ describe("journey-unattended-worker", () => {
       caseData.confidenceScore = overrides.confidenceScore || 50;
     }
 
-    setJourneyCase(caseData);
+    seedJourneyCaseForTests(caseData);
     return caseData;
   }
 
@@ -99,7 +99,7 @@ describe("journey-unattended-worker", () => {
 
       // Safety-triggered cases go directly to escalation_required
       assert.equal(caseData.state, "escalation_required");
-      setJourneyCase(caseData);
+      seedJourneyCaseForTests(caseData);
 
       const processed = await pollAndEvaluate();
       assert.equal(processed, 0, "Should not process safety-triggered cases");
@@ -120,7 +120,7 @@ describe("journey-unattended-worker", () => {
       caseData.state = "evidence_received";
       caseData.confidenceLevel = "moderate";
       caseData.confidenceScore = 50;
-      setJourneyCase(caseData);
+      seedJourneyCaseForTests(caseData);
 
       const processed = await pollAndEvaluate();
       assert.equal(processed, 0, "Should not process cases without evidence");
@@ -136,7 +136,7 @@ describe("journey-unattended-worker", () => {
       const resolved = advanceJourney(caseData, "evaluate");
       const ready = advanceJourney(resolved, "ready_diagnosis");
       const final = advanceJourney(ready, "resolve", { outcome: "fix" });
-      setJourneyCase(final);
+      seedJourneyCaseForTests(final);
 
       const processed = await pollAndEvaluate();
       assert.equal(processed, 0, "Should not process already-resolved cases");
@@ -152,7 +152,7 @@ describe("journey-unattended-worker", () => {
       let evaluated = advanceJourney(caseData, "evaluate");
       evaluated = advanceJourney(evaluated, "ready_diagnosis");
       evaluated = advanceJourney(evaluated, "request_human_review");
-      setJourneyCase(evaluated);
+      seedJourneyCaseForTests(evaluated);
 
       const processed = await pollAndEvaluate();
       assert.equal(processed, 0, "Should not process cases in human_review");

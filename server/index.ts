@@ -1,8 +1,9 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { DRIVABLE_ALLOWED_ORIGINS, enforceOriginForStateChanging } from "./origin-guard";
-import { logEventError } from "./observability/safe-log";
+import { logEvent, logEventError } from "./observability/safe-log";
 import { startUnattendedWorker } from "./journey-unattended-worker";
+import { journeyStoreReady } from "./journey-store";
 import path from "path";
 import fs from "fs";
 
@@ -45,6 +46,19 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 (async () => {
+  // Journey cases are durable-first. In production an unhydratable case store
+  // must stop the boot rather than let the process serve 200s for cases a
+  // redeploy would discard. Outside production this is a warning only.
+  try {
+    const journey = await journeyStoreReady();
+    logEvent("server.journey_store_ready", { durable: journey.durable });
+  } catch (error) {
+    logEventError("server.journey_store_not_durable", error, {});
+    console.error("Refusing to start: journey case storage is not durably available.");
+    process.exit(1);
+    return;
+  }
+
   const server = await registerRoutes(app);
 
   // Error handler with secret redaction

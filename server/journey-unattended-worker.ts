@@ -81,11 +81,11 @@ export async function pollAndEvaluate(): Promise<number> {
         // in a single unattended cycle so the customer returns to a useful
         // FIX/SELL/MONITOR/STOP decision without manual clicks.
         const evaluated = advanceJourney(caseData, "evaluate", { evidenceItems });
-        setJourneyCase(evaluated);
+        await setJourneyCase(evaluated);
         await logStateTransition(evaluated, previousState, "evaluate");
 
         const diagnosed = advanceJourney(evaluated, "ready_diagnosis", { evidenceItems });
-        setJourneyCase(diagnosed);
+        await setJourneyCase(diagnosed);
         await logStateTransition(diagnosed, evaluated.state, "ready_diagnosis");
 
         logEvent("journey.unattended_auto_evaluate", {
