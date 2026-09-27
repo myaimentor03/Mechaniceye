@@ -145,19 +145,19 @@ function getUploadsDir(): string {
   return path.join(process.cwd(), "uploads");
 }
 
-function countTempFiles(): number {
+function countUploadFiles(): number {
   const uploadsDir = getUploadsDir();
   if (!fs.existsSync(uploadsDir)) return 0;
-  return fs.readdirSync(uploadsDir).filter(f => f.endsWith(".tmp")).length;
+  return fs.readdirSync(uploadsDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .length;
 }
 
 function cleanUploadsDir() {
   const uploadsDir = getUploadsDir();
   if (fs.existsSync(uploadsDir)) {
     for (const file of fs.readdirSync(uploadsDir)) {
-      if (file.endsWith(".tmp")) {
-        fs.rmSync(path.join(uploadsDir, file), { force: true });
-      }
+      fs.rmSync(path.join(uploadsDir, file), { recursive: true, force: true });
     }
   }
 }
@@ -176,7 +176,7 @@ test("upload recovery: audio file temp cleaned up when media persistence fails (
     assert.ok(result.body.message.includes("media evidence was not persisted"));
 
     // Temp file must be cleaned up even on 507 media persistence failure
-    const remaining = countTempFiles();
+    const remaining = countUploadFiles();
     assert.equal(remaining, 0, `Expected 0 temp files after 507 media persistence failure, found ${remaining}`);
 
     fs.rmSync(audio.filepath, { force: true });
@@ -197,7 +197,7 @@ test("upload recovery: video file temp cleaned up when media persistence fails (
     assert.ok(result.body.message.includes("media evidence was not persisted"));
 
     // Temp file must be cleaned up
-    const remaining = countTempFiles();
+    const remaining = countUploadFiles();
     assert.equal(remaining, 0, `Expected 0 temp files after 507 media persistence failure, found ${remaining}`);
 
     fs.rmSync(video.filepath, { force: true });
@@ -224,7 +224,7 @@ test("upload recovery: vibration file temp cleaned up on missing service consent
     assert.ok(result.body.message.includes("service fulfillment"));
 
     // Temp file must be cleaned up
-    const remaining = countTempFiles();
+    const remaining = countUploadFiles();
     assert.equal(remaining, 0, `Expected 0 temp files after consent error, found ${remaining}`);
 
     fs.rmSync(vibration.filepath, { force: true });
@@ -250,7 +250,7 @@ test("upload recovery: multiple media files temp cleaned up when media persisten
     assert.equal(result.body.persisted, false);
 
     // All temp files must be cleaned up
-    const remaining = countTempFiles();
+    const remaining = countUploadFiles();
     assert.equal(remaining, 0, `Expected 0 temp files after 507 with multiple media, found ${remaining}`);
 
     fs.rmSync(audio.filepath, { force: true });
@@ -295,7 +295,7 @@ test("upload recovery: photo temp files cleaned up on disabled-photo-upload reje
     assert.equal(body.persisted, false, "must report persisted:false");
     assert.ok(body.message?.includes("Photo upload"), `unexpected message: ${body.message}`);
 
-    const remaining = countTempFiles();
+    const remaining = countUploadFiles();
     assert.equal(remaining, 0, `Expected 0 temp files after photo upload disabled, found ${remaining}`);
 
     fs.rmSync(photoPath, { force: true });
@@ -319,7 +319,7 @@ test("upload recovery: temp files not leaked on duplicate idempotent request (50
     assert.ok([200, 507].includes(result2.status), `Second request status: ${result2.status}`);
 
     // Temp files must be cleaned up (only one upload actually processed)
-    const remaining = countTempFiles();
+    const remaining = countUploadFiles();
     assert.equal(remaining, 0, `Expected 0 temp files after duplicate request, found ${remaining}`);
 
     fs.rmSync(audio.filepath, { force: true });
@@ -380,7 +380,7 @@ test("upload recovery: unsupported media type rejected and temp cleaned (415)", 
     assert.ok(body.message.includes("Evidence upload was rejected because the file type is not supported"));
 
     // Temp file must be cleaned up
-    const remaining = countTempFiles();
+    const remaining = countUploadFiles();
     assert.equal(remaining, 0, `Expected 0 temp files after unsupported type rejection, found ${remaining}`);
 
     fs.rmSync(filepath, { force: true });
@@ -441,7 +441,7 @@ test("upload recovery: oversized media file rejected and temp cleaned (413)", as
     assert.ok(body.message.includes("exceeds the allowed limits"));
 
     // Temp file must be cleaned up
-    const remaining = countTempFiles();
+    const remaining = countUploadFiles();
     assert.equal(remaining, 0, `Expected 0 temp files after oversized rejection, found ${remaining}`);
 
     fs.rmSync(filepath, { force: true });

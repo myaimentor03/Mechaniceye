@@ -49,6 +49,23 @@ function assertNoStore(res: Response, label: string) {
   assert.match(cc, /no-store/, `${label} must answer Cache-Control: no-store (got "${cc}")`);
 }
 
+function cleanUploadsDir() {
+  const uploadsDir = path.join(process.cwd(), "uploads");
+  if (fs.existsSync(uploadsDir)) {
+    for (const file of fs.readdirSync(uploadsDir)) {
+      fs.rmSync(path.join(uploadsDir, file), { recursive: true, force: true });
+    }
+  }
+}
+
+function countUploadFiles(): number {
+  const uploadsDir = path.join(process.cwd(), "uploads");
+  if (!fs.existsSync(uploadsDir)) return 0;
+  return fs.readdirSync(uploadsDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .length;
+}
+
 test("follow-up unexpected file field returns 415 with Cache-Control no-store (P0 #2 #9)", async () => {
   await withServer(async (origin) => {
     const caseId = await createCase();
@@ -143,6 +160,7 @@ test("follow-up oversized video file returns 413 with Cache-Control no-store (P0
 test("follow-up vibration file is accepted and recorded, never silently dropped (P0 #1 #2 #9)", async () => {
   await withServer(async (origin) => {
     const caseId = await createCase();
+    cleanUploadsDir();
     const form = new FormData();
     form.append("additionalInfo", "Still rough after repair follow-up check");
     form.append("vibration", new Blob([new Uint8Array([0x01, 0x02, 0x03])], { type: "audio/mpeg" }), "vibration-sample.dat");
@@ -157,18 +175,14 @@ test("follow-up vibration file is accepted and recorded, never silently dropped 
     // The admitted file part must be recorded as case evidence, not temp-stored and forgotten.
     assert.ok(typeof body.vibrationData === "string" && body.vibrationData.length > 0, "vibration file evidence must be recorded on the follow-up record");
     assert.equal(body.evidenceProcessing?.vibration, "stored_for_human_review_not_analyzed");
-    const uploadsDir = path.join(process.cwd(), "uploads");
-    const remainingFiles = fs.existsSync(uploadsDir)
-      ? fs.readdirSync(uploadsDir).filter(f => f === body.vibrationData || f.endsWith(".dat"))
-      : [];
-    assert.equal(remainingFiles.length, 0, `Expected 0 vibration temp files after success, found ${remainingFiles.join(", ")}`);
+    const remainingCount = countUploadFiles();
+    assert.equal(remainingCount, 0, `Expected 0 vibration temp files after success, found ${remainingCount}`);
   });
 });
 
 test("follow-up vibration file on a missing case returns 404 (not 415) and cleans temp files (P0 #2 #9)", async () => {
   await withServer(async (origin) => {
-    const uploadsDir = path.join(process.cwd(), "uploads");
-    const before = fs.existsSync(uploadsDir) ? fs.readdirSync(uploadsDir).slice().sort() : [];
+    cleanUploadsDir();
     const form = new FormData();
     form.append("additionalInfo", "Still rough after repair follow-up check");
     form.append("vibration", new Blob([new Uint8Array([0x04, 0x05, 0x06])], { type: "audio/mpeg" }), "vibration-sample.dat");
@@ -179,8 +193,8 @@ test("follow-up vibration file on a missing case returns 404 (not 415) and clean
     });
     assert.equal(response.status, 404, `expected 404 for missing case, got ${response.status}`);
     assertNoStore(response, "follow-up vibration file 404");
-    const after = fs.existsSync(uploadsDir) ? fs.readdirSync(uploadsDir).slice().sort() : [];
-    assert.deepEqual(after, before, "missing-case vibration upload must leave no temp files");
+    const after = countUploadFiles();
+    assert.equal(after, 0, "missing-case vibration upload must leave no temp files");
   });
 });
 
@@ -210,6 +224,7 @@ test("follow-up oversized vibration file returns 413 PAYLOAD_TOO_LARGE envelope 
 test("follow-up vibrationData text field (sensor JSON) is accepted and recorded (P0 #1 #2 #9)", async () => {
   await withServer(async (origin) => {
     const caseId = await createCase();
+    cleanUploadsDir();
     const form = new FormData();
     form.append("additionalInfo", "Still rough after repair follow-up check");
     const sensorJson = JSON.stringify({ samples: [0.1, 0.2, 0.3], timestamp: Date.now() });
@@ -225,17 +240,14 @@ test("follow-up vibrationData text field (sensor JSON) is accepted and recorded 
     // The structured sensor JSON must be recorded as-is on the follow-up record
     assert.equal(body.vibrationData, sensorJson, "vibrationData text must be recorded verbatim");
     assert.equal(body.evidenceProcessing?.vibration, "stored_for_human_review_not_analyzed");
-    const uploadsDir = path.join(process.cwd(), "uploads");
-    const remainingFiles = fs.existsSync(uploadsDir)
-      ? fs.readdirSync(uploadsDir).filter(f => f.endsWith(".dat"))
-      : [];
-    assert.equal(remainingFiles.length, 0, `Expected 0 vibration temp files after text success, found ${remainingFiles.join(", ")}`);
+    assert.equal(countUploadFiles(), 0, `Expected 0 vibration temp files after text success`);
   });
 });
 
 test("follow-up vibrationData text field takes precedence over vibration file when both provided (P0 #1 #2 #9)", async () => {
   await withServer(async (origin) => {
     const caseId = await createCase();
+    cleanUploadsDir();
     const form = new FormData();
     form.append("additionalInfo", "Still rough after repair follow-up check");
     const sensorJson = JSON.stringify({ samples: [0.5, 0.6], priority: "high" });
@@ -253,17 +265,14 @@ test("follow-up vibrationData text field takes precedence over vibration file wh
     assert.equal(body.vibrationData, sensorJson, "vibrationData text must take precedence over file");
     assert.equal(body.evidenceProcessing?.vibration, "stored_for_human_review_not_analyzed");
     // File should still be cleaned up
-    const uploadsDir = path.join(process.cwd(), "uploads");
-    const remainingFiles = fs.existsSync(uploadsDir)
-      ? fs.readdirSync(uploadsDir).filter(f => f.endsWith(".dat"))
-      : [];
-    assert.equal(remainingFiles.length, 0, `Expected 0 vibration temp files after precedence test, found ${remainingFiles.join(", ")}`);
+    assert.equal(countUploadFiles(), 0, `Expected 0 vibration temp files after precedence test`);
   });
 });
 
 test("follow-up empty vibrationData text field falls back to vibration file (P0 #1 #2 #9)", async () => {
   await withServer(async (origin) => {
     const caseId = await createCase();
+    cleanUploadsDir();
     const form = new FormData();
     form.append("additionalInfo", "Still rough after repair follow-up check");
     form.append("vibrationData", ""); // empty string, falsy
@@ -279,17 +288,14 @@ test("follow-up empty vibrationData text field falls back to vibration file (P0 
     // Empty string is falsy, so file should be used
     assert.ok(typeof body.vibrationData === "string" && body.vibrationData.length > 0, "vibration file evidence must be recorded when text is empty");
     assert.equal(body.evidenceProcessing?.vibration, "stored_for_human_review_not_analyzed");
-    const uploadsDir = path.join(process.cwd(), "uploads");
-    const remainingFiles = fs.existsSync(uploadsDir)
-      ? fs.readdirSync(uploadsDir).filter(f => f.endsWith(".dat"))
-      : [];
-    assert.equal(remainingFiles.length, 0, `Expected 0 vibration temp files after fallback test, found ${remainingFiles.join(", ")}`);
+    assert.equal(countUploadFiles(), 0, `Expected 0 vibration temp files after fallback test`);
   });
 });
 
 test("follow-up success response cleans up temporary upload files (P0 #2 #9)", async () => {
   await withServer(async (origin) => {
     const caseId = await createCase();
+    cleanUploadsDir();
     const audioPath = path.join(tmpdir(), `test-followup-audio-${Date.now()}.mp3`);
     fs.writeFileSync(audioPath, Buffer.from("fake audio content for follow-up test"));
     const form = new FormData();
@@ -303,11 +309,7 @@ test("follow-up success response cleans up temporary upload files (P0 #2 #9)", a
     });
     const body = await response.json().catch(() => ({} as any));
     assert.equal(response.status, 200, `expected 200 on success, got ${response.status}`);
-    const uploadsDir = path.join(process.cwd(), "uploads");
-    const remainingFiles = fs.existsSync(uploadsDir)
-      ? fs.readdirSync(uploadsDir).filter(f => f.startsWith("followup-audio") || f.endsWith(".mp3") || f.endsWith(".mp4"))
-      : [];
-    assert.equal(remainingFiles.length, 0, `Expected 0 follow-up temp files after success, found ${remainingFiles.join(", ")}`);
+    assert.equal(countUploadFiles(), 0, `Expected 0 follow-up temp files after success`);
     fs.rmSync(audioPath, { force: true });
   });
 });
