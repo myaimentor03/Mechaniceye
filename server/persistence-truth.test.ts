@@ -12,7 +12,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mapDiagnosisRowToRecord, storage } from "./storage.js";
+import { CapabilityNotAvailableError, mapDiagnosisRowToRecord, storage } from "./storage.js";
 
 function dbRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -140,21 +140,25 @@ test("persistence truth: mapDiagnosisRowToRecord sets status=received when isRes
   assert.equal(record.status, "received");
 });
 
-test("persistence truth: getFixHistory returns empty array (stub)", async () => {
-  const result = await storage.getFixHistory("any-id");
-  assert.deepEqual(result, []);
+test("persistence truth: getFixHistory refuses instead of fabricating an empty history", async () => {
+  await assert.rejects(
+    () => storage.getFixHistory("any-id"),
+    (error: unknown) => error instanceof CapabilityNotAvailableError && error.capability === "fix_history",
+  );
 });
 
-test("persistence truth: updateStepCompletion returns success without DB", async () => {
-  const result = await storage.updateStepCompletion("any-id", { step: 1, completed: true });
-  assert.equal(result.success, true);
-  assert.equal(result.diagnosisId, "any-id");
+test("persistence truth: updateStepCompletion refuses instead of reporting success", async () => {
+  await assert.rejects(
+    () => storage.updateStepCompletion("any-id", { step: 1, completed: true }),
+    (error: unknown) => error instanceof CapabilityNotAvailableError && error.capability === "step_completion",
+  );
 });
 
-test("persistence truth: markFixComplete returns success without DB", async () => {
-  const result = await storage.markFixComplete("any-id", { wasSuccessful: true });
-  assert.equal(result.success, true);
-  assert.equal(result.diagnosisId, "any-id");
+test("persistence truth: markFixComplete refuses instead of reporting success", async () => {
+  await assert.rejects(
+    () => storage.markFixComplete("any-id", { wasSuccessful: true }),
+    (error: unknown) => error instanceof CapabilityNotAvailableError && error.capability === "fix_completion",
+  );
 });
 
 test("persistence truth: createFollowUp stores in-memory only", async () => {
@@ -177,21 +181,26 @@ test("persistence truth: createFollowUp stores in-memory only", async () => {
   }
 });
 
-test("persistence truth: createConsultation stores in-memory only", async () => {
+test("persistence truth: consultations refuse instead of storing in a process-local Map", async () => {
   const original = process.env.DATABASE_URL;
   delete process.env.DATABASE_URL;
   try {
-    const consultation = await storage.createConsultation({
-      diagnosisId: "pt-case-1",
-      mechanicId: "mechanic-1",
-      userId: "user-1",
-      status: "pending",
-    });
-    assert.ok(consultation.id);
-    assert.equal(consultation.status, "pending");
+    await assert.rejects(
+      () =>
+        storage.createConsultation({
+          diagnosisId: "pt-case-1",
+          mechanicId: "mechanic-1",
+          userId: "user-1",
+          status: "pending",
+        }),
+      (error: unknown) => error instanceof CapabilityNotAvailableError && error.capability === "consultation_booking",
+    );
 
-    const all = await storage.getConsultationsByMechanic("mechanic-1");
-    assert.ok(all.some((c) => c.id === consultation.id));
+    await assert.rejects(
+      () => storage.getConsultationsByMechanic("mechanic-1"),
+      (error: unknown) =>
+        error instanceof CapabilityNotAvailableError && error.capability === "consultation_lookup",
+    );
   } finally {
     if (original) process.env.DATABASE_URL = original;
     else delete process.env.DATABASE_URL;

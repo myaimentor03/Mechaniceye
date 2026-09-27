@@ -5,6 +5,21 @@ import type { EvidenceAttachment } from "../shared/drivableEvidence.js";
 
 type DiagnosisRow = typeof diagnoses.$inferSelect;
 
+/**
+ * Raised by operations that have no durable implementation. These previously
+ * returned `{ success: true }` after storing nothing, which reported a
+ * completed action for work that was never performed.
+ */
+export class CapabilityNotAvailableError extends Error {
+  readonly code = "CAPABILITY_NOT_AVAILABLE";
+  readonly capability: string;
+  constructor(capability: string, message: string) {
+    super(message);
+    this.name = "CapabilityNotAvailableError";
+    this.capability = capability;
+  }
+}
+
 export function mapDiagnosisRowToRecord(row: DiagnosisRow): DiagnosisRecord {
   const createdAt =
     row.createdAt instanceof Date
@@ -85,10 +100,6 @@ type ConsultationRecord = {
 class LocalStorage {
   private diagnoses = new Map<string, DiagnosisRecord>();
   private followUps = new Map<string, FollowUpRecord[]>();
-  private consultations = new Map<string, ConsultationRecord[]>();
-  private mechanics = [
-    { id: "mechanic-1", name: "Mechanic Queue", active: true, rating: 5 }
-  ];
 
   private async dbDiagnoses(): Promise<DiagnosisRecord[]> {
     try {
@@ -111,15 +122,27 @@ class LocalStorage {
   }
 
   async getFixHistory(_diagnosisId: string) {
-    return [];
+    // No durable fix-history table exists. Returning [] would be
+    // indistinguishable from "this case genuinely has no fix history", so the
+    // absence of the capability is reported instead of fabricated data.
+    throw new CapabilityNotAvailableError(
+      "fix_history",
+      "Fix history is not recorded by this release.",
+    );
   }
 
-  async updateStepCompletion(diagnosisId: string, data: any) {
-    return { success: true, diagnosisId, ...data };
+  async updateStepCompletion(_diagnosisId: string, _data: any): Promise<never> {
+    throw new CapabilityNotAvailableError(
+      "step_completion",
+      "Repair step completion is not recorded by this release.",
+    );
   }
 
-  async markFixComplete(diagnosisId: string, data: any) {
-    return { success: true, diagnosisId, ...data };
+  async markFixComplete(_diagnosisId: string, _data: any): Promise<never> {
+    throw new CapabilityNotAvailableError(
+      "fix_completion",
+      "Repair completion is not recorded by this release.",
+    );
   }
 
   async exportChatForMechanic(diagnosisId: string) {
@@ -153,13 +176,15 @@ class LocalStorage {
     };
   }
 
-  async sendToMechanic(diagnosisId: string) {
-    const exportData = await this.exportChatForMechanic(diagnosisId);
-    return {
-      success: true,
-      message: "Diagnostic data sent to available mechanics",
-      exportData
-    };
+  async sendToMechanic(diagnosisId: string): Promise<never> {
+    // There is no mechanic delivery queue behind this call. It used to return
+    // `success: true` with the message "sent to available mechanics" while
+    // nothing was sent anywhere.
+    await this.exportChatForMechanic(diagnosisId);
+    throw new CapabilityNotAvailableError(
+      "mechanic_delivery",
+      "No mechanic delivery channel is configured for this release.",
+    );
   }
 
   async getDiagnosesByUser() {
@@ -231,46 +256,43 @@ class LocalStorage {
     return this.followUps.get(diagnosisId) || [];
   }
 
-  async getActiveMechanics() {
-    return this.mechanics.filter(m => m.active);
-  }
-
-  async createConsultation(data: Partial<ConsultationRecord>) {
-    const consultation: ConsultationRecord = {
-      id: Date.now().toString(),
-      diagnosisId: data.diagnosisId || "",
-      mechanicId: data.mechanicId || "",
-      userId: data.userId || "",
-      status: data.status || "pending"
-    };
-
-    const existing = this.consultations.get(consultation.mechanicId) || [];
-    existing.push(consultation);
-    this.consultations.set(consultation.mechanicId, existing);
-    return consultation;
-  }
-
-  async updateConsultation(id: string, updates: Partial<ConsultationRecord>) {
-    for (const [mechanicId, list] of Array.from(this.consultations.entries())) {
-      const index = list.findIndex((item: ConsultationRecord) => item.id === id);
-      if (index >= 0) {
-        list[index] = { ...list[index], ...updates };
-        this.consultations.set(mechanicId, list);
-        return list[index];
-      }
-    }
-    throw new Error("Consultation not found");
-  }
-
-  async getConsultationsByMechanic(mechanicId: string) {
-    return this.consultations.get(mechanicId) || [];
-  }
-
-  async updateMechanicRating(mechanicId: string, averageRating: number) {
-    this.mechanics = this.mechanics.map(m =>
-      m.id === mechanicId ? { ...m, rating: averageRating } : m
+  async getActiveMechanics(): Promise<never> {
+    // The only entry was a hardcoded placeholder ("Mechanic Queue", rating 5).
+    // Fabricated supply is worse than an empty directory.
+    throw new CapabilityNotAvailableError(
+      "mechanic_directory",
+      "No verified mechanic directory is available in this release.",
     );
-    return { success: true, mechanicId, averageRating };
+  }
+
+  async createConsultation(_data: Partial<ConsultationRecord>): Promise<never> {
+    // Consultations were held in a process-local Map keyed by mechanic, so a
+    // 201 here reported a booking that a restart would erase.
+    throw new CapabilityNotAvailableError(
+      "consultation_booking",
+      "Mechanic consultation booking is not available in this release.",
+    );
+  }
+
+  async updateConsultation(_id: string, _updates: Partial<ConsultationRecord>): Promise<never> {
+    throw new CapabilityNotAvailableError(
+      "consultation_update",
+      "Mechanic consultation updates are not available in this release.",
+    );
+  }
+
+  async getConsultationsByMechanic(_mechanicId: string): Promise<never> {
+    throw new CapabilityNotAvailableError(
+      "consultation_lookup",
+      "Mechanic consultation lookups are not available in this release.",
+    );
+  }
+
+  async updateMechanicRating(_mechanicId: string, _averageRating: number): Promise<never> {
+    throw new CapabilityNotAvailableError(
+      "mechanic_rating",
+      "Mechanic ratings are not persisted in this release.",
+    );
   }
 }
 

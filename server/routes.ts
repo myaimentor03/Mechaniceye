@@ -1,6 +1,6 @@
- import type { Express } from "express";
+ import type { Express, Response as ExpressResponse } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage, CapabilityNotAvailableError } from "./storage";
 // local fallback validation while DB/schema layer is disabled
 const consultationFeedbackSchema = {
   parse(input: any) {
@@ -44,6 +44,22 @@ function toOptionalText(value: unknown, field: string): string | undefined {
   if (value === undefined || value === null) return undefined;
   if (typeof value !== "string" || value.length > 4_000) throw new TypeError(`${field} must be a string of at most 4000 characters`);
   return value;
+}
+
+/**
+ * Answers an endpoint whose capability has no durable implementation. These
+ * used to return `success: true` after discarding the write.
+ */
+function respondCapabilityUnavailable(res: ExpressResponse, error: unknown): boolean {
+  if (!(error instanceof CapabilityNotAvailableError)) return false;
+  res.setHeader("Cache-Control", "no-store");
+  res.status(501).json({
+    ok: false,
+    code: "CAPABILITY_NOT_AVAILABLE",
+    capability: error.capability,
+    message: error.message,
+  });
+  return true;
 }
 import { performEnhancedAnalysis } from "./enhanced-analysis";
 import multer from "multer";
@@ -1821,6 +1837,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const history = await storage.getFixHistory(diagnosisId);
       res.json(history);
     } catch (error) {
+      if (respondCapabilityUnavailable(res, error)) return;
       logEventError("api.fix_history_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
 
       res.status(500).json({ message: "Failed to fetch fix history" });
@@ -1845,6 +1862,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(result);
     } catch (error) {
+      if (respondCapabilityUnavailable(res, error)) return;
       logEventError("api.step_completion_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
 res.status(400).json({ message: "Update step completion could not be processed." });
     }
@@ -1870,6 +1888,7 @@ res.status(400).json({ message: "Update step completion could not be processed."
       
       res.json(result);
     } catch (error) {
+      if (respondCapabilityUnavailable(res, error)) return;
       logEventError("api.fix_complete_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
 
       res.status(500).json({ message: "Failed to mark fix complete" });
@@ -1896,6 +1915,7 @@ res.status(400).json({ message: "Update step completion could not be processed."
       const result = await storage.sendToMechanic(diagnosisId);
       res.json(result);
     } catch (error) {
+      if (respondCapabilityUnavailable(res, error)) return;
       logEventError("api.send_to_mechanic_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
 
       res.status(500).json({ message: "Failed to send to mechanic" });
@@ -2785,13 +2805,17 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
   });
 
   // Get available mechanics for consultation
-  app.get("/api/mechanics", async (req, res) => {
-    try {
-      const mechanics = await storage.getActiveMechanics();
-      res.json(mechanics);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch mechanics" });
-    }
+  // No verified mechanic network is wired. The previous handler served a
+  // hardcoded placeholder mechanic with a perfect rating from an
+  // unauthenticated endpoint, which is fabricated supply, not a listing.
+  app.get("/api/mechanics", async (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.status(501).json({
+      ok: false,
+      code: "MECHANIC_DIRECTORY_NOT_AVAILABLE",
+      message: "No verified mechanic directory is available yet.",
+      mechanics: [],
+    });
   });
 
   // Start mechanic consultation
@@ -2808,6 +2832,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
 
       res.json(consultation);
     } catch (error: any) {
+      if (respondCapabilityUnavailable(res, error)) return;
       logEventError("api.consultation_start_failed", error);
       res.status(400).json({ 
         message: "Failed to start consultation. Please try again."
@@ -2816,43 +2841,17 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
   });
 
   // Submit consultation feedback
-  app.post("/api/consultations/:id/feedback", requireReviewer, reviewerWriteLimit, async (req, res) => {
-    try {
-      const consultationId = req.params.id;
-      const feedbackData = consultationFeedbackSchema.parse(req.body);
-      
-      // Calculate overall score (average of ratings, with wasFixed bonus)
-      const ratingAverage = (
-        feedbackData.politenessRating + 
-        feedbackData.effectivenessRating + 
-        feedbackData.easeOfWorkRating
-      ) / 3;
-      
-      const overallScore = feedbackData.wasFixed ? 
-        Math.min(ratingAverage + 1, 10) : ratingAverage;
-
-      const consultation = await storage.updateConsultation(consultationId, {
-        ...feedbackData,
-        overallScore: overallScore.toString(),
-        status: "completed",
-        completedAt: new Date()
-      });
-
-      // Update mechanic rating based on feedback
-      const consultations = await storage.getConsultationsByMechanic(consultation.mechanicId);
-      const averageRating = consultations
-        .filter(c => c.overallScore)
-        .reduce((sum, c) => sum + parseFloat(c.overallScore!), 0) / consultations.length;
-      
-      await storage.updateMechanicRating(consultation.mechanicId, averageRating);
-
-      res.json(consultation);
-    } catch (error: any) {
-      logEventError("api.consultation_feedback_failed", error);
-      res.status(400).json({ 
-        message: "Failed to submit feedback. Please try again."
-      });
-    }
+  // Consultation feedback scores a mechanic rating. There is no durable
+  // consultation record to attach it to and no verified mechanic directory, so
+  // the route refuses rather than writing a rating derived from an empty list.
+  app.post("/api/consultations/:id/feedback", requireReviewer, reviewerWriteLimit, async (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.status(501).json({
+      ok: false,
+      code: "CAPABILITY_NOT_AVAILABLE",
+      capability: "consultation_feedback",
+      message: "Consultation feedback is not available: no verified mechanic consultation record can be stored.",
+    });
   });
 
 // Serve uploaded files (traversal-safe)
