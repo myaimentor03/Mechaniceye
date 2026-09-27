@@ -493,14 +493,17 @@ test("journey my-cases lists customer cases", async () => {
   });
 });
 
-test("journey review pending cases for reviewer", async () => {
+test("journey review pending cases fail closed with 503 when durable launch controls are unavailable", async () => {
   await withJourneyServer(async (origin) => {
     const reviewRes = await fetch(`${origin}/api/journey/review/pending`, {
       headers: makeReviewerHeader(),
     });
-    assert.equal(reviewRes.status, 200);
+    // No durable launch controls in this harness — the reviewer queue must not
+    // pretend to be backed by an in-memory review fake.
+    assert.equal(reviewRes.status, 503);
     const data = await jsonOf(reviewRes);
-    assert.ok(Array.isArray(data.cases));
+    assert.equal(data.ok, false);
+    assert.equal(data.code, "REVIEW_CONTROLS_UNAVAILABLE");
   });
 });
 
@@ -860,13 +863,21 @@ const evidenceData = await jsonOf(evidenceRes);
       assert.equal(resolveBody.ok, false);
       assert.ok(!resolveBody.availableActions.includes("resolve"), "resolve must not be offered in human_review");
 
-      // Reviewer decision still lands via the reviewer approve path.
+      // Reviewer resolution only lands through durable launch controls. Without
+      // them the decision must be refused rather than resolved in memory.
       const approveRes = await fetch(`${origin}/api/journey/review/${caseId}/approve`, {
         method: "POST", headers: makeReviewerHeader(), body: JSON.stringify({ highRiskAcknowledged: true }),
       });
-      assert.equal(approveRes.status, 200);
-      const approved = await jsonOf(approveRes);
-      assert.equal(approved.case.state, "resolved");
+      assert.equal(approveRes.status, 503);
+      const approveBody = await jsonOf(approveRes);
+      assert.equal(approveBody.ok, false);
+      assert.equal(approveBody.code, "REVIEW_CONTROLS_UNAVAILABLE");
+
+      // The case must still be awaiting review — never silently resolved.
+      const afterStatus = await jsonOf(
+        await fetch(`${origin}/api/journey/${caseId}/status`, { headers: makeCustomerHeader() }),
+      );
+      assert.equal(afterStatus.state, "human_review");
     });
   });
 

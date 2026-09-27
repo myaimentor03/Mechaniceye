@@ -3,6 +3,7 @@ import { AsyncHumanReviewReleaseGate } from "./async-release-gate.js";
 import { PgLaunchControlExecutor, verifyLaunchControlSchema } from "./postgres-adapter.js";
 import { PostgresReviewReleaseReader } from "./postgres-review-release-reader.js";
 import { PostgresReviewWriter } from "./postgres-review-writer.js";
+import { PostgresDurableReviewRepository } from "./durable-review-repository.js";
 import { PostgresConsentRepository } from "../consent/postgres-consent-repository.js";
 
 export const LAUNCH_CONTROLS_ENABLED_ENV = "DRIVABLE_LAUNCH_CONTROLS_ENABLED";
@@ -21,6 +22,7 @@ export type LaunchControlRuntime = Readonly<{
   reader: PostgresReviewReleaseReader;
   releaseGate: AsyncHumanReviewReleaseGate;
   consent: PostgresConsentRepository;
+  reviews: PostgresDurableReviewRepository;
 }>;
 
 let cached: LaunchControlRuntime | undefined;
@@ -30,7 +32,9 @@ export function getLaunchControlRuntime(): LaunchControlRuntime {
   if (!cached) {
     const executor = new PgLaunchControlExecutor(getPool());
     const reader = new PostgresReviewReleaseReader(executor);
-    cached = Object.freeze({ executor, reader, writer: new PostgresReviewWriter(executor),
+    const writer = new PostgresReviewWriter(executor);
+    cached = Object.freeze({ executor, reader, writer,
+      reviews: new PostgresDurableReviewRepository(writer, reader),
       releaseGate: new AsyncHumanReviewReleaseGate(reader), consent: new PostgresConsentRepository(executor) });
   }
   return cached;

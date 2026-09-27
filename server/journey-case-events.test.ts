@@ -204,7 +204,7 @@ test("journey start with safety trigger logs escalation event", async () => {
   });
 });
 
-test("journey review pending list still works with event logging enabled", async () => {
+test("journey review pending list fails closed when durable launch controls are unavailable", async () => {
   await withJourneyServer(async (origin) => {
     const REVIEWER_TOKEN = "journey-events-review-test-token-that-is-long-enough-for-scrypt";
     process.env.DRIVABLE_REVIEWER_TOKEN = REVIEWER_TOKEN;
@@ -217,9 +217,10 @@ test("journey review pending list still works with event logging enabled", async
     const reviewRes = await fetch(`${origin}/api/journey/review/pending`, {
       headers: reviewerHeaders,
     });
-    assert.equal(reviewRes.status, 200);
+    assert.equal(reviewRes.status, 503);
     const data = await jsonOf(reviewRes);
-    assert.ok(Array.isArray(data.cases));
+    assert.equal(data.ok, false);
+    assert.equal(data.code, "REVIEW_CONTROLS_UNAVAILABLE");
 
     delete process.env.DRIVABLE_REVIEWER_TOKEN;
   });
