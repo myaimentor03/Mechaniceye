@@ -207,6 +207,86 @@ test("follow-up oversized vibration file returns 413 PAYLOAD_TOO_LARGE envelope 
     assert.ok(!text.includes("MulterError") && !text.includes("LIMIT_"), "must not leak multer internals");
   });
 });
+test("follow-up vibrationData text field (sensor JSON) is accepted and recorded (P0 #1 #2 #9)", async () => {
+  await withServer(async (origin) => {
+    const caseId = await createCase();
+    const form = new FormData();
+    form.append("additionalInfo", "Still rough after repair follow-up check");
+    const sensorJson = JSON.stringify({ samples: [0.1, 0.2, 0.3], timestamp: Date.now() });
+    form.append("vibrationData", sensorJson);
+    const response = await fetch(`${origin}/api/diagnoses/${caseId}/follow-up`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${REVIEWER_TOKEN}` },
+      body: form as any,
+    });
+    const body = await response.json().catch(() => ({} as any));
+    assert.equal(response.status, 200, `vibrationData text must be accepted, got ${response.status}: ${JSON.stringify(body).slice(0, 200)}`);
+    assertNoStore(response, "follow-up vibrationData text success");
+    // The structured sensor JSON must be recorded as-is on the follow-up record
+    assert.equal(body.vibrationData, sensorJson, "vibrationData text must be recorded verbatim");
+    assert.equal(body.evidenceProcessing?.vibration, "stored_for_human_review_not_analyzed");
+    const uploadsDir = path.join(process.cwd(), "uploads");
+    const remainingFiles = fs.existsSync(uploadsDir)
+      ? fs.readdirSync(uploadsDir).filter(f => f.endsWith(".dat"))
+      : [];
+    assert.equal(remainingFiles.length, 0, `Expected 0 vibration temp files after text success, found ${remainingFiles.join(", ")}`);
+  });
+});
+
+test("follow-up vibrationData text field takes precedence over vibration file when both provided (P0 #1 #2 #9)", async () => {
+  await withServer(async (origin) => {
+    const caseId = await createCase();
+    const form = new FormData();
+    form.append("additionalInfo", "Still rough after repair follow-up check");
+    const sensorJson = JSON.stringify({ samples: [0.5, 0.6], priority: "high" });
+    form.append("vibrationData", sensorJson);
+    form.append("vibration", new Blob([new Uint8Array([0x07, 0x08, 0x09])], { type: "audio/mpeg" }), "vibration-file.dat");
+    const response = await fetch(`${origin}/api/diagnoses/${caseId}/follow-up`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${REVIEWER_TOKEN}` },
+      body: form as any,
+    });
+    const body = await response.json().catch(() => ({} as any));
+    assert.equal(response.status, 200, `both fields must be accepted, got ${response.status}: ${JSON.stringify(body).slice(0, 200)}`);
+    assertNoStore(response, "follow-up vibrationData precedence");
+    // The text field must take precedence per the implementation (req.body.vibrationData || files?.vibration)
+    assert.equal(body.vibrationData, sensorJson, "vibrationData text must take precedence over file");
+    assert.equal(body.evidenceProcessing?.vibration, "stored_for_human_review_not_analyzed");
+    // File should still be cleaned up
+    const uploadsDir = path.join(process.cwd(), "uploads");
+    const remainingFiles = fs.existsSync(uploadsDir)
+      ? fs.readdirSync(uploadsDir).filter(f => f.endsWith(".dat"))
+      : [];
+    assert.equal(remainingFiles.length, 0, `Expected 0 vibration temp files after precedence test, found ${remainingFiles.join(", ")}`);
+  });
+});
+
+test("follow-up empty vibrationData text field falls back to vibration file (P0 #1 #2 #9)", async () => {
+  await withServer(async (origin) => {
+    const caseId = await createCase();
+    const form = new FormData();
+    form.append("additionalInfo", "Still rough after repair follow-up check");
+    form.append("vibrationData", ""); // empty string, falsy
+    form.append("vibration", new Blob([new Uint8Array([0x0A, 0x0B, 0x0C])], { type: "audio/mpeg" }), "fallback-vibration.dat");
+    const response = await fetch(`${origin}/api/diagnoses/${caseId}/follow-up`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${REVIEWER_TOKEN}` },
+      body: form as any,
+    });
+    const body = await response.json().catch(() => ({} as any));
+    assert.equal(response.status, 200, `empty text + file must be accepted, got ${response.status}: ${JSON.stringify(body).slice(0, 200)}`);
+    assertNoStore(response, "follow-up vibrationData empty falls back to file");
+    // Empty string is falsy, so file should be used
+    assert.ok(typeof body.vibrationData === "string" && body.vibrationData.length > 0, "vibration file evidence must be recorded when text is empty");
+    assert.equal(body.evidenceProcessing?.vibration, "stored_for_human_review_not_analyzed");
+    const uploadsDir = path.join(process.cwd(), "uploads");
+    const remainingFiles = fs.existsSync(uploadsDir)
+      ? fs.readdirSync(uploadsDir).filter(f => f.endsWith(".dat"))
+      : [];
+    assert.equal(remainingFiles.length, 0, `Expected 0 vibration temp files after fallback test, found ${remainingFiles.join(", ")}`);
+  });
+});
+
 test("follow-up success response cleans up temporary upload files (P0 #2 #9)", async () => {
   await withServer(async (origin) => {
     const caseId = await createCase();
