@@ -86,10 +86,25 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
+// Follow-up evidence accepts exactly one audio and one video file plus a small
+// set of bounded text fields. Multer's own defaults (1 MB per field, unlimited
+// field count) are far looser than what the follow-up route actually reads.
+const FOLLOW_UP_MAX_FILES = 2;
+const FOLLOW_UP_MAX_FIELDS = 8;
+const FOLLOW_UP_MAX_FIELD_BYTES = 8 * 1024;
+const FOLLOW_UP_MAX_ADDITIONAL_INFO_CHARS = 4_000;
+
+// Stored evidence names are server-generated, so a conservative charset is
+// always sufficient and keeps the value safe to echo into a header.
+const SAFE_EVIDENCE_FILENAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+
 const upload = multer({
   dest: uploadDir,
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB limit
+    files: FOLLOW_UP_MAX_FILES,
+    fields: FOLLOW_UP_MAX_FIELDS,
+    fieldSize: FOLLOW_UP_MAX_FIELD_BYTES,
   },
   fileFilter: (req, file, cb) => {
     const allowedMimes = [
@@ -216,7 +231,7 @@ type PublicCasePacket = {
   source: "public-render";
 } & Partial<MockAiPayloadFields>;
 
-type DiagnosisInput = IncomingDiagnosisCase & {
+export type DiagnosisInput = IncomingDiagnosisCase & {
   source?: string;
   submittedAt?: string;
   submissionStatus?: string;
@@ -341,12 +356,8 @@ function buildVehicleInfoFromParts(input: {
   return [vehicleYear, vehicleMake, vehicleModel, engine].filter(Boolean).join(" ");
 }
 
-function buildDiagnosisInput(body: any): DiagnosisInput {
+export function buildDiagnosisInput(body: any): DiagnosisInput {
   const diagnosisBody = body || {};
-  const pickStringArray = (value: unknown) =>
-    Array.isArray(value)
-      ? value.filter((item): item is string => typeof item === "string")
-      : [];
   const rawVehicleSelection = diagnosisBody.rawVehicleSelection || null;
   const symptomSummary = pickString(diagnosisBody.symptomSummary, diagnosisBody.symptoms);
   const description = pickString(diagnosisBody.description, symptomSummary);
@@ -370,10 +381,13 @@ function buildDiagnosisInput(body: any): DiagnosisInput {
   );
 
   return {
-    source: pickString(diagnosisBody.source),
+    // `source`, `submissionStatus` and `reviewStatus` are server-owned pipeline
+    // state. They are intentionally never read from the request body so a
+    // customer cannot forge intake or review status on the master webhook.
+    source: "",
     submittedAt: pickString(diagnosisBody.submittedAt),
-    submissionStatus: pickString(diagnosisBody.submissionStatus),
-    reviewStatus: pickString(diagnosisBody.reviewStatus),
+    submissionStatus: "",
+    reviewStatus: "",
     name: pickString(diagnosisBody.name, diagnosisBody.customerName),
     customerName: pickString(diagnosisBody.customerName, diagnosisBody.name),
     email: pickString(diagnosisBody.email, diagnosisBody.customerEmail),
@@ -403,14 +417,18 @@ function buildDiagnosisInput(body: any): DiagnosisInput {
     manualVehicleEntryUsed: !!diagnosisBody.manualVehicleEntryUsed,
     rawVehicleSelection,
     vibrationData: diagnosisBody.vibrationData || null,
-    photoEvidenceStatus: diagnosisBody.photoEvidenceStatus || "",
-    audioEvidenceStatus: diagnosisBody.audioEvidenceStatus || "",
-    videoEvidenceStatus: diagnosisBody.videoEvidenceStatus || "",
-    vibrationEvidenceStatus: diagnosisBody.vibrationEvidenceStatus || "",
-    photoFileNames: pickStringArray(diagnosisBody.photoFileNames),
-    audioFileNames: pickStringArray(diagnosisBody.audioFileNames),
-    videoFileNames: pickStringArray(diagnosisBody.videoFileNames),
-    vibrationFileNames: pickStringArray(diagnosisBody.vibrationFileNames)
+    // Evidence presence is a server-recorded fact, never a client assertion.
+    // These are populated only after the server actually persists media
+    // (`input.photoEvidenceStatus = "Persisted"`), so a customer cannot make a
+    // case claim photos/audio/video were received when nothing was stored.
+    photoEvidenceStatus: "",
+    audioEvidenceStatus: "",
+    videoEvidenceStatus: "",
+    vibrationEvidenceStatus: "",
+    photoFileNames: [],
+    audioFileNames: [],
+    videoFileNames: [],
+    vibrationFileNames: []
   };
 }
 
@@ -587,7 +605,7 @@ async function deliverDiagnosisWebhook(
   }
 }
 
-type MasterDiagnosisIntakePayload = {
+export type MasterDiagnosisIntakePayload = {
   intakeType: "diagnosis";
   source: string;
   caseId: string;
@@ -615,7 +633,11 @@ type MasterDiagnosisIntakePayload = {
   submittedAt: string;
 };
 
-function buildMasterDiagnosisIntakePayload(
+export const MASTER_INTAKE_SOURCE = "getdrivable-public-diagnosis-intake";
+export const MASTER_INTAKE_SUBMISSION_STATUS = "NEW_DIAGNOSIS_INTAKE";
+export const MASTER_INTAKE_REVIEW_STATUS = "PENDING_REVIEW";
+
+export function buildMasterDiagnosisIntakePayload(
   diagnosisCase: DiagnosisCaseResponse,
   input: DiagnosisInput
 ): MasterDiagnosisIntakePayload {
@@ -625,10 +647,10 @@ function buildMasterDiagnosisIntakePayload(
 
   return {
     intakeType: "diagnosis",
-    source: pickString(input.source, "getdrivable-public-diagnosis-intake"),
+    source: MASTER_INTAKE_SOURCE,
     caseId: pickString(diagnosisCase.id),
-    submissionStatus: pickString(input.submissionStatus, "NEW_DIAGNOSIS_INTAKE"),
-    reviewStatus: pickString(input.reviewStatus, "PENDING_REVIEW"),
+    submissionStatus: MASTER_INTAKE_SUBMISSION_STATUS,
+    reviewStatus: MASTER_INTAKE_REVIEW_STATUS,
     name: pickString(input.name, input.customerName),
     email: pickString(input.email, input.customerEmail, extractCustomerEmail(description)),
     phone: pickString(input.phone, input.customerPhone),
@@ -1510,6 +1532,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     max: 20,
     key: (req) => req.drivableCustomer?.id || req.ip || "unknown",
   });
+  const customerConsentWriteLimit = createRateLimit({
+    scope: "customer-consent-write",
+    windowMs: 60 * 60_000,
+    max: 60,
+    key: (req) => req.drivableCustomer?.id || req.ip || "unknown",
+  });
   const reviewerWriteLimit = createRateLimit({
     scope: "reviewer-write",
     windowMs: 10 * 60_000,
@@ -1741,7 +1769,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Export chat for mechanic
-  app.post("/api/diagnoses/:diagnosisId/export-chat", requireReviewer, async (req, res) => {
+  app.post("/api/diagnoses/:diagnosisId/export-chat", requireReviewer, reviewerWriteLimit, async (req, res) => {
     try {
       const { diagnosisId } = req.params;
       const exportData = await storage.exportChatForMechanic(diagnosisId);
@@ -1753,7 +1781,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Send to mechanic
-  app.post("/api/diagnoses/:diagnosisId/send-to-mechanic", requireReviewer, async (req, res) => {
+  app.post("/api/diagnoses/:diagnosisId/send-to-mechanic", requireReviewer, reviewerWriteLimit, async (req, res) => {
     try {
       const { diagnosisId } = req.params;
       const result = await storage.sendToMechanic(diagnosisId);
@@ -2109,6 +2137,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           code: "VIBRATION_CAPTURE_UNAVAILABLE",
         });
       }
+
+      let additionalInfo: string;
+      try {
+        additionalInfo = toOptionalText(req.body.additionalInfo, "additionalInfo") ?? "";
+      } catch {
+        const uploadedPaths = Object.values(files || {}).flat().map((file) => file.path).filter(Boolean);
+        await Promise.all(uploadedPaths.map((filePath) => fs.promises.unlink(filePath).catch(() => undefined)));
+        return res.status(400).json({
+          message: `Follow-up details must be a string of at most ${FOLLOW_UP_MAX_ADDITIONAL_INFO_CHARS} characters.`,
+          code: "INVALID_ADDITIONAL_INFO",
+        });
+      }
       
       // Get original diagnosis
       const originalDiagnosis = await storage.getDiagnosis(diagnosisId);
@@ -2120,7 +2160,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const followUpData = {
         originalDiagnosisId: diagnosisId,
         userId: originalDiagnosis.userId!,
-        additionalInfo: req.body.additionalInfo,
+        additionalInfo,
         newAudioFile: files?.audio?.[0]?.filename || null,
         newVideoFile: files?.video?.[0]?.filename || null,
         newVibrationData: null,
@@ -2200,7 +2240,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Start mechanic consultation
-  app.post("/api/consultations", requireReviewer, async (req, res) => {
+  app.post("/api/consultations", requireReviewer, reviewerWriteLimit, async (req, res) => {
     try {
       const { diagnosisId, mechanicId, userId } = req.body;
       
@@ -2264,7 +2304,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/files/:filename", requireReviewer, (req, res) => {
     const filename = path.basename(String(req.params.filename || ""));
 
-    if (!filename || filename !== req.params.filename) {
+    // basename equality rules out separators and sub-paths; the charset check
+    // additionally guarantees the value is safe to echo into a response header
+    // (no quotes, quotes-adjacent characters, control bytes, or newlines).
+    if (!SAFE_EVIDENCE_FILENAME.test(filename) || filename !== req.params.filename) {
       res.status(400).json({ message: "Invalid file name" });
       return;
     }
@@ -2278,7 +2321,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     if (fs.existsSync(filepath) && fs.statSync(filepath).isFile()) {
+      // Reviewer-uploaded evidence is never a renderable document. Pin the
+      // response to an opaque binary attachment so a stored HTML/SVG payload
+      // can never be executed as active content, and keep it out of caches.
+      res.setHeader("Content-Type", "application/octet-stream");
       res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.setHeader("Cache-Control", "no-store, private");
       res.sendFile(filepath);
     } else {
       res.status(404).json({ message: "File not found" });
@@ -2287,7 +2336,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Revoke durable intake consent for an authenticated customer's case.
   // Fail-closed: requires launch controls and an existing acceptance.
-  app.post("/api/consent/revoke", requireCustomer, async (req, res) => {
+  app.post("/api/consent/revoke", requireCustomer, customerConsentWriteLimit, async (req, res) => {
     const accountId = req.drivableCustomer!.id;
     const actorId = req.drivableCustomer!.id;
     const caseId = String(req.body?.caseId || "").trim();

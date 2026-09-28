@@ -23,18 +23,16 @@ export type RegistrationDecision =
 /**
  * Maps a registration decision to its HTTP response. The status and body are
  * identical for both outcomes so an unauthenticated caller cannot tell whether
- * an email already has an account. A session is only issued for a newly created
- * account, via the route, and is never reflected in the body.
+ * an email already has an account. Registration never authenticates, so no
+ * session identity is produced for either outcome.
  */
-export function registrationHttpResponse(decision: RegistrationDecision): {
+export function registrationHttpResponse(_decision: RegistrationDecision): {
   status: number;
   body: Readonly<{ ok: true }>;
-  sessionUser?: CustomerIdentity;
 } {
   return {
     status: 200,
     body: Object.freeze({ ok: true }),
-    ...(decision.kind === "created" ? { sessionUser: decision.user } : {}),
   };
 }
 
@@ -134,18 +132,54 @@ function cookieValue(header: unknown): string {
   if (typeof header !== "string") return "";
   for (const part of header.split(";")) {
     const [name, ...rest] = part.trim().split("=");
-    if (name === COOKIE_NAME) return decodeURIComponent(rest.join("="));
+    if (name === COOKIE_NAME) {
+      // A malformed percent-encoding must fail closed as "no session" instead
+      // of throwing URIError out of the auth middleware (which surfaced as a
+      // 500 and let a client drive server error logging).
+      try {
+        return decodeURIComponent(rest.join("="));
+      } catch {
+        return "";
+      }
+    }
   }
   return "";
 }
 
-function setSessionCookie(res: any, token: string) {
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+/**
+ * `Secure` must be set whenever the session could travel over TLS, not only
+ * when NODE_ENV happens to be "production" on the deployed environment. Local
+ * Vite dev over plain http:// keeps the flag off.
+ */
+export function secureSessionCookieRequired(
+  headers: unknown,
+  isSecureConnection: unknown,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  if (env.NODE_ENV === "production") return true;
+  const forwardedProto = readForwardedProto(headers);
+  if (forwardedProto === "https") return true;
+  return isSecureConnection === true;
+}
+
+function readForwardedProto(headers: unknown): string {
+  if (!headers || typeof headers !== "object") return "";
+  const entries = Object.entries(headers as Record<string, unknown>);
+  const match = entries.find(([name]) => name.toLowerCase() === "x-forwarded-proto");
+  return String(match?.[1] ?? "").split(",")[0].trim().toLowerCase();
+}
+
+function sessionCookieSecure(req: any): boolean {
+  return secureSessionCookieRequired(req?.headers, req?.secure);
+}
+
+function setSessionCookie(req: any, res: any, token: string) {
+  const secure = sessionCookieSecure(req) ? "; Secure" : "";
   res.setHeader("Set-Cookie", `${COOKIE_NAME}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_TTL_SECONDS}${secure}`);
 }
 
-function clearSessionCookie(res: any) {
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+function clearSessionCookie(req: any, res: any) {
+  const secure = sessionCookieSecure(req) ? "; Secure" : "";
   res.setHeader("Set-Cookie", `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`);
 }
 
@@ -187,25 +221,24 @@ export function registerCustomerAuthRoutes(app: Express) {
     if (!configuredSecret()) return res.status(503).json({ ok: false, error: "Customer accounts are not configured." });
     if (!process.env[BETA_INVITE_ENV]?.trim()) return res.status(503).json({ ok: false, error: "Beta invitations are not configured." });
     if (!inviteMatches(parsed.data.inviteCode)) return res.status(403).json({ ok: false, error: "This beta invite code is not valid." });
-    let decision: RegistrationDecision = { kind: "existing" };
     try {
-      const [created] = await getDb()
+      // `onConflictDoNothing` keeps the work (and therefore the timing) the same
+      // whether or not the email already has an account. The outcome is
+      // intentionally discarded so no branch of this handler can be observed.
+      await getDb()
         .insert(users)
         .values({ username: parsed.data.email, password: await hashPassword(parsed.data.password) })
         .onConflictDoNothing({ target: users.username })
         .returning({ id: users.id, email: users.username });
-      decision = created ? { kind: "created", user: created } : { kind: "existing" };
     } catch (error) {
       logEventError("auth.register_failed", error, { ip: requestIp(req) });
       return res.status(503).json({ ok: false, error: "Account creation is temporarily unavailable." });
     }
-    // Enumeration-safe: always return identical response body;
-    // session cookie is set only for newly created accounts but not reflected in the body.
+    // Enumeration-safe: the response is byte-for-byte identical whether or not
+    // an account already exists. No session is ever granted here — registration
+    // does not authenticate, and minting a session only for freshly created
+    // accounts would leak account existence through the Set-Cookie header.
     res.setHeader("Cache-Control", "no-store");
-    if (decision.kind === "created") {
-      const user = decision.user;
-      setSessionCookie(res, createSessionToken(user));
-    }
     return res.status(200).json({ ok: true });
   });
 
@@ -219,7 +252,8 @@ export function registerCustomerAuthRoutes(app: Express) {
       const authenticated = await verifyPasswordWithFallback(parsed.data.password, record?.password);
       if (!record || !authenticated) return res.status(401).json({ ok: false, error: "Invalid email or password." });
       const user = { id: record.id, email: record.email };
-      setSessionCookie(res, createSessionToken(user));
+      setSessionCookie(req, res, createSessionToken(user));
+      res.setHeader("Cache-Control", "no-store");
       return res.json({ ok: true, user });
     } catch (error) {
       logEventError("auth.login_failed", error, { ip: requestIp(req) });
@@ -232,8 +266,8 @@ export function registerCustomerAuthRoutes(app: Express) {
     return res.json({ ok: true, user: req.drivableCustomer || null });
   });
 
-  app.post("/api/auth/logout", (_req, res) => {
-    clearSessionCookie(res);
+  app.post("/api/auth/logout", (req, res) => {
+    clearSessionCookie(req, res);
     res.setHeader("Cache-Control", "no-store");
     return res.json({ ok: true });
   });

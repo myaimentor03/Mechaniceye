@@ -145,6 +145,61 @@ test("follow-up evidence upload stays behind the reviewer gate before multipart 
   });
 });
 
+test("follow-up rejects oversized text fields and unbounded field counts", async () => {
+  await withServer(async (origin) => {
+    const prior = process.env.DRIVABLE_REVIEWER_TOKEN;
+    process.env.DRIVABLE_REVIEWER_TOKEN = "routes-security-followup-limits-token-12345";
+    try {
+      // Well under the old 1 MB multer field default, but far past the bounded
+      // follow-up contract, so it must not reach the analysis input.
+      const oversized = new FormData();
+      oversized.append("additionalInfo", "x".repeat(200_000));
+      const oversizedResponse = await fetch(`${origin}/api/diagnoses/case-123/follow-up`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${process.env.DRIVABLE_REVIEWER_TOKEN}` },
+        body: oversized,
+      });
+      assert.equal([400, 413].includes(oversizedResponse.status), true);
+      assert.equal((await oversizedResponse.text()).includes("x".repeat(200)), false);
+
+      // Field flooding is rejected by the parser rather than buffered.
+      const flooded = new FormData();
+      for (let i = 0; i < 40; i += 1) flooded.append(`field${i}`, "value");
+      const floodedResponse = await fetch(`${origin}/api/diagnoses/case-123/follow-up`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${process.env.DRIVABLE_REVIEWER_TOKEN}` },
+        body: flooded,
+      });
+      assert.equal([400, 413].includes(floodedResponse.status), true);
+    } finally {
+      if (prior === undefined) delete process.env.DRIVABLE_REVIEWER_TOKEN;
+      else process.env.DRIVABLE_REVIEWER_TOKEN = prior;
+    }
+  });
+});
+
+test("a valid follow-up submission is unaffected by the new multipart limits", async () => {
+  await withServer(async (origin) => {
+    const prior = process.env.DRIVABLE_REVIEWER_TOKEN;
+    process.env.DRIVABLE_REVIEWER_TOKEN = "routes-security-followup-ok-token-12345";
+    try {
+      const body = new FormData();
+      body.append("additionalInfo", "Replaced the front pads and the noise returned.");
+      const response = await fetch(`${origin}/api/diagnoses/case-123/follow-up`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${process.env.DRIVABLE_REVIEWER_TOKEN}` },
+        body,
+      });
+      // 404 because the fixture case does not exist; the important part is that
+      // the request was not rejected by the new field limits.
+      assert.equal(response.status, 404);
+    } finally {
+      if (prior === undefined) delete process.env.DRIVABLE_REVIEWER_TOKEN;
+      else process.env.DRIVABLE_REVIEWER_TOKEN = prior;
+    }
+  });
+});
+
 test("generated case IDs use cryptographic randomness, not Math.random()", () => {
   const ids = new Set<string>();
   for (let i = 0; i < 1_000; i += 1) ids.add(generateCaseId());

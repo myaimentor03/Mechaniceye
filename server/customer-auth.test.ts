@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSessionToken, DUMMY_PASSWORD_HASH, hashPassword, inviteMatches, readSessionToken, verifyPassword, verifyPasswordWithFallback } from "./customer-auth.js";
+import { createSessionToken, DUMMY_PASSWORD_HASH, hashPassword, inviteMatches, readSessionToken, secureSessionCookieRequired, verifyPassword, verifyPasswordWithFallback } from "./customer-auth.js";
 
 process.env.DRIVABLE_SESSION_SECRET = "test-only-session-secret-with-more-than-32-characters";
 
@@ -48,4 +48,24 @@ test("unknown-account login runs scrypt against a fixed dummy hash", async () =>
   assert.equal(await verifyPassword("anything", DUMMY_PASSWORD_HASH), false);
   assert.equal(await verifyPasswordWithFallback("anything", null), false);
   assert.equal(await verifyPasswordWithFallback("anything", undefined), false);
+});
+
+test("the session cookie is marked Secure whenever the request can travel over TLS", () => {
+  const dev: NodeJS.ProcessEnv = { NODE_ENV: "development" };
+  // A TLS-terminating proxy in front of the app must not produce a plaintext-
+  // capable session cookie, even when NODE_ENV was never set to production.
+  assert.equal(secureSessionCookieRequired({ "x-forwarded-proto": "https" }, false, dev), true);
+  assert.equal(secureSessionCookieRequired({ "x-forwarded-proto": "https, http" }, false, dev), true);
+  assert.equal(secureSessionCookieRequired({ "X-Forwarded-Proto": "HTTPS" }, false, dev), true);
+  assert.equal(secureSessionCookieRequired({}, true, dev), true);
+  assert.equal(secureSessionCookieRequired({}, true, { NODE_ENV: "production" }), true);
+});
+
+test("plain-http local development keeps the session cookie usable", () => {
+  const dev: NodeJS.ProcessEnv = { NODE_ENV: "development" };
+  assert.equal(secureSessionCookieRequired({}, false, dev), false);
+  assert.equal(secureSessionCookieRequired({ "x-forwarded-proto": "http" }, false, dev), false);
+  assert.equal(secureSessionCookieRequired(undefined, undefined, dev), false);
+  // Only an actual `https` hop counts; a forwarded `http` never adds Secure.
+  assert.equal(secureSessionCookieRequired({ "x-forwarded-proto": "http, https" }, false, dev), false);
 });

@@ -1,5 +1,25 @@
 export type DatabaseSslConfig = false | { rejectUnauthorized: boolean };
 
+const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0"]);
+
+/**
+ * Detects a loopback-only connection target by parsing the authority section of
+ * the URL. A substring scan of the whole URL also matches credentials, paths and
+ * query parameters (`?options=-c host=localhost`), which would silently drop TLS
+ * for a remote database. An unparseable URL is treated as remote so the safer
+ * TLS posture is the default.
+ */
+export function isLoopbackDatabaseUrl(databaseUrl: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(databaseUrl);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "postgres:" && parsed.protocol !== "postgresql:") return false;
+  return LOOPBACK_HOSTNAMES.has(parsed.hostname.toLowerCase());
+}
+
 /**
  * Decides the TLS verification posture for a Postgres connection.
  *
@@ -19,6 +39,5 @@ export function sslConfigForDatabaseUrl(
   const mode = env.DRIVABLE_DATABASE_SSL_MODE?.trim();
   if (mode === "disable") return false;
   if (mode === "verify-full") return { rejectUnauthorized: true };
-  const isLocal = databaseUrl.includes("localhost") || databaseUrl.includes("127.0.0.1");
-  return isLocal ? false : { rejectUnauthorized: false };
+  return isLoopbackDatabaseUrl(databaseUrl) ? false : { rejectUnauthorized: false };
 }
