@@ -93,7 +93,7 @@ import {
   listLaunchOffers,
   toCommerceReceipt,
 } from "./commerce/index.js";
-import { CommerceContractError } from "./commerce/order-contract.js";
+import { CommerceContractError, type CommerceOrderRepository } from "./commerce/order-contract.js";
 
 export const paymentRepository = new InMemoryCommerceOrderRepository();
 
@@ -1587,7 +1587,15 @@ async function deliverConciergeRequest(input: ConciergeRequest) {
   }
 }
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export async function registerRoutes(
+  app: Express,
+  options: Readonly<{ paymentRepository?: CommerceOrderRepository }> = {},
+): Promise<Server> {
+  // Commerce routes resolve the order repository once so route-level tests can
+  // inject a durable test double for verified/refund transitions. The default
+  // stays fail-closed: verified payment state requires a durable repository
+  // (see assertDurableCommerceOrderRepository).
+  const commerceOrders: CommerceOrderRepository = options.paymentRepository ?? paymentRepository;
   app.get("/api/health", (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
     res.json({ ok: true, live: true });
@@ -2396,7 +2404,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
       }
 
       const offer = getLaunchOffer(offerId);
-      const orderService = new CommerceOrderService(paymentRepository);
+      const orderService = new CommerceOrderService(commerceOrders);
       const order = await orderService.createPendingOrder({ caseId, offer });
 
       res.status(201).json({ ok: true, order: toCommerceReceipt(order) });
@@ -2412,7 +2420,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
   // Receipt/status view of a commerce order. Safe fields only.
   app.get("/api/commerce/orders/:orderId", requireCustomer, async (req, res) => {
     try {
-      const orderService = new CommerceOrderService(paymentRepository);
+      const orderService = new CommerceOrderService(commerceOrders);
       const order = await orderService.getOrder(req.params.orderId);
       if (!order) {
         return res.status(404).json({ ok: false, error: "Order not found" });
@@ -2437,7 +2445,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
         return res.status(400).json({ ok: false, error: "successUrl and cancelUrl must be http(s) URLs" });
       }
 
-      const orderService = new CommerceOrderService(paymentRepository);
+      const orderService = new CommerceOrderService(commerceOrders);
       const order = await orderService.getOrder(orderId);
 
       if (!order) {
@@ -2483,7 +2491,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
 
       const rawBody = (req as unknown as { rawBody?: unknown }).rawBody ?? req.body;
       const adapter = new StripePaymentProviderAdapter();
-      const orderService = new CommerceOrderService(paymentRepository);
+      const orderService = new CommerceOrderService(commerceOrders);
       const result = await orderService.applyProviderPayload(adapter, { rawBody, signature });
 
       res.json({ ok: true, status: result.status, orderId: result.order.orderId, state: result.order.state });
@@ -2494,6 +2502,43 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
       }
       logEventError("api.stripe_webhook_failed", error);
       res.status(500).json({ ok: false, error: "Webhook processing failed" });
+    }
+  });
+
+  // Request a refund for a verified commerce order.
+  // Transitions verified -> refund_required with a safe reason code. The funds
+  // movement itself is confirmed later via the Stripe charge.refunded webhook
+  // (refund_confirmed), which moves refund_required -> refunded idempotently.
+  // Fails closed: 503 without a durable repository, 409 unless verified, and
+  // refunded/failed/pending orders can never re-enter this transition.
+  app.post("/api/commerce/orders/:orderId/refund-required", requireCustomer, async (req, res) => {
+    try {
+      const { reasonCode } = (req.body ?? {}) as { reasonCode?: unknown };
+      const orderService = new CommerceOrderService(commerceOrders);
+      const order = await orderService.markRefundRequired({
+        orderId: req.params.orderId,
+        reasonCode,
+      });
+      res.json({ ok: true, order: toCommerceReceipt(order) });
+    } catch (error) {
+      if (error instanceof CommerceContractError) {
+        switch (error.code) {
+          case "order_not_found":
+            return res.status(404).json({ ok: false, error: "Order not found", code: error.code });
+          case "invalid_order_input":
+          case "invalid_provider_event":
+            return res.status(400).json({ ok: false, error: error.message, code: error.code });
+          case "illegal_transition":
+          case "event_conflict":
+          case "version_conflict":
+          case "order_mismatch":
+            return res.status(409).json({ ok: false, error: error.message, code: error.code });
+          default:
+            return res.status(503).json({ ok: false, error: "Refund request is temporarily unavailable", code: error.code });
+        }
+      }
+      logEventError("api.commerce_refund_required_failed", error);
+      res.status(500).json({ ok: false, error: "Refund request failed" });
     }
   });
 
