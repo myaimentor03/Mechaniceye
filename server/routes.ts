@@ -2435,6 +2435,44 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
     }
   });
 
+  // Entitlement check for a commerce order, bound to the correct case.
+  // Read-only and fail-closed: only a verified order with a provider binding
+  // is entitled. An explicit ?caseId= assertion that does not match the order
+  // is rejected as wrong_case without revealing the order receipt, so callers
+  // can gate the correct case/service before fulfillment. Verified payment is
+  // necessary but never sufficient for fulfillment on its own.
+  app.get("/api/commerce/orders/:orderId/entitlement", requireCustomer, async (req, res) => {
+    try {
+      const orderService = new CommerceOrderService(commerceOrders);
+      const order = await orderService.getOrder(req.params.orderId);
+      if (!order) {
+        return res.status(404).json({ ok: false, error: "Order not found", code: "order_not_found" });
+      }
+      const assertedCaseId = req.query.caseId;
+      if (assertedCaseId !== undefined) {
+        if (typeof assertedCaseId !== "string" || assertedCaseId.trim().length === 0) {
+          return res.status(400).json({ ok: false, error: "caseId is invalid", code: "invalid_order_input" });
+        }
+        if (assertedCaseId !== order.caseId) {
+          return res.status(409).json({ ok: false, error: "Order does not belong to this case", code: "wrong_case" });
+        }
+      }
+      const entitled = order.state === "verified" && order.provider !== null;
+      res.json({
+        ok: true,
+        entitled,
+        code: entitled ? "entitled" : "payment_not_verified",
+        order: toCommerceReceipt(order),
+      });
+    } catch (error) {
+      if (error instanceof CommerceContractError) {
+        return res.status(400).json({ ok: false, error: error.message, code: error.code });
+      }
+      logEventError("api.commerce_order_entitlement_failed", error);
+      res.status(500).json({ ok: false, error: "Entitlement check failed" });
+    }
+  });
+
   // Create checkout session for a commerce order
   app.post("/api/commerce/orders/:orderId/checkout", requireCustomer, async (req, res) => {
     try {
