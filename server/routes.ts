@@ -90,6 +90,7 @@ import {
   InMemoryCommerceOrderRepository,
   StripePaymentProviderAdapter,
   getLaunchOffer,
+  listLaunchOffers,
   toCommerceReceipt,
 } from "./commerce/index.js";
 import { CommerceContractError } from "./commerce/order-contract.js";
@@ -2374,6 +2375,15 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
   // Get subscription pricing and features
   app.get("/api/subscription/tiers", (req, res) => {
     res.json(SUBSCRIPTION_FEATURES);
+  });
+
+  // Public product catalog for the paid-beta payment chain.
+  // Server-priced launch offers only: clients pick an offerId, never an amount.
+  // Read-only and unauthenticated by design — prices are public, amounts are
+  // re-resolved server-side at order creation and webhook verification.
+  app.get("/api/commerce/offers", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true, offers: listLaunchOffers() });
   });
 
   // Create a pending commerce order from a server-priced launch offer.
