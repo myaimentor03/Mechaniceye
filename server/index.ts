@@ -40,6 +40,18 @@ app.use((req, res, next) => {
   next();
 });
 
+// Stripe verifies the webhook signature against the exact raw request bytes,
+// so the raw-body parser for this route must run BEFORE the JSON parser
+// consumes the stream. Every other route keeps parsed JSON bodies.
+app.use(
+  "/api/commerce/webhook/stripe",
+  express.raw({ type: "application/json" }),
+  (req, _res, next) => {
+    (req as any).rawBody = req.body;
+    next();
+  },
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 

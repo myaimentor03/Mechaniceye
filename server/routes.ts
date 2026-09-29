@@ -85,6 +85,28 @@ import { logEvent, logEventError } from "./observability/safe-log";
 import { serializeErrorSafely } from "./observability/errors";
 import { sslConfigForDatabaseUrl } from "./database-ssl";
 import { fetchWebhookWithTimeout } from "./webhook-fetch";
+import {
+  CommerceOrderService,
+  InMemoryCommerceOrderRepository,
+  StripePaymentProviderAdapter,
+  getLaunchOffer,
+  toCommerceReceipt,
+} from "./commerce/index.js";
+import { CommerceContractError } from "./commerce/order-contract.js";
+
+export const paymentRepository = new InMemoryCommerceOrderRepository();
+
+/** Checkout redirect targets must be bounded http(s) URLs, never javascript: or open-ended strings. */
+function isSafeRedirectUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0 || value.length > 2000) return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return false;
+  }
+  return parsed.protocol === "https:" || parsed.protocol === "http:";
+}
 
 // Configure multer for file uploads
 const uploadDir = path.join(process.cwd(), 'uploads');
@@ -2352,6 +2374,117 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
   // Get subscription pricing and features
   app.get("/api/subscription/tiers", (req, res) => {
     res.json(SUBSCRIPTION_FEATURES);
+  });
+
+  // Create a pending commerce order from a server-priced launch offer.
+  // Clients choose an offerId only; amounts are never client-asserted.
+  app.post("/api/commerce/orders", requireCustomer, async (req, res) => {
+    try {
+      const { offerId, caseId } = (req.body ?? {}) as { offerId?: unknown; caseId?: unknown };
+      if (typeof caseId !== "string" || caseId.trim().length === 0 || caseId.length > 200) {
+        return res.status(400).json({ ok: false, error: "caseId is required" });
+      }
+
+      const offer = getLaunchOffer(offerId);
+      const orderService = new CommerceOrderService(paymentRepository);
+      const order = await orderService.createPendingOrder({ caseId, offer });
+
+      res.status(201).json({ ok: true, order: toCommerceReceipt(order) });
+    } catch (error) {
+      if (error instanceof CommerceContractError) {
+        return res.status(400).json({ ok: false, error: error.message, code: error.code });
+      }
+      logEventError("api.commerce_order_create_failed", error);
+      res.status(500).json({ ok: false, error: "Order creation failed" });
+    }
+  });
+
+  // Receipt/status view of a commerce order. Safe fields only.
+  app.get("/api/commerce/orders/:orderId", requireCustomer, async (req, res) => {
+    try {
+      const orderService = new CommerceOrderService(paymentRepository);
+      const order = await orderService.getOrder(req.params.orderId);
+      if (!order) {
+        return res.status(404).json({ ok: false, error: "Order not found" });
+      }
+      res.json({ ok: true, order: toCommerceReceipt(order) });
+    } catch (error) {
+      if (error instanceof CommerceContractError) {
+        return res.status(400).json({ ok: false, error: error.message, code: error.code });
+      }
+      logEventError("api.commerce_order_status_failed", error);
+      res.status(500).json({ ok: false, error: "Order status failed" });
+    }
+  });
+
+  // Create checkout session for a commerce order
+  app.post("/api/commerce/orders/:orderId/checkout", requireCustomer, async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { successUrl, cancelUrl } = req.body as { successUrl?: unknown; cancelUrl?: unknown };
+
+      if (!isSafeRedirectUrl(successUrl) || !isSafeRedirectUrl(cancelUrl)) {
+        return res.status(400).json({ ok: false, error: "successUrl and cancelUrl must be http(s) URLs" });
+      }
+
+      const orderService = new CommerceOrderService(paymentRepository);
+      const order = await orderService.getOrder(orderId);
+
+      if (!order) {
+        return res.status(404).json({ ok: false, error: "Order not found" });
+      }
+      if (order.state !== "pending") {
+        return res.status(409).json({ ok: false, error: `Order is not in pending state: ${order.state}` });
+      }
+      if (order.provider !== null) {
+        return res.status(409).json({ ok: false, error: "Order already has a provider binding" });
+      }
+
+      const session = await StripePaymentProviderAdapter.createCheckoutSession({
+        orderId,
+        amountMinor: order.offer.amountMinor,
+        currency: order.offer.currency,
+        successUrl,
+        cancelUrl,
+        customerEmail: req.drivableCustomer!.email,
+        metadata: { caseId: order.caseId },
+      });
+
+      res.json({ ok: true, sessionId: session.id, url: session.url });
+    } catch (error) {
+      if (error instanceof CommerceContractError) {
+        return res.status(503).json({ ok: false, error: error.message, code: error.code });
+      }
+      logEventError("api.checkout_session_failed", error);
+      res.status(500).json({ ok: false, error: "Checkout session creation failed" });
+    }
+  });
+
+  // Stripe webhook endpoint for payment events.
+  // The raw payload is passed to the order service exactly once: the service
+  // verifies the signature and applies the event idempotently, so replays
+  // and duplicates can never double-apply state.
+  app.post("/api/commerce/webhook/stripe", async (req, res) => {
+    try {
+      const signature = req.headers["stripe-signature"];
+      if (!signature || typeof signature !== "string") {
+        return res.status(400).json({ ok: false, error: "Missing stripe-signature header" });
+      }
+
+      const rawBody = (req as unknown as { rawBody?: unknown }).rawBody ?? req.body;
+      const adapter = new StripePaymentProviderAdapter();
+      const orderService = new CommerceOrderService(paymentRepository);
+      const result = await orderService.applyProviderPayload(adapter, { rawBody, signature });
+
+      res.json({ ok: true, status: result.status, orderId: result.order.orderId, state: result.order.state });
+    } catch (error) {
+      if (error instanceof CommerceContractError) {
+        const status = error.code === "invalid_provider_event" ? 400 : 503;
+        return res.status(status).json({ ok: false, error: error.message, code: error.code });
+      }
+      logEventError("api.stripe_webhook_failed", error);
+      res.status(500).json({ ok: false, error: "Webhook processing failed" });
+    }
   });
 
   // Get available mechanics for consultation

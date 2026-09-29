@@ -98,7 +98,7 @@ export interface PaymentProviderAdapter {
   verifyAndNormalize(payload: unknown): Promise<unknown>;
 }
 
-type NormalizedProviderPaymentEvent = Readonly<{
+export type NormalizedProviderPaymentEvent = Readonly<{
   schemaVersion: typeof PAYMENT_PROVIDER_EVENT_SCHEMA_VERSION;
   eventId: string;
   provider: string;
