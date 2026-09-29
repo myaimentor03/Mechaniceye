@@ -4,4 +4,5 @@ export * from "./commerce-receipt.js";
 export * from "./in-memory-commerce-order-repository.js";
 export * from "./order-contract.js";
 export * from "./paid-fulfillment-eligibility.js";
+export * from "./postgres-commerce-order-repository.js";
 export * from "./stripe-payment-provider-adapter.js";
