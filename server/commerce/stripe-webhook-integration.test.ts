@@ -469,4 +469,38 @@ test("stripe webhook: charge.refunded on a never-verified order stays safe", asy
     assert.equal(updatedOrder!.state, "pending");
     assert.equal(toCommerceReceipt(updatedOrder!).entitledHint, "not_entitled");
   });
+
+  test("stripe webhook: charge.refunded on a never-verified order stays safe with human_pro_review offer", async () => {
+    await withTestServer(async (baseUrl, repo) => {
+      const orderService = new CommerceOrderService(repo);
+      const offer = getLaunchOffer("human_pro_review");
+      const order = await orderService.createPendingOrder({ caseId: "case_test_10", offer });
+
+      const refundEvent = {
+        id: "evt_test_10_refund",
+        type: "charge.refunded",
+        created: Math.floor(Date.now() / 1000) + 5,
+        data: {
+          object: {
+            id: "ch_test_10",
+            payment_intent: "pi_test_10",
+            amount: offer.amountMinor,
+            currency: offer.currency.toLowerCase(),
+            metadata: { orderId: order.orderId },
+          },
+        },
+      };
+      const payload = JSON.stringify(refundEvent);
+      const signature = signPayload(payload, TEST_STRIPE_WEBHOOK_SECRET);
+
+      const { response, body } = await postWebhook(baseUrl, payload, signature);
+      assert.equal(response.status, 503);
+      assert.equal(body.ok, false);
+      assert.equal(body.code, "illegal_transition");
+
+      const updatedOrder = await orderService.getOrder(order.orderId);
+      assert.equal(updatedOrder!.state, "pending");
+      assert.equal(toCommerceReceipt(updatedOrder!).entitledHint, "not_entitled");
+    });
+  });
 });
