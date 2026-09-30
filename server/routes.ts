@@ -2418,12 +2418,25 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
   });
 
   // Receipt/status view of a commerce order. Safe fields only.
+  // Accepts an optional ?caseId= assertion bound to the correct case/service:
+  // a mismatch is rejected as wrong_case without revealing the receipt, so
+  // callers gate the correct case before acting on paid status. Verified
+  // payment is necessary but never sufficient for fulfillment on its own.
   app.get("/api/commerce/orders/:orderId", requireCustomer, async (req, res) => {
     try {
       const orderService = new CommerceOrderService(commerceOrders);
       const order = await orderService.getOrder(req.params.orderId);
       if (!order) {
         return res.status(404).json({ ok: false, error: "Order not found" });
+      }
+      const assertedCaseId = req.query.caseId;
+      if (assertedCaseId !== undefined) {
+        if (typeof assertedCaseId !== "string" || assertedCaseId.trim().length === 0) {
+          return res.status(400).json({ ok: false, error: "caseId is invalid", code: "invalid_order_input" });
+        }
+        if (assertedCaseId !== order.caseId) {
+          return res.status(409).json({ ok: false, error: "Order does not belong to this case", code: "wrong_case" });
+        }
       }
       res.json({ ok: true, order: toCommerceReceipt(order) });
     } catch (error) {
