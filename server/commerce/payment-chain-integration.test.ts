@@ -246,6 +246,77 @@ test("payment chain: create order -> checkout -> webhook verified -> entitlement
   });
 });
 
+test("payment chain: buyer_check_full uses the fixed price and reaches verified entitlement", async () => {
+  const repository = new TestDurableCommerceRepository();
+  await withFullServer(repository, async (baseUrl) => {
+    const cookie = customerCookie("cust_buyer_check_full", "buyer-full@example.com");
+    const offer = getLaunchOffer("buyer_check_full");
+    assert.equal(offer.amountMinor, 3900);
+    assert.equal(offer.currency, "USD");
+
+    const createOrder = await postJson(
+      baseUrl,
+      "/api/commerce/orders",
+      { offerId: "buyer_check_full", caseId: "case_buyer_check_full" },
+      cookie,
+    );
+    assert.equal(createOrder.response.status, 201);
+    assert.equal(createOrder.body.ok, true);
+    const order = createOrder.body.order as Record<string, unknown>;
+    const orderId = order.orderId as string;
+    assert.ok(orderId);
+    assert.equal(order.state, "pending");
+    assert.deepEqual(order.offer, {
+      offerId: "buyer_check_full",
+      offerVersion: "v1",
+      label: "Buyer Check Full",
+      amountMinor: 3900,
+      currency: "USD",
+    });
+
+    const checkout = await postJson(
+      baseUrl,
+      `/api/commerce/orders/${orderId}/checkout`,
+      { successUrl: "https://example.com/buyer-check-full/success", cancelUrl: "https://example.com/buyer-check-full/cancel" },
+      cookie,
+    );
+    assert.equal(checkout.response.status, 200);
+    const sessionId = checkout.body.sessionId as string;
+
+    const webhookEvent = {
+      id: "evt_buyer_check_full_paid",
+      type: "checkout.session.completed",
+      created: Math.floor(Date.now() / 1000) + 5,
+      data: {
+        object: {
+          id: sessionId,
+          payment_intent: "pi_buyer_check_full",
+          amount_total: offer.amountMinor,
+          currency: offer.currency.toLowerCase(),
+          metadata: { orderId },
+        },
+      },
+    };
+    const payload = JSON.stringify(webhookEvent);
+    const signature = signStripePayload(payload, process.env.STRIPE_WEBHOOK_SECRET!);
+    const webhook = await postWebhook(baseUrl, payload, signature);
+    assert.equal(webhook.response.status, 200);
+    assert.equal(webhook.body.state, "verified");
+
+    const entitlement = await getJson(
+      baseUrl,
+      `/api/commerce/orders/${orderId}/entitlement?caseId=case_buyer_check_full`,
+      cookie,
+    );
+    assert.equal(entitlement.response.status, 200);
+    assert.equal(entitlement.body.entitled, true);
+    assert.equal(entitlement.body.code, "entitled");
+    assert.equal((entitlement.body.order as Record<string, unknown>).offer &&
+      ((entitlement.body.order as Record<string, unknown>).offer as Record<string, unknown>).offerId,
+      "buyer_check_full");
+  });
+});
+
 test("payment chain: failed payment stays safe and never entitled", async () => {
   const repository = new TestDurableCommerceRepository();
   await withFullServer(repository, async (baseUrl) => {
