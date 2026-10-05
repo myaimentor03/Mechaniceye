@@ -25,13 +25,24 @@ const JOURNEY_REVIEW_BINDINGS = Object.freeze({
   evidenceVersion: "evidence-v1",
 });
 
+function canonicalArtifact(value: unknown): string {
+  return JSON.stringify(value, (_key, item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return item;
+    return Object.fromEntries(Object.entries(item).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0));
+  });
+}
+
 function caseArtifactDigest(caseData: JourneyCase): string {
-  const payload = JSON.stringify({
+  const payload = canonicalArtifact({
     id: caseData.id,
     vehicleInfo: caseData.vehicleInfo,
     description: caseData.description,
     outcome: caseData.outcome,
     confidenceLevel: caseData.confidenceLevel,
+    confidenceScore: caseData.confidenceScore,
+    decisionPath: caseData.decisionPath,
+    matchedSymptomCategories: caseData.matchedSymptomCategories,
+    safetyFlags: caseData.safetyFlags,
     riskLevel: caseData.riskLevel,
     evidence: caseData.evidence,
     safetyTriggered: caseData.safetyTriggered,
@@ -56,6 +67,12 @@ function recipientBinding(caseData: JourneyCase) {
     bindingVersion: "v1",
   };
 }
+
+export type JourneyResultStatus = {
+  resultStatus: "pending" | "provisional" | "human_approved";
+  humanApproved: boolean;
+  durableApprovalId?: string;
+};
 
 export type JourneyReviewRuntime = {
   reader: AsyncReviewReleaseReader;
@@ -120,7 +137,8 @@ export class JourneyReviewBridge {
     const { reader, writer } = await this.runtime();
     const existingVersionId = await reader.getCurrentVersionId(caseData.id);
     if (existingVersionId) {
-      return await reader.getVersion(existingVersionId);
+      const existing = await reader.getVersion(existingVersionId);
+      if (existing?.artifactDigest === caseArtifactDigest(caseData)) return existing;
     }
 
     const version = await writer.createDraft({
@@ -256,6 +274,27 @@ export class JourneyReviewBridge {
       allowed: decision.allowed,
       reason: decision.allowed ? undefined : decision.code,
     };
+  }
+
+  /** A completed workflow alone never establishes durable human approval. */
+  async getResultStatus(caseData: JourneyCase): Promise<JourneyResultStatus> {
+    if (!caseData.outcome) return { resultStatus: "pending", humanApproved: false };
+    const provisional: JourneyResultStatus = { resultStatus: "provisional", humanApproved: false };
+    if (caseData.state !== "resolved") return provisional;
+    const { reader, writer } = await this.runtime();
+    if (!reader.capabilities.durable || !writer.capabilities.durable) return provisional;
+    assertDurableReviewRepository(reader);
+    assertDurableReviewRepository(writer);
+    const versionId = await reader.getCurrentVersionId(caseData.id);
+    if (!versionId) return provisional;
+    const version = await reader.getVersion(versionId);
+    if (!version || version.artifactDigest !== caseArtifactDigest(caseData)) return provisional;
+    const decision = await new AsyncHumanReviewReleaseGate(reader).decide({
+      caseId: caseData.id, versionId, recipient: recipientBinding(caseData), ...JOURNEY_REVIEW_BINDINGS,
+    });
+    return decision.allowed
+      ? { resultStatus: "human_approved", humanApproved: true, durableApprovalId: decision.approvalId }
+      : provisional;
   }
 
   /**

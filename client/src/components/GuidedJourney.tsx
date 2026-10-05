@@ -127,6 +127,8 @@ type JourneyCaseResponse = {
   }[];
   currentEvidencePrompt?: string;
   decisionPacket?: DecisionPacket;
+  resultStatus?: "pending" | "provisional" | "human_approved";
+  humanApproved?: boolean;
   nextServiceDestination?: ServiceDestination;
 };
 
@@ -791,6 +793,11 @@ export function GuidedJourney() {
           <div className="step-card" style={caseData.decisionPacket.outcome === "stop_driving"
             ? { borderColor: "rgba(255,100,100,0.6)", background: "rgba(90,25,30,0.4)" }
             : { borderColor: "rgba(100,200,255,0.4)", background: "rgba(15,45,75,0.35)" }}>
+            <div className="notice-strip" role="status">
+              {caseData.resultStatus === "human_approved" && caseData.humanApproved === true
+                ? "Human-reviewed guidance. A reviewer approved this result."
+                : "Provisional guidance. This result has not been approved by a human reviewer. You can request human review."}
+            </div>
             <div className="step-header">
               <div>
                 <div className="eyebrow">

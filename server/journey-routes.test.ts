@@ -867,6 +867,8 @@ const evidenceData = await jsonOf(evidenceRes);
       assert.equal(approveRes.status, 200);
       const approved = await jsonOf(approveRes);
       assert.equal(approved.case.state, "resolved");
+      assert.equal(approved.case.resultStatus, "provisional");
+      assert.equal(approved.case.humanApproved, false, "development review is not durable human approval");
     });
   });
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { JourneyReviewBridge } from "./journey-review-bridge";
-import { createJourneyCase } from "./journey-state-machine";
+import { createJourneyCase, advanceJourney } from "./journey-state-machine";
 import { PostgresReviewWriter, ReviewWriteError, type ReviewTransaction, type ReviewTransactionExecutor } from "./review/postgres-review-writer";
 import { PostgresReviewReleaseReader } from "./review/postgres-review-release-reader";
 import { InMemoryReviewRepository } from "./review/in-memory-review-repository";
@@ -90,7 +90,16 @@ function bridge(database: ReviewDatabase) {
   }) });
 }
 function reviewCase() {
-  return { ...createJourneyCase({ vehicleInfo: "2018 Honda Civic", description: "Grinding when braking", customerId: "customer-123", customerEmail: "owner@example.com" }), state: "human_review" as const, riskLevel: "low" as const, safetyTriggered: false };
+  let caseData = createJourneyCase({
+    vehicleInfo: "2018 Honda Civic", description: "Grinding noise when braking at low speeds",
+    timing: "Braking", urgency: "Safe to Drive", customerId: "customer-123", customerEmail: "owner@example.com",
+  });
+  caseData = advanceJourney(caseData, "submit_intake");
+  caseData = advanceJourney(caseData, "request_evidence");
+  caseData = advanceJourney(caseData, "submit_evidence", { evidence: [{ kind: "photo", description: "Brake rotor photo" }] });
+  caseData = advanceJourney(caseData, "evaluate");
+  caseData = advanceJourney(caseData, "ready_diagnosis");
+  return advanceJourney(caseData, "request_human_review");
 }
 
 test("durable Journey approval survives repository restart and permits release", async () => {
@@ -208,11 +217,67 @@ test("approval retry reuses durable approval after a failed case-resolution writ
     failWrite = false;
     const second = await fetch(url, request);
     assert.equal(second.status, 200);
-    const body = await second.json() as { ok: boolean; case: { state: string } };
+    const body = await second.json() as { ok: boolean; case: { state: string; resultStatus: string; humanApproved: boolean } };
     assert.equal(body.ok, true); assert.equal(body.case.state, "resolved");
+    assert.equal(body.case.resultStatus, "human_approved");
+    assert.equal(body.case.humanApproved, true);
     assert.equal(database.approvals.size, 1, "retry must not record a duplicate review approval");
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     if (previousToken === undefined) delete process.env.DRIVABLE_REVIEWER_TOKEN; else process.env.DRIVABLE_REVIEWER_TOKEN = previousToken;
   }
+});
+
+
+test("resolved results require durable approval before being marked human-approved", async () => {
+  const database = new ReviewDatabase(), review = bridge(database);
+  const caseData = { ...reviewCase(), outcome: "fix" as const };
+  const resolved = { ...caseData, state: "resolved" as const };
+  assert.equal((await review.getResultStatus(resolved)).resultStatus, "provisional");
+  await review.createReviewForCase(caseData);
+  await review.finalizeReviewForCase(caseData);
+  assert.equal((await review.getResultStatus(resolved)).humanApproved, false);
+  const approval = await review.approveReview(caseData.id, "reviewer_12345678");
+  const restarted = bridge(database);
+  assert.deepEqual(await restarted.getResultStatus(resolved), { resultStatus: "human_approved", humanApproved: true, durableApprovalId: approval.approvalId });
+  assert.equal((await restarted.getResultStatus(caseData)).resultStatus, "provisional", "approval alone does not release an unresolved case");
+  assert.equal((await restarted.getResultStatus({ ...resolved, description: "New symptoms" })).humanApproved, false);
+  database.failure = new Error("read unavailable");
+  await assert.rejects(restarted.getResultStatus(resolved));
+});
+
+test("ephemeral approval never marks a result human-approved", async () => {
+  const review = new JourneyReviewBridge({ repository: new InMemoryReviewRepository() });
+  const caseData = { ...reviewCase(), outcome: "fix" as const };
+  await review.createReviewForCase(caseData);
+  await review.finalizeReviewForCase(caseData);
+  await review.approveReview(caseData.id, "reviewer_12345678");
+  assert.equal((await review.getResultStatus({ ...caseData, state: "resolved" })).humanApproved, false);
+});
+
+test("database JSON key reordering preserves approval of identical evidence", async () => {
+  const database = new ReviewDatabase(), review = bridge(database), caseData = reviewCase();
+  caseData.evidence = [{ kind: "photo", description: "Brake photo", status: "persisted", attachmentId: "attachment-123" }];
+  await review.createReviewForCase(caseData);
+  await review.finalizeReviewForCase(caseData);
+  await review.approveReview(caseData.id, "reviewer_12345678");
+  const reloaded = { ...caseData, evidence: [{ attachmentId: "attachment-123", status: "persisted" as const, description: "Brake photo", kind: "photo" as const }] };
+  assert.equal((await bridge(database).checkReleaseAllowed(reloaded)).allowed, true);
+});
+
+
+test("changed case content starts a new durable review rather than reusing prior approval", async () => {
+  const database = new ReviewDatabase(), review = bridge(database), caseData = reviewCase();
+  await review.createReviewForCase(caseData);
+  const original = await review.finalizeReviewForCase(caseData);
+  await review.approveReview(caseData.id, "reviewer_12345678");
+  const updated = { ...caseData, description: caseData.description + ", symptoms have worsened" };
+  const draft = await review.createReviewForCase(updated);
+  assert.notEqual(draft?.versionId, original?.versionId);
+  assert.equal((await review.getReviewStatus(caseData.id))?.reviewStatus, "draft");
+  assert.equal((await review.checkReleaseAllowed(updated)).allowed, false);
+  await review.finalizeReviewForCase(updated);
+  await review.approveReview(updated.id, "reviewer_12345678");
+  assert.equal((await review.checkReleaseAllowed(updated)).allowed, true);
+  assert.equal((await review.checkReleaseAllowed(caseData)).allowed, false);
 });

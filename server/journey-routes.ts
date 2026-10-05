@@ -339,12 +339,16 @@ async function tryAutoEvaluate(caseData: JourneyCase, caseStorage: JourneyCaseSt
 }
 
 export function registerJourneyRoutes(app: Express, reviewBridge: JourneyReviewBridge = journeyReviewBridge, caseStorage: JourneyCaseStorage = journeyCaseStorage): void {
+  async function responseForCase(caseData: JourneyCase) {
+    return { ...safeJourneyResponse(caseData), ...await reviewBridge.getResultStatus(caseData) };
+  }
+
   app.get("/api/journey/my-cases", requireCustomer, async (req, res) => {
     try {
       const customerId = req.drivableCustomer!.id;
       const cases = await caseStorage.listByCustomer(customerId);
       res.setHeader("Cache-Control", "no-store");
-      res.json({ ok: true, cases: cases.map(safeJourneyResponse) });
+      res.json({ ok: true, cases: await Promise.all(cases.map(responseForCase)) });
     } catch (error) {
       journeyError(res, error);
     }
@@ -401,7 +405,7 @@ export function registerJourneyRoutes(app: Express, reviewBridge: JourneyReviewB
         symptomMatchCount: caseData.matchedSymptomCategories.length,
       });
 
-      res.status(201).json(safeJourneyResponse(caseData));
+      res.status(201).json(await responseForCase(caseData));
     } catch (error) {
       logEventError("journey.start_failed", error);
       journeyError(res, error);
@@ -420,7 +424,7 @@ export function registerJourneyRoutes(app: Express, reviewBridge: JourneyReviewB
         return;
       }
       res.setHeader("Cache-Control", "no-store");
-      res.json(safeJourneyResponse(caseData));
+      res.json(await responseForCase(caseData));
     } catch (error) {
       journeyError(res, error);
     }
@@ -565,7 +569,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         outcome: finalCase.outcome,
       });
 
-      res.json(safeJourneyResponse(finalCase));
+      res.json(await responseForCase(finalCase));
     } catch (error) {
       logEventError("journey.advance_failed", error, { caseId: req.params.caseId });
       journeyError(res, error);
@@ -634,7 +638,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
 
       const finalCase = await tryAutoEvaluate(updated, caseStorage);
 
-      res.json(safeJourneyResponse(finalCase));
+      res.json(await responseForCase(finalCase));
     } catch (error) {
       logEventError("journey.evidence_failed", error, { caseId: req.params.caseId });
       journeyError(res, error);
@@ -732,7 +736,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         const finalCase = await tryAutoEvaluate(updated, caseStorage);
 
         res.json({
-          ...safeJourneyResponse(finalCase),
+          ...await responseForCase(finalCase),
           persistedAttachments: attachments,
           evidencePersistence: {
             durability: journeyEvidenceStore.durability,
@@ -838,7 +842,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         const finalCase = await tryAutoEvaluate(updated, caseStorage);
 
         res.json({
-          ...safeJourneyResponse(finalCase),
+          ...await responseForCase(finalCase),
           persistedAttachments: attachments,
           evidencePersistence: {
             durability: journeyEvidenceStore.durability,
@@ -943,7 +947,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         const finalCase = await tryAutoEvaluate(updated, caseStorage);
 
         res.json({
-          ...safeJourneyResponse(finalCase),
+          ...await responseForCase(finalCase),
           persistedAttachments: attachments,
           evidencePersistence: {
             durability: journeyEvidenceStore.durability,
@@ -1049,7 +1053,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         const finalCase = await tryAutoEvaluate(updated, caseStorage);
 
         res.json({
-          ...safeJourneyResponse(finalCase),
+          ...await responseForCase(finalCase),
           persistedAttachments: attachments,
           evidencePersistence: {
             durability: journeyEvidenceStore.durability,
@@ -1135,12 +1139,12 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         await reviewBridge.createReviewForCase(escalated);
         logStateTransition(escalated, updated.state, "escalate");
         await caseStorage.set(escalated);
-        res.json(safeJourneyResponse(escalated));
+        res.json(await responseForCase(escalated));
         return;
       }
 
       await caseStorage.set(updated);
-      res.json(safeJourneyResponse(updated));
+      res.json(await responseForCase(updated));
     } catch (error) {
       logEventError("journey.re-evaluate_failed", error, { caseId: req.params.caseId });
       journeyError(res, error);
@@ -1264,7 +1268,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       res.setHeader("Cache-Control", "no-store");
       res.json({
         ok: true,
-        case: safeJourneyResponse(caseData),
+        case: await responseForCase(caseData),
         reviewStatus: reviewStatus || null,
         evidenceBoundary,
       });
@@ -1325,6 +1329,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       // cases entering human_review via the customer flow only have a draft,
       // which the repository refuses to approve — finalize it here so the
       // reviewer decision lands in one step with a truthful audit trail.
+      await reviewBridge.createReviewForCase(caseData);
       let reviewStatus = await reviewBridge.getReviewStatus(caseData.id);
       if (!reviewStatus) {
         await reviewBridge.createReviewForCase(caseData);
@@ -1348,6 +1353,12 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       let updated = advanceJourney(caseData, "resolve", {
         resolutionNote: `Approved by reviewer ${reviewerRef}`,
       });
+
+      const resolvedRelease = await reviewBridge.checkReleaseAllowed(updated);
+      if (!resolvedRelease.allowed) {
+        res.status(409).json({ ok: false, error: "Approved review does not match the resolved result.", reason: resolvedRelease.reason, approval });
+        return;
+      }
 
       // Build evidence boundary for audit
       const evidenceBoundary = reviewBridge.buildEvidenceBoundary(caseData);
@@ -1386,7 +1397,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       res.setHeader("Cache-Control", "no-store");
       res.json({
         ok: true,
-        case: safeJourneyResponse(updated),
+        case: await responseForCase(updated),
         approval,
         evidenceBoundary,
       });
@@ -1419,6 +1430,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       // cases entering human_review via the customer flow only have a draft,
       // which the repository refuses to reject — finalize it here so the
       // reviewer decision lands in one step with a truthful audit trail.
+      await reviewBridge.createReviewForCase(caseData);
       let reviewStatus = await reviewBridge.getReviewStatus(caseData.id);
       if (!reviewStatus) {
         await reviewBridge.createReviewForCase(caseData);
@@ -1605,6 +1617,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       res.setHeader("Cache-Control", "no-store");
       res.json({
         ok: true,
+        ...await reviewBridge.getResultStatus(caseData),
         destination,
         caseSummary: {
           id: caseData.id,
