@@ -16,7 +16,7 @@ import {
 import multer from "multer";
 import { requireCustomer } from "./customer-auth";
 import { createRateLimit } from "./rate-limit";
-import { getJourneyCase, setJourneyCase, listJourneyCasesByCustomer, listAllJourneyCases } from "./journey-store";
+import { journeyCaseStorage, type JourneyCaseStorage } from "./journey-store";
 import { logEvent, logEventError } from "./observability/safe-log";
 import { planEvidence, getNextEvidenceToRequest } from "./journey-evidence-planner";
 import { db } from "./db";
@@ -46,6 +46,7 @@ import {
 import { getUnattendedWorkerStatus } from "./journey-unattended-worker";
 import { requireVerifiedLaunchControlRuntime } from "./review/launch-control-runtime";
 import { JourneyReviewBridge } from "./journey-review-bridge";
+import { JourneyStorageUnavailableError } from "./journey-store-pg";
 
 const journeyLimit = createRateLimit({
   scope: "journey",
@@ -183,6 +184,10 @@ const journeyPhotoUploadMiddleware = (req: any, res: any, next: any) => {
 
 function journeyError(res: Response, error: unknown): void {
   res.setHeader("Cache-Control", "no-store");
+  if (error instanceof JourneyStorageUnavailableError) {
+    res.status(503).json({ ok: false, code: error.code, persisted: false, error: "Journey case storage is unavailable. Please retry." });
+    return;
+  }
   if (error instanceof TypeError) {
     res.status(400).json({ ok: false, code: "INVALID_INPUT", error: "The request input is invalid." });
     return;
@@ -280,7 +285,7 @@ function assertOwner(caseData: JourneyCase, customerId: string): boolean {
   return caseData.customerId === customerId;
 }
 
-async function tryAutoEvaluate(caseData: JourneyCase): Promise<JourneyCase> {
+async function tryAutoEvaluate(caseData: JourneyCase, caseStorage: JourneyCaseStorage = journeyCaseStorage): Promise<JourneyCase> {
   if (!shouldAutoEvaluate(caseData)) return caseData;
 
   let evidenceItems: any[] = [];
@@ -296,7 +301,7 @@ async function tryAutoEvaluate(caseData: JourneyCase): Promise<JourneyCase> {
     ? caseData
     : advanceJourney(caseData, "evaluate", { evidenceItems });
   if (!alreadyEvaluating) {
-    setJourneyCase(evaluated);
+    await caseStorage.set(evaluated);
     logStateTransition(evaluated, previousState, "evaluate");
   }
 
@@ -305,7 +310,7 @@ async function tryAutoEvaluate(caseData: JourneyCase): Promise<JourneyCase> {
   // the unattended worker's full auto-evaluation and ensures the
   // decisionPacket is present inline after evidence upload.
   const diagnosed = advanceJourney(evaluated, "ready_diagnosis", { evidenceItems });
-  setJourneyCase(diagnosed);
+  await caseStorage.set(diagnosed);
   logStateTransition(diagnosed, evaluated.state, "ready_diagnosis");
 
   logEvent("journey.auto_evaluate", {
@@ -333,11 +338,11 @@ async function tryAutoEvaluate(caseData: JourneyCase): Promise<JourneyCase> {
   return diagnosed;
 }
 
-export function registerJourneyRoutes(app: Express, reviewBridge: JourneyReviewBridge = journeyReviewBridge): void {
+export function registerJourneyRoutes(app: Express, reviewBridge: JourneyReviewBridge = journeyReviewBridge, caseStorage: JourneyCaseStorage = journeyCaseStorage): void {
   app.get("/api/journey/my-cases", requireCustomer, async (req, res) => {
     try {
       const customerId = req.drivableCustomer!.id;
-      const cases = listJourneyCasesByCustomer(customerId);
+      const cases = await caseStorage.listByCustomer(customerId);
       res.setHeader("Cache-Control", "no-store");
       res.json({ ok: true, cases: cases.map(safeJourneyResponse) });
     } catch (error) {
@@ -379,7 +384,7 @@ export function registerJourneyRoutes(app: Express, reviewBridge: JourneyReviewB
         evidenceItems,
       });
 
-      setJourneyCase(caseData);
+      await caseStorage.set(caseData);
 
       // When safety triggers at intake, automatically create a review draft
       if (caseData.state === "escalation_required") {
@@ -405,7 +410,7 @@ export function registerJourneyRoutes(app: Express, reviewBridge: JourneyReviewB
 
   app.get("/api/journey/:caseId/status", requireCustomer, async (req, res) => {
     try {
-      const caseData = getJourneyCase(req.params.caseId);
+      const caseData = await caseStorage.get(req.params.caseId);
       if (!caseData) {
         res.status(404).json({ ok: false, error: "Journey case not found." });
         return;
@@ -423,7 +428,7 @@ export function registerJourneyRoutes(app: Express, reviewBridge: JourneyReviewB
 
   app.post("/api/journey/:caseId/advance", requireCustomer, journeyLimit, async (req, res) => {
     try {
-      const caseData = getJourneyCase(req.params.caseId);
+      const caseData = await caseStorage.get(req.params.caseId);
       if (!caseData) {
         res.status(404).json({ ok: false, error: "Journey case not found." });
         return;
@@ -498,7 +503,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         evidenceItems,
       });
 
-      setJourneyCase(updated);
+      await caseStorage.set(updated);
 
       // Auto-evaluate when the customer advances from evidence_received
       // to evaluate — complete to diagnosis_ready so they see a useful
@@ -507,7 +512,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       let finalCase = updated;
       let didAutoEvaluate = false;
       if (effectiveTransition === "evaluate" && caseData.state === "evidence_received") {
-        finalCase = await tryAutoEvaluate(updated);
+        finalCase = await tryAutoEvaluate(updated, caseStorage);
         didAutoEvaluate = finalCase.state !== updated.state;
       }
 
@@ -569,7 +574,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
 
   app.post("/api/journey/:caseId/evidence", requireCustomer, journeyLimit, async (req, res) => {
     try {
-      const caseData = getJourneyCase(req.params.caseId);
+      const caseData = await caseStorage.get(req.params.caseId);
       if (!caseData) {
         res.status(404).json({ ok: false, error: "Journey case not found." });
         return;
@@ -616,7 +621,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         evidenceItems,
       });
 
-      setJourneyCase(updated);
+      await caseStorage.set(updated);
 
       logEvidenceAdded(updated, [evidenceRecord]);
 
@@ -627,7 +632,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         confidenceScore: updated.confidenceScore,
       });
 
-      const finalCase = await tryAutoEvaluate(updated);
+      const finalCase = await tryAutoEvaluate(updated, caseStorage);
 
       res.json(safeJourneyResponse(finalCase));
     } catch (error) {
@@ -644,7 +649,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
     journeyPhotoUploadMiddleware,
     async (req: any, res) => {
       try {
-        const caseData = getJourneyCase(req.params.caseId);
+        const caseData = await caseStorage.get(req.params.caseId);
         if (!caseData) {
           res.status(404).json({ ok: false, error: "Journey case not found." });
           return;
@@ -713,7 +718,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           evidenceItems,
         });
 
-        setJourneyCase(updated);
+        await caseStorage.set(updated);
 
         logEvidenceAdded(updated, evidenceRecords);
 
@@ -724,7 +729,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           evidenceCount: updated.evidence.length,
         });
 
-        const finalCase = await tryAutoEvaluate(updated);
+        const finalCase = await tryAutoEvaluate(updated, caseStorage);
 
         res.json({
           ...safeJourneyResponse(finalCase),
@@ -751,7 +756,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
     journeyAudioUploadMiddleware,
     async (req: any, res) => {
       try {
-        const caseData = getJourneyCase(req.params.caseId);
+        const caseData = await caseStorage.get(req.params.caseId);
         if (!caseData) {
           res.status(404).json({ ok: false, error: "Journey case not found." });
           return;
@@ -819,7 +824,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           evidenceItems,
         });
 
-        setJourneyCase(updated);
+        await caseStorage.set(updated);
 
         logEvidenceAdded(updated, evidenceRecords);
 
@@ -830,7 +835,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           evidenceCount: updated.evidence.length,
         });
 
-        const finalCase = await tryAutoEvaluate(updated);
+        const finalCase = await tryAutoEvaluate(updated, caseStorage);
 
         res.json({
           ...safeJourneyResponse(finalCase),
@@ -857,7 +862,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
     journeyVideoUploadMiddleware,
     async (req: any, res) => {
       try {
-        const caseData = getJourneyCase(req.params.caseId);
+        const caseData = await caseStorage.get(req.params.caseId);
         if (!caseData) {
           res.status(404).json({ ok: false, error: "Journey case not found." });
           return;
@@ -924,7 +929,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           evidenceItems,
         });
 
-        setJourneyCase(updated);
+        await caseStorage.set(updated);
 
         logEvidenceAdded(updated, evidenceRecords);
 
@@ -935,7 +940,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           evidenceCount: updated.evidence.length,
         });
 
-        const finalCase = await tryAutoEvaluate(updated);
+        const finalCase = await tryAutoEvaluate(updated, caseStorage);
 
         res.json({
           ...safeJourneyResponse(finalCase),
@@ -962,7 +967,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
     journeyVibrationUploadMiddleware,
     async (req: any, res) => {
       try {
-        const caseData = getJourneyCase(req.params.caseId);
+        const caseData = await caseStorage.get(req.params.caseId);
         if (!caseData) {
           res.status(404).json({ ok: false, error: "Journey case not found." });
           return;
@@ -1030,7 +1035,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           evidenceItems,
         });
 
-        setJourneyCase(updated);
+        await caseStorage.set(updated);
 
         logEvidenceAdded(updated, evidenceRecords);
 
@@ -1041,7 +1046,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           evidenceCount: updated.evidence.length,
         });
 
-        const finalCase = await tryAutoEvaluate(updated);
+        const finalCase = await tryAutoEvaluate(updated, caseStorage);
 
         res.json({
           ...safeJourneyResponse(finalCase),
@@ -1062,7 +1067,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
   // Retrieve persisted photo/audio/video evidence (belongs to case, customer-scoped)
   app.get("/api/journey/:caseId/evidence/:attachmentId", requireCustomer, async (req, res) => {
     try {
-      const caseData = getJourneyCase(req.params.caseId);
+      const caseData = await caseStorage.get(req.params.caseId);
       if (!caseData) {
         res.status(404).json({ ok: false, error: "Journey case not found." });
         return;
@@ -1094,7 +1099,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
 
   app.post("/api/journey/:caseId/re-evaluate", requireCustomer, journeyLimit, async (req, res) => {
     try {
-      const caseData = getJourneyCase(req.params.caseId);
+      const caseData = await caseStorage.get(req.params.caseId);
       if (!caseData) {
         res.status(404).json({ ok: false, error: "Journey case not found." });
         return;
@@ -1129,12 +1134,12 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         });
         await reviewBridge.createReviewForCase(escalated);
         logStateTransition(escalated, updated.state, "escalate");
-        setJourneyCase(escalated);
+        await caseStorage.set(escalated);
         res.json(safeJourneyResponse(escalated));
         return;
       }
 
-      setJourneyCase(updated);
+      await caseStorage.set(updated);
       res.json(safeJourneyResponse(updated));
     } catch (error) {
       logEventError("journey.re-evaluate_failed", error, { caseId: req.params.caseId });
@@ -1145,7 +1150,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
   // Case activity timeline — customer-visible event log for this case
   app.get("/api/journey/:caseId/events", requireCustomer, async (req, res) => {
     try {
-      const caseData = getJourneyCase(req.params.caseId);
+      const caseData = await caseStorage.get(req.params.caseId);
       if (!caseData) {
         res.status(404).json({ ok: false, error: "Journey case not found." });
         return;
@@ -1166,7 +1171,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
 
   app.get("/api/journey/:caseId/evidence-suggestions", requireCustomer, async (req, res) => {
     try {
-      const caseData = getJourneyCase(req.params.caseId);
+      const caseData = await caseStorage.get(req.params.caseId);
       if (!caseData) {
         res.status(404).json({ ok: false, error: "Journey case not found." });
         return;
@@ -1212,7 +1217,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
 
   app.get("/api/journey/review/pending", requireReviewer, async (_req, res) => {
     try {
-      const allCases = listAllJourneyCases();
+      const allCases = await caseStorage.listAll();
       const pendingCases = allCases.filter(
         (c) => c.state === "human_review" || c.state === "escalation_required"
       );
@@ -1247,7 +1252,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
 
   app.get("/api/journey/review/:caseId", requireReviewer, async (req, res) => {
     try {
-      const caseData = getJourneyCase(req.params.caseId);
+      const caseData = await caseStorage.get(req.params.caseId);
       if (!caseData) {
         res.status(404).json({ ok: false, error: "Journey case not found." });
         return;
@@ -1271,7 +1276,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
 
   app.post("/api/journey/review/:caseId/finalize", requireReviewer, async (req, res) => {
     try {
-      const caseData = getJourneyCase(req.params.caseId);
+      const caseData = await caseStorage.get(req.params.caseId);
       if (!caseData) {
         res.status(404).json({ ok: false, error: "Journey case not found." });
         return;
@@ -1303,7 +1308,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
 
   app.post("/api/journey/review/:caseId/approve", requireReviewer, async (req, res) => {
     try {
-      const caseData = getJourneyCase(req.params.caseId);
+      const caseData = await caseStorage.get(req.params.caseId);
       if (!caseData) {
         res.status(404).json({ ok: false, error: "Journey case not found." });
         return;
@@ -1328,11 +1333,10 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         await reviewBridge.finalizeReviewForCase(caseData);
       }
 
-      const approval = await reviewBridge.approveReview(
-        caseData.id,
-        reviewerRef,
-        highRiskAcknowledged
-      );
+      const approval = reviewStatus?.reviewStatus === "approved"
+        ? await reviewBridge.getApproval(caseData.id)
+        : await reviewBridge.approveReview(caseData.id, reviewerRef, highRiskAcknowledged);
+      if (!approval) throw new Error("Durable review approval could not be verified");
 
       const release = await reviewBridge.checkReleaseAllowed(caseData);
       if (!release.allowed) {
@@ -1348,7 +1352,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       // Build evidence boundary for audit
       const evidenceBoundary = reviewBridge.buildEvidenceBoundary(caseData);
 
-      setJourneyCase(updated);
+      await caseStorage.set(updated);
 
       logReviewAction(updated.id, updated.customerId, "approved", reviewerRef, {
         resolutionNote: `Approved by reviewer ${reviewerRef}`,
@@ -1394,7 +1398,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
 
   app.post("/api/journey/review/:caseId/reject", requireReviewer, async (req, res) => {
     try {
-      const caseData = getJourneyCase(req.params.caseId);
+      const caseData = await caseStorage.get(req.params.caseId);
       if (!caseData) {
         res.status(404).json({ ok: false, error: "Journey case not found." });
         return;
@@ -1466,7 +1470,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
 
   app.get("/api/journey/review/:caseId/release-check", requireReviewer, async (req, res) => {
     try {
-      const caseData = getJourneyCase(req.params.caseId);
+      const caseData = await caseStorage.get(req.params.caseId);
       if (!caseData) {
         res.status(404).json({ ok: false, error: "Journey case not found." });
         return;
@@ -1515,7 +1519,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
 
   app.get("/api/journey/:caseId/unread-count", requireCustomer, async (req, res) => {
     try {
-      const caseData = getJourneyCase(req.params.caseId);
+      const caseData = await caseStorage.get(req.params.caseId);
       if (!caseData) {
         res.status(404).json({ ok: false, error: "Journey case not found." });
         return;
@@ -1565,7 +1569,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
   // reusable across FIX/SELL flows.
   app.get("/api/journey/:caseId/handoff", requireCustomer, async (req, res) => {
     try {
-      const caseData = getJourneyCase(req.params.caseId);
+      const caseData = await caseStorage.get(req.params.caseId);
       if (!caseData) {
         res.status(404).json({ ok: false, error: "Journey case not found." });
         return;

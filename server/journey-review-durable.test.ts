@@ -176,3 +176,43 @@ test("Journey approval endpoint reports write failure without resolving or relea
     await rm(directory, { recursive: true });
   }
 });
+
+
+test("approval retry reuses durable approval after a failed case-resolution write", async () => {
+  const { default: express } = await import("express");
+  const { createServer } = await import("node:http");
+  const { registerJourneyRoutes } = await import("./journey-routes");
+  const { JourneyStorageUnavailableError } = await import("./journey-store-pg");
+  const previousToken = process.env.DRIVABLE_REVIEWER_TOKEN;
+  process.env.DRIVABLE_REVIEWER_TOKEN = "journey-durable-test-reviewer-token-with-at-least-32-characters";
+  const database = new ReviewDatabase(), review = bridge(database), caseData = reviewCase();
+  let stored: import("./journey-state-machine").JourneyCase = caseData;
+  let failWrite = true;
+  const storage = {
+    get: async () => stored, listAll: async () => [stored], listByCustomer: async () => [stored],
+    set: async (candidate: import("./journey-state-machine").JourneyCase) => {
+      if (failWrite) throw new JourneyStorageUnavailableError();
+      stored = candidate;
+    },
+  };
+  const app = express(); app.use(express.json()); registerJourneyRoutes(app, review, storage);
+  const server = createServer(app); await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/api/journey/review/${caseData.id}/approve`;
+    const request = { method: "POST", headers: { authorization: `Bearer ${process.env.DRIVABLE_REVIEWER_TOKEN}`, "content-type": "application/json" }, body: "{}" };
+    const first = await fetch(url, request);
+    assert.equal(first.status, 503);
+    assert.equal(stored.state, "human_review");
+    assert.equal((await review.getReviewStatus(caseData.id))?.reviewStatus, "approved");
+    assert.equal(database.approvals.size, 1);
+    failWrite = false;
+    const second = await fetch(url, request);
+    assert.equal(second.status, 200);
+    const body = await second.json() as { ok: boolean; case: { state: string } };
+    assert.equal(body.ok, true); assert.equal(body.case.state, "resolved");
+    assert.equal(database.approvals.size, 1, "retry must not record a duplicate review approval");
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    if (previousToken === undefined) delete process.env.DRIVABLE_REVIEWER_TOKEN; else process.env.DRIVABLE_REVIEWER_TOKEN = previousToken;
+  }
+});

@@ -8,17 +8,16 @@ interface SqlExecutor {
 
 /**
  * PostgreSQL-backed journey case store.
- * Same exported interface as the in-memory journey-store, but each case is a
- * durable row.  Falls back to the in-memory store when the database is not
- * configured or the table does not exist.
+ * Each case is a durable row. Missing tables and query failures are reported
+ * explicitly; this repository never substitutes process-local state.
  */
 
 function rowToCase(row: Record<string, unknown>): JourneyCase {
   return {
     id: String(row.id),
     state: String(row.state) as JourneyCase["state"],
-    createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at),
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
     vehicleInfo: String(row.vehicle_info),
     description: String(row.description),
     timing: row.timing != null ? String(row.timing) : undefined,
@@ -148,87 +147,46 @@ function buildUpsertParams(c: JourneyCase): unknown[] {
   ];
 }
 
-// ── Table-readiness probe (cached after first successful probe) ───────────
-let tableReady: boolean | null = null;
-
-async function ensureTable(executor: SqlExecutor): Promise<boolean> {
-  if (tableReady === true) return true;
-  if (tableReady === false) return false;
-  try {
-    const result = await executor.query(
-      "select 1 from information_schema.tables where table_name = 'journey_cases' limit 1"
-    );
-    tableReady = result.rows.length > 0;
-    return tableReady;
-  } catch {
-    tableReady = false;
-    return false;
+export class JourneyStorageUnavailableError extends Error {
+  readonly code = "JOURNEY_STORAGE_UNAVAILABLE";
+  readonly retryable = true;
+  constructor() {
+    super("Journey case storage is unavailable");
+    this.name = "JourneyStorageUnavailableError";
   }
 }
 
-/**
- * Create a PostgreSQL-backed journey store bound to the given executor.
- * If the journey_cases table does not exist the store silently degrades —
- * every write is a no-op and every read returns undefined/[].
- */
+/** Missing tables and query failures never become empty results or successful writes. */
 export function createPgJourneyStore(executor: SqlExecutor) {
+  let tableReady = false;
+  async function query(text: string, values?: unknown[]): Promise<QueryResult> {
+    try {
+      if (!tableReady) {
+        const result = await executor.query(
+          "select 1 from information_schema.tables where table_schema = current_schema() and table_name = 'journey_cases' limit 1"
+        );
+        if (!result.rows.length) throw new JourneyStorageUnavailableError();
+        tableReady = true;
+      }
+      return await executor.query(text, values);
+    } catch { throw new JourneyStorageUnavailableError(); }
+  }
   return {
     async get(caseId: string): Promise<JourneyCase | undefined> {
-      if (!(await ensureTable(executor))) return undefined;
-      try {
-        const result = await executor.query(
-          "select * from journey_cases where id = $1 limit 1",
-          [caseId]
-        );
-        if (result.rows.length === 0) return undefined;
-        return rowToCase(result.rows[0]);
-      } catch {
-        return undefined;
-      }
+      const result = await query("select * from journey_cases where id = $1 limit 1", [caseId]);
+      return result.rows[0] ? rowToCase(result.rows[0]) : undefined;
     },
-
     async set(caseData: JourneyCase): Promise<void> {
-      if (!(await ensureTable(executor))) return;
-      try {
-        await executor.query(UPSERT, buildUpsertParams(caseData));
-      } catch {
-        // best-effort; in-memory remains authoritative for the process
-      }
+      await query(UPSERT, buildUpsertParams(caseData));
     },
-
     async listByCustomer(customerId: string): Promise<JourneyCase[]> {
-      if (!(await ensureTable(executor))) return [];
-      try {
-        const result = await executor.query(
-          "select * from journey_cases where customer_id = $1 order by created_at desc",
-          [customerId]
-        );
-        return result.rows.map(rowToCase);
-      } catch {
-        return [];
-      }
+      return (await query("select * from journey_cases where customer_id = $1 order by created_at desc", [customerId])).rows.map(rowToCase);
     },
-
     async listAll(): Promise<JourneyCase[]> {
-      if (!(await ensureTable(executor))) return [];
-      try {
-        const result = await executor.query(
-          "select * from journey_cases order by created_at desc"
-        );
-        return result.rows.map(rowToCase);
-      } catch {
-        return [];
-      }
+      return (await query("select * from journey_cases order by created_at desc")).rows.map(rowToCase);
     },
-
     async size(): Promise<number> {
-      if (!(await ensureTable(executor))) return 0;
-      try {
-        const result = await executor.query("select count(*)::int as cnt from journey_cases");
-        return Number(result.rows[0]?.cnt ?? 0);
-      } catch {
-        return 0;
-      }
+      return Number((await query("select count(*)::int as cnt from journey_cases")).rows[0]?.cnt ?? 0);
     },
   };
 }

@@ -1,4 +1,4 @@
-import { listAllJourneyCases, setJourneyCase } from "./journey-store";
+import { journeyCaseStorage, type JourneyCaseStorage } from "./journey-store";
 import {
   advanceJourney,
   shouldAutoEvaluate,
@@ -45,21 +45,23 @@ let totalErrors = 0;
  * Run one poll cycle: find stuck cases and auto-evaluate them.
  * Returns the number of cases processed.
  */
-export async function pollAndEvaluate(): Promise<number> {
+export async function pollAndEvaluate(caseStorage: JourneyCaseStorage = journeyCaseStorage): Promise<number> {
   if (running) return 0; // prevent overlap
   running = true;
   lastPollAt = new Date().toISOString();
   let processed = 0;
 
   try {
-    const allCases = listAllJourneyCases();
+    const allCases = await caseStorage.listAll();
 
     // Find cases eligible for auto-evaluation:
     // - In evidence_received state
     // - Not safety-triggered
     // - Have at least one evidence item
     // - Confidence is moderate or high
-    const eligible = allCases.filter((c) => shouldAutoEvaluate(c)).slice(0, BATCH_SIZE);
+    const eligible = allCases.filter((c) => shouldAutoEvaluate(c)
+      || (c.state === "evaluating" && !c.safetyTriggered && c.evidence.length > 0)
+    ).slice(0, BATCH_SIZE);
 
     if (eligible.length === 0) {
       running = false;
@@ -80,12 +82,16 @@ export async function pollAndEvaluate(): Promise<number> {
         // Auto-evaluate: advance through evaluate -> evaluating -> diagnosis_ready
         // in a single unattended cycle so the customer returns to a useful
         // FIX/SELL/MONITOR/STOP decision without manual clicks.
-        const evaluated = advanceJourney(caseData, "evaluate", { evidenceItems });
-        setJourneyCase(evaluated);
-        await logStateTransition(evaluated, previousState, "evaluate");
+        const evaluated = caseData.state === "evaluating"
+          ? caseData
+          : advanceJourney(caseData, "evaluate", { evidenceItems });
+        if (caseData.state !== "evaluating") {
+          await caseStorage.set(evaluated);
+          await logStateTransition(evaluated, previousState, "evaluate");
+        }
 
         const diagnosed = advanceJourney(evaluated, "ready_diagnosis", { evidenceItems });
-        setJourneyCase(diagnosed);
+        await caseStorage.set(diagnosed);
         await logStateTransition(diagnosed, evaluated.state, "ready_diagnosis");
 
         logEvent("journey.unattended_auto_evaluate", {

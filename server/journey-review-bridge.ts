@@ -195,6 +195,14 @@ export class JourneyReviewBridge {
     return approval;
   }
 
+  async getApproval(caseId: string) {
+    const { reader } = await this.runtime();
+    const versionId = await reader.getCurrentVersionId(caseId);
+    if (!versionId) return undefined;
+    const state = await reader.getVersionState(versionId);
+    return state?.status === "approved" ? state.approval : undefined;
+  }
+
   /**
    * Rejects a journey case review.
    */

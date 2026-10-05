@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { createPgJourneyStore } from "./journey-store-pg";
+import { createPgJourneyStore, JourneyStorageUnavailableError } from "./journey-store-pg";
 import { createJourneyCase } from "./journey-state-machine";
 
 /**
@@ -324,5 +324,45 @@ describe("journey-store-pg", () => {
 
     assert.ok(retrieved, "case should be retrievable");
     assert.equal(retrieved.nextServiceDestination, undefined);
+  });
+});
+
+
+describe("journey PostgreSQL failures", () => {
+  it("reports a missing table and retries after it becomes available", async () => {
+    let ready = false;
+    const store = createPgJourneyStore({ query: async (text) => ({ rows: text.includes("information_schema") && ready ? [{ ready: 1 }] : [] }) });
+    const caseData = createJourneyCase({ vehicleInfo: "2020 Honda Civic", description: "Grinding noise" });
+    await assert.rejects(store.set(caseData), JourneyStorageUnavailableError);
+    ready = true;
+    await store.set(caseData);
+  });
+
+  it("does not share table readiness across database instances", async () => {
+    const first = createPgJourneyStore(createFakeExecutor().executor);
+    await first.listAll();
+    const second = createPgJourneyStore({ query: async () => ({ rows: [] }) });
+    await assert.rejects(second.listAll(), JourneyStorageUnavailableError);
+  });
+
+  it("reports query errors for writes and every read rather than empty success", async () => {
+    const store = createPgJourneyStore({ query: async (text) => {
+      if (text.includes("information_schema")) return { rows: [{ ready: 1 }] };
+      throw new Error("postgres://private-user:private-password@database");
+    } });
+    const caseData = createJourneyCase({ vehicleInfo: "2020 Honda Civic", description: "Grinding noise" });
+    for (const operation of [() => store.set(caseData), () => store.get(caseData.id), () => store.listAll(), () => store.listByCustomer("customer"), () => store.size()]) {
+      await assert.rejects(operation(), (error) => error instanceof JourneyStorageUnavailableError && error.retryable && !error.message.includes("private-password"));
+    }
+  });
+
+  it("fresh repositories read the same saved case with ISO database timestamps", async () => {
+    const fake = createFakeExecutor();
+    const caseData = createJourneyCase({ vehicleInfo: "2020 Honda Civic", description: "Grinding noise" });
+    await createPgJourneyStore(fake.executor).set(caseData);
+    fake.table.get(caseData.id)!.created_at = new Date(caseData.createdAt);
+    fake.table.get(caseData.id)!.updated_at = new Date(caseData.updatedAt);
+    const loaded = await createPgJourneyStore(fake.executor).get(caseData.id);
+    assert.deepEqual(JSON.parse(JSON.stringify(loaded)), JSON.parse(JSON.stringify(caseData)));
   });
 });
