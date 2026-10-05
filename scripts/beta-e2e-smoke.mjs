@@ -995,11 +995,26 @@ async function main() {
 
     await check("follow-up with media on a missing case -> 404 and no temp file leak", async () => {
       const before = uploadsDirFileCount();
+      const beforePut = s3.getPutCount();
       const response = await postMultipart(`${legacyUrl}/api/diagnoses/qa-missing-case/follow-up`, followUpForm({ video: Buffer.from("video bytes"), audio: Buffer.from("audio bytes") }), { authorization: bearer });
       assert(response.status === 404, `expected 404 got ${response.status}`);
       await response.text();
       await assertUploadsCountStable(before);
+      assert(s3.getPutCount() === beforePut, "missing cases must not create private media objects");
       return "clean";
+    });
+
+    await check("follow-up with valid photo on a missing case -> 404 before private object storage", async () => {
+      const before = uploadsDirFileCount();
+      const beforePut = s3.getPutCount();
+      const form = followUpForm();
+      form.append("photos", new Blob([jpegBytes("missing-case photo")], { type: "image/jpeg" }), "brake.jpg");
+      const response = await postMultipart(`${legacyUrl}/api/diagnoses/qa-missing-case/follow-up`, form, { authorization: bearer });
+      assert(response.status === 404, `expected 404 got ${response.status}`);
+      await response.text();
+      await assertUploadsCountStable(before);
+      assert(s3.getPutCount() === beforePut, "valid media for a missing case must never reach private object storage");
+      return "no objects created";
     });
 
     await check("follow-up with vibration + media -> 422 and temp files are cleaned", async () => {
@@ -1241,14 +1256,14 @@ async function main() {
     return "ok";
   });
 
-  await check("follow-up with vibrationData -> 422 VIBRATION_CAPTURE_UNAVAILABLE before any DB lookup", async () => {
+  await check("follow-up with deprecated vibrationData -> 422 VIBRATION_CAPTURE_DEPRECATED before any DB lookup", async () => {
     const form = new FormData();
     form.append("vibrationData", JSON.stringify({ samples: [0.1, 0.2] }));
     form.append("additionalInfo", "still rough after repair");
     const response = await postMultipart(`${baseUrl}/api/diagnoses/some-case/follow-up`, form, { authorization: bearer });
     const body = await jsonResponse(response);
     assert(response.status === 422, `expected 422 got ${response.status}`);
-    assert(body.code === "VIBRATION_CAPTURE_UNAVAILABLE", `unexpected code ${body.code}`);
+    assert(body.code === "VIBRATION_CAPTURE_DEPRECATED", `unexpected code ${body.code}`);
     return "ok";
   });
 

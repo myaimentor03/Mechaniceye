@@ -2605,6 +2605,13 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
         });
       }
 
+      // Verify the case before writing any media, so a missing case cannot leave orphaned objects.
+      const originalDiagnosis = await storage.getDiagnosis(diagnosisId);
+      if (!originalDiagnosis) {
+        await cleanupTemporaryFiles();
+        return res.status(404).json({ message: "Original diagnosis not found" });
+      }
+
       let vibrationStoredKeys: string[] = [];
       let photoAttachments: EvidenceAttachment[] = [];
       let audioAttachments: EvidenceAttachment[] = [];
@@ -2666,13 +2673,6 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
         }
       }
       
-      // Get original diagnosis
-      const originalDiagnosis = await storage.getDiagnosis(diagnosisId);
-      if (!originalDiagnosis) {
-        await cleanupTemporaryFiles();
-        return res.status(404).json({ message: "Original diagnosis not found" });
-      }
-
       // Create follow-up request - store first storageKey for legacy single-field, but evidence is via EvidenceStore attachments
       const audioFile = audioAttachments[0]?.storageKey || null;
       const videoFile = videoAttachments[0]?.storageKey || null;
