@@ -50,7 +50,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { createStoredDiagnosisCase, generateCaseId, type IncomingDiagnosisCase, type StoredDiagnosisCase } from "./case-storage";
-import { checkDatabaseConnection, getDb } from "./db";
+import { checkDatabaseConnection, getDb, getPool } from "./db";
 import { sql } from "drizzle-orm";
 
 import { insertPublicDiagnosisCaseToDb } from "./public-case-db";
@@ -87,9 +87,62 @@ import {
 import { requireAllowedOrigin } from "./origin-guard";
 import { logEvent, logEventError } from "./observability/safe-log";
 import { registerJourneyRoutes } from "./journey-routes";
+import { journeyCaseStorage } from "./journey-store";
 import { serializeErrorSafely } from "./observability/errors";
 import { sslConfigForDatabaseUrl } from "./database-ssl";
 import { fetchWebhookWithTimeout } from "./webhook-fetch";
+import {
+  CommerceOrderService,
+  InMemoryCommerceOrderRepository,
+  StripePaymentProviderAdapter,
+  getLaunchOffer,
+  listLaunchOffers,
+  toCommerceReceipt,
+} from "./commerce/index.js";
+import { CommerceContractError, type CommerceOrder, type CommerceOrderRepository } from "./commerce/order-contract.js";
+import { PostgresCommerceOrderRepository } from "./commerce/postgres-commerce-order-repository.js";
+
+function createCommerceOrderRepository(): CommerceOrderRepository {
+  if (process.env.NODE_ENV !== "production" && !process.env.DATABASE_URL?.trim()) {
+    return new InMemoryCommerceOrderRepository();
+  }
+  return new PostgresCommerceOrderRepository({
+    query: async <Row = Record<string, unknown>>(text: string, values?: readonly unknown[]) => {
+      const result = await getPool().query(text, values as any[] | undefined);
+      return { rows: result.rows as Row[] };
+    },
+    withConnection: async <T>(work: (executor: import("./commerce/postgres-commerce-order-repository.js").CommerceSqlExecutor) => Promise<T>) => {
+      const client = await getPool().connect();
+      try {
+        return await work({
+          query: async <Row = Record<string, unknown>>(text: string, values?: readonly unknown[]) => {
+            const result = await client.query(text, values as any[] | undefined);
+            return { rows: result.rows as Row[] };
+          },
+        });
+      } finally {
+        client.release();
+      }
+    },
+  });
+}
+
+async function ensureCommerceCaseAccess(req: any, res: any, caseId: string): Promise<boolean> {
+  // Production commerce is always bound to an existing customer-owned Journey
+  // case. Tests and local demos may exercise the payment contract without
+  // creating a Journey case first.
+  if (process.env.NODE_ENV !== "production") return true;
+  const caseData = await journeyCaseStorage.get(caseId);
+  if (!caseData) {
+    res.status(404).json({ ok: false, error: "Journey case not found" });
+    return false;
+  }
+  if (!req.drivableCustomer?.id || caseData.customerId !== req.drivableCustomer.id) {
+    res.status(403).json({ ok: false, error: "You do not have access to this case" });
+    return false;
+  }
+  return true;
+}
 
 // Configure multer for file uploads
 const uploadDir = path.join(process.cwd(), 'uploads');
@@ -1615,7 +1668,14 @@ async function deliverConciergeRequest(input: ConciergeRequest) {
   }
 }
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export async function registerRoutes(
+  app: Express,
+  options: Readonly<{
+    paymentRepository?: CommerceOrderRepository;
+    onVerifiedPayment?: (order: CommerceOrder) => Promise<void>;
+  }> = {},
+): Promise<Server> {
+  const commerceOrders = options.paymentRepository ?? createCommerceOrderRepository();
   app.get("/api/health", (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
     res.json({ ok: true, live: true });
@@ -2755,6 +2815,164 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
     }
   });
 
+  app.get("/api/commerce/offers", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true, offers: listLaunchOffers() });
+  });
+
+  app.post("/api/commerce/orders", requireCustomer, async (req, res) => {
+    try {
+      const { offerId, caseId } = req.body ?? {};
+      if (typeof caseId !== "string" || !caseId.trim() || caseId.length > 200) {
+        return res.status(400).json({ ok: false, error: "caseId is required" });
+      }
+      if (!await ensureCommerceCaseAccess(req, res, caseId)) return;
+      const offer = getLaunchOffer(offerId);
+      const order = await new CommerceOrderService(commerceOrders).createPendingOrder({ caseId, offer });
+      return res.status(201).json({ ok: true, order: toCommerceReceipt(order) });
+    } catch (error) {
+      if (error instanceof CommerceContractError) {
+        return res.status(400).json({ ok: false, error: error.message, code: error.code });
+      }
+      logEventError("api.commerce_order_create_failed", error);
+      return res.status(500).json({ ok: false, error: "Order creation failed" });
+    }
+  });
+
+  app.get("/api/commerce/orders/:orderId", requireCustomer, async (req, res) => {
+    try {
+      const order = await new CommerceOrderService(commerceOrders).getOrder(req.params.orderId);
+      if (!order) return res.status(404).json({ ok: false, error: "Order not found" });
+      if (!await ensureCommerceCaseAccess(req, res, order.caseId)) return;
+      if (req.query.caseId !== undefined && (typeof req.query.caseId !== "string" || !req.query.caseId.trim())) {
+        return res.status(400).json({ ok: false, error: "caseId is invalid", code: "invalid_order_input" });
+      }
+      if (req.query.caseId !== undefined && req.query.caseId !== order.caseId) {
+        return res.status(409).json({ ok: false, error: "Order does not belong to this case", code: "wrong_case" });
+      }
+      return res.json({ ok: true, order: toCommerceReceipt(order) });
+    } catch (error) {
+      if (error instanceof CommerceContractError) {
+        return res.status(400).json({ ok: false, error: error.message, code: error.code });
+      }
+      logEventError("api.commerce_order_status_failed", error);
+      return res.status(500).json({ ok: false, error: "Order status failed" });
+    }
+  });
+
+  app.get("/api/commerce/orders/:orderId/entitlement", requireCustomer, async (req, res) => {
+    try {
+      const order = await new CommerceOrderService(commerceOrders).getOrder(req.params.orderId);
+      if (!order) return res.status(404).json({ ok: false, error: "Order not found", code: "order_not_found" });
+      if (!await ensureCommerceCaseAccess(req, res, order.caseId)) return;
+      if (req.query.caseId !== undefined && (typeof req.query.caseId !== "string" || !req.query.caseId.trim())) {
+        return res.status(400).json({ ok: false, error: "caseId is invalid", code: "invalid_order_input" });
+      }
+      if (req.query.caseId !== undefined && req.query.caseId !== order.caseId) {
+        return res.status(409).json({ ok: false, error: "Order does not belong to this case", code: "wrong_case" });
+      }
+      const entitled = order.state === "verified" && order.provider !== null;
+      return res.json({ ok: true, entitled, code: entitled ? "entitled" : "payment_not_verified", order: toCommerceReceipt(order) });
+    } catch (error) {
+      if (error instanceof CommerceContractError) {
+        return res.status(400).json({ ok: false, error: error.message, code: error.code });
+      }
+      logEventError("api.commerce_order_entitlement_failed", error);
+      return res.status(500).json({ ok: false, error: "Entitlement check failed" });
+    }
+  });
+
+  app.post("/api/commerce/orders/:orderId/checkout", requireCustomer, async (req, res) => {
+    try {
+      if (process.env.NODE_ENV === "production" && !options.onVerifiedPayment) {
+        return res.status(503).json({ ok: false, error: "Paid result fulfillment is not configured", code: "fulfillment_unavailable" });
+      }
+      const { successUrl, cancelUrl } = req.body ?? {};
+      const isSafeRedirect = (value: unknown): value is string => {
+        if (typeof value !== "string" || value.length === 0 || value.length > 2000) return false;
+        try { return ["http:", "https:"].includes(new URL(value).protocol); } catch { return false; }
+      };
+      if (!isSafeRedirect(successUrl) || !isSafeRedirect(cancelUrl)) {
+        return res.status(400).json({ ok: false, error: "successUrl and cancelUrl must be http(s) URLs" });
+      }
+      const order = await new CommerceOrderService(commerceOrders).getOrder(req.params.orderId);
+      if (!order) return res.status(404).json({ ok: false, error: "Order not found" });
+      if (!await ensureCommerceCaseAccess(req, res, order.caseId)) return;
+      if (order.state !== "pending" || order.provider !== null) {
+        return res.status(409).json({ ok: false, error: "Order is not available for checkout" });
+      }
+      const session = await StripePaymentProviderAdapter.createCheckoutSession({
+        orderId: order.orderId,
+        amountMinor: order.offer.amountMinor,
+        currency: order.offer.currency,
+        successUrl,
+        cancelUrl,
+        customerEmail: req.drivableCustomer!.email,
+        metadata: { caseId: order.caseId },
+      });
+      return res.json({ ok: true, sessionId: session.id, url: session.url });
+    } catch (error) {
+      if (error instanceof CommerceContractError) {
+        return res.status(503).json({ ok: false, error: error.message, code: error.code });
+      }
+      logEventError("api.checkout_session_failed", error);
+      return res.status(500).json({ ok: false, error: "Checkout session creation failed" });
+    }
+  });
+
+  app.post("/api/commerce/webhook/stripe", async (req, res) => {
+    try {
+      const signature = req.headers["stripe-signature"];
+      if (typeof signature !== "string" || !signature) {
+        return res.status(400).json({ ok: false, error: "Missing stripe-signature header" });
+      }
+      const rawBody = (req as unknown as { rawBody?: unknown }).rawBody ?? req.body;
+      const adapter = new StripePaymentProviderAdapter();
+      const result = await new CommerceOrderService(commerceOrders).applyProviderPayload(adapter, { rawBody, signature });
+      if (result.order.state === "verified" && options.onVerifiedPayment) {
+        // Provider retries are expected after a dispatch error. The fulfillment
+        // handler must use the approval gate and an idempotent durable outbox.
+        await options.onVerifiedPayment(result.order);
+      }
+      return res.json({ ok: true, status: result.status, orderId: result.order.orderId, state: result.order.state });
+    } catch (error) {
+      if (error instanceof CommerceContractError) {
+        return res.status(error.code === "invalid_provider_event" ? 400 : 503).json({ ok: false, error: error.message, code: error.code });
+      }
+      logEventError("api.stripe_webhook_failed", error);
+      return res.status(500).json({ ok: false, error: "Webhook processing failed" });
+    }
+  });
+
+  app.post("/api/commerce/orders/:orderId/refund-required", requireCustomer, async (req, res) => {
+    try {
+      const capabilities = commerceOrders.capabilities;
+      if (
+        capabilities.backendClass !== "durable-repository"
+        || !capabilities.durable
+        || !capabilities.atomicCompareAndSwap
+        || !capabilities.idempotentEvents
+        || !capabilities.generatedIdentifiers
+      ) {
+        return res.status(503).json({ ok: false, error: "Verified commerce state requires a durable repository", code: "durable_repository_required" });
+      }
+      const current = await new CommerceOrderService(commerceOrders).getOrder(req.params.orderId);
+      if (!current) return res.status(404).json({ ok: false, error: "Order not found", code: "order_not_found" });
+      if (!await ensureCommerceCaseAccess(req, res, current.caseId)) return;
+      const order = await new CommerceOrderService(commerceOrders).markRefundRequired({ orderId: current.orderId, reasonCode: req.body?.reasonCode });
+      return res.json({ ok: true, order: toCommerceReceipt(order) });
+    } catch (error) {
+      if (error instanceof CommerceContractError) {
+        const status = error.code === "order_not_found" ? 404
+          : error.code === "invalid_order_input" ? 400
+            : error.code === "illegal_transition" || error.code === "event_conflict" || error.code === "version_conflict" ? 409 : 503;
+        return res.status(status).json({ ok: false, error: error.message, code: error.code });
+      }
+      logEventError("api.commerce_refund_required_failed", error);
+      return res.status(500).json({ ok: false, error: "Refund request failed" });
+    }
+  });
+
   // Get subscription pricing and features
   app.get("/api/subscription/tiers", (req, res) => {
     res.json(SUBSCRIPTION_FEATURES);
@@ -2895,6 +3113,3 @@ const filename = path.basename(String(req.params.filename || ""));
   const httpServer = createServer(app);
   return httpServer;
 }
-
-
-

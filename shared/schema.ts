@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, json, boolean, numeric, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, json, boolean, numeric, index, char, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -398,6 +398,40 @@ export const drivableEvidenceAttachments = pgTable("drivable_evidence_attachment
 ]);
 
 export const insertDrivableEvidenceAttachmentSchema = createInsertSchema(drivableEvidenceAttachments).omit({ createdAt: true });
+
+export const drivableCommerceOrders = pgTable("drivable_commerce_orders", {
+  orderId: varchar("order_id", { length: 160 }).primaryKey().default(sql`gen_random_uuid()`),
+  caseId: varchar("case_id", { length: 160 }).notNull(),
+  offerId: varchar("offer_id", { length: 80 }).notNull(),
+  offerVersion: varchar("offer_version", { length: 80 }).notNull(),
+  offerLabel: varchar("offer_label", { length: 160 }).notNull(),
+  offerAmountMinor: integer("offer_amount_minor").notNull(),
+  offerCurrency: char("offer_currency", { length: 3 }).notNull(),
+  state: text("state").notNull().default("pending"),
+  providerAdapterId: varchar("provider_adapter_id", { length: 80 }),
+  providerName: varchar("provider_name", { length: 80 }),
+  providerOrderReference: varchar("provider_order_reference", { length: 160 }),
+  version: integer("version").notNull().default(1),
+  eventCount: integer("event_count").notNull().default(0),
+  refundReasonCode: varchar("refund_reason_code", { length: 80 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("drivable_commerce_orders_case_idx").on(table.caseId),
+  index("drivable_commerce_orders_state_idx").on(table.state),
+]);
+
+export const drivableCommerceOrderEvents = pgTable("drivable_commerce_order_events", {
+  orderId: varchar("order_id", { length: 160 }).notNull().references(() => drivableCommerceOrders.orderId, { onDelete: "cascade" }),
+  eventId: varchar("event_id", { length: 160 }).notNull(),
+  eventFingerprint: varchar("event_fingerprint", { length: 64 }).notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  primaryKey({ columns: [table.orderId, table.eventId] }),
+  index("drivable_commerce_order_events_fingerprint_idx").on(table.orderId, table.eventFingerprint),
+]);
+
 
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,

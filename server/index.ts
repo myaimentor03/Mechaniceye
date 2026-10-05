@@ -41,6 +41,17 @@ app.use((req, res, next) => {
   next();
 });
 
+// Stripe validates signatures against the exact raw request bytes. This route
+// parser must run before express.json() consumes the request stream.
+app.use(
+  "/api/commerce/webhook/stripe",
+  express.raw({ type: "application/json" }),
+  (req, _res, next) => {
+    (req as any).rawBody = req.body;
+    next();
+  },
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
