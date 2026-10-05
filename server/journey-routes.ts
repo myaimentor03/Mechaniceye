@@ -44,9 +44,6 @@ import {
   notifyStateTransition,
 } from "./journey-notifications";
 import { getUnattendedWorkerStatus } from "./journey-unattended-worker";
-import { InMemoryReviewRepository } from "./review/in-memory-review-repository";
-import { HumanReviewReleaseGate } from "./review/release-gate";
-import type { ReviewRepository } from "./review/types";
 import { requireVerifiedLaunchControlRuntime } from "./review/launch-control-runtime";
 import { JourneyReviewBridge } from "./journey-review-bridge";
 
@@ -336,7 +333,7 @@ async function tryAutoEvaluate(caseData: JourneyCase): Promise<JourneyCase> {
   return diagnosed;
 }
 
-export function registerJourneyRoutes(app: Express): void {
+export function registerJourneyRoutes(app: Express, reviewBridge: JourneyReviewBridge = journeyReviewBridge): void {
   app.get("/api/journey/my-cases", requireCustomer, async (req, res) => {
     try {
       const customerId = req.drivableCustomer!.id;
@@ -386,7 +383,7 @@ export function registerJourneyRoutes(app: Express): void {
 
       // When safety triggers at intake, automatically create a review draft
       if (caseData.state === "escalation_required") {
-        journeyReviewBridge.createReviewForCase(caseData);
+        await reviewBridge.createReviewForCase(caseData);
       }
 
       logCaseStarted(caseData);
@@ -550,7 +547,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
 
       // When a case enters human_review, automatically create a review draft
       if (finalCase.state === "human_review" && caseData.state !== "human_review") {
-        journeyReviewBridge.createReviewForCase(finalCase);
+        await reviewBridge.createReviewForCase(finalCase);
       }
 
       logEvent("journey.advanced", {
@@ -1130,7 +1127,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         const escalated = advanceJourney(updated, "escalate", {
           escalationReason: "Safety re-evaluation triggered during case progression",
         });
-        journeyReviewBridge.createReviewForCase(escalated);
+        await reviewBridge.createReviewForCase(escalated);
         logStateTransition(escalated, updated.state, "escalate");
         setJourneyCase(escalated);
         res.json(safeJourneyResponse(escalated));
@@ -1220,8 +1217,8 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         (c) => c.state === "human_review" || c.state === "escalation_required"
       );
 
-      const reviewStatuses = pendingCases.map((c) => {
-        const reviewStatus = journeyReviewBridge.getReviewStatus(c.id);
+      const reviewStatuses = await Promise.all(pendingCases.map(async (c) => {
+        const reviewStatus = await reviewBridge.getReviewStatus(c.id);
         return {
           id: c.id,
           state: c.state,
@@ -1238,7 +1235,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
           reviewStatus: reviewStatus?.reviewStatus,
           reviewVersionId: reviewStatus?.reviewVersionId,
         };
-      });
+      }));
 
       res.setHeader("Cache-Control", "no-store");
       res.json({ ok: true, cases: reviewStatuses });
@@ -1256,8 +1253,8 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         return;
       }
 
-      const reviewStatus = journeyReviewBridge.getReviewStatus(caseData.id);
-      const evidenceBoundary = journeyReviewBridge.buildEvidenceBoundary(caseData);
+      const reviewStatus = await reviewBridge.getReviewStatus(caseData.id);
+      const evidenceBoundary = reviewBridge.buildEvidenceBoundary(caseData);
 
       res.setHeader("Cache-Control", "no-store");
       res.json({
@@ -1284,13 +1281,13 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         return;
       }
 
-      const version = journeyReviewBridge.createReviewForCase(caseData);
+      const version = await reviewBridge.createReviewForCase(caseData);
       if (!version) {
         res.status(409).json({ ok: false, error: "Could not create review record." });
         return;
       }
 
-      const finalized = journeyReviewBridge.finalizeReviewForCase(caseData);
+      const finalized = await reviewBridge.finalizeReviewForCase(caseData);
 
       res.setHeader("Cache-Control", "no-store");
       res.json({
@@ -1323,19 +1320,25 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       // cases entering human_review via the customer flow only have a draft,
       // which the repository refuses to approve — finalize it here so the
       // reviewer decision lands in one step with a truthful audit trail.
-      let reviewStatus = journeyReviewBridge.getReviewStatus(caseData.id);
+      let reviewStatus = await reviewBridge.getReviewStatus(caseData.id);
       if (!reviewStatus) {
-        journeyReviewBridge.createReviewForCase(caseData);
-        journeyReviewBridge.finalizeReviewForCase(caseData);
+        await reviewBridge.createReviewForCase(caseData);
+        await reviewBridge.finalizeReviewForCase(caseData);
       } else if (reviewStatus.reviewStatus === "draft") {
-        journeyReviewBridge.finalizeReviewForCase(caseData);
+        await reviewBridge.finalizeReviewForCase(caseData);
       }
 
-      const approval = journeyReviewBridge.approveReview(
+      const approval = await reviewBridge.approveReview(
         caseData.id,
         reviewerRef,
         highRiskAcknowledged
       );
+
+      const release = await reviewBridge.checkReleaseAllowed(caseData);
+      if (!release.allowed) {
+        res.status(409).json({ ok: false, error: "Review recorded, but release is blocked.", reason: release.reason, approval });
+        return;
+      }
 
       // Now resolve the journey case
       let updated = advanceJourney(caseData, "resolve", {
@@ -1343,7 +1346,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       });
 
       // Build evidence boundary for audit
-      const evidenceBoundary = journeyReviewBridge.buildEvidenceBoundary(caseData);
+      const evidenceBoundary = reviewBridge.buildEvidenceBoundary(caseData);
 
       setJourneyCase(updated);
 
@@ -1412,15 +1415,15 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       // cases entering human_review via the customer flow only have a draft,
       // which the repository refuses to reject — finalize it here so the
       // reviewer decision lands in one step with a truthful audit trail.
-      let reviewStatus = journeyReviewBridge.getReviewStatus(caseData.id);
+      let reviewStatus = await reviewBridge.getReviewStatus(caseData.id);
       if (!reviewStatus) {
-        journeyReviewBridge.createReviewForCase(caseData);
-        journeyReviewBridge.finalizeReviewForCase(caseData);
+        await reviewBridge.createReviewForCase(caseData);
+        await reviewBridge.finalizeReviewForCase(caseData);
       } else if (reviewStatus.reviewStatus === "draft") {
-        journeyReviewBridge.finalizeReviewForCase(caseData);
+        await reviewBridge.finalizeReviewForCase(caseData);
       }
 
-      const rejection = journeyReviewBridge.rejectReview(
+      const rejection = await reviewBridge.rejectReview(
         caseData.id,
         reviewerRef,
         reasonCode
@@ -1469,8 +1472,8 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         return;
       }
 
-      const decision = journeyReviewBridge.checkReleaseAllowed(caseData);
-      const evidenceBoundary = journeyReviewBridge.buildEvidenceBoundary(caseData);
+      const decision = await reviewBridge.checkReleaseAllowed(caseData);
+      const evidenceBoundary = reviewBridge.buildEvidenceBoundary(caseData);
 
       res.setHeader("Cache-Control", "no-store");
       res.json({

@@ -2,8 +2,10 @@ import { createHash } from "node:crypto";
 import type { JourneyCase, JourneyState } from "./journey-state-machine";
 import type { ReviewRepository, ReviewVersionRecord, ReviewRiskLevel } from "./review/types";
 import { InMemoryReviewRepository } from "./review/in-memory-review-repository";
-import { HumanReviewReleaseGate } from "./review/release-gate";
-import type { ReviewerIdentity } from "./reviewer-auth";
+import { assertDurableReviewRepository } from "./review/release-gate";
+import { AsyncHumanReviewReleaseGate, type AsyncReviewReleaseReader } from "./review/async-release-gate";
+import type { AsyncReviewMutationRepository } from "./review/postgres-review-writer";
+import { requireVerifiedLaunchControlRuntime } from "./review/launch-control-runtime";
 import { buildFollowUpEvidenceBoundary, type FollowUpEvidenceBoundary } from "./follow-up-evidence-boundary";
 import { logEvent } from "./observability/safe-log";
 
@@ -31,7 +33,7 @@ function caseArtifactDigest(caseData: JourneyCase): string {
     outcome: caseData.outcome,
     confidenceLevel: caseData.confidenceLevel,
     riskLevel: caseData.riskLevel,
-    evidenceCount: caseData.evidence.length,
+    evidence: caseData.evidence,
     safetyTriggered: caseData.safetyTriggered,
   });
   return createHash("sha256").update(payload, "utf8").digest("hex");
@@ -55,34 +57,73 @@ function recipientBinding(caseData: JourneyCase) {
   };
 }
 
+export type JourneyReviewRuntime = {
+  reader: AsyncReviewReleaseReader;
+  writer: AsyncReviewMutationRepository;
+};
+
 export interface JourneyReviewBridgeOptions {
   readonly repository?: ReviewRepository;
+  readonly runtimeProvider?: () => Promise<JourneyReviewRuntime>;
+  readonly requireDurable?: boolean;
 }
 
 export class JourneyReviewBridge {
-  private readonly repository: ReviewRepository;
-  private readonly releaseGate: HumanReviewReleaseGate;
+  private readonly runtimeProvider: () => Promise<JourneyReviewRuntime>;
+  private readonly requireDurable: boolean;
 
   constructor(options: JourneyReviewBridgeOptions = {}) {
-    this.repository = options.repository ?? new InMemoryReviewRepository();
-    this.releaseGate = new HumanReviewReleaseGate(this.repository);
+    this.requireDurable = process.env.NODE_ENV === "production" || options.requireDurable === true || process.env.DRIVABLE_LAUNCH_CONTROLS_ENABLED === "true";
+    if (options.runtimeProvider) {
+      this.runtimeProvider = options.runtimeProvider;
+    } else if (options.repository || !this.requireDurable) {
+      const repository = options.repository ?? new InMemoryReviewRepository();
+      this.runtimeProvider = async () => ({
+        reader: {
+          capabilities: repository.capabilities,
+          getVersion: async (id) => repository.getVersion(id),
+          getVersionState: async (id) => repository.getVersionState(id),
+          getCurrentVersionId: async (id) => repository.getCurrentVersionId(id),
+        },
+        writer: {
+          capabilities: repository.capabilities,
+          createDraft: async (input) => repository.createDraft(input),
+          createFinal: async (input) => repository.createFinal(input),
+          approve: async (input) => repository.approve(input),
+          reject: async (input) => repository.reject(input),
+          supersede: async (input) => repository.supersede(input),
+        },
+      });
+    } else {
+      this.runtimeProvider = requireVerifiedLaunchControlRuntime;
+    }
+  }
+
+  private async runtime(): Promise<JourneyReviewRuntime> {
+    const runtime = await this.runtimeProvider();
+    if (this.requireDurable) {
+      assertDurableReviewRepository(runtime.reader);
+      assertDurableReviewRepository(runtime.writer);
+    }
+    return runtime;
   }
 
   /**
    * Creates a draft review record when a journey case enters human_review.
    * Returns the version record if created, or undefined if the case already has one.
    */
-  createReviewForCase(caseData: JourneyCase): ReviewVersionRecord | undefined {
+  async createReviewForCase(caseData: JourneyCase): Promise<ReviewVersionRecord | undefined> {
     if (caseData.state !== "human_review" && caseData.state !== "escalation_required") {
       return undefined;
     }
 
-    const existingVersionId = this.repository.getCurrentVersionId(caseData.id);
+    const { reader, writer } = await this.runtime();
+    const existingVersionId = await reader.getCurrentVersionId(caseData.id);
     if (existingVersionId) {
-      return this.repository.getVersion(existingVersionId);
+      return await reader.getVersion(existingVersionId);
     }
 
-    const version = this.repository.createDraft({
+    const version = await writer.createDraft({
       caseId: caseData.id,
       artifactDigest: caseArtifactDigest(caseData),
       recipient: recipientBinding(caseData),
@@ -102,14 +143,15 @@ export class JourneyReviewBridge {
   /**
    * Promotes a draft to final review_required status.
    */
-  finalizeReviewForCase(caseData: JourneyCase): ReviewVersionRecord | undefined {
-    const currentVersionId = this.repository.getCurrentVersionId(caseData.id);
+  async finalizeReviewForCase(caseData: JourneyCase): Promise<ReviewVersionRecord | undefined> {
+    const { reader, writer } = await this.runtime();
+    const currentVersionId = await reader.getCurrentVersionId(caseData.id);
     if (!currentVersionId) return undefined;
 
-    const state = this.repository.getVersionState(currentVersionId);
+    const state = await reader.getVersionState(currentVersionId);
     if (!state || state.status !== "draft") return undefined;
 
-    const version = this.repository.createFinal({
+    const version = await writer.createFinal({
       caseId: caseData.id,
       sourceVersionId: currentVersionId,
       artifactDigest: caseArtifactDigest(caseData),
@@ -129,13 +171,14 @@ export class JourneyReviewBridge {
   /**
    * Approves a journey case review.
    */
-  approveReview(caseId: string, reviewerRef: string, highRiskAcknowledged?: boolean) {
-    const currentVersionId = this.repository.getCurrentVersionId(caseId);
+  async approveReview(caseId: string, reviewerRef: string, highRiskAcknowledged?: boolean) {
+    const { reader, writer } = await this.runtime();
+    const currentVersionId = await reader.getCurrentVersionId(caseId);
     if (!currentVersionId) {
       throw new Error("No pending review for this case");
     }
 
-    const approval = this.repository.approve({
+    const approval = await writer.approve({
       versionId: currentVersionId,
       caseId,
       reviewerRef,
@@ -155,13 +198,14 @@ export class JourneyReviewBridge {
   /**
    * Rejects a journey case review.
    */
-  rejectReview(caseId: string, reviewerRef: string, reasonCode: "insufficient_evidence" | "policy_mismatch" | "unsafe_content" | "other") {
-    const currentVersionId = this.repository.getCurrentVersionId(caseId);
+  async rejectReview(caseId: string, reviewerRef: string, reasonCode: "insufficient_evidence" | "policy_mismatch" | "unsafe_content" | "other") {
+    const { reader, writer } = await this.runtime();
+    const currentVersionId = await reader.getCurrentVersionId(caseId);
     if (!currentVersionId) {
       throw new Error("No pending review for this case");
     }
 
-    const rejection = this.repository.reject({
+    const rejection = await writer.reject({
       versionId: currentVersionId,
       caseId,
       reviewerRef,
@@ -182,13 +226,18 @@ export class JourneyReviewBridge {
   /**
    * Checks if a case can be released (resolved) via the review gate.
    */
-  checkReleaseAllowed(caseData: JourneyCase): { allowed: boolean; reason?: string } {
-    const currentVersionId = this.repository.getCurrentVersionId(caseData.id);
+  async checkReleaseAllowed(caseData: JourneyCase): Promise<{ allowed: boolean; reason?: string }> {
+    const { reader } = await this.runtime();
+    const currentVersionId = await reader.getCurrentVersionId(caseData.id);
     if (!currentVersionId) {
       return { allowed: false, reason: "No review record exists for this case" };
     }
 
-    const decision = this.releaseGate.decide({
+    const version = await reader.getVersion(currentVersionId);
+    if (!version || version.artifactDigest !== caseArtifactDigest(caseData)) {
+      return { allowed: false, reason: "approval_binding_mismatch" };
+    }
+    const decision = await new AsyncHumanReviewReleaseGate(reader).decide({
       caseId: caseData.id,
       versionId: currentVersionId,
       recipient: recipientBinding(caseData),
@@ -204,12 +253,13 @@ export class JourneyReviewBridge {
   /**
    * Gets the current review status for a journey case.
    */
-  getReviewStatus(caseId: string): JourneyReviewStatus | undefined {
-    const currentVersionId = this.repository.getCurrentVersionId(caseId);
+  async getReviewStatus(caseId: string): Promise<JourneyReviewStatus | undefined> {
+    const { reader } = await this.runtime();
+    const currentVersionId = await reader.getCurrentVersionId(caseId);
     if (!currentVersionId) return undefined;
 
-    const version = this.repository.getVersion(currentVersionId);
-    const state = this.repository.getVersionState(currentVersionId);
+    const version = await reader.getVersion(currentVersionId);
+    const state = await reader.getVersionState(currentVersionId);
     if (!version || !state) return undefined;
 
     return {
@@ -220,22 +270,6 @@ export class JourneyReviewBridge {
       reviewerRef: state.approval?.reviewerRef || state.rejection?.reviewerRef,
       reviewedAt: state.approval?.approvedAt || state.rejection?.rejectedAt,
     };
-  }
-
-  /**
-   * Lists all cases pending human review.
-   */
-  listPendingReviews(): string[] {
-    const pending: string[] = [];
-    for (const [caseId] of (this.repository as any).currentVersionByCase || new Map()) {
-      const state = this.repository.getVersionState(
-        (this.repository as any).currentVersionByCase.get(caseId)
-      );
-      if (state && (state.status === "review_required" || state.status === "draft")) {
-        pending.push(caseId);
-      }
-    }
-    return pending;
   }
 
   /**
