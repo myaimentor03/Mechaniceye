@@ -108,6 +108,7 @@ function commerceLookup(
 ) {
   return {
     capabilities,
+    async hasVerifiedPayment() { return record?.state === "verified"; },
     async get() {
       if (throws) throw new Error("commerce repository unavailable");
       return record;
@@ -216,7 +217,7 @@ test("verified payment alone is insufficient; all durable gates yield one bound 
 });
 
 test("pending, failed, refund-required, and refunded orders cannot be fulfilled", async () => {
-  for (const state of ["pending", "failed", "refund_required", "refunded"] as const) {
+  for (const state of ["pending", "failed", "refund_required", "refunded", "partial_refund"] as const) {
     const setup = dependencies({ commerceOrders: commerceLookup(order({ state })) });
     const decision = await service(setup.dependencies).decide(setup.request);
     assert.deepEqual(
@@ -388,4 +389,17 @@ test("dependency failures and malformed stored records return no success", async
     (await service(malformedProvider.dependencies).decide(malformedProvider.request)).code,
     "dependency_unavailable",
   );
+});
+
+test("verified order snapshots without durable payment proof cannot authorize access", async () => {
+  for (const [proof, expectedCode] of [
+    [undefined, "payment_not_verified"],
+    [async () => false, "payment_not_verified"],
+    [async () => { throw new Error("proof unavailable"); }, "dependency_unavailable"],
+  ] as const) {
+    const setup = dependencies({ commerceOrders: { ...commerceLookup(), hasVerifiedPayment: proof } });
+    const result = await service(setup.dependencies).decide(setup.request);
+    assert.equal(result.allowed, false);
+    assert.equal(result.code, expectedCode);
+  }
 });

@@ -266,28 +266,35 @@ test("mismatched and malformed provider events fail without changing the order",
   );
 });
 
-test("illegal payment transitions fail closed", async () => {
-  const repository = new TestDurableCommerceRepository();
-  const commerce = service(repository);
+test("failed attempts can succeed on retry and late failures never revoke payment", async () => {
+  const commerce = service(new TestDurableCommerceRepository());
   const order = await commerce.createPendingOrder(pendingInput());
-
-  const failed = await commerce.applyProviderPayload(
-    authenticatedAdapter(),
-    providerEvent(order, { eventId: "failed_event", kind: "payment_failed" }),
-  );
+  const failed = await commerce.applyProviderPayload(authenticatedAdapter(), providerEvent(order, { eventId: "failed_event", kind: "payment_failed" }));
   assert.equal(failed.order.state, "failed");
+  const retry = await commerce.applyProviderPayload(authenticatedAdapter(), providerEvent(order, { eventId: "retry_success", occurredAt: "2026-09-01T12:02:00.000Z" }));
+  assert.equal(retry.order.state, "verified");
+  const late = await commerce.applyProviderPayload(authenticatedAdapter(), providerEvent(order, { eventId: "late_failure", kind: "payment_failed" }));
+  assert.equal(late.order.state, "verified");
+  const full = await commerce.applyProviderPayload(authenticatedAdapter(), providerEvent(order, { eventId: "full_refund", kind: "refund_confirmed" }));
+  const replayedSuccess = await commerce.applyProviderPayload(authenticatedAdapter(), providerEvent(order, { eventId: "late_success" }));
+  assert.equal(full.order.state, "refunded"); assert.equal(replayedSuccess.order.state, "refunded");
+});
 
-  await expectCode(
-    commerce.applyProviderPayload(
-      authenticatedAdapter(),
-      providerEvent(failed.order, {
-        eventId: "late_verified",
-        kind: "payment_verified",
-        occurredAt: "2026-09-01T12:02:00.000Z",
-      }),
-    ),
-    "illegal_transition",
-  );
+test("partial refunds suspend access, cumulative totals never regress, and full refunds remain final", async () => {
+  const commerce = service(new TestDurableCommerceRepository());
+  const order = await commerce.createPendingOrder(pendingInput());
+  await commerce.applyProviderPayload(authenticatedAdapter(), providerEvent(order));
+  const first = await commerce.applyProviderPayload(authenticatedAdapter(), providerEvent(order, {
+    eventId: "partial_1", kind: "refund_partial", refundedAmountMinor: 2000 }));
+  assert.equal(first.order.state, "partial_refund"); assert.equal(first.order.refundedAmountMinor, 2000);
+  const older = await commerce.applyProviderPayload(authenticatedAdapter(), providerEvent(order, {
+    eventId: "partial_older", kind: "refund_partial", refundedAmountMinor: 1000 }));
+  assert.equal(older.order.refundedAmountMinor, 2000);
+  await expectCode(commerce.applyProviderPayload(authenticatedAdapter(), providerEvent(order, {
+    eventId: "partial_invalid", kind: "refund_partial", refundedAmountMinor: 4900 })), "invalid_provider_event");
+  const full = await commerce.applyProviderPayload(authenticatedAdapter(), providerEvent(order, {
+    eventId: "full", kind: "refund_confirmed", refundedAmountMinor: 4900 }));
+  assert.equal(full.order.state, "refunded"); assert.equal(full.order.refundedAmountMinor, 4900);
 });
 
 test("refund-required and provider-confirmed refund states stay case-bound", async () => {

@@ -23,21 +23,34 @@ export type JourneyReviewStatus = {
   evidenceBoundary?: FollowUpEvidenceBoundary;
 };
 
-const JOURNEY_REVIEW_BINDINGS = Object.freeze({
+export const JOURNEY_REVIEW_BINDINGS = Object.freeze({
   policyVersion: "journey-review-v1",
   modelVersion: "journey-guided-v1",
   evidenceVersion: "evidence-v1",
 });
 
-function caseArtifactDigest(caseData: JourneyCase): string {
-  const payload = JSON.stringify({
+export function canonicalArtifact(value: unknown): string {
+  return JSON.stringify(value, (_key, item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return item;
+    return Object.fromEntries(
+      Object.entries(item).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0),
+    );
+  });
+}
+
+export function caseArtifactDigest(caseData: JourneyCase): string {
+  const payload = canonicalArtifact({
     id: caseData.id,
     vehicleInfo: caseData.vehicleInfo,
     description: caseData.description,
     outcome: caseData.outcome,
     confidenceLevel: caseData.confidenceLevel,
+    confidenceScore: caseData.confidenceScore,
+    decisionPath: caseData.decisionPath,
+    matchedSymptomCategories: caseData.matchedSymptomCategories,
+    safetyFlags: caseData.safetyFlags,
     riskLevel: caseData.riskLevel,
-    evidenceCount: caseData.evidence.length,
+    evidence: caseData.evidence,
     safetyTriggered: caseData.safetyTriggered,
   });
   return createHash("sha256").update(payload, "utf8").digest("hex");
@@ -51,7 +64,7 @@ function riskLevelForReview(caseData: JourneyCase): ReviewRiskLevel {
   return "unknown";
 }
 
-function recipientBinding(caseData: JourneyCase) {
+export function recipientBinding(caseData: JourneyCase) {
   const email = caseData.customerEmail || caseData.customerId || caseData.id;
   const digest = createHash("sha256").update(email, "utf8").digest("hex");
   return {
@@ -106,7 +119,8 @@ export class JourneyReviewBridge {
 
     const existingVersionId = await this.read(() => this.repository.getCurrentVersionId(caseData.id));
     if (existingVersionId) {
-      return this.read(() => this.repository.getVersion(existingVersionId));
+      const existing = await this.read(() => this.repository.getVersion(existingVersionId));
+      if (existing?.artifactDigest === caseArtifactDigest(caseData)) return existing;
     }
 
     const version = await this.write(() =>
@@ -161,21 +175,26 @@ export class JourneyReviewBridge {
    * Approves a journey case review.
    */
   async approveReview(
-    caseId: string,
+    caseData: JourneyCase,
     reviewerRef: string,
     highRiskAcknowledged?: boolean,
   ): Promise<ReviewApprovalRecord> {
-    const currentVersionId = await this.read(() => this.repository.getCurrentVersionId(caseId));
+    const currentVersionId = await this.read(() => this.repository.getCurrentVersionId(caseData.id));
     if (!currentVersionId) {
       throw new Error("No pending review for this case");
     }
 
+    const version = await this.read(() => this.repository.getVersion(currentVersionId));
+    if (!version || version.artifactDigest !== caseArtifactDigest(caseData)) {
+      throw new Error("approval_binding_mismatch");
+    }
+
     const approval = await this.write(() =>
-      this.repository.approve({ versionId: currentVersionId, caseId, reviewerRef, highRiskAcknowledged }),
+      this.repository.approve({ versionId: currentVersionId, caseId: caseData.id, reviewerRef, highRiskAcknowledged }),
     );
 
     logEvent("journey.review_approved", {
-      caseId,
+      caseId: caseData.id,
       versionId: currentVersionId,
       approvalId: approval.approvalId,
       reviewerRef,
@@ -220,6 +239,11 @@ export class JourneyReviewBridge {
     const currentVersionId = await this.read(() => this.repository.getCurrentVersionId(caseData.id));
     if (!currentVersionId) {
       return { allowed: false, reason: "No review record exists for this case" };
+    }
+
+    const version = await this.read(() => this.repository.getVersion(currentVersionId));
+    if (!version || version.artifactDigest !== caseArtifactDigest(caseData)) {
+      return { allowed: false, reason: "approval_binding_mismatch" };
     }
 
     const decision: ReleaseDecision = await this.read(() =>

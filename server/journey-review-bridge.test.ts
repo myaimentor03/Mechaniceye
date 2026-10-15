@@ -103,6 +103,35 @@ describe("JourneyReviewBridge", () => {
       assert.equal(v1.versionId, v2.versionId, "Should return the same version");
     });
 
+    it("starts a new draft when the case content changes", async () => {
+      const bridge = newBridge();
+      let original = createNormalCase();
+      original = advanceJourney(original, "request_human_review");
+      const firstDraft = await bridge.createReviewForCase(original);
+      await bridge.finalizeReviewForCase(original);
+      await bridge.approveReview(original, "reviewer_abc12345");
+
+      const updated = { ...original, description: `${original.description} after driving longer` };
+      const replacementDraft = await bridge.createReviewForCase(updated);
+
+      assert.ok(firstDraft);
+      assert.ok(replacementDraft);
+      assert.notEqual(replacementDraft.versionId, firstDraft.versionId);
+      assert.equal(replacementDraft.status, "draft");
+      assert.deepEqual(await bridge.checkReleaseAllowed(updated), {
+        allowed: false,
+        reason: "review_required",
+      });
+
+      await bridge.finalizeReviewForCase(updated);
+      await bridge.approveReview(updated, "reviewer_abc12345");
+      assert.equal((await bridge.checkReleaseAllowed(updated)).allowed, true);
+      assert.deepEqual(await bridge.checkReleaseAllowed(original), {
+        allowed: false,
+        reason: "approval_binding_mismatch",
+      });
+    });
+
     it("returns undefined for non-reviewable states", async () => {
       const bridge = newBridge();
       const caseData = createNormalCase();
@@ -162,7 +191,7 @@ describe("JourneyReviewBridge", () => {
       await bridge.createReviewForCase(caseData);
       await bridge.finalizeReviewForCase(caseData);
 
-      const approval = await bridge.approveReview(caseData.id, "reviewer_abc12345");
+      const approval = await bridge.approveReview(caseData, "reviewer_abc12345");
       assert.ok(approval);
       assert.equal(approval.reviewerRef, "reviewer_abc12345");
       assert.equal(approval.caseId, caseData.id);
@@ -171,9 +200,29 @@ describe("JourneyReviewBridge", () => {
     it("throws if no review exists", async () => {
       const bridge = newBridge();
       await assert.rejects(
-        () => bridge.approveReview("nonexistent-case", "reviewer_abc12345"),
+        () => bridge.approveReview({ id: "nonexistent-case" } as JourneyCase, "reviewer_abc12345"),
         /No pending review/,
       );
+    });
+
+    it("rejects approval when current evidence changed after finalization", async () => {
+      const bridge = newBridge();
+      let caseData = createNormalCase();
+      caseData = advanceJourney(caseData, "request_human_review");
+      await bridge.createReviewForCase(caseData);
+      await bridge.finalizeReviewForCase(caseData);
+
+      const changed = {
+        ...caseData,
+        evidence: caseData.evidence.map((item, index) =>
+          index === 0 ? { ...item, description: "Changed after review" } : item,
+        ),
+      };
+      await assert.rejects(
+        () => bridge.approveReview(changed, "reviewer_abc12345"),
+        /approval_binding_mismatch/,
+      );
+      assert.equal((await bridge.getReviewStatus(caseData.id))?.reviewStatus, "review_required");
     });
   });
 
@@ -221,9 +270,47 @@ describe("JourneyReviewBridge", () => {
 
       await bridge.createReviewForCase(caseData);
       await bridge.finalizeReviewForCase(caseData);
-      await bridge.approveReview(caseData.id, "reviewer_abc12345");
+      await bridge.approveReview(caseData, "reviewer_abc12345");
 
       const decision = await bridge.checkReleaseAllowed(caseData);
+      assert.equal(decision.allowed, true);
+    });
+
+    it("denies release when evidence content changes without changing its count", async () => {
+      const bridge = newBridge();
+      let caseData = createNormalCase();
+      caseData = advanceJourney(caseData, "request_human_review");
+      await bridge.createReviewForCase(caseData);
+      await bridge.finalizeReviewForCase(caseData);
+      await bridge.approveReview(caseData, "reviewer_abc12345");
+
+      const changedEvidence = {
+        ...caseData,
+        evidence: caseData.evidence.map((item, index) =>
+          index === 0 ? { ...item, description: "A different brake component photo" } : item,
+        ),
+      };
+      const decision = await bridge.checkReleaseAllowed(changedEvidence);
+
+      assert.deepEqual(decision, { allowed: false, reason: "approval_binding_mismatch" });
+    });
+
+    it("allows release when identical evidence object keys are reordered", async () => {
+      const bridge = newBridge();
+      let caseData = createNormalCase();
+      caseData = advanceJourney(caseData, "request_human_review");
+      await bridge.createReviewForCase(caseData);
+      await bridge.finalizeReviewForCase(caseData);
+      await bridge.approveReview(caseData, "reviewer_abc12345");
+
+      const reordered = {
+        ...caseData,
+        evidence: caseData.evidence.map((item) =>
+          Object.fromEntries(Object.entries(item).reverse()) as typeof item,
+        ),
+      };
+      const decision = await bridge.checkReleaseAllowed(reordered);
+
       assert.equal(decision.allowed, true);
     });
 
@@ -234,7 +321,7 @@ describe("JourneyReviewBridge", () => {
 
       await bridge.createReviewForCase(caseData);
       await bridge.finalizeReviewForCase(caseData);
-      await bridge.approveReview(caseData.id, "reviewer_abc12345", true);
+      await bridge.approveReview(caseData, "reviewer_abc12345", true);
 
       // Critical risk is always denied by the release gate - safety behavior
       const decision = await bridge.checkReleaseAllowed(caseData);
@@ -268,7 +355,7 @@ describe("JourneyReviewBridge", () => {
 
       await bridge.createReviewForCase(caseData);
       await bridge.finalizeReviewForCase(caseData);
-      await bridge.approveReview(caseData.id, "reviewer_abc12345");
+      await bridge.approveReview(caseData, "reviewer_abc12345");
 
       const status = await bridge.getReviewStatus(caseData.id);
       assert.ok(status);

@@ -173,6 +173,16 @@ async function ensureTable(executor: SqlExecutor): Promise<boolean> {
  */
 export function createPgJourneyStore(executor: SqlExecutor) {
   return {
+    /** Strict read for authorization-sensitive consumers: DB errors must remain distinguishable from a missing case. */
+    async getStrict(caseId: string): Promise<JourneyCase | undefined> {
+      const result = await executor.query(
+        "select * from journey_cases where id = $1 limit 1",
+        [caseId]
+      );
+      if (result.rows.length === 0) return undefined;
+      return rowToCase(result.rows[0]);
+    },
+
     async get(caseId: string): Promise<JourneyCase | undefined> {
       if (!(await ensureTable(executor))) return undefined;
       try {

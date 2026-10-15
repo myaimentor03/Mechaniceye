@@ -73,6 +73,7 @@ export class InMemoryCommerceOrderRepository implements CommerceOrderRepository 
       eventCount: current.eventCount + 1,
       updatedAt: input.occurredAt,
       refundReasonCode: input.refundReasonCode,
+      refundedAmountMinor: Math.max(current.refundedAmountMinor ?? 0, input.refundedAmountMinor ?? 0),
     });
     fingerprints.set(input.eventId, input.eventFingerprint);
     this.orders.set(input.orderId, updated);

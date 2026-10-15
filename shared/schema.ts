@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, json, boolean, numeric, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, json, jsonb, boolean, numeric, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -517,3 +517,25 @@ export type JourneyCaseEvent = typeof journeyCaseEvents.$inferSelect;
 export const insertJourneyCaseSchema = createInsertSchema(journeyCases).omit({ createdAt: true, updatedAt: true });
 export type InsertJourneyCase = z.infer<typeof insertJourneyCaseSchema>;
 export type JourneyCaseRow = typeof journeyCases.$inferSelect;
+
+export const drivableCommerceOrders = pgTable("drivable_commerce_orders", {
+  orderId: text("order_id").primaryKey(),
+  caseId: text("case_id").notNull(),
+  snapshot: jsonb("snapshot").notNull(),
+  version: integer("version").notNull(),
+  providerReference: text("provider_reference"),
+  checkoutSessionId: text("checkout_session_id"),
+  contractVersion: integer("contract_version").notNull().default(2),
+}, (table) => [uniqueIndex("drivable_commerce_orders_provider_unique").on(table.providerReference)]);
+
+export const drivableCommerceOrderEvents = pgTable("drivable_commerce_order_events", {
+  eventId: text("event_id").primaryKey(),
+  orderId: text("order_id").notNull().references(() => drivableCommerceOrders.orderId),
+  fingerprint: text("fingerprint").notNull(),
+  nextState: text("next_state").notNull(),
+  eventKind: text("event_kind").notNull(),
+  providerReference: text("provider_reference").notNull(),
+  providerOccurredAt: timestamp("provider_occurred_at", { withTimezone: true }).notNull(),
+  proof: jsonb("proof").notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+}, (table) => [index("drivable_commerce_events_order_idx").on(table.orderId)]);
