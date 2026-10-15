@@ -168,7 +168,7 @@ export function EvidenceVerificationPanel({ caseId }: EvidenceVerificationPanelP
     return (
       <div className="section-block">
         <h3>Evidence Status</h3>
-        <div className="upload-note">No evidence files were submitted with this case. You can describe the issue in words or add evidence later via follow-up.</div>
+        <div className="upload-note">No evidence files were submitted with this case. If you need help with this case later, use the Help form and include its Case ID. That requests assistance; it does not attach new files to this case.</div>
       </div>
     );
   }

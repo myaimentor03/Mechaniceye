@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import "./app.css";
 import Marketplace from "./marketplace/Marketplace";
 import { BuyerCheckPreview } from "./components/BuyerCheckPreview";
+import { isDurablyPersistedDiagnosisResponse, requiresCustomerReauthentication } from "./lib/diagnosisSubmission";
 import { BuyerRiskReviewPreview } from "./components/BuyerRiskReviewPreview";
 import { ClearSalePreview } from "./components/ClearSalePreview";
 import { CustomerDecisionPathPreview } from "./components/CustomerDecisionPathPreview";
@@ -416,6 +417,7 @@ type ConciergeConfirmation = {
 function ConciergeHelpPage() {
   const searchParams = getFrontendSearchParams();
   const initialTopic = searchParams.get("topic") || "";
+  const initialCaseId = searchParams.get("relatedCaseId") || "";
   const scenarioParam = searchParams.get("scenario");
   const reportParam = searchParams.get("reportType") || searchParams.get("report");
   const selectedScenario = isIntakeScenario(scenarioParam) ? HELP_SCENARIOS[scenarioParam] : null;
@@ -647,7 +649,7 @@ function ConciergeHelpPage() {
                   <option>Only if needed</option>
                 </select>
               </div>
-              <div className="field"><label>Related Case ID</label><input name="relatedCaseId" placeholder="Optional" /></div>
+              <div className="field"><label>Related Case ID</label><input name="relatedCaseId" defaultValue={initialCaseId} placeholder="Optional" /></div>
               <div className="field"><label>Related Listing ID</label><input name="relatedListingId" placeholder="Optional" /></div>
               <div className="field"><label>Current Page</label><input name="currentPage" defaultValue={document.referrer || getFrontendRoutePath()} /></div>
               <div className="field"><label>Where did you get stuck?</label><input name="stuckStep" placeholder="Example: vehicle selection or title status" /></div>
@@ -1212,7 +1214,7 @@ type PublicPage = "home" | "intake" | "sell" | "help" | "disclaimer" | "terms" |
       return existing;
     }
 
-    const generated = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    const generated = `req-${crypto.randomUUID()}`;
     window.sessionStorage.setItem(storageKey, generated);
     return generated;
   });
@@ -1251,6 +1253,7 @@ const [manualEngine, setManualEngine] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [customer, setCustomer] = useState<DrivableCustomer | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [photoUploadEnabled, setPhotoUploadEnabled] = useState(false);
   const [mediaCapabilities, setMediaCapabilities] = useState<MediaCapabilities>({ ...MEDIA_UNAVAILABLE });
@@ -1555,11 +1558,6 @@ const endpoints = [PUBLIC_API_ENDPOINT];
             signal: controller.signal
           });
 
-          if (!res.ok) {
-            lastError = `We couldn't record your request (HTTP ${res.status}). Please try again.`;
-            continue;
-          }
-
           let data: any;
           try {
             const responseText = await res.text();
@@ -1572,6 +1570,34 @@ const endpoints = [PUBLIC_API_ENDPOINT];
           } catch {
             lastError = "We received a response we couldn't read. Please try again.";
             continue;
+          }
+
+          if (!res.ok) {
+            if (requiresCustomerReauthentication(res.status, data)) {
+              setCustomer(null);
+              setSessionExpired(true);
+              setError("");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+              return;
+            }
+            lastError = `We couldn't record your request (HTTP ${res.status}). Please try again.`;
+            continue;
+          }
+
+          if (!isDurablyPersistedDiagnosisResponse(res.status, data)) {
+            const serverMessage = typeof data?.message === "string" ? data.message.trim() : "";
+            const caseId = typeof data?.caseId === "string" ? data.caseId.trim()
+              : typeof data?.id === "string" ? data.id.trim() : "";
+            setError([
+              serverMessage || "The server did not confirm that this case was durably saved.",
+              "Your draft is still saved on this device. Do not resubmit until you confirm whether a case was created.",
+              caseId ? `Case ID: ${caseId}.` : "",
+              submittable.photos.length + submittable.audio.length + submittable.video.length + submittable.vibration.length > 0
+                ? "Keep this page open; selected files are not included in the saved browser draft."
+                : "",
+            ].filter(Boolean).join(" "));
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            return;
           }
 
           try { window.localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
@@ -1661,7 +1687,11 @@ const endpoints = [PUBLIC_API_ENDPOINT];
     if (!customer) {
       return (
         <div className="simple-page">
-          <CustomerAccountGate onAuthenticated={(user) => { setCustomer(user); setCustomerEmail(user.email); }} />
+          <CustomerAccountGate
+            initialMode={sessionExpired ? "login" : "register"}
+            notice={sessionExpired ? "Your session expired. Sign in again to submit this saved draft. Your entered details and selected evidence are still here; review them, then submit when ready." : undefined}
+            onAuthenticated={(user) => { setCustomer(user); setCustomerEmail(user.email); setSessionExpired(false); }}
+          />
           <div className="step-actions"><button className="secondary-btn" type="button" onClick={() => setPage("home")}>Back to home</button></div>
         </div>
       );
@@ -1736,19 +1766,20 @@ const endpoints = [PUBLIC_API_ENDPOINT];
                   {result.attachments?.length > 0 && (
                     <p style={{ marginTop: "8px", fontSize: "0.9em", color: "#1a4730" }}>Photo attachments: {result.attachments.map((a: any) => a.originalName).join(", ")}</p>
                   )}
-                  <p style={{ marginTop: "8px", fontSize: "0.85em", color: "#5a6d60" }}>Truthful status: uploaded media is evidence for human review and is not analyzed automatically. Save your Case ID — this case and its evidence belong to your vehicle and can be referenced for follow-up.</p>
+                  <p style={{ marginTop: "8px", fontSize: "0.85em", color: "#5a6d60" }}>Truthful status: uploaded media is evidence for human review and is not analyzed automatically. Save your Case ID. For help later, contact us with this ID; new files are not added to this case through the Help form.</p>
                 </div>
               )}
               {!result.evidenceSummary && (
                 <p>
-                  Your case was recorded and sent to review. Save your Case ID in case you want
-                  to reference this submission later. Keep an eye on your inbox if you provided
+                  Your case was recorded and sent to review. Save your Case ID in case you need
+                  help referencing this submission later. Keep an eye on your inbox if you provided
                   a follow-up email.
                 </p>
               )}
               <EvidenceVerificationPanel caseId={result.id} />
               <WhatHappensNext />
               <div style={{ marginTop: "12px" }}>
+                <button type="button" className="secondary-btn" onClick={() => navigateFrontend(`/help?topic=${encodeURIComponent("Help understanding a car issue")}&relatedCaseId=${encodeURIComponent(result.id)}`)}>Get help with this case</button>
                 <button type="button" className="secondary-btn" onClick={() => {
                   setResult(null);
                   setPhotoFiles([]); setAudioFiles([]); setVideoFiles([]); setVibrationFiles([]);
@@ -2021,7 +2052,7 @@ Add a clear written symptom description, manual OBD codes, vibration context, an
                     <label className="checkbox-row"><input type="checkbox" checked={humanReviewConsent} onChange={(e) => setHumanReviewConsent(e.target.checked)} /> I agree that an authorized human reviewer may review my case evidence. <span className="required-marker">Required</span></label>
                     <label className="checkbox-row"><input type="checkbox" checked={mediaConsent} onChange={(e) => setMediaConsent(e.target.checked)} /> I agree to private processing and storage of photos, audio, video, and vibration data I choose to submit. {(photoFiles.length > 0 || audioFiles.length > 0 || videoFiles.length > 0 || vibrationFiles.length > 0) && <span className="required-marker">Required for media</span>}</label>
                     <label className="checkbox-row"><input type="checkbox" checked={learningConsent} onChange={(e) => setLearningConsent(e.target.checked)} /> Optional: allow de-identified case evidence to support future product improvement. This is not required for service.</label>
-                    <div className="helper-text">Review the <button type="button" onClick={() => setPage("terms")}>Terms</button> and <button type="button" onClick={() => setPage("privacy")}>Privacy Notice</button> before submitting.</div>
+                    <div className="helper-text">Review the <a href="/terms" target="_blank" rel="noopener noreferrer">Terms</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Notice</a> before submitting. They open separately so your check and selected evidence stay in place.</div>
                   </fieldset>
 
                   <div className="notice-strip capacity-notice">

@@ -2,8 +2,16 @@ import { useState } from "react";
 
 export type DrivableCustomer = { id: string; email: string };
 
-export function CustomerAccountGate({ onAuthenticated }: { onAuthenticated: (user: DrivableCustomer) => void }) {
-  const [mode, setMode] = useState<"register" | "login">("register");
+export function CustomerAccountGate({
+  onAuthenticated,
+  initialMode = "register",
+  notice,
+}: {
+  onAuthenticated: (user: DrivableCustomer) => void;
+  initialMode?: "register" | "login";
+  notice?: string;
+}) {
+  const [mode, setMode] = useState<"register" | "login">(initialMode);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -46,6 +54,7 @@ export function CustomerAccountGate({ onAuthenticated }: { onAuthenticated: (use
       <div className="eyebrow">Private beta account</div>
       <h2 id="account-gate-title">{mode === "register" ? "Create your Drivable account" : "Sign in to continue"}</h2>
       <p>Your account keeps vehicle submissions tied to you. Drivable never stores your password in readable form.</p>
+      {notice && <div className="alert-card warning" role="status">{notice}</div>}
       {error && <div className="alert-card warning" role="alert">{error}</div>}
       {mode === "login" && <p className="helper-text">Sign in after creating or confirming your account.</p>}
       <form onSubmit={submit}>

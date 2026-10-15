@@ -39,6 +39,21 @@ test("shared mobile menu exposes state and restores focus on Escape", () => {
   assert.match(css, /min-height:\s*44px/);
 });
 
+test("consent legal links open separately without replacing the active intake", () => {
+  assert.match(backend, /href="\/terms" target="_blank" rel="noopener noreferrer"/);
+  assert.match(backend, /href="\/privacy" target="_blank" rel="noopener noreferrer"/);
+  assert.doesNotMatch(backend, /Review the <button type="button" onClick=\{\(\) => setPage\("terms"\)\}/);
+  assert.doesNotMatch(backend, /<button type="button" onClick=\{\(\) => setPage\("privacy"\)\}>Privacy Notice/);
+});
+
+test("case results route customers to Help with the case ID and do not promise follow-up uploads", () => {
+  assert.match(backend, /relatedCaseId=\$\{encodeURIComponent\(result\.id\)\}/);
+  assert.match(backend, /initialCaseId = searchParams\.get\("relatedCaseId"\)/);
+  assert.match(backend, /name="relatedCaseId" defaultValue=\{initialCaseId\}/);
+  assert.match(backend, /new files are not added to this case through the Help form/i);
+  assert.doesNotMatch(backend, /add evidence later via follow-up/i);
+});
+
 test("active customer copy does not imply unavailable or unperformed media analysis", () => {
   for (const unsupported of [
     "Photos, audio, video, and vibration inputs",
