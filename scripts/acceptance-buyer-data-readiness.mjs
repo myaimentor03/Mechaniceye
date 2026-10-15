@@ -14,6 +14,8 @@ const { Pool } = pg;
 import {
   safeTargetDescription,
   sslConfigForUrl,
+  mutationTargetGuard,
+  verifyConnectedDatabaseTarget,
 } from "./lib/db-target-safe.mjs";
 
 const environment = process.env.DATABASE_URL?.trim();
@@ -126,6 +128,13 @@ async function main() {
     return;
   }
 
+  const targetGuard = mutationTargetGuard(environment);
+  if (!targetGuard.ok) {
+    console.error(`Acceptance probe refused before connection: ${targetGuard.reason}`);
+    process.exitCode = 2;
+    return;
+  }
+
   pool = new Pool({
     connectionString: environment,
     max: 2,
@@ -134,8 +143,8 @@ async function main() {
   });
 
   try {
-    const healthy = await pool.query("select 1 as one");
-    report(healthy.rows[0]?.one === 1, "Database reachable (select 1)");
+    await verifyConnectedDatabaseTarget(pool);
+    report(true, "Connected database identity matches verified isolated test target");
 
     const tables = await tableNames();
     for (const table of CORE_TABLES) {

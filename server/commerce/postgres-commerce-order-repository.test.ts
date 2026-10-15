@@ -8,10 +8,12 @@ import { PgLaunchControlExecutor } from "../review/postgres-adapter.js";
 import { CommerceOrderService, type CommitCommerceEventInput } from "./order-contract.js";
 import { PostgresCommerceOrderRepository } from "./postgres-commerce-order-repository.js";
 import { StripeTestPaymentAdapter } from "./stripe-test-payment-adapter.js";
+import { mutationTargetGuard, verifyConnectedDatabaseTarget } from "../../scripts/lib/db-target-safe.mjs";
 
-const testUrl = process.env.DRIVABLE_ALLOW_COMMERCE_TEST_SCHEMA_SETUP === "true"
+const candidateTestUrl = process.env.DRIVABLE_ALLOW_COMMERCE_TEST_SCHEMA_SETUP === "true"
   ? process.env.DRIVABLE_COMMERCE_TEST_DATABASE_URL : undefined;
-// Explicitly opted-in test database only; never fall back to DATABASE_URL.
+const testUrl = candidateTestUrl && mutationTargetGuard(candidateTestUrl).ok ? candidateTestUrl : undefined;
+// Explicitly opted-in, independently fingerprinted test target only; never fall back to DATABASE_URL.
 test("Postgres: signed payment survives pool/service restart, duplicates and conflicts are atomic", {
   skip: !testUrl ? "Explicit disposable Postgres URL and schema-setup opt-in are unavailable" : false,
 }, async () => {
@@ -19,9 +21,11 @@ test("Postgres: signed payment survives pool/service restart, duplicates and con
   const admin = new pg.Pool({ connectionString: testUrl });
   let pool: pg.Pool | undefined;
   try {
+    await verifyConnectedDatabaseTarget(admin);
     await admin.query(`create schema ${schema}`);
     const open = () => new pg.Pool({ connectionString: testUrl, options: `-c search_path=${schema}` });
     pool = open();
+    await verifyConnectedDatabaseTarget(pool);
     await pool.query(await readFile(new URL("../../migrations/0004_drivable_delivery_outbox.sql", import.meta.url), "utf8"));
     await pool.query(await readFile(new URL("../../migrations/0008_drivable_delivery_outbox_runtime.sql", import.meta.url), "utf8"));
     await pool.query(await readFile(new URL("../../migrations/0007_drivable_commerce_orders.sql", import.meta.url), "utf8"));

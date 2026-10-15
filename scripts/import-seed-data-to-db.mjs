@@ -5,6 +5,7 @@ import {
   mutationTargetGuard,
   safeTargetDescription,
   sslConfigForUrl,
+  verifyConnectedDatabaseTarget,
 } from "./lib/db-target-safe.mjs";
 
 const root = process.cwd();
@@ -282,9 +283,9 @@ const client = new Client({
   ssl: sslConfigForUrl(databaseUrl),
 });
 
-await client.connect();
-
 try {
+  await client.connect();
+  await verifyConnectedDatabaseTarget(client);
   console.log("Applying seed data to database...");
   await client.query("BEGIN");
 
