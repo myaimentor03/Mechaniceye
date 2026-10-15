@@ -322,6 +322,8 @@ it("adds evidence on submit_evidence transition", () => {
        assert.equal(caseData.evidence.length, 2);
        assert.equal(caseData.evidence[0].kind, "photo");
        assert.equal(caseData.evidence[1].kind, "text");
+       assert.match(caseData.evidence[0].id, /^ev-[0-9a-f-]{36}$/);
+       assert.match(caseData.evidence[1].id, /^ev-[0-9a-f-]{36}$/);
      });
 
 it("escalates when requested", () => {

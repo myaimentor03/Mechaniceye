@@ -1,4 +1,7 @@
- import type { Express, Response as ExpressResponse } from "express";
+import type { Express, RequestHandler, Response as ExpressResponse } from "express";
+import { registerCommerceRoutes } from "./commerce/commerce-routes.js";
+import { POSTGRES_PAYMENT_VALIDATION } from "./commerce/paid-release-coordinator.js";
+import { verifyTestPaymentReadiness } from "./commerce/payment-runtime.js";
 import { createServer, type Server } from "http";
 import { storage, CapabilityNotAvailableError } from "./storage";
 // local fallback validation while DB/schema layer is disabled
@@ -88,16 +91,17 @@ import {
 } from "./evidence-storage";
 import { requireReviewer } from "./reviewer-auth";
 import { registerCustomerAuthRoutes, requireCustomer } from "./customer-auth";
+import { requireCustomerOrReviewer } from "./customer-or-reviewer-auth";
 import { applyAuthenticatedCaseIdentity, authenticatedCaseOwnerId } from "./case-identity";
 import { createRateLimit } from "./rate-limit";
 import { evaluateLaunchReadiness } from "./launch-readiness";
 import { buildFollowUpEvidenceBoundary } from "./follow-up-evidence-boundary";
+import { withFollowUpUploadCleanup } from "./follow-up-upload-lifecycle";
 import { registerDurableReviewRoutes } from "./review/review-routes";
 import { requireVerifiedLaunchControlRuntime } from "./review/launch-control-runtime";
-import { persistEvidenceAttachments, listEvidenceAttachmentsFromDb } from "./evidence-db";
+import { deleteEvidenceAttachmentsForCase, persistEvidenceAttachments, listEvidenceAttachmentsFromDb } from "./evidence-db";
 import { IntakeConsentError, recordConsentRevocation, persistAndAuthorizeIntakeConsent } from "./consent/intake-consent";
 import {
-  isR2EvidenceStorageConfigured,
   type UploadedEvidenceFiles
 } from "./r2-evidence-storage";
 import { requireAllowedOrigin } from "./origin-guard";
@@ -241,6 +245,31 @@ const removeIntakeTempFiles = async (files: UploadedEvidenceFiles) => {
   }));
 };
 const evidenceStore = createEvidenceStoreFromEnvironment();
+
+async function respondAfterDiagnosisEvidenceCleanup(
+  res: ExpressResponse,
+  caseId: string,
+  status: number,
+  body: Record<string, unknown>,
+  metadataMayExist = false,
+) {
+  try {
+    if (metadataMayExist && !(await deleteEvidenceAttachmentsForCase(caseId))) {
+      throw new Error("Evidence metadata cleanup did not complete");
+    }
+    await evidenceStore.deleteCase(caseId);
+    return res.status(status).json(body);
+  } catch (error) {
+    logEventError("diagnosis.evidence_cleanup_failed", error, { caseId });
+    return res.status(503).json({
+      message: "The case could not be completed and evidence cleanup did not finish. Contact support before retrying.",
+      code: "EVIDENCE_CLEANUP_INCOMPLETE",
+      caseId,
+      persisted: false,
+      retryable: false,
+    });
+  }
+}
 
 // Subscription tier features
 const SUBSCRIPTION_FEATURES = {
@@ -450,12 +479,8 @@ function buildVehicleInfoFromParts(input: {
   return [vehicleYear, vehicleMake, vehicleModel, engine].filter(Boolean).join(" ");
 }
 
-function buildDiagnosisInput(body: any): DiagnosisInput {
+export function buildDiagnosisInput(body: any): DiagnosisInput {
   const diagnosisBody = body || {};
-  const pickStringArray = (value: unknown) =>
-    Array.isArray(value)
-      ? value.filter((item): item is string => typeof item === "string")
-      : [];
   let rawVehicleSelection = diagnosisBody.rawVehicleSelection || null;
   if (typeof rawVehicleSelection === "string") {
     try {
@@ -486,10 +511,6 @@ function buildDiagnosisInput(body: any): DiagnosisInput {
   );
 
   return {
-    source: pickString(diagnosisBody.source),
-    submittedAt: pickString(diagnosisBody.submittedAt),
-    submissionStatus: pickString(diagnosisBody.submissionStatus),
-    reviewStatus: pickString(diagnosisBody.reviewStatus),
     clientRequestId: pickString(diagnosisBody.clientRequestId),
     name: pickString(diagnosisBody.name, diagnosisBody.customerName),
     customerName: pickString(diagnosisBody.customerName, diagnosisBody.name),
@@ -519,15 +540,6 @@ function buildDiagnosisInput(body: any): DiagnosisInput {
     unsupportedVehicle: !!diagnosisBody.unsupportedVehicle,
     manualVehicleEntryUsed: !!diagnosisBody.manualVehicleEntryUsed,
     rawVehicleSelection,
-    vibrationData: diagnosisBody.vibrationData || null,
-    photoEvidenceStatus: diagnosisBody.photoEvidenceStatus || "",
-    audioEvidenceStatus: diagnosisBody.audioEvidenceStatus || "",
-    videoEvidenceStatus: diagnosisBody.videoEvidenceStatus || "",
-    vibrationEvidenceStatus: diagnosisBody.vibrationEvidenceStatus || "",
-    photoFileNames: pickStringArray(diagnosisBody.photoFileNames),
-    audioFileNames: pickStringArray(diagnosisBody.audioFileNames),
-    videoFileNames: pickStringArray(diagnosisBody.videoFileNames),
-    vibrationFileNames: pickStringArray(diagnosisBody.vibrationFileNames)
   };
 }
 
@@ -735,7 +747,7 @@ type MasterDiagnosisIntakePayload = {
   submittedAt: string;
 };
 
-function buildMasterDiagnosisIntakePayload(
+export function buildMasterDiagnosisIntakePayload(
   diagnosisCase: DiagnosisCaseResponse,
   input: DiagnosisInput
 ): MasterDiagnosisIntakePayload {
@@ -745,10 +757,10 @@ function buildMasterDiagnosisIntakePayload(
 
   return {
     intakeType: "diagnosis",
-    source: pickString(input.source, "getdrivable-public-diagnosis-intake"),
+    source: "getdrivable-public-diagnosis-intake",
     caseId: pickString(diagnosisCase.id),
-    submissionStatus: pickString(input.submissionStatus, "NEW_DIAGNOSIS_INTAKE"),
-    reviewStatus: pickString(input.reviewStatus, "PENDING_REVIEW"),
+    submissionStatus: "NEW_DIAGNOSIS_INTAKE",
+    reviewStatus: "PENDING_REVIEW",
     name: pickString(input.name, input.customerName),
     email: pickString(input.email, input.customerEmail, extractCustomerEmail(description)),
     phone: pickString(input.phone, input.customerPhone),
@@ -780,7 +792,7 @@ function buildMasterDiagnosisIntakePayload(
     soundNotes: pickString(input.soundNotes),
     obdCodes: pickString(input.obdCodes),
     repairHistory: pickString(input.repairHistory),
-    submittedAt: pickString(input.submittedAt, diagnosisCase.createdAt, new Date().toISOString())
+    submittedAt: diagnosisCase.createdAt
   };
 }
 
@@ -1638,6 +1650,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   registerCustomerAuthRoutes(app);
+  registerCommerceRoutes(app);
   registerDurableReviewRoutes(app);
   registerJourneyRoutes(app);
   const publicFormLimit = createRateLimit({ scope: "public-form", windowMs: 10 * 60_000, max: 15 });
@@ -1672,19 +1685,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       durableEvidence: evidenceStore.durability === "private_object_storage",
       durableConsent: false,
       durableHumanReview,
-      verifiedPaymentEntitlement: false,
+      verifiedPaymentEntitlement: POSTGRES_PAYMENT_VALIDATION.verified && await verifyTestPaymentReadiness(),
       verifiedEmailDelivery: false,
     });
+    const paymentCheck = report.checks.find(check => check.key === "payment_entitlement");
+    if (paymentCheck) paymentCheck.detail = "Test-only signed payment gate: requires durable event proof; disabled in production.";
+    report.checks.push({ key: "test_payment_storage", ready: await verifyTestPaymentReadiness(), detail: "Signed test payment proof and canonical commerce/outbox storage verified." });
+    report.checks.push({ key: "paid_release_validation", ready: POSTGRES_PAYMENT_VALIDATION.verified, detail: POSTGRES_PAYMENT_VALIDATION.blocker });
+    report.ready = report.checks.every(check => check.ready);
     res.status(report.ready ? 200 : 503).json(report);
   });
 
   app.get("/api/capabilities", (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
-    const r2Configured = isR2EvidenceStorageConfigured();
     const s3Configured = evidenceStore.durability === "private_object_storage";
     const isDevelopment = process.env.NODE_ENV !== "production";
     const localPhotoUpload = isDevelopment && evidenceStore.durability === "runtime_local";
-    const hasDurableStorage = s3Configured || r2Configured;
+    // Capabilities must describe the storage adapter actually used by intake,
+    // not the legacy R2 config helper that is not wired into this EvidenceStore.
+    const hasDurableStorage = s3Configured;
     // All media persistence requires durable storage (or local dev). A production
     // process must never advertise uploads it can only persist to ephemeral disk.
     const mediaUploadAvailable = hasDurableStorage || localPhotoUpload;
@@ -2087,11 +2106,18 @@ try {
 
   // Get specific diagnosis with evidence status
   // Reads evidence from DB first (durable SQL records), falls back to filesystem manifest.
-  app.get("/api/diagnoses/:id", requireReviewer, async (req, res) => {
+  app.get("/api/diagnoses/:id", requireCustomerOrReviewer, async (req, res) => {
     try {
       const diagnosis = await storage.getDiagnosis(req.params.id);
       if (!diagnosis) {
         return res.status(404).json({ message: "Diagnosis not found" });
+      }
+      if (req.drivableCustomer && diagnosis.userId !== req.drivableCustomer.id) {
+        return res.status(403).json({
+          ok: false,
+          error: "You do not have access to this case.",
+          code: "CASE_ACCESS_DENIED",
+        });
       }
       // Attach evidence status: prefer DB records, fall back to manifest file
       try {
@@ -2286,6 +2312,14 @@ try {
         persisted: false,
       });
     }
+    if ((photoFiles.length > 0 || hasMobileMedia) && evidenceStore.durability === "private_object_storage" && !process.env.DATABASE_URL) {
+      await removeIntakeTempFiles(uploadedFiles);
+      return res.status(503).json({
+        message: "Evidence upload is unavailable because durable evidence metadata storage is not configured.",
+        code: "EVIDENCE_METADATA_STORAGE_UNAVAILABLE",
+        persisted: false,
+      });
+    }
     if (photoFiles.some((file) => file.size > 12 * 1024 * 1024)) {
       await removeIntakeTempFiles(uploadedFiles);
       return res.status(413).json({ message: "Each photo must be 12 MB or smaller.", persisted: false });
@@ -2369,7 +2403,7 @@ if (photoFiles.length) {
           logEventError("api.photo_evidence_persistence_failed", storageError);
           await removeIntakeTempFiles({ photos: photoFiles });
 
-          return res.status(507).json({
+          return respondAfterDiagnosisEvidenceCleanup(res, responseBody.id, 507, {
             message: "The case could not be completed because its photo evidence was not persisted. Please try again.",
             caseId: responseBody.id,
             persisted: false,
@@ -2387,12 +2421,12 @@ if (photoFiles.length) {
           if (audioFiles.length) {
             if (audioFiles.some((file) => file.size > AUDIO_LIMITS.maxBytesEach)) {
               await removeIntakeTempFiles(uploadedFiles);
-              return res.status(413).json({ message: "Each audio file must be 50 MB or smaller.", persisted: false });
+              return respondAfterDiagnosisEvidenceCleanup(res, responseBody.id, 413, { message: "Each audio file must be 50 MB or smaller.", persisted: false });
             }
             const unsupportedAudioMime = audioFiles.find((file) => !ALLOWED_AUDIO_MEDIA_TYPES.has(file.mimetype));
             if (unsupportedAudioMime) {
               await removeIntakeTempFiles(uploadedFiles);
-              return res.status(415).json({
+              return respondAfterDiagnosisEvidenceCleanup(res, responseBody.id, 415, {
                 message: "A submitted audio file has an unsupported type. Supported types are MP3, WAV, M4A, WebM, and OGG.",
                 code: "UNSUPPORTED_AUDIO_MEDIA_TYPE",
                 persisted: false,
@@ -2406,12 +2440,12 @@ if (photoFiles.length) {
           if (videoFiles.length) {
             if (videoFiles.some((file) => file.size > VIDEO_LIMITS.maxBytesEach)) {
               await removeIntakeTempFiles(uploadedFiles);
-              return res.status(413).json({ message: "Each video file must be 100 MB or smaller.", persisted: false });
+              return respondAfterDiagnosisEvidenceCleanup(res, responseBody.id, 413, { message: "Each video file must be 100 MB or smaller.", persisted: false });
             }
             const unsupportedVideoMime = videoFiles.find((file) => !ALLOWED_VIDEO_MEDIA_TYPES.has(file.mimetype));
             if (unsupportedVideoMime) {
               await removeIntakeTempFiles(uploadedFiles);
-              return res.status(415).json({
+              return respondAfterDiagnosisEvidenceCleanup(res, responseBody.id, 415, {
                 message: "A submitted video file has an unsupported type. Supported types are MP4, MOV, AVI, and WebM.",
                 code: "UNSUPPORTED_VIDEO_MEDIA_TYPE",
                 persisted: false,
@@ -2427,12 +2461,12 @@ if (photoFiles.length) {
           if (vibrationFiles.length) {
             if (vibrationFiles.some((file) => file.size > VIBRATION_LIMITS.maxBytesEach)) {
               await removeIntakeTempFiles(uploadedFiles);
-              return res.status(413).json({ message: "Each vibration file must be 5 MB or smaller.", persisted: false });
+              return respondAfterDiagnosisEvidenceCleanup(res, responseBody.id, 413, { message: "Each vibration file must be 5 MB or smaller.", persisted: false });
             }
             const unsupportedVibrationMime = vibrationFiles.find((file) => !ALLOWED_VIBRATION_MEDIA_TYPES.has(file.mimetype));
             if (unsupportedVibrationMime) {
               await removeIntakeTempFiles(uploadedFiles);
-              return res.status(415).json({
+              return respondAfterDiagnosisEvidenceCleanup(res, responseBody.id, 415, {
                 message: "A submitted vibration file has an unsupported type. Use application/json.",
                 code: "UNSUPPORTED_VIBRATION_MEDIA_TYPE",
                 persisted: false,
@@ -2459,7 +2493,7 @@ if (photoFiles.length) {
         } catch (storageError) {
           logEventError("api.media_evidence_persistence_failed", storageError);
           await removeIntakeTempFiles(mobileMediaFiles);
-          return res.status(507).json({
+          return respondAfterDiagnosisEvidenceCleanup(res, responseBody.id, 507, {
             message: "The case could not be completed because its media evidence was not persisted. Please try again.",
             caseId: responseBody.id,
             persisted: false,
@@ -2497,23 +2531,39 @@ if (photoFiles.length) {
         },
       };
 
-      // Persist evidence attachment metadata to the database as durable SQL records.
-      // This is fire-and-forget: file storage already succeeded, and a DB failure
-      // should not block the case response. The manifest file is the fallback.
-      // We still call persistEvidenceAttachments so that DB-backed evidence records
-      // are created in parallel with the case response. A failure here does not
-      // prevent the case from being saved; the manifest file is the reliable fallback.
+      // Do not claim evidence upload completion unless durable attachment metadata
+      // was recorded as well as the underlying evidence object.
       const allAttachments = responseBody.attachments ?? [];
-      if (allAttachments.length > 0) {
-        await persistEvidenceAttachments(allAttachments).catch(
-          (err) => logEventError("evidence_db.persist_failed", err, { caseId: responseBody.id })
-        );
+      const localManifestIsAuthoritative =
+        process.env.NODE_ENV !== "production"
+        && !process.env.DATABASE_URL
+        && evidenceStore.durability === "runtime_local";
+      if (allAttachments.length > 0 && !localManifestIsAuthoritative) {
+        const evidenceDbResult = await persistEvidenceAttachments(allAttachments);
+        if (!evidenceDbResult.ok) {
+          logEvent("diagnosis.evidence_metadata_persistence_failed", { caseId: responseBody.id });
+          return respondAfterDiagnosisEvidenceCleanup(res, responseBody.id, 503, {
+            message: "Your case details were received, but evidence metadata could not be saved. Do not resubmit; contact support with the case ID.",
+            code: "EVIDENCE_METADATA_PERSISTENCE_FAILED",
+            caseId: responseBody.id,
+            persisted: false,
+            caseDetailsReceived: true,
+            evidenceMetadataPersisted: false,
+            retryable: false,
+          }, true);
+        }
       }
 
       if (usedPublicFallback) {
         const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, storedCase, authenticatedCaseOwnerId(req.drivableCustomer?.id));
         if (!dbResult.ok) {
-          if (photoFiles.length || hasMobileMedia) await evidenceStore.deleteCase(responseBody.id);
+          if (photoFiles.length || hasMobileMedia) {
+            return respondAfterDiagnosisEvidenceCleanup(res, responseBody.id, 503, {
+              message: "The case was not saved to the case database. Please try again.",
+              caseId: responseBody.id,
+              persisted: false,
+            }, allAttachments.length > 0 && !localManifestIsAuthoritative);
+          }
           return res.status(503).json({ message: "The case was not saved to the case database. Please try again.", caseId: responseBody.id, persisted: false });
         }
         responseBody.casePersistence = { primary: "database", databaseMirror: "persisted" };
@@ -2551,8 +2601,34 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
     }
   });
 
-  // Create follow-up request when previous fixes didn't work
-  app.post("/api/diagnoses/:id/follow-up", requireReviewer, reviewerWriteLimit, followUpEvidenceUploadMiddleware, async (req, res) => {
+  const requireFollowUpCaseOwner: RequestHandler = async (req, res, next) => {
+    try {
+      const diagnosis = await storage.getDiagnosis(req.params.id);
+      if (!diagnosis) return res.status(404).json({ message: "Original diagnosis not found" });
+      if (diagnosis.userId !== req.drivableCustomer?.id) {
+        return res.status(403).json({
+          ok: false,
+          error: "You do not have access to this case.",
+          code: "CASE_ACCESS_DENIED",
+          persisted: false,
+        });
+      }
+      res.locals.followUpOriginalDiagnosis = diagnosis;
+      next();
+    } catch (error) {
+      logEventError("api.follow_up_case_authorization_failed", error, { diagnosisId: req.params.id });
+      return res.status(503).json({
+        ok: false,
+        error: "The case could not be verified. Please try again.",
+        code: "CASE_ACCESS_CHECK_FAILED",
+        persisted: false,
+      });
+    }
+  };
+
+  // Check ownership before multipart parsing so rejected requests cannot consume
+  // upload memory or CPU before being denied.
+  app.post("/api/diagnoses/:id/follow-up", requireCustomer, customerIntakeLimit, requireFollowUpCaseOwner, followUpEvidenceUploadMiddleware, async (req, res) => {
     const uploadedFiles = (req.files || {}) as UploadedEvidenceFiles;
     const photoFiles = uploadedFiles.photos || [];
     const audioFiles = uploadedFiles.audio || [];
@@ -2561,15 +2637,24 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
     const cleanupTemporaryFiles = async () => {
       await removeIntakeTempFiles(uploadedFiles);
     };
-    try {
+    return withFollowUpUploadCleanup(async () => {
+      try {
       const diagnosisId = req.params.id;
+      const additionalInfo = typeof req.body?.additionalInfo === "string" ? req.body.additionalInfo.trim() : "";
+      if (additionalInfo.length < 20 || additionalInfo.length > 5_000) {
+        return res.status(400).json({
+          ok: false,
+          error: "Describe what changed in at least 20 characters, up to 5,000 characters.",
+          code: "INVALID_FOLLOW_UP_DETAILS",
+          persisted: false,
+        });
+      }
 
       // Truthful gate: photo upload requires durable storage or local dev
       if (photoFiles.length > 0) {
         const isDevelopment = process.env.NODE_ENV !== "production";
         const allowPhotoUpload = isDevelopment && evidenceStore.durability === "runtime_local";
         if (!allowPhotoUpload && evidenceStore.durability !== "private_object_storage") {
-          await cleanupTemporaryFiles();
           return res.status(409).json({
             message: "Photo upload is not available until private evidence storage passes launch verification.",
             persisted: false,
@@ -2577,13 +2662,11 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
         }
         for (const file of photoFiles) {
           if (file.size > PHOTO_LIMITS.maxBytesEach) {
-            await cleanupTemporaryFiles();
             return res.status(413).json({ message: "Each photo must be 12 MB or smaller.", persisted: false });
           }
         }
         const unsupportedPhotoMime = photoFiles.find((f) => !ALLOWED_PHOTO_MEDIA_TYPES.has(f.mimetype));
         if (unsupportedPhotoMime) {
-          await cleanupTemporaryFiles();
           return res.status(415).json({
             message: "A submitted photo has an unsupported file type. Supported types are JPEG, PNG, WebP, and HEIC.",
             code: "UNSUPPORTED_PHOTO_MEDIA_TYPE",
@@ -2595,39 +2678,32 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
       // Validate audio / video / vibration per-type limits truthfully before persistence
       if (audioFiles.length > 0) {
         if (audioFiles.some((f) => f.size > AUDIO_LIMITS.maxBytesEach)) {
-          await cleanupTemporaryFiles();
           return res.status(413).json({ message: "Each audio file must be 50 MB or smaller.", persisted: false });
         }
         const badAudio = audioFiles.find((f) => !ALLOWED_AUDIO_MEDIA_TYPES.has(f.mimetype));
         if (badAudio) {
-          await cleanupTemporaryFiles();
           return res.status(415).json({ message: "A submitted audio file has an unsupported type. Supported types are MP3, WAV, M4A, WebM, and OGG.", code: "UNSUPPORTED_AUDIO_MEDIA_TYPE", persisted: false });
         }
       }
       if (videoFiles.length > 0) {
         if (videoFiles.some((f) => f.size > VIDEO_LIMITS.maxBytesEach)) {
-          await cleanupTemporaryFiles();
           return res.status(413).json({ message: "Each video file must be 100 MB or smaller.", persisted: false });
         }
         const badVideo = videoFiles.find((f) => !ALLOWED_VIDEO_MEDIA_TYPES.has(f.mimetype));
         if (badVideo) {
-          await cleanupTemporaryFiles();
           return res.status(415).json({ message: "A submitted video file has an unsupported type. Supported types are MP4, MOV, AVI, and WebM.", code: "UNSUPPORTED_VIDEO_MEDIA_TYPE", persisted: false });
         }
       }
       if (vibrationFiles.length > 0) {
         if (vibrationFiles.some((f) => f.size > VIBRATION_LIMITS.maxBytesEach)) {
-          await cleanupTemporaryFiles();
           return res.status(413).json({ message: "Each vibration file must be 5 MB or smaller.", persisted: false });
         }
         const badVib = vibrationFiles.find((f) => !ALLOWED_VIBRATION_MEDIA_TYPES.has(f.mimetype));
         if (badVib) {
-          await cleanupTemporaryFiles();
           return res.status(415).json({ message: "A submitted vibration file has an unsupported type. Use application/json.", code: "UNSUPPORTED_VIBRATION_MEDIA_TYPE", persisted: false });
         }
       }
       if (req.body.vibrationData) {
-        await cleanupTemporaryFiles();
         return res.status(422).json({
           message: "Vibration JSON via vibrationData is deprecated. Please upload a vibration file via the 'vibration' field or describe the vibration in text.",
           code: "VIBRATION_CAPTURE_DEPRECATED",
@@ -2640,21 +2716,27 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
         const allowLocalMediaUpload = isDevelopment && evidenceStore.durability === "runtime_local";
         const allowMobileMediaUpload = allowLocalMediaUpload || evidenceStore.durability === "private_object_storage" || isDevelopment;
         if (!allowMobileMediaUpload) {
-          await cleanupTemporaryFiles();
           return res.status(409).json({
             message: "Audio, video, and vibration upload are not available until private evidence storage passes launch verification.",
             persisted: false,
           });
         }
       }
+      if (
+        [...photoFiles, ...audioFiles, ...videoFiles, ...vibrationFiles].length > 0
+        && evidenceStore.durability === "private_object_storage"
+        && !process.env.DATABASE_URL
+      ) {
+        return res.status(503).json({
+          message: "Evidence upload is unavailable because durable evidence metadata storage is not configured.",
+          code: "EVIDENCE_METADATA_STORAGE_UNAVAILABLE",
+          persisted: false,
+        });
+      }
 
       // Resolve the case before accepting any private evidence so follow-up media
       // can never be persisted (or claimed) for a case that does not exist.
-      const originalDiagnosis = await storage.getDiagnosis(diagnosisId);
-      if (!originalDiagnosis) {
-        await cleanupTemporaryFiles();
-        return res.status(404).json({ message: "Original diagnosis not found" });
-      }
+      const originalDiagnosis = res.locals.followUpOriginalDiagnosis as NonNullable<Awaited<ReturnType<typeof storage.getDiagnosis>>>;
 
       let vibrationStoredKeys: string[] = [];
       let photoAttachments: EvidenceAttachment[] = [];
@@ -2668,7 +2750,6 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
           photoAttachments = await evidenceStore.savePhotos(diagnosisId, photoFiles);
         } catch (storageError) {
           logEventError("api.follow_up_photo_storage_failed", storageError, { diagnosisId });
-          await cleanupTemporaryFiles();
           return res.status(507).json({
             message: "Photo evidence could not be persisted. Please try again.",
             code: "PHOTO_PERSISTENCE_FAILED",
@@ -2681,7 +2762,6 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
           audioAttachments = await evidenceStore.saveAudioFiles(diagnosisId, audioFiles);
         } catch (storageError) {
           logEventError("api.follow_up_audio_storage_failed", storageError, { diagnosisId });
-          await cleanupTemporaryFiles();
           return res.status(507).json({
             message: "Audio evidence could not be persisted. Please try again.",
             code: "AUDIO_PERSISTENCE_FAILED",
@@ -2694,7 +2774,6 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
           videoAttachments = await evidenceStore.saveVideoFiles(diagnosisId, videoFiles);
         } catch (storageError) {
           logEventError("api.follow_up_video_storage_failed", storageError, { diagnosisId });
-          await cleanupTemporaryFiles();
           return res.status(507).json({
             message: "Video evidence could not be persisted. Please try again.",
             code: "VIDEO_PERSISTENCE_FAILED",
@@ -2708,7 +2787,6 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
           vibrationStoredKeys = vibrationAttachments.map((a) => a.storageKey);
         } catch (vError) {
           logEventError("api.follow_up_vibration_storage_failed", vError, { diagnosisId });
-          await cleanupTemporaryFiles();
           return res.status(507).json({
             message: "Vibration evidence could not be persisted. Please try again.",
             code: "VIBRATION_PERSISTENCE_FAILED",
@@ -2723,22 +2801,14 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
       const followUpData = {
         originalDiagnosisId: diagnosisId,
         userId: originalDiagnosis.userId!,
-        additionalInfo: req.body.additionalInfo,
+        additionalInfo,
         newAudioFile: audioFile,
         newVideoFile: videoFile,
         newVibrationData: vibrationStoredKeys[0] || null,
         photoAttachmentIds: photoAttachments.map((a) => a.id),
       };
 
-      const followUp = await storage.createFollowUp(followUpData);
-
-      // Persist follow-up evidence attachment metadata to the database.
       const followUpAttachments = [...photoAttachments, ...audioAttachments, ...videoAttachments, ...vibrationAttachments];
-      if (followUpAttachments.length > 0) {
-        await persistEvidenceAttachments(followUpAttachments).catch(
-          (err) => logEventError("evidence_db.persist_failed", err, { caseId: diagnosisId })
-        );
-      }
 
       // Get previously attempted fixes
       const previousFollowUps = await storage.getFollowUpsByDiagnosis(diagnosisId);
@@ -2749,7 +2819,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
       ].filter(Boolean);
 
       // Perform enhanced analysis with iteration count
-      const iterationCount = previousFollowUps.length + 2; // +1 for original, +1 for current
+      const iterationCount = previousFollowUps.length + 2; // original diagnosis, existing follow-ups, and this follow-up
       const analysisResults = performEnhancedAnalysis(
         {
           description: `${originalDiagnosis.description}\n\nAdditional info: ${followUpData.additionalInfo}`,
@@ -2767,7 +2837,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
         videoStored: videoAttachments.length > 0,
         vibrationStored: vibrationAttachments.length > 0,
       });
-      const newDiagnosis = await storage.createDiagnosis({
+      const { diagnosis: newDiagnosis } = await storage.createFollowUpAndDiagnosis(followUpData, {
         userId: originalDiagnosis.userId,
         vehicleInfo: originalDiagnosis.vehicleInfo!,
         description: `Follow-up #${iterationCount - 1}: ${followUpData.additionalInfo}`,
@@ -2779,24 +2849,32 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
         confidenceScore: analysisResults.primaryDiagnosis?.confidence || 0,
         confidenceLevel: analysisResults.primaryDiagnosis?.confidence >= 80 ? "high" : 
                        analysisResults.primaryDiagnosis?.confidence >= 60 ? "medium" : "low",
+        primaryDiagnosis: analysisResults.primaryDiagnosis,
+        alternativeScenarios: analysisResults.alternativeScenarios,
         // Only text reaches performEnhancedAnalysis. Media remains reviewer evidence
         // and must never be labeled as an analyzed model input.
-        inputTypes: [...evidenceBoundary.analyzedInputTypes],
+        inputTypes: [...evidenceBoundary.receivedInputTypes],
         iterationCount,
-      });
+      }, followUpAttachments);
 
       res.json({
         ...newDiagnosis,
         evidenceProcessing: evidenceBoundary.evidenceProcessing,
         analysisBoundary: evidenceBoundary.analysisBoundary,
       });
-    } catch (error: any) {
-      logEventError("api.follow_up_creation_failed", error);
+      } catch (error: any) {
+        logEventError("api.follow_up_creation_failed", error);
 
-      res.status(400).json({ 
-        message: "Failed to create follow-up. Please try again."
-      });
-    }
+        res.status(503).json({
+          message: "The follow-up could not be saved. Uploaded evidence may have been retained; contact support before retrying.",
+          code: "FOLLOW_UP_NOT_COMPLETED",
+          persisted: false,
+          retryable: false,
+        });
+      }
+    }, cleanupTemporaryFiles, (error) => {
+      logEventError("api.follow_up_temp_cleanup_failed", error, { diagnosisId: req.params.id });
+    });
   });
 
   // Get subscription pricing and features
@@ -2918,6 +2996,4 @@ const filename = path.basename(String(req.params.filename || ""));
   const httpServer = createServer(app);
   return httpServer;
 }
-
-
 

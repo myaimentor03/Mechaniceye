@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import {
   SAFETY_STOP_DRIVING_TRIGGERS,
   DECISION_PATHS,
@@ -816,7 +816,7 @@ export function advanceJourney(
 
 if ((transition === "submit_evidence" || transition === "add_more_evidence" || transition === "add_followup_evidence") && additionalData?.evidence) {
     const normalized: EvidenceRecord[] = additionalData.evidence.map((e: any) => ({
-      id: e.id || `ev-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      id: e.id || `ev-${randomUUID()}`,
       kind: e.kind,
       addedAt: e.addedAt || new Date().toISOString(),
       description: e.description,

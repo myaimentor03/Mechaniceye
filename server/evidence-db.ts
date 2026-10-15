@@ -60,6 +60,22 @@ export async function persistEvidenceAttachments(
 }
 
 /**
+ * Remove metadata for a newly-created intake when the case cannot be completed.
+ * Callers must remove the object-store manifest only after this succeeds so a
+ * failed DB cleanup does not leave metadata pointing at already-deleted media.
+ */
+export async function deleteEvidenceAttachmentsForCase(caseId: string): Promise<boolean> {
+  try {
+    await getDb().delete(drivableEvidenceAttachments).where(eq(drivableEvidenceAttachments.caseId, caseId));
+    logEvent("evidence_db.deleted_after_intake_failure", { caseId });
+    return true;
+  } catch (error) {
+    logEventError("evidence_db.delete_after_intake_failure_failed", error, { caseId });
+    return false;
+  }
+}
+
+/**
  * List evidence attachments from the database for a given case.
  * Returns an empty array if no records exist.
  */

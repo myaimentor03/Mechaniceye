@@ -6,6 +6,7 @@ import { startUnattendedWorker } from "./journey-unattended-worker";
 import { journeyStoreReady } from "./journey-store";
 import path from "path";
 import fs from "fs";
+import { registerTestPaymentWebhook } from "./commerce/payment-webhook.js";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -42,6 +43,7 @@ app.use((req, res, next) => {
   next();
 });
 
+registerTestPaymentWebhook(app);
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -109,12 +111,14 @@ app.use(express.urlencoded({ extended: false }));
   server.listen(port, () => {
     console.log(`Server running on port ${port}`);
 
-    // Start unattended case evaluator — auto-evaluates cases stuck in
-    // evidence_received when the customer doesn't return (P0 #6).
-    try {
-      startUnattendedWorker();
-    } catch (err) {
-      logEventError("journey.unattended_worker_startup_failed", err, {});
+    // Test servers must remain deterministic and must not spawn background
+    // work; production and development retain the normal evaluator.
+    if (process.env.NODE_ENV !== "test") {
+      try {
+        startUnattendedWorker();
+      } catch (err) {
+        logEventError("journey.unattended_worker_startup_failed", err, {});
+      }
     }
   });
 })();

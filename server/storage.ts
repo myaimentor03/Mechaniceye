@@ -1,6 +1,8 @@
 import { eq } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { getDb } from "./db";
-import { diagnoses } from "./shared/shared/schema";
+import { diagnoses, followUpRequests } from "./shared/shared/schema";
+import { drivableEvidenceAttachments } from "../shared/schema";
 import type { EvidenceAttachment } from "../shared/drivableEvidence.js";
 
 type DiagnosisRow = typeof diagnoses.$inferSelect;
@@ -198,19 +200,16 @@ class LocalStorage {
   }
 
   async getDiagnosis(id: string) {
-    const local = this.diagnoses.get(id);
-    if (local) return local;
-    try {
+    if (process.env.DATABASE_URL || process.env.NODE_ENV === "production") {
       const rows = await getDb().select().from(diagnoses).where(eq(diagnoses.id, id)).limit(1);
       return rows.length > 0 ? mapDiagnosisRowToRecord(rows[0]) : null;
-    } catch {
-      return null;
     }
+    return this.diagnoses.get(id) ?? null;
   }
 
   async createDiagnosis(data: Partial<DiagnosisRecord>) {
     const diagnosis: DiagnosisRecord = {
-      id: data.id || Date.now().toString(),
+      id: data.id || randomUUID(),
       userId: data.userId || "",
       vehicleInfo: data.vehicleInfo || "",
       description: data.description || "",
@@ -229,13 +228,34 @@ class LocalStorage {
       status: data.status || "received"
     };
 
+    if (process.env.DATABASE_URL || process.env.NODE_ENV === "production") {
+      const [row] = await getDb().insert(diagnoses).values({
+        id: diagnosis.id,
+        userId: diagnosis.userId || null,
+        vehicleInfo: diagnosis.vehicleInfo || null,
+        description: diagnosis.description || null,
+        timing: diagnosis.timing || null,
+        audioFile: diagnosis.audioFile ?? null,
+        videoFile: diagnosis.videoFile ?? null,
+        vibrationData: diagnosis.vibrationData as any,
+        primaryDiagnosis: diagnosis.primaryDiagnosis as any,
+        alternativeScenarios: diagnosis.alternativeScenarios as any,
+        iterationCount: diagnosis.iterationCount,
+        confidenceScore: diagnosis.confidenceScore,
+        confidenceLevel: diagnosis.confidenceLevel,
+        inputTypes: diagnosis.inputTypes,
+      }).returning();
+      if (!row) throw new Error("Diagnosis persistence did not return a stored record");
+      return mapDiagnosisRowToRecord(row);
+    }
+
     this.diagnoses.set(diagnosis.id, diagnosis);
     return diagnosis;
   }
 
   async createFollowUp(data: Partial<FollowUpRecord>) {
     const followUp: FollowUpRecord = {
-      id: Date.now().toString(),
+      id: randomUUID(),
       originalDiagnosisId: data.originalDiagnosisId || "",
       userId: data.userId || "",
       additionalInfo: data.additionalInfo || "",
@@ -246,6 +266,32 @@ class LocalStorage {
       createdAt: new Date().toISOString()
     };
 
+    if (process.env.DATABASE_URL || process.env.NODE_ENV === "production") {
+      const [row] = await getDb().insert(followUpRequests).values({
+        id: followUp.id,
+        originalDiagnosisId: followUp.originalDiagnosisId,
+        userId: followUp.userId || "",
+        additionalInfo: followUp.additionalInfo,
+        newAudioFile: followUp.newAudioFile,
+        newVideoFile: followUp.newVideoFile,
+        newVibrationData: followUp.newVibrationData as any,
+      }).returning();
+      if (!row) throw new Error("Follow-up persistence did not return a stored record");
+      return {
+        id: row.id,
+        originalDiagnosisId: row.originalDiagnosisId,
+        userId: row.userId,
+        additionalInfo: row.additionalInfo ?? "",
+        newAudioFile: row.newAudioFile,
+        newVideoFile: row.newVideoFile,
+        newVibrationData: row.newVibrationData,
+        // The current PostgreSQL schema has no follow-up-to-photo relation.
+        // Do not report the caller's process-local IDs as restart-durable.
+        photoAttachmentIds: [],
+        createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : new Date().toISOString(),
+      };
+    }
+
     const existing = this.followUps.get(followUp.originalDiagnosisId) || [];
     existing.push(followUp);
     this.followUps.set(followUp.originalDiagnosisId, existing);
@@ -253,7 +299,131 @@ class LocalStorage {
   }
 
   async getFollowUpsByDiagnosis(diagnosisId: string) {
+    if (process.env.DATABASE_URL || process.env.NODE_ENV === "production") {
+      const rows = await getDb().select().from(followUpRequests)
+        .where(eq(followUpRequests.originalDiagnosisId, diagnosisId));
+      return rows.map((row) => ({
+        id: row.id,
+        originalDiagnosisId: row.originalDiagnosisId,
+        userId: row.userId,
+        additionalInfo: row.additionalInfo ?? "",
+        newAudioFile: row.newAudioFile,
+        newVideoFile: row.newVideoFile,
+        newVibrationData: row.newVibrationData,
+        photoAttachmentIds: [],
+        createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : new Date().toISOString(),
+      }));
+    }
     return this.followUps.get(diagnosisId) || [];
+  }
+
+  async createFollowUpAndDiagnosis(
+    followUpData: Partial<FollowUpRecord>,
+    diagnosisData: Partial<DiagnosisRecord>,
+    evidenceAttachments: readonly EvidenceAttachment[] = [],
+  ) {
+    const followUp: FollowUpRecord = {
+      id: randomUUID(),
+      originalDiagnosisId: followUpData.originalDiagnosisId || "",
+      userId: followUpData.userId || "",
+      additionalInfo: followUpData.additionalInfo || "",
+      newAudioFile: followUpData.newAudioFile ?? null,
+      newVideoFile: followUpData.newVideoFile ?? null,
+      newVibrationData: followUpData.newVibrationData ?? null,
+      photoAttachmentIds: followUpData.photoAttachmentIds ?? [],
+      createdAt: new Date().toISOString(),
+    };
+    const diagnosis: DiagnosisRecord = {
+      id: diagnosisData.id || randomUUID(),
+      userId: diagnosisData.userId || "",
+      vehicleInfo: diagnosisData.vehicleInfo || "",
+      description: diagnosisData.description || "",
+      timing: diagnosisData.timing || "",
+      audioFile: diagnosisData.audioFile ?? null,
+      videoFile: diagnosisData.videoFile ?? null,
+      vibrationData: diagnosisData.vibrationData ?? null,
+      photoAttachmentIds: diagnosisData.photoAttachmentIds ?? [],
+      confidenceScore: diagnosisData.confidenceScore || 0,
+      confidenceLevel: diagnosisData.confidenceLevel || "low",
+      inputTypes: diagnosisData.inputTypes || [],
+      iterationCount: diagnosisData.iterationCount || 1,
+      primaryDiagnosis: diagnosisData.primaryDiagnosis || null,
+      alternativeScenarios: diagnosisData.alternativeScenarios || [],
+      createdAt: new Date().toISOString(),
+      status: diagnosisData.status || "received",
+    };
+
+    if (process.env.DATABASE_URL || process.env.NODE_ENV === "production") {
+      return getDb().transaction(async (tx) => {
+        const [followUpRow] = await tx.insert(followUpRequests).values({
+          id: followUp.id,
+          originalDiagnosisId: followUp.originalDiagnosisId,
+          userId: followUp.userId || "",
+          additionalInfo: followUp.additionalInfo,
+          newAudioFile: followUp.newAudioFile,
+          newVideoFile: followUp.newVideoFile,
+          newVibrationData: followUp.newVibrationData as any,
+        }).returning();
+        if (!followUpRow) throw new Error("Follow-up persistence did not return a stored record");
+
+        const [diagnosisRow] = await tx.insert(diagnoses).values({
+          id: diagnosis.id,
+          userId: diagnosis.userId || null,
+          vehicleInfo: diagnosis.vehicleInfo || null,
+          description: diagnosis.description || null,
+          timing: diagnosis.timing || null,
+          audioFile: diagnosis.audioFile ?? null,
+          videoFile: diagnosis.videoFile ?? null,
+          vibrationData: diagnosis.vibrationData as any,
+          primaryDiagnosis: diagnosis.primaryDiagnosis as any,
+          alternativeScenarios: diagnosis.alternativeScenarios as any,
+          iterationCount: diagnosis.iterationCount,
+          confidenceScore: diagnosis.confidenceScore,
+          confidenceLevel: diagnosis.confidenceLevel,
+          inputTypes: diagnosis.inputTypes,
+        }).returning();
+        if (!diagnosisRow) throw new Error("Follow-up diagnosis persistence did not return a stored record");
+
+        if (evidenceAttachments.length > 0) {
+          await tx.insert(drivableEvidenceAttachments).values(evidenceAttachments.map((attachment) => ({
+            id: attachment.id,
+            caseId: attachment.caseId,
+            kind: attachment.kind,
+            originalName: attachment.originalName,
+            mimeType: attachment.mimeType,
+            byteSize: attachment.byteSize,
+            status: attachment.status,
+            storageKey: attachment.storageKey,
+            provenance: attachment.provenance,
+            analysisStatus: attachment.analysisStatus,
+            notes: attachment.notes ?? null,
+            createdAt: new Date(attachment.createdAt),
+          }))).onConflictDoNothing({ target: drivableEvidenceAttachments.id });
+        }
+
+        return {
+          followUp: {
+            id: followUpRow.id,
+            originalDiagnosisId: followUpRow.originalDiagnosisId,
+            userId: followUpRow.userId,
+            additionalInfo: followUpRow.additionalInfo ?? "",
+            newAudioFile: followUpRow.newAudioFile,
+            newVideoFile: followUpRow.newVideoFile,
+            newVibrationData: followUpRow.newVibrationData,
+            // Evidence remains associated with the case until a normalized
+            // follow-up-to-attachment relation is added by an approved migration.
+            photoAttachmentIds: [],
+            createdAt: followUpRow.createdAt instanceof Date ? followUpRow.createdAt.toISOString() : followUp.createdAt,
+          } satisfies FollowUpRecord,
+          diagnosis: mapDiagnosisRowToRecord(diagnosisRow),
+        };
+      });
+    }
+
+    const existing = this.followUps.get(followUp.originalDiagnosisId) || [];
+    this.followUps.set(followUp.originalDiagnosisId, [...existing, followUp]);
+    this.diagnoses.set(diagnosis.id, diagnosis);
+    return { followUp, diagnosis };
   }
 
   async getActiveMechanics(): Promise<never> {

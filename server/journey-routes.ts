@@ -1,4 +1,5 @@
 import type { Express, Response } from "express";
+import { randomBytes } from "node:crypto";
 import {
   createJourneyCase,
   advanceJourney,
@@ -678,7 +679,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       }
 
       const evidenceRecord: EvidenceRecord = {
-        id: `ev-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+        id: `ev-${randomBytes(16).toString("hex")}`,
         kind,
         addedAt: new Date().toISOString(),
         description: typeof description === "string" ? description.trim() : undefined,
@@ -1452,7 +1453,7 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
       }
 
       const approval = await journeyReviewBridge.approveReview(
-        caseData.id,
+        caseData,
         reviewerRef,
         highRiskAcknowledged
       );
@@ -1504,6 +1505,14 @@ const validTransitions: Record<string, Partial<Record<JourneyState, JourneyTrans
         evidenceBoundary,
       });
     } catch (error) {
+      if (error instanceof Error && error.message === "approval_binding_mismatch") {
+        res.status(409).json({
+          ok: false,
+          code: "APPROVAL_BINDING_MISMATCH",
+          error: "The case changed after review preparation. It must be reviewed again before approval.",
+        });
+        return;
+      }
       if (reviewControlsUnavailable(error)) {
         logEventError("journey.review.approve_unavailable", error, { caseId: req.params.caseId });
         reviewUnavailable(res);

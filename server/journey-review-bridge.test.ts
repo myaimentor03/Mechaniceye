@@ -396,7 +396,8 @@ describe("JourneyReviewBridge", () => {
       });
 
       const boundary = bridge.buildEvidenceBoundary(caseData);
-      assert.ok(boundary.analyzedInputTypes.includes("audio"));
+      assert.ok(boundary.receivedInputTypes.includes("audio"));
+      assert.deepEqual(boundary.analyzedInputTypes, ["description"]);
       assert.equal(boundary.evidenceProcessing.audio, "stored_for_human_review_not_analyzed");
     });
   });
