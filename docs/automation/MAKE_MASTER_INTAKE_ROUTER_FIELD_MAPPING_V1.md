@@ -1,5 +1,7 @@
 # Make Master Intake Router Field Mapping V1
 
+> **Superseded for the current Integration export:** use [`MAKE_MASTER_INTAKE_ROUTER_REPAIR_PLAN_2026-10-15.md`](MAKE_MASTER_INTAKE_ROUTER_REPAIR_PLAN_2026-10-15.md). This older V1 guide contains the obsolete buyer filter `buyer-interest`, nested mappings that do not match current flat payloads, and historical workbook assumptions. Do not configure or import from the old values below.
+
 ## Purpose
 
 Use this guide to build and verify the Drivable Master Intake Router one branch at a time without guessing webhook field names or Google Sheet headers.
