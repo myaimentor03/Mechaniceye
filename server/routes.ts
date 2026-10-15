@@ -88,6 +88,7 @@ import {
   VIDEO_LIMITS,
   VIBRATION_LIMITS,
   createEvidenceStoreFromEnvironment,
+  type UploadedEvidenceFiles,
 } from "./evidence-storage";
 import { requireReviewer } from "./reviewer-auth";
 import { registerCustomerAuthRoutes, requireCustomer } from "./customer-auth";
@@ -101,9 +102,6 @@ import { registerDurableReviewRoutes } from "./review/review-routes";
 import { requireVerifiedLaunchControlRuntime } from "./review/launch-control-runtime";
 import { deleteEvidenceAttachmentsForCase, persistEvidenceAttachments, listEvidenceAttachmentsFromDb } from "./evidence-db";
 import { IntakeConsentError, recordConsentRevocation, persistAndAuthorizeIntakeConsent } from "./consent/intake-consent";
-import {
-  type UploadedEvidenceFiles
-} from "./r2-evidence-storage";
 import { requireAllowedOrigin } from "./origin-guard";
 import { logEvent, logEventError } from "./observability/safe-log";
 import { registerJourneyRoutes } from "./journey-routes";

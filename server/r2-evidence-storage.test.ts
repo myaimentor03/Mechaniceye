@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
-import { storeEvidenceFilesWithClient, type UploadedEvidenceFiles } from "./r2-evidence-storage.js";
+import { storeEvidenceFilesWithClient } from "./r2-evidence-storage.js";
+import type { UploadedEvidenceFiles } from "./evidence-storage.js";
 
 type StoredObject = {
   key: string;

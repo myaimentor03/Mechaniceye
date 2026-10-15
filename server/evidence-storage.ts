@@ -28,6 +28,9 @@ export const ALLOWED_VIBRATION_MEDIA_TYPES = new Set([
   "application/json", "application/octet-stream",
 ]);
 
+/** Multer fields accepted by the active diagnosis and follow-up routes. */
+export type UploadedEvidenceFiles = Partial<Record<"photos" | "audio" | "video" | "vibration", Express.Multer.File[]>>;
+
 type VerifiedMedia = { mimeType: string; extension: string };
 
 function verifiedImageType(buffer: Buffer): VerifiedMedia | null {
