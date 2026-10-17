@@ -11,6 +11,15 @@ export function transactionOutbox(tx: ReviewTransaction) {
   return new PostgresDeliveryOutboxRepository({ query: tx.query.bind(tx), transaction: work => work(tx) });
 }
 
+function sameProviderBinding(
+  left: NonNullable<CommerceOrder["provider"]>,
+  right: NonNullable<CommerceOrder["provider"]>,
+): boolean {
+  return left.adapterId === right.adapterId
+    && left.provider === right.provider
+    && left.providerOrderReference === right.providerOrderReference;
+}
+
 /** Canonical v2 snapshot schema; a single checked-out Postgres transaction is mandatory. */
 export class PostgresCommerceOrderRepository implements CommerceOrderRepository {
   readonly capabilities = PRODUCTION_COMMERCE_REPOSITORY_REQUIREMENTS;
@@ -80,7 +89,7 @@ export class PostgresCommerceOrderRepository implements CommerceOrderRepository 
         || proof.provider !== input.provider.provider || proof.providerOrderReference !== input.provider.providerOrderReference
         || fingerprintProviderEvent(input.provider.adapterId, proof) !== input.eventFingerprint)) throw new Error("Payment proof mismatch");
       if (!input.eventKind && input.nextState !== "refund_required") throw new Error("Provider proof required");
-      if (!input.provider || (current.provider && JSON.stringify(current.provider) !== JSON.stringify(input.provider))) throw new Error("Provider binding mismatch");
+      if (!input.provider || (current.provider && !sameProviderBinding(current.provider, input.provider))) throw new Error("Provider binding mismatch");
       const updated = freezeOrder({ ...current, state: input.nextState, provider: input.provider,
         version: current.version + 1, eventCount: current.eventCount + 1,
         updatedAt: input.occurredAt, refundReasonCode: input.refundReasonCode,

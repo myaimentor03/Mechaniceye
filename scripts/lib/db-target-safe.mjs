@@ -47,6 +47,18 @@ function isLocalHost(hostname) {
   return host === "localhost" || host.startsWith("127.") || host === "::1" || host === "0.0.0.0";
 }
 
+/** PostgreSQL renders inet_server_addr() as a host CIDR (for example, 10.0.0.1/32). */
+function normalizeServerAddress(value) {
+  const parts = String(value || "").trim().split("/");
+  if (parts.length > 2) return null;
+  const version = isIP(parts[0]);
+  if (!version) return null;
+  if (parts.length === 1) return parts[0];
+  const prefix = Number(parts[1]);
+  const fullHostPrefix = version === 4 ? 32 : 128;
+  return Number.isInteger(prefix) && prefix === fullHostPrefix ? parts[0] : null;
+}
+
 function parseDatabaseUrl(raw) {
   const input = String(raw || "").trim();
   if (!input) return null;
@@ -162,7 +174,7 @@ export function mutationTargetGuard(databaseUrl, env = process.env) {
     return { ok: false, reason: `a separately verified provider instance ID is required (${EXPECTED_TEST_INSTANCE_ID_ENV} must match ${CONFIRMED_TEST_INSTANCE_ID_ENV}).` };
   }
   const expectedServerAddress = String(env[EXPECTED_TEST_SERVER_ADDRESS_ENV] || "").trim();
-  if (isIP(expectedServerAddress) === 0) {
+  if (!normalizeServerAddress(expectedServerAddress)) {
     return { ok: false, reason: `${EXPECTED_TEST_SERVER_ADDRESS_ENV} must contain the separately verified PostgreSQL server address.` };
   }
   return { ok: true, local: risk.local, markers: risk.markers, database: ISOLATED_TEST_DATABASE, fingerprint };
@@ -170,10 +182,11 @@ export function mutationTargetGuard(databaseUrl, env = process.env) {
 
 /** Call immediately after connect and before any write; verifies the server's actual identity. */
 export async function verifyConnectedDatabaseTarget(client, env = process.env) {
-  const expectedAddress = String(env[EXPECTED_TEST_SERVER_ADDRESS_ENV] || "").trim();
+  const expectedAddress = normalizeServerAddress(env[EXPECTED_TEST_SERVER_ADDRESS_ENV]);
   const result = await client.query("select current_database() as database, inet_server_addr()::text as server_address");
   const row = result.rows?.[0];
-  if (row?.database !== ISOLATED_TEST_DATABASE || !expectedAddress || row?.server_address !== expectedAddress) {
+  if (row?.database !== ISOLATED_TEST_DATABASE || !expectedAddress
+    || normalizeServerAddress(row?.server_address) !== expectedAddress) {
     throw new Error("Connected PostgreSQL identity did not match the verified isolated test target; refusing further queries.");
   }
   return Object.freeze({ database: ISOLATED_TEST_DATABASE, verified: true });

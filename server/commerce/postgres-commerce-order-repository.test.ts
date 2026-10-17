@@ -20,8 +20,10 @@ test("Postgres: signed payment survives pool/service restart, duplicates and con
   const schema = `commerce_test_${randomUUID().replaceAll("-", "")}`;
   const admin = new pg.Pool({ connectionString: testUrl });
   let pool: pg.Pool | undefined;
+  let targetVerified = false;
   try {
     await verifyConnectedDatabaseTarget(admin);
+    targetVerified = true;
     await admin.query(`create schema ${schema}`);
     const open = () => new pg.Pool({ connectionString: testUrl, options: `-c search_path=${schema}` });
     pool = open();
@@ -34,6 +36,7 @@ test("Postgres: signed payment survives pool/service restart, duplicates and con
     let service = new CommerceOrderService(repository, { now: () => new Date(Date.now() - 2000) });
     const order = await service.createPendingOrder({ caseId: "case_test", offer: {
       offerId: "buyer_check", offerVersion: "v1", label: "Buyer Check", amountMinor: 4900, currency: "USD" } });
+    const other = await service.createPendingOrder({ caseId: "case_other", offer: order.offer });
     assert.equal(await repository.hasVerifiedPayment(order.orderId), false);
     service = new CommerceOrderService(repository);
     const secret = "whsec_repository_test_only_secret";
@@ -59,7 +62,6 @@ test("Postgres: signed payment survives pool/service restart, duplicates and con
     const input: CommitCommerceEventInput = { orderId: order.orderId, expectedVersion: current.version,
       eventId: "evt_restart", eventFingerprint: "a".repeat(64), nextState: "refunded", provider: current.provider,
       occurredAt: new Date().toISOString(), refundReasonCode: null };
-    const other = await service.createPendingOrder({ caseId: "case_other", offer: order.offer });
     assert.equal((await repository.commitEvent({ ...input, orderId: other.orderId,
       expectedVersion: 1, nextState: "verified" })).status, "event_conflict");
     // A second event cannot reuse the already-paid provider reference on another order.
@@ -93,7 +95,7 @@ test("Postgres: signed payment survives pool/service restart, duplicates and con
     assert.equal((await repository.get(order.orderId))?.state,"refunded");
   } finally {
     await pool?.end();
-    await admin.query(`drop schema if exists ${schema} cascade`);
+    if (targetVerified) await admin.query(`drop schema if exists ${schema} cascade`);
     await admin.end();
   }
 });

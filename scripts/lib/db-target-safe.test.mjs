@@ -57,6 +57,19 @@ test("the isolated test target passes only when all independent confirmations ma
   assert.equal(JSON.stringify(result).includes("never-print-this"), false);
 });
 
+test("PostgreSQL host-CIDR server addresses are accepted only at full host prefixes", () => {
+  assert.equal(mutationTargetGuard(url, {
+    ...approvedEnv,
+    [EXPECTED_TEST_SERVER_ADDRESS_ENV]: "127.0.0.1/32",
+  }).ok, true);
+  for (const address of ["127.0.0.1/24", "127.0.0.1/33", "not-an-ip/32"]) {
+    assert.equal(mutationTargetGuard(url, {
+      ...approvedEnv,
+      [EXPECTED_TEST_SERVER_ADDRESS_ENV]: address,
+    }).ok, false);
+  }
+});
+
 test("connected identity mismatch stops before a caller can issue writes", async () => {
   const calls = [];
   const client = { async query(sql) { calls.push(sql); return { rows: [{ database: "wrong_database", server_address: "127.0.0.1" }] }; } };
@@ -67,7 +80,7 @@ test("connected identity mismatch stops before a caller can issue writes", async
 
 test("connected identity must match both the exact database and verified server address", async () => {
   let calls = 0;
-  const client = { async query() { calls += 1; return { rows: [{ database: ISOLATED_TEST_DATABASE, server_address: "127.0.0.1" }] }; } };
+  const client = { async query() { calls += 1; return { rows: [{ database: ISOLATED_TEST_DATABASE, server_address: "127.0.0.1/32" }] }; } };
   assert.deepEqual(await verifyConnectedDatabaseTarget(client, approvedEnv), { database: ISOLATED_TEST_DATABASE, verified: true });
   assert.equal(calls, 1);
 });
