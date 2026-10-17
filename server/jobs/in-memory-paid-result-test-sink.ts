@@ -14,7 +14,7 @@ export class InMemoryPaidResultTestSink implements PaidResultDeliveryTransport {
   private readonly accepted = new Map<string, Readonly<{
     fingerprint: string;
     providerReference: string;
-    confirmedAt: string;
+    acceptedAt: string;
   }>>();
   private attempts = 0;
 
@@ -28,7 +28,7 @@ export class InMemoryPaidResultTestSink implements PaidResultDeliveryTransport {
     return this.accepted.size;
   }
 
-  async send(input: TestSinkDelivery): Promise<Readonly<{ providerReference: string; confirmedAt: string }>> {
+  async send(input: TestSinkDelivery): Promise<Readonly<{ providerReference: string; acceptedAt: string }>> {
     this.attempts += 1;
     if (!isTestRecipient(input.recipient)
       || input.approvedResult.recipientEmail !== input.recipient
@@ -51,20 +51,20 @@ export class InMemoryPaidResultTestSink implements PaidResultDeliveryTransport {
       if (previous.fingerprint !== fingerprint) {
         throw new TypeError("Isolated paid-result test sink rejected idempotency-key content reuse");
       }
-      return Object.freeze({ providerReference: previous.providerReference, confirmedAt: previous.confirmedAt });
+      return Object.freeze({ providerReference: previous.providerReference, acceptedAt: previous.acceptedAt });
     }
 
     const now = this.options.now?.() ?? new Date();
     if (!(now instanceof Date) || !Number.isFinite(now.getTime())) {
       throw new TypeError("Isolated paid-result test sink requires a valid clock value");
     }
-    const confirmation = Object.freeze({
+    const acceptance = Object.freeze({
       fingerprint,
       providerReference: `test_delivery_${createHash("sha256").update(input.idempotencyKey).digest("hex").slice(0, 24)}`,
-      confirmedAt: now.toISOString(),
+      acceptedAt: now.toISOString(),
     });
-    this.accepted.set(input.idempotencyKey, confirmation);
-    return Object.freeze({ providerReference: confirmation.providerReference, confirmedAt: confirmation.confirmedAt });
+    this.accepted.set(input.idempotencyKey, acceptance);
+    return Object.freeze({ providerReference: acceptance.providerReference, acceptedAt: acceptance.acceptedAt });
   }
 }
 

@@ -154,7 +154,7 @@ async function setup() {
   const providerCalls: string[] = [];
   let providerFailure: PaidDeliveryProviderError | undefined;
   let ambiguousOnce = false;
-  const acceptedByKey = new Map<string, { providerReference: string; confirmedAt: string }>();
+  const acceptedByKey = new Map<string, { providerReference: string; acceptedAt: string }>();
   const provider: PaidResultDeliveryProvider = {
     capabilities: Object.freeze({ backendClass: "test-provider", idempotentByKey: true }),
     async deliver({ idempotencyKey }) {
@@ -162,7 +162,7 @@ async function setup() {
       if (providerFailure) throw providerFailure;
       let accepted = acceptedByKey.get(idempotencyKey);
       if (!accepted) {
-        accepted = { providerReference: `delivery_ref_${acceptedByKey.size + 1}`, confirmedAt: NOW };
+        accepted = { providerReference: `delivery_ref_${acceptedByKey.size + 1}`, acceptedAt: NOW };
         acceptedByKey.set(idempotencyKey, accepted);
         if (ambiguousOnce) { ambiguousOnce = false; throw new Error("synthetic response lost after acceptance"); }
       }
@@ -193,7 +193,7 @@ async function setup() {
 test("rechecks approval and payment, stores an idempotent receipt, then acknowledges", async () => {
   const state = await setup();
   const result = await state.consumer().processNext(CASE_ID);
-  assert.equal(result.status, "delivered");
+  assert.equal(result.status, "provider_accepted");
   assert.deepEqual(state.providerCalls, [state.enqueued.job.jobId]);
   assert.equal(state.records.size, 1);
   assert.equal((await state.outbox.get(CASE_ID, state.enqueued.job.jobId))?.state, "delivered");
@@ -246,7 +246,7 @@ test("provider acceptance with a lost response replays after restart using the s
   state.advanceClock(1_001);
   const restartedConsumer = state.consumer();
   const retry = await restartedConsumer.processNext(CASE_ID);
-  assert.equal(retry.status, "delivered");
+  assert.equal(retry.status, "provider_accepted");
   assert.equal(state.acceptedByKey.size, 1);
   assert.deepEqual(state.providerCalls, [state.enqueued.job.jobId, state.enqueued.job.jobId]);
   assert.equal(state.records.size, 1);
@@ -281,6 +281,6 @@ test("ephemeral repositories and non-idempotent providers cannot construct a con
   assert.throws(() => new PaidResultDeliveryConsumer(state.outbox, state.eligibility,
     { resolve: async () => null },
     { capabilities: { backendClass: "test-provider", idempotentByKey: false },
-      deliver: async () => ({ provider: "test", providerReference: "x", confirmedAt: NOW }) },
+      deliver: async () => ({ provider: "test", providerReference: "x", acceptedAt: NOW }) },
     state.receipts));
 });

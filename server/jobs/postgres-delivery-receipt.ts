@@ -17,7 +17,7 @@ type StoredReceipt = {
   destination_key: unknown;
   provider: unknown;
   provider_reference: unknown;
-  confirmed_at: unknown;
+  accepted_at: unknown;
   created_at: unknown;
 };
 
@@ -45,11 +45,11 @@ export class PostgresDeliveryReceiptRepository implements PaidDeliveryReceiptRep
     try {
       const inserted = await this.executor.query<StoredReceipt>(
         `insert into drivable_delivery_receipts
-          (receipt_id, job_id, case_id, resource_version, destination_key, provider, provider_reference, confirmed_at, created_at)
+          (receipt_id, job_id, case_id, resource_version, destination_key, provider, provider_reference, accepted_at, created_at)
          values ($1,$2,$3,$4,$5,$6,$7,$8::timestamptz,now())
          on conflict (job_id) do nothing returning *`,
         [receiptId, input.jobId, input.caseId, input.resourceVersion, input.destinationKey,
-          input.provider, input.providerReference, input.confirmedAt],
+          input.provider, input.providerReference, input.acceptedAt],
       );
       if (inserted.rows[0]) return mapReceipt(inserted.rows[0]);
 
@@ -84,7 +84,7 @@ export class PostgresDeliveryReceiptRepository implements PaidDeliveryReceiptRep
 
 function validateInput(input: Omit<PaidDeliveryReceipt, "receiptId" | "createdAt">): void {
   if (![input.jobId, input.caseId, input.resourceVersion, input.destinationKey, input.provider, input.providerReference].every(opaque)
-    || !strictIso(input.confirmedAt)) {
+    || !strictIso(input.acceptedAt)) {
     throw new DeliveryReceiptRepositoryError("invalid_input");
   }
 }
@@ -98,7 +98,7 @@ function mapReceipt(row: StoredReceipt): PaidDeliveryReceipt {
     destinationKey: stringValue(row.destination_key),
     provider: stringValue(row.provider),
     providerReference: stringValue(row.provider_reference),
-    confirmedAt: timestamp(row.confirmed_at),
+    acceptedAt: timestamp(row.accepted_at),
     createdAt: timestamp(row.created_at),
   });
   if (![receipt.receiptId, receipt.jobId, receipt.caseId, receipt.resourceVersion, receipt.destinationKey,
@@ -112,7 +112,7 @@ function sameReceipt(receipt: PaidDeliveryReceipt, input: Omit<PaidDeliveryRecei
   return receipt.jobId === input.jobId && receipt.caseId === input.caseId
     && receipt.resourceVersion === input.resourceVersion && receipt.destinationKey === input.destinationKey
     && receipt.provider === input.provider && receipt.providerReference === input.providerReference
-    && receipt.confirmedAt === input.confirmedAt;
+    && receipt.acceptedAt === input.acceptedAt;
 }
 
 function opaque(value: unknown): value is string {

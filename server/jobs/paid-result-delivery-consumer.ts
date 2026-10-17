@@ -20,7 +20,8 @@ export type PaidDeliveryReceipt = Readonly<{
   destinationKey: string;
   provider: string;
   providerReference: string;
-  confirmedAt: string;
+  /** Timestamp at which the provider accepted the request; not proof of mailbox delivery. */
+  acceptedAt: string;
   createdAt: string;
 }>;
 
@@ -44,10 +45,10 @@ export interface PaidDeliveryAuthorizationContextResolver {
   getReviewVersion?(versionId: string): Promise<ReviewVersionRecord | undefined>;
 }
 
-export type ConfirmedPaidDelivery = Readonly<{
+export type ProviderAcceptedPaidDelivery = Readonly<{
   provider: string;
   providerReference: string;
-  confirmedAt: string;
+  acceptedAt: string;
 }>;
 
 export type PaidResultDeliveryProviderCapabilities = Readonly<{
@@ -63,7 +64,7 @@ export interface PaidResultDeliveryProvider {
     job: LeasedDeliveryJob;
     approvedResult: ApprovedPaidResult;
     authorization: Extract<PaidFulfillmentEligibilityDecision, { allowed: true }>;
-  }>): Promise<ConfirmedPaidDelivery>;
+  }>): Promise<ProviderAcceptedPaidDelivery>;
 }
 
 export class PaidDeliveryProviderError extends Error {
@@ -77,13 +78,14 @@ export type PaidResultDeliveryConsumerResult =
   | Readonly<{ status: "idle" }>
   | Readonly<{ status: "denied"; jobId: string; code: string }>
   | Readonly<{ status: "retry_scheduled" | "dead_lettered"; jobId: string; code: string }>
-  | Readonly<{ status: "delivered"; jobId: string; receipt: PaidDeliveryReceipt }>;
+  | Readonly<{ status: "provider_accepted"; jobId: string; receipt: PaidDeliveryReceipt }>;
 
 /**
  * Processes only the internal approved-result destination. It rechecks durable
- * payment and human approval immediately before delivery, persists a receipt,
- * and only then ACKs the fenced outbox lease. This class intentionally starts no
- * worker, scheduler, or external provider on import.
+ * payment and human approval immediately before handoff, persists a provider
+ * acceptance receipt, and only then ACKs the fenced outbox lease. A provider
+ * acceptance is not proof that the recipient's mailbox received the message.
+ * This class intentionally starts no worker, scheduler, or external provider on import.
  */
 export class PaidResultDeliveryConsumer {
   constructor(
@@ -151,11 +153,11 @@ export class PaidResultDeliveryConsumer {
       return this.deny(job, "approved_content_binding_mismatch", false);
     }
 
-    let confirmation: ConfirmedPaidDelivery;
+    let acceptance: ProviderAcceptedPaidDelivery;
     try {
-      confirmation = await this.provider.deliver({ idempotencyKey: job.jobId, job,
+      acceptance = await this.provider.deliver({ idempotencyKey: job.jobId, job,
         approvedResult: latest.approvedResult, authorization: finalDecision });
-      validateConfirmation(confirmation);
+      validateAcceptance(acceptance);
     } catch (error) {
       const retryable = !(error instanceof PaidDeliveryProviderError) || error.retryable;
       return this.deny(job, retryable ? "delivery_provider_unavailable" : "delivery_provider_rejected", retryable);
@@ -168,16 +170,18 @@ export class PaidResultDeliveryConsumer {
         caseId: job.caseId,
         resourceVersion: job.metadata.resourceVersion,
         destinationKey: job.metadata.destinationKey,
-        provider: confirmation.provider,
-        providerReference: confirmation.providerReference,
-        confirmedAt: confirmation.confirmedAt,
+        provider: acceptance.provider,
+        providerReference: acceptance.providerReference,
+        acceptedAt: acceptance.acceptedAt,
       });
     } catch {
       return this.deny(job, "receipt_persistence_failed", true);
     }
 
+    // The legacy outbox terminal state is named "delivered"; here it means the provider
+    // acceptance receipt is durable, not that a mailbox delivery event was observed.
     await this.outbox.ack({ caseId: job.caseId, jobId: job.jobId, leaseToken: job.lease.token });
-    return Object.freeze({ status: "delivered", jobId: job.jobId, receipt });
+    return Object.freeze({ status: "provider_accepted", jobId: job.jobId, receipt });
   }
 
   private async deny(job: LeasedDeliveryJob, code: string, retryable: boolean): Promise<PaidResultDeliveryConsumerResult> {
@@ -231,8 +235,8 @@ function authorizationFailure(code: string): { code: string; retryable: boolean 
   }
 }
 
-function validateConfirmation(value: ConfirmedPaidDelivery): void {
-  if (!token(value.provider) || !token(value.providerReference) || !isStrictIsoDateTime(value.confirmedAt)) {
+function validateAcceptance(value: ProviderAcceptedPaidDelivery): void {
+  if (!token(value.provider) || !token(value.providerReference) || !isStrictIsoDateTime(value.acceptedAt)) {
     // A malformed response may follow an accepted provider operation. Preserve
     // the same job idempotency key and retry instead of treating it as rejection.
     throw new PaidDeliveryProviderError(true);

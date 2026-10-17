@@ -14,7 +14,7 @@ const input = Object.freeze({
   destinationKey: "journey-approved-result",
   provider: "email_provider",
   providerReference: "message_123",
-  confirmedAt: NOW,
+  acceptedAt: NOW,
 });
 
 function stored(overrides: Record<string, unknown> = {}) {
@@ -22,7 +22,7 @@ function stored(overrides: Record<string, unknown> = {}) {
     receipt_id: "receipt_1", job_id: input.jobId, case_id: input.caseId,
     resource_version: input.resourceVersion, destination_key: input.destinationKey,
     provider: input.provider, provider_reference: input.providerReference,
-    confirmed_at: NOW, created_at: NOW, ...overrides,
+    accepted_at: NOW, created_at: NOW, ...overrides,
   };
 }
 
@@ -59,7 +59,7 @@ test("a reused job id with different provider proof fails closed", async () => {
 
 test("invalid identifiers and corrupt stored receipts fail closed", async () => {
   const executor: DeliveryReceiptSqlExecutor = {
-    query: async () => ({ rows: [stored({ confirmed_at: "not-a-date" })] }),
+    query: async () => ({ rows: [stored({ accepted_at: "not-a-date" })] }),
   };
   const repository = new PostgresDeliveryReceiptRepository(executor);
   await assert.rejects(repository.record({ ...input, providerReference: "contains spaces" }),

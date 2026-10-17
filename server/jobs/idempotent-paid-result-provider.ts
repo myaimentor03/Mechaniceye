@@ -1,5 +1,5 @@
 import type { ApprovedPaidResult } from "./paid-delivery-context.js";
-import type { ConfirmedPaidDelivery, PaidResultDeliveryProvider } from "./paid-result-delivery-consumer.js";
+import type { ProviderAcceptedPaidDelivery, PaidResultDeliveryProvider } from "./paid-result-delivery-consumer.js";
 import type { PaidFulfillmentEligibilityDecision } from "../commerce/paid-fulfillment-eligibility.js";
 import type { LeasedDeliveryJob } from "./delivery-outbox.js";
 
@@ -9,12 +9,13 @@ export interface PaidResultDeliveryTransport {
   readonly capabilities: Readonly<{ idempotencyEnforcedByProvider: boolean }>;
   send(input: Readonly<{
     idempotencyKey: string;
+    jobCreatedAt: string;
     recipient: string;
     approvedResult: ApprovedPaidResult;
     caseId: string;
     versionId: string;
     approvalId: string;
-  }>): Promise<Readonly<{ providerReference: string; confirmedAt: string }>>;
+  }>): Promise<Readonly<{ providerReference: string; acceptedAt: string }>>;
 }
 
 /** Adapter only. The transport and its provider idempotency contract must be separately verified. */
@@ -32,7 +33,7 @@ export class IdempotentPaidResultDeliveryProvider implements PaidResultDeliveryP
     job: LeasedDeliveryJob;
     approvedResult: ApprovedPaidResult;
     authorization: Extract<PaidFulfillmentEligibilityDecision, { allowed: true }>;
-  }>): Promise<ConfirmedPaidDelivery> {
+  }>): Promise<ProviderAcceptedPaidDelivery> {
     const { approvedResult, authorization } = input;
     if (approvedResult.caseId !== authorization.caseId || approvedResult.versionId !== authorization.versionId
       || !approvedResult.recipientEmail || approvedResult.artifactDigest.length !== 64) {
@@ -40,6 +41,7 @@ export class IdempotentPaidResultDeliveryProvider implements PaidResultDeliveryP
     }
     const response = await this.transport.send({
       idempotencyKey: input.idempotencyKey,
+      jobCreatedAt: input.job.createdAt,
       recipient: approvedResult.recipientEmail,
       approvedResult,
       caseId: authorization.caseId,
@@ -47,6 +49,6 @@ export class IdempotentPaidResultDeliveryProvider implements PaidResultDeliveryP
       approvalId: authorization.approvalId,
     });
     return Object.freeze({ provider: this.transport.provider,
-      providerReference: response.providerReference, confirmedAt: response.confirmedAt });
+      providerReference: response.providerReference, acceptedAt: response.acceptedAt });
   }
 }
