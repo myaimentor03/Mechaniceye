@@ -8,6 +8,7 @@ import type { AsyncReviewReleaseReader } from "../review/async-release-gate.js";
 import { InMemoryDeliveryOutbox } from "./in-memory-delivery-outbox.js";
 import { DurablePaidDeliveryContextResolver, createJourneyPaidCasePersistenceRepository } from "./paid-delivery-context.js";
 import { IdempotentPaidResultDeliveryProvider } from "./idempotent-paid-result-provider.js";
+import { InMemoryPaidResultTestSink } from "./in-memory-paid-result-test-sink.js";
 import { composePaidResultDeliveryWorker, composePostgresPaidResultDeliveryWorker } from "./paid-result-delivery-runtime.js";
 import type { PaidResultDeliveryConsumer } from "./paid-result-delivery-consumer.js";
 import type { LeasedDeliveryJob } from "./delivery-outbox.js";
@@ -77,20 +78,8 @@ test("durable context resolver binds current order, case, approved artifact, rec
 });
 
 test("idempotent transport adapter forwards stable key and approved recipient/content", async () => {
-  const accepted = new Map<string, { providerReference: string; confirmedAt: string }>();
-  let sends = 0;
-  const adapter = new IdempotentPaidResultDeliveryProvider({
-    provider: "test_delivery_provider", capabilities: { idempotencyEnforcedByProvider: true },
-    async send(input) {
-      sends += 1;
-      let result = accepted.get(input.idempotencyKey);
-      if (!result) { result = { providerReference: "synthetic_delivery_ref_01", confirmedAt: now };
-        accepted.set(input.idempotencyKey, result); }
-      assert.equal(input.recipient, "test@example.invalid");
-      assert.equal(input.approvedResult.versionId, "review_version_01");
-      return result;
-    },
-  });
+  const sink = new InMemoryPaidResultTestSink({ now: () => new Date(now) });
+  const adapter = new IdempotentPaidResultDeliveryProvider(sink);
   const approvedResult = { caseId: "case_test_01", versionId: "review_version_01", artifactDigest: "a".repeat(64),
     recipientEmail: "test@example.invalid", content: {} } as ApprovedPaidResult;
   const authorization = { allowed: true as const, code: "paid_fulfillment_allowed" as const,
@@ -100,12 +89,20 @@ test("idempotent transport adapter forwards stable key and approved recipient/co
     recipient: { algorithm: "sha256" as const, digest: "b".repeat(64), bindingVersion: "v1" }, evaluatedAt: now };
   const job = { jobId: "job_stable_01" } as LeasedDeliveryJob;
   const deliveryInput = { idempotencyKey: job.jobId, job, approvedResult, authorization };
-  const first = await adapter.deliver(deliveryInput);
-  const replay = await adapter.deliver(deliveryInput);
+  const [first, replay] = await Promise.all([
+    adapter.deliver(deliveryInput),
+    adapter.deliver(deliveryInput),
+  ]);
   assert.equal(adapter.capabilities.idempotentByKey, true);
   assert.equal(first.providerReference, replay.providerReference);
-  assert.equal(accepted.size, 1);
-  assert.equal(sends, 2);
+  assert.equal(sink.acceptedCount, 1);
+  assert.equal(sink.attemptCount, 2);
+  await assert.rejects(adapter.deliver({ ...deliveryInput,
+    approvedResult: { ...approvedResult,
+      content: { ...approvedResult.content, description: "Changed synthetic content" } } }));
+  await assert.rejects(adapter.deliver({ ...deliveryInput,
+    approvedResult: { ...approvedResult, recipientEmail: "customer@example.com" } }));
+  assert.equal(sink.acceptedCount, 1);
   assert.throws(() => new IdempotentPaidResultDeliveryProvider({ provider: "bad",
     capabilities: { idempotencyEnforcedByProvider: false }, async send() { throw new Error("must not send"); } }));
 });
