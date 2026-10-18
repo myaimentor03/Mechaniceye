@@ -13,6 +13,7 @@ const navigation = source("client/src/components/PublicHeaderNavigation.tsx");
 const reviewPage = source("client/src/components/MechanicsEyeReviewPage.tsx");
 const caseHistoryPage = source("client/src/components/CustomerCaseHistoryPage.tsx");
 const appHeader = source("client/src/components/app-header.tsx");
+const findMyCarPage = source("client/src/components/FindMyCarPreview.tsx");
 const css = source("client/src/app.css");
 
 test("both public headers use one review route that is distinct from legal pages", () => {
@@ -64,6 +65,16 @@ test("saved-case history has a reachable owner-authenticated detail route", () =
   assert.match(caseHistoryPage, /not a diagnosis, safety clearance, or confirmation that a human review is complete/i);
   assert.match(appHeader, /href="\/my-cases"/);
   assert.doesNotMatch(appHeader, /<div className="hidden md:flex[^>]*>[\s\S]*href="\/my-cases"/);
+});
+
+test("Find My Car is explicit about missing live inventory and durable search", () => {
+  assert.match(backend, /routePath === "\/find-my-car"/);
+  assert.match(backend, /<FindMyCarPreview \/>/);
+  assert.match(findMyCarPage, /no live inventory feed, saved search, dealer network, ranking system/i);
+  assert.match(findMyCarPage, /durable Find My Car request/i);
+  assert.match(findMyCarPage, /sample marketplace content is synthetic/i);
+  assert.match(findMyCarPage, /href="\/buyer-check"/);
+  assert.match(findMyCarPage, /href="\/help\?topic=find-my-car"/);
 });
 
 test("active customer copy does not imply unavailable or unperformed media analysis", () => {

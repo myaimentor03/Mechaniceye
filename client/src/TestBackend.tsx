@@ -19,6 +19,7 @@ import { InternalReviewCard } from "./components/InternalReviewCard";
 import { InternalReviewActionPanel } from "./components/InternalReviewActionPanel";
 import { CustomerAccountGate, type DrivableCustomer } from "./components/CustomerAccountGate";
 import { CustomerCaseDetailPage, CustomerCaseHistoryPage } from "./components/CustomerCaseHistoryPage";
+import { FindMyCarPreview } from "./components/FindMyCarPreview";
 import { LearningLoopPreview } from "./components/LearningLoopPreview";
 import { MechanicMatchPreview } from "./components/MechanicMatchPreview";
 import { MechanicsEyeReviewPage } from "./components/MechanicsEyeReviewPage";
@@ -1104,6 +1105,10 @@ export default function TestBackend() {
 
   if (routePath === "/buyer-check") {
     return <BuyerCheckPreview />;
+  }
+
+  if (routePath === "/find-my-car") {
+    return <FindMyCarPreview />;
   }
 
   if (routePath === "/mechanic-match") {
