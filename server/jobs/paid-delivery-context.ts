@@ -7,6 +7,8 @@ import { AsyncHumanReviewReleaseGate } from "../review/async-release-gate.js";
 import type { RecipientIdentityBinding, ReviewVersionRecord } from "../review/types.js";
 import type { DeliveryOutboxRepository, LeasedDeliveryJob } from "./delivery-outbox.js";
 import type { PaidDeliveryAuthorizationContextResolver } from "./paid-result-delivery-consumer.js";
+import { decideConsentAuthorization, type ConsentEventV1, type ConsentSubject } from "../../shared/consent/index.js";
+import { intakeConsentPolicyFromEnvironment } from "../consent/intake-consent.js";
 
 export type ApprovedPaidResult = Readonly<{
   caseId: string;
@@ -41,6 +43,7 @@ export type PaidDeliveryContextRepositories = Readonly<{
   orders: CommerceOrderRepository & { hasVerifiedPayment(orderId: string): Promise<boolean> };
   cases: StrictPaidJourneyCaseReader;
   reviews: AsyncReviewReleaseReader;
+  consent: Readonly<{ listForSubject(subject: ConsentSubject): Promise<readonly ConsentEventV1[]> }>;
   outbox: Pick<DeliveryOutboxRepository, "capabilities">;
 }>;
 
@@ -63,7 +66,10 @@ export function createJourneyPaidCasePersistenceRepository(
 
 /** Resolves every dispatch from current canonical order, case and review repositories. */
 export class DurablePaidDeliveryContextResolver implements PaidDeliveryAuthorizationContextResolver {
-  constructor(private readonly repositories: PaidDeliveryContextRepositories) {}
+  constructor(
+    private readonly repositories: PaidDeliveryContextRepositories,
+    private readonly env: NodeJS.ProcessEnv = process.env,
+  ) {}
 
   async resolve(job: LeasedDeliveryJob): Promise<PaidDeliveryAuthorizationContext | null> {
     const release = parseReleaseKey(job.deduplicationKey);
@@ -76,6 +82,23 @@ export class DurablePaidDeliveryContextResolver implements PaidDeliveryAuthoriza
       this.repositories.reviews.getVersion(job.metadata.resourceVersion),
     ]);
     if (!order || !caseData || !version) return null;
+    // The authenticated case owner is the actor/account identity used by intake.
+    // Missing identity or current consent fails closed; the queue snapshot grants
+    // no authority to deliver customer content.
+    if (!caseData.customerId) return null;
+    const subject: ConsentSubject = Object.freeze({
+      actorId: caseData.customerId,
+      accountId: caseData.customerId,
+      caseId: caseData.id,
+    });
+    const consentEvents = await this.repositories.consent.listForSubject(subject);
+    const consentDecision = decideConsentAuthorization({
+      events: consentEvents,
+      subject,
+      action: { kind: "fulfill_service" },
+      config: intakeConsentPolicyFromEnvironment(this.env),
+    });
+    if (!consentDecision.allowed) return null;
     if (!orderMatches(order, release.orderId, job.caseId)
       || !await this.repositories.orders.hasVerifiedPayment(order.orderId)) return null;
     if (currentVersionId !== version.versionId || version.caseId !== job.caseId || version.stage !== "final") return null;

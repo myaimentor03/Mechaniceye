@@ -164,7 +164,7 @@ export async function setJourneyCase(caseData: JourneyCase): Promise<void> {
 
   if (store) {
     try {
-      await store.set(caseData);
+      await store.setStrict(caseData);
     } catch (error) {
       logEventError("journey.store_persist_failed", error, { caseId: caseData.id, durable: false });
       throw new JourneyPersistenceError();

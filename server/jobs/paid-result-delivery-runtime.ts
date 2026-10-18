@@ -7,6 +7,7 @@ import { createPgJourneyStore } from "../journey-store-pg.js";
 import { PostgresReviewReleaseReader } from "../review/postgres-review-release-reader.js";
 import { PostgresDeliveryOutboxRepository } from "./postgres-delivery-outbox.js";
 import { PostgresDeliveryReceiptRepository } from "./postgres-delivery-receipt.js";
+import { PostgresConsentRepository } from "../consent/postgres-consent-repository.js";
 
 export type PaidDeliveryPostgresExecutor = {
   query<Row = Record<string, unknown>>(text: string, values?: readonly unknown[]): Promise<{ rows: Row[] }>;
@@ -60,7 +61,8 @@ export function composePostgresPaidResultDeliveryWorker(
   const cases = createPgJourneyStore(executor);
   const orders = new PostgresCommerceOrderRepository(executor);
   const reviews = new PostgresReviewReleaseReader(executor);
-  const contexts = new DurablePaidDeliveryContextResolver({ orders, cases, reviews, outbox });
+  const consent = new PostgresConsentRepository(executor);
+  const contexts = new DurablePaidDeliveryContextResolver({ orders, cases, reviews, consent, outbox }, env);
   const eligibility = new PaidFulfillmentEligibilityService({
     commerceOrders: orders,
     cases: createJourneyPaidCasePersistenceRepository(cases),

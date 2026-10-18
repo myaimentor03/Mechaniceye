@@ -43,7 +43,7 @@ export async function persistAndAuthorizeIntakeConsent(
   env: NodeJS.ProcessEnv = process.env,
   options: { now?: () => Date; generateId?: () => string } = {},
 ) {
-  const config = policyFromEnvironment(env);
+  const config = intakeConsentPolicyFromEnvironment(env);
   const choices = explicitChoices(input.choices);
   if (!choices[ConsentPurpose.ServiceFulfillment] || !choices[ConsentPurpose.HumanReviewSharing]
       || (input.hasMedia && !choices[ConsentPurpose.MediaProcessing])) {
@@ -86,7 +86,7 @@ function explicitChoices(value: unknown): ConsentChoices {
   });
 }
 
-function policyFromEnvironment(env: NodeJS.ProcessEnv): ConsentPolicyConfig {
+export function intakeConsentPolicyFromEnvironment(env: NodeJS.ProcessEnv): ConsentPolicyConfig {
   const consentVersion = env.DRIVABLE_CONSENT_VERSION?.trim();
   const privacyNoticeVersion = env.DRIVABLE_PRIVACY_VERSION?.trim();
   const termsVersion = env.DRIVABLE_TERMS_VERSION?.trim();
@@ -116,7 +116,7 @@ export async function recordConsentRevocation(
   env: NodeJS.ProcessEnv = process.env,
   options: { now?: () => Date; generateId?: () => string } = {},
 ): Promise<ConsentEventV1> {
-  policyFromEnvironment(env);
+  intakeConsentPolicyFromEnvironment(env);
   const subject = Object.freeze({ actorId: input.actorId, accountId: input.accountId, caseId: input.caseId });
   let events: readonly ConsentEventV1[];
   try {

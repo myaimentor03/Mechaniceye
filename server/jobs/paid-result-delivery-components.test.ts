@@ -13,8 +13,11 @@ import { composePaidResultDeliveryWorker, composePostgresPaidResultDeliveryWorke
 import type { PaidResultDeliveryConsumer } from "./paid-result-delivery-consumer.js";
 import type { LeasedDeliveryJob } from "./delivery-outbox.js";
 import type { ApprovedPaidResult } from "./paid-delivery-context.js";
+import { ConsentPurpose, createConsentAcceptedEvent } from "../../shared/consent/index.js";
 
 const now = "2026-10-15T12:00:00.000Z";
+const consentEnv = { DRIVABLE_CONSENT_VERSION: "consent-v1", DRIVABLE_PRIVACY_VERSION: "privacy-v1",
+  DRIVABLE_TERMS_VERSION: "terms-v1" } as NodeJS.ProcessEnv;
 const retryPolicy = { maxAttempts: 3, initialRetryDelayMs: 100, backoffMultiplier: 2,
   maxRetryDelayMs: 1000, leaseDurationMs: 5000 } as const;
 
@@ -52,14 +55,20 @@ test("durable context resolver binds current order, case, approved artifact, rec
     offer: { offerId: "review", offerVersion: "v1", label: "Review", amountMinor: 1000, currency: "USD" },
     state: "verified" as const, provider: { adapterId: "test", provider: "fake", providerOrderReference: "payment_test_01" },
     version: 2, eventCount: 1, createdAt: now, updatedAt: now, refundReasonCode: null, refundedAmountMinor: 0 };
+  const consentEvent = createConsentAcceptedEvent({ actorId: caseData.customerId!, accountId: caseData.customerId!,
+    caseId: caseData.id, eventId: "consent_paid_components_01", acceptedAt: now,
+    consentVersion: "consent-v1", privacyNoticeVersion: "privacy-v1", termsVersion: "terms-v1",
+    affirmativeChoices: { [ConsentPurpose.ServiceFulfillment]: true, [ConsentPurpose.MediaProcessing]: false,
+      [ConsentPurpose.HumanReviewSharing]: false, [ConsentPurpose.OptionalProductLearning]: false } });
   const resolver = new DurablePaidDeliveryContextResolver({
     orders: { capabilities: { backendClass: "durable-repository", durable: true, atomicCompareAndSwap: true,
       idempotentEvents: true, generatedIdentifiers: true }, get: async id => id === order.orderId ? order : null,
       hasVerifiedPayment: async () => true } as any,
     cases: { getStrict: async id => id === caseData.id ? caseData : undefined }, reviews,
+    consent: { async listForSubject(subject) { return subject.actorId === caseData.customerId ? [consentEvent] : []; } },
     outbox: { capabilities: { backendClass: "durable-repository", durable: true, horizontallyScalable: true,
       atomicLeasing: true, fencedAcknowledgement: true, idempotentEnqueue: true } },
-  });
+  }, consentEnv);
   const context = await resolver.resolve(job);
   assert.ok(context);
   assert.equal(context.eligibilityInput.orderId, order.orderId);

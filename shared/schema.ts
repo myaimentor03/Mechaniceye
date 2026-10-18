@@ -348,6 +348,7 @@ export const journeyCases = pgTable("journey_cases", {
   matchedSymptomCategories: json("matched_symptom_categories").$type<unknown[]>().default([]),
   plannedEvidence: json("planned_evidence").$type<unknown[]>().default([]),
   currentEvidencePrompt: text("current_evidence_prompt"),
+  nextServiceDestination: json("next_service_destination").$type<unknown>(),
 }, (table) => [
   index("journey_cases_customer_idx").on(table.customerId),
   index("journey_cases_state_idx").on(table.state),

@@ -95,6 +95,12 @@ describe("journey-store-pg", () => {
     assert.equal(result, undefined);
   });
 
+  it("strict writes report database failures instead of false persistence", async () => {
+    const failing = createPgJourneyStore({ async query() { throw new Error("synthetic write failure"); } });
+    const caseData = createJourneyCase({ vehicleInfo: "Synthetic vehicle", description: "Synthetic test only" });
+    await assert.rejects(failing.setStrict(caseData), /Journey case could not be persisted/);
+  });
+
   it("round-trips a case through set and get", async () => {
     const caseData = createJourneyCase({
       vehicleInfo: "2018 Honda Civic",

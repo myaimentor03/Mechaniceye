@@ -200,9 +200,18 @@ export function createPgJourneyStore(executor: SqlExecutor) {
     async set(caseData: JourneyCase): Promise<void> {
       if (!(await ensureTable(executor))) return;
       try {
-        await executor.query(UPSERT, buildUpsertParams(caseData));
+        await this.setStrict(caseData);
       } catch {
         // best-effort; in-memory remains authoritative for the process
+      }
+    },
+
+    /** Durable write for routes and workers that must not report false success. */
+    async setStrict(caseData: JourneyCase): Promise<void> {
+      try {
+        await executor.query(UPSERT, buildUpsertParams(caseData));
+      } catch (cause) {
+        throw new Error("Journey case could not be persisted", { cause });
       }
     },
 
