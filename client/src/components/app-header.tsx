@@ -19,20 +19,16 @@ export function AppHeader() {
               <p className="text-blue-200 text-sm">AI Vehicle Diagnostics</p>
             </div>
           </Link>
-          <div className="hidden md:flex items-center space-x-2">
+          <div className="flex items-center space-x-2">
+            <Link href="/my-cases" aria-label="My saved cases">
+              <Button variant="ghost" size="sm" className="text-white hover:bg-blue-700" aria-label="My saved cases">
+                <History className="w-4 h-4" />
+              </Button>
+            </Link>
             <Button
               variant="ghost"
               size="sm"
-              className="text-white hover:bg-blue-700"
-              onClick={() => toast({ title: "Coming Soon", description: "History will let you save past diagnoses and vehicles." })}
-              disabled={!featureFlags.history}
-            >
-              <History className="w-4 h-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-white hover:bg-blue-700"
+              className="hidden text-white hover:bg-blue-700 md:inline-flex"
               onClick={() => toast({ title: "Coming Soon", description: "Profiles will unlock saved vehicles, subscriptions, and settings." })}
               disabled={!featureFlags.profile}
             >

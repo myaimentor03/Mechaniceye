@@ -369,3 +369,82 @@ test("case owner can submit a follow-up and receives the generated diagnosis", a
     else process.env.NODE_ENV = previousNodeEnv;
   }
 });
+
+test("customer case history requires login and returns only the signed-in owner's safe summaries", async () => {
+  const previousSecret = process.env.DRIVABLE_SESSION_SECRET;
+  const previousDatabaseUrl = process.env.DATABASE_URL;
+  const previousNodeEnv = process.env.NODE_ENV;
+  process.env.DRIVABLE_SESSION_SECRET = "routes-security-session-secret-at-least-32-characters";
+  delete process.env.DATABASE_URL;
+  process.env.NODE_ENV = "test";
+  const ownerId = `case-history-owner-${randomUUID()}`;
+  const otherOwnerId = `case-history-other-${randomUUID()}`;
+  const ownerCaseId = `case-history-owned-${randomUUID()}`;
+  await storage.createDiagnosis({
+    id: ownerCaseId,
+    userId: ownerId,
+    vehicleInfo: "Synthetic 2018 Example Sedan",
+    description: "Private symptom details must not appear in the summary response.",
+  });
+  await storage.createDiagnosis({
+    id: `case-history-other-case-${randomUUID()}`,
+    userId: otherOwnerId,
+    vehicleInfo: "Other customer's synthetic vehicle",
+    description: "Do not expose this case.",
+  });
+
+  try {
+    await withServer(async (origin) => {
+      const unauthorized = await fetch(`${origin}/api/customer/cases`);
+      assert.equal(unauthorized.status, 401);
+
+      const token = createSessionToken({ id: ownerId, email: "synthetic-owner@example.invalid" });
+      const response = await fetch(`${origin}/api/customer/cases`, {
+        headers: { cookie: `drivable_session=${encodeURIComponent(token)}` },
+      });
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("cache-control"), "no-store");
+      const body = await response.json();
+      assert.equal(body.cases.length, 1);
+      assert.deepEqual(Object.keys(body.cases[0]).sort(), ["createdAt", "id", "status", "vehicleInfo"]);
+      assert.equal(body.cases[0].id, ownerCaseId);
+      assert.equal(body.cases[0].vehicleInfo, "Synthetic 2018 Example Sedan");
+      assert.equal(body.cases[0].status, "received");
+      assert.ok(Number.isFinite(Date.parse(body.cases[0].createdAt)));
+      assert.equal(JSON.stringify(body).includes("Private symptom details"), false);
+      assert.equal(JSON.stringify(body).includes("Other customer's synthetic vehicle"), false);
+    });
+  } finally {
+    if (previousSecret === undefined) delete process.env.DRIVABLE_SESSION_SECRET;
+    else process.env.DRIVABLE_SESSION_SECRET = previousSecret;
+    if (previousDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previousDatabaseUrl;
+    if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousNodeEnv;
+  }
+});
+
+test("customer case history returns an explicit unavailable response on storage failure", async () => {
+  const previousSecret = process.env.DRIVABLE_SESSION_SECRET;
+  const originalList = storage.getCustomerDiagnosesByUser;
+  process.env.DRIVABLE_SESSION_SECRET = "routes-security-session-secret-at-least-32-characters";
+  storage.getCustomerDiagnosesByUser = async () => { throw new Error("synthetic storage outage"); };
+  try {
+    await withServer(async (origin) => {
+      const token = createSessionToken({ id: "case-history-storage-test", email: "synthetic@example.invalid" });
+      const response = await fetch(`${origin}/api/customer/cases`, {
+        headers: { cookie: `drivable_session=${encodeURIComponent(token)}` },
+      });
+      assert.equal(response.status, 503);
+      assert.deepEqual(await response.json(), {
+        ok: false,
+        error: "Your saved cases are temporarily unavailable. Try again shortly.",
+        code: "CUSTOMER_CASES_UNAVAILABLE",
+      });
+    });
+  } finally {
+    storage.getCustomerDiagnosesByUser = originalList;
+    if (previousSecret === undefined) delete process.env.DRIVABLE_SESSION_SECRET;
+    else process.env.DRIVABLE_SESSION_SECRET = previousSecret;
+  }
+});

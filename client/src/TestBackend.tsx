@@ -18,6 +18,7 @@ import { VibrationCapture } from "./components/VibrationCapture";
 import { InternalReviewCard } from "./components/InternalReviewCard";
 import { InternalReviewActionPanel } from "./components/InternalReviewActionPanel";
 import { CustomerAccountGate, type DrivableCustomer } from "./components/CustomerAccountGate";
+import { CustomerCaseDetailPage, CustomerCaseHistoryPage } from "./components/CustomerCaseHistoryPage";
 import { LearningLoopPreview } from "./components/LearningLoopPreview";
 import { MechanicMatchPreview } from "./components/MechanicMatchPreview";
 import { MechanicsEyeReviewPage } from "./components/MechanicsEyeReviewPage";
@@ -1083,6 +1084,19 @@ function MechanicMatchFlow({ journeyCaseId }: { journeyCaseId?: string } = {}) {
 
 export default function TestBackend() {
   const routePath = getFrontendRoutePath();
+
+  if (routePath === "/my-cases") {
+    return <CustomerCaseHistoryPage />;
+  }
+
+  if (routePath.startsWith("/my-cases/")) {
+    const encodedCaseId = routePath.slice("/my-cases/".length);
+    try {
+      return <CustomerCaseDetailPage caseId={decodeURIComponent(encodedCaseId)} />;
+    } catch {
+      return <CustomerCaseDetailPage caseId="" />;
+    }
+  }
 
   if (routePath === "/clearsale" || routePath === "/clear-sale") {
     return <ClearSalePreview />;

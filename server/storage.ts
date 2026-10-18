@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { getDb } from "./db";
 import { diagnoses, followUpRequests } from "./shared/shared/schema";
@@ -197,6 +197,28 @@ class LocalStorage {
     for (const record of local) merged.set(record.id, record);
     return Array.from(merged.values())
       .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  }
+
+  async getCustomerDiagnosesByUser(userId: string): Promise<DiagnosisRecord[]> {
+    const ownerId = typeof userId === "string" ? userId.trim() : "";
+    if (!ownerId) throw new Error("Authenticated customer identity is required");
+
+    // Customer history must fail visibly if durable storage is unavailable;
+    // it must never turn a database error into an empty successful result.
+    if (process.env.DATABASE_URL || process.env.NODE_ENV === "production") {
+      const rows = await getDb()
+        .select()
+        .from(diagnoses)
+        .where(eq(diagnoses.userId, ownerId))
+        .orderBy(desc(diagnoses.createdAt))
+        .limit(100);
+      return rows.map(mapDiagnosisRowToRecord);
+    }
+
+    return Array.from(this.diagnoses.values())
+      .filter((record) => record.userId === ownerId)
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+      .slice(0, 100);
   }
 
   async getDiagnosis(id: string) {

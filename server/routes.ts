@@ -1940,6 +1940,29 @@ res.status(400).json({ message: "Update step completion could not be processed."
   });
 
   // Get all diagnoses
+  app.get("/api/customer/cases", requireCustomer, async (req, res) => {
+    try {
+      const customerId = req.drivableCustomer?.id;
+      if (!customerId) {
+        res.status(401).json({ ok: false, error: "Please sign in to view your cases.", code: "CUSTOMER_AUTH_REQUIRED" });
+        return;
+      }
+      const records = await storage.getCustomerDiagnosesByUser(customerId);
+      res.setHeader("Cache-Control", "no-store");
+      res.json({
+        cases: records.map((record) => ({
+          id: record.id,
+          vehicleInfo: record.vehicleInfo || "Vehicle details not available",
+          status: record.status || "received",
+          createdAt: record.createdAt,
+        })),
+      });
+    } catch (error) {
+      logEventError("api.customer_cases_fetch_failed", error);
+      res.status(503).json({ ok: false, error: "Your saved cases are temporarily unavailable. Try again shortly.", code: "CUSTOMER_CASES_UNAVAILABLE" });
+    }
+  });
+
   app.get("/api/diagnoses", requireReviewer, async (req, res) => {
     try {
       const diagnoses = await storage.getDiagnosesByUser();

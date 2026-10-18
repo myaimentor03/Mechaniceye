@@ -11,6 +11,8 @@ const backend = source("client/src/TestBackend.tsx");
 const marketplace = source("client/src/marketplace/Marketplace.tsx");
 const navigation = source("client/src/components/PublicHeaderNavigation.tsx");
 const reviewPage = source("client/src/components/MechanicsEyeReviewPage.tsx");
+const caseHistoryPage = source("client/src/components/CustomerCaseHistoryPage.tsx");
+const appHeader = source("client/src/components/app-header.tsx");
 const css = source("client/src/app.css");
 
 test("both public headers use one review route that is distinct from legal pages", () => {
@@ -52,6 +54,16 @@ test("case results route customers to Help with the case ID and do not promise f
   assert.match(backend, /name="relatedCaseId" defaultValue=\{initialCaseId\}/);
   assert.match(backend, /new files are not added to this case through the Help form/i);
   assert.doesNotMatch(backend, /add evidence later via follow-up/i);
+});
+
+test("saved-case history has a reachable owner-authenticated detail route", () => {
+  assert.match(backend, /routePath\.startsWith\("\/my-cases\/"\)/);
+  assert.match(backend, /<CustomerCaseDetailPage caseId=\{decodeURIComponent\(encodedCaseId\)\}/);
+  assert.match(caseHistoryPage, /href=\{`\/my-cases\/\$\{encodeURIComponent\(item\.id\)\}`\}/);
+  assert.match(caseHistoryPage, /fetch\(`\/api\/diagnoses\/\$\{encodeURIComponent\(caseId\)\}`/);
+  assert.match(caseHistoryPage, /not a diagnosis, safety clearance, or confirmation that a human review is complete/i);
+  assert.match(appHeader, /href="\/my-cases"/);
+  assert.doesNotMatch(appHeader, /<div className="hidden md:flex[^>]*>[\s\S]*href="\/my-cases"/);
 });
 
 test("active customer copy does not imply unavailable or unperformed media analysis", () => {
