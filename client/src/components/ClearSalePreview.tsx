@@ -38,6 +38,9 @@ export function ClearSalePreview() {
           <a className="product-landing-action primary" href="/marketplace/sell/intake">
             Start seller intake
           </a>
+          <a className="product-landing-action" href="/marketplace/my-listings">
+            Manage my listings
+          </a>
           <a className="product-landing-action" href="/repair-vs-sell-preview">
             Compare repair vs sell
           </a>

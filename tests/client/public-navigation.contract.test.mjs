@@ -14,6 +14,7 @@ const reviewPage = source("client/src/components/MechanicsEyeReviewPage.tsx");
 const caseHistoryPage = source("client/src/components/CustomerCaseHistoryPage.tsx");
 const appHeader = source("client/src/components/app-header.tsx");
 const findMyCarPage = source("client/src/components/FindMyCarPreview.tsx");
+const sellerListingsPage = source("client/src/components/ClearSaleSellerListingsPage.tsx");
 const css = source("client/src/app.css");
 
 test("both public headers use one review route that is distinct from legal pages", () => {
@@ -91,4 +92,15 @@ test("active customer copy does not imply unavailable or unperformed media analy
   assert.match(backend, /Photos, audio, video, and vibration data are stored as case evidence when persistence succeeds/);
   assert.match(backend, /the current AI path does not analyze uploaded media/);
   assert.match(backend, /not analyzed automatically/);
+});
+
+test("ClearSale seller listings are authenticated, durable, and explicitly published", () => {
+  assert.match(marketplace, /path === "\/marketplace\/my-listings"/);
+  assert.match(sellerListingsPage, /CustomerAccountGate/);
+  assert.match(sellerListingsPage, /fetch\("\/api\/marketplace\/my-listings"/);
+  assert.match(sellerListingsPage, /method: "POST"/);
+  assert.match(sellerListingsPage, /method: editingId \? "PATCH" : "POST"/);
+  assert.match(sellerListingsPage, /method: editingId \? "PATCH" : "POST"[\s\S]*Content-Type/);
+  assert.match(sellerListingsPage, /not public until explicitly approved/i);
+  assert.match(sellerListingsPage, /does not verify title, ownership, vehicle condition/i);
 });

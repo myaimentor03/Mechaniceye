@@ -69,7 +69,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { createStoredDiagnosisCase, generateCaseId, type IncomingDiagnosisCase, type StoredDiagnosisCase } from "./case-storage";
-import { checkDatabaseConnection, getDb } from "./db";
+import { checkDatabaseConnection, getDb, getPool } from "./db";
 import { sql } from "drizzle-orm";
 
 import { insertPublicDiagnosisCaseToDb } from "./public-case-db";
@@ -108,6 +108,7 @@ import { registerJourneyRoutes } from "./journey-routes";
 import { serializeErrorSafely } from "./observability/errors";
 import { sslConfigForDatabaseUrl } from "./database-ssl";
 import { fetchWebhookWithTimeout } from "./webhook-fetch";
+import { ClearSaleListingRepository, listingInputSchema } from "./marketplace/clearsale-listing-repository";
 
 // Configure multer for file uploads
 const uploadDir = path.join(process.cwd(), 'uploads');
@@ -1763,6 +1764,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
       logEventError("form.marketplace_buyer_interest_failed", error);
 
       res.status(502).json({ ok: false, error: "Buyer interest could not be forwarded. Please try again." });
+    }
+  });
+
+  app.get("/api/marketplace/listings", async (_req, res) => {
+    try {
+      const listings = await new ClearSaleListingRepository(getPool()).listPublic();
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ ok: true, listings });
+    } catch (error) {
+      logEventError("marketplace.listings_unavailable", error);
+      res.status(503).json({ ok: false, error: "ClearSale listings are temporarily unavailable.", code: "LISTINGS_UNAVAILABLE" });
+    }
+  });
+
+  app.get("/api/marketplace/listings/:id", async (req, res) => {
+    try {
+      const listing = await new ClearSaleListingRepository(getPool()).getPublic(req.params.id);
+      if (!listing) return res.status(404).json({ ok: false, error: "Listing not found." });
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ ok: true, listing });
+    } catch (error) {
+      logEventError("marketplace.listing_unavailable", error);
+      res.status(503).json({ ok: false, error: "ClearSale listing is temporarily unavailable.", code: "LISTINGS_UNAVAILABLE" });
+    }
+  });
+
+  app.get("/api/marketplace/my-listings", requireCustomer, async (req, res) => {
+    try {
+      const listings = await new ClearSaleListingRepository(getPool()).listOwned(req.drivableCustomer!.id);
+      res.json({ ok: true, listings });
+    } catch (error) {
+      logEventError("marketplace.my_listings_unavailable", error);
+      res.status(503).json({ ok: false, error: "Your ClearSale listings are temporarily unavailable.", code: "LISTINGS_UNAVAILABLE" });
+    }
+  });
+
+  app.post("/api/marketplace/listings", requireCustomer, async (req, res) => {
+    const parsed = listingInputSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ ok: false, error: "Listing details are incomplete or invalid.", code: "LISTING_INVALID" });
+    try {
+      const listing = await new ClearSaleListingRepository(getPool()).create(req.drivableCustomer!.id, parsed.data);
+      res.status(201).json({ ok: true, listing });
+    } catch (error) {
+      logEventError("marketplace.listing_create_failed", error);
+      res.status(503).json({ ok: false, error: "Listing could not be saved. Nothing was published.", code: "LISTING_PERSISTENCE_FAILED" });
+    }
+  });
+
+  app.patch("/api/marketplace/listings/:id", requireCustomer, async (req, res) => {
+    const parsed = listingInputSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ ok: false, error: "Listing details are incomplete or invalid.", code: "LISTING_INVALID" });
+    try {
+      const listing = await new ClearSaleListingRepository(getPool()).updateOwned(req.params.id, req.drivableCustomer!.id, parsed.data);
+      if (!listing) return res.status(404).json({ ok: false, error: "Listing not found." });
+      res.json({ ok: true, listing });
+    } catch (error) {
+      logEventError("marketplace.listing_update_failed", error);
+      res.status(503).json({ ok: false, error: "Listing could not be saved. Its previous state remains unchanged.", code: "LISTING_PERSISTENCE_FAILED" });
+    }
+  });
+
+  app.post("/api/marketplace/listings/:id/submit", requireCustomer, async (req, res) => {
+    try {
+      const listing = await new ClearSaleListingRepository(getPool()).submit(req.params.id, req.drivableCustomer!.id);
+      res.json({ ok: true, listing });
+    } catch (error) {
+      res.status(409).json({ ok: false, error: error instanceof Error ? error.message : "Listing cannot be submitted.", code: "LISTING_NOT_SUBMITTABLE" });
+    }
+  });
+
+  app.post("/api/marketplace/listings/:id/withdraw", requireCustomer, async (req, res) => {
+    try {
+      const listing = await new ClearSaleListingRepository(getPool()).withdraw(req.params.id, req.drivableCustomer!.id);
+      res.json({ ok: true, listing });
+    } catch (error) {
+      res.status(404).json({ ok: false, error: error instanceof Error ? error.message : "Listing not found.", code: "LISTING_NOT_FOUND" });
+    }
+  });
+
+  app.post("/api/marketplace/listings/:id/approve", requireReviewer, async (req, res) => {
+    try {
+      const repository = new ClearSaleListingRepository(getPool());
+      const listing = req.body?.rejectionReason
+        ? await repository.reject(req.params.id, String(req.body.rejectionReason).slice(0, 1_000))
+        : await repository.approve(req.params.id);
+      res.json({ ok: true, listing });
+    } catch (error) {
+      res.status(409).json({ ok: false, error: error instanceof Error ? error.message : "Listing cannot be approved.", code: "LISTING_NOT_APPROVABLE" });
     }
   });
 
