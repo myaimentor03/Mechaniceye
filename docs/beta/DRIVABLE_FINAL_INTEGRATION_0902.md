@@ -1,6 +1,6 @@
 # Drivable Beta Final Integration Report 0902
 
-> **Historical checkpoint only — superseded 2026-10-15.** The prior “95%”, “no code blockers”, and “CONDITIONAL GO” statements below are not current readiness evidence and do not authorize beta or customer-content release. Current local verification and unresolved gates are recorded in `DRIVABLE_MARATHON_PROGRESS_2026-10-15.md`. Isolated PostgreSQL commerce/outbox and review-approval repository tests have since passed on the dedicated test database, but the combined release chain, production payment/provider, live storage, and device validation remain unverified; payment readiness and customer-content release remain closed.
+> **Historical checkpoint only — superseded by the progress ledger through 2026-10-17.** The earlier “95%”, “no code blockers”, and “CONDITIONAL GO” claims are stale and do not authorize beta or customer-content release. Since those claims, a combined paid-release integration test passed once on the authorized isolated PostgreSQL test database after hostname/database/TLS verification; the test used a fake delivery sink. Current source also rechecks durable service-fulfillment consent, and a Resend transport is covered only by injected HTTP tests. The production worker and all production payment/customer-content gates remain closed. Staging, real provider delivery, live private-storage/deletion rehearsal, live Make workflow, and device/browser validation remain outstanding. See `DRIVABLE_MARATHON_PROGRESS_2026-10-15.md` for dated evidence and blockers.
 
 **Branch:** `integration/drivable-beta-0902`
 **Final SHA:** `a0f0501` (`integrate upstream journey/evidence multimodal lanes after 0902 rescue merges`)
@@ -76,39 +76,32 @@ client navigation contract, buyer evidence draft, beta E2E.
 
 ---
 
-## 4. Server Startup / Health Endpoints (local production-like boot, no DB, no storage creds)
+## 4. Server Startup / Health Endpoints
 
-- Boot: `node dist/server/index.js` prints `Server running on port <PORT>`.
-- `GET /api/health/live` → 200 `{"ok":true}`
-- `GET /api/health` → 200 `{"ok":true,"live":true}` (single aggregate, `no-store`)
-- `GET /api/health/readiness` → 401 without reviewer token, else 503 with the launch-readiness report while any durability gate is red (fail-closed, correct); 200 only in a fully provisioned deploy
-- `GET /api/health/db` → 503 `{ok:false}` with redacted reason when `DATABASE_URL` is absent (verified no URL/credential echo)
-- `GET /` → 200 `text/html` SPA fallback
-- `/api/capabilities` → **all four flags `false`** (`photoUpload`, `audioUpload`, `videoUpload`, `vibrationSensorCapture`) when storage/flag not configured (fail-closed, verified live)
+The 2026-09-23 behavior listed in the historical verification section below is not current evidence. Current local checks on 2026-10-17:
+
+- In an isolated `NODE_ENV=test` boot with database and R2 environment values removed, a unique empty temp-store path, and loopback port 5123, `GET /` and `/buyer-check` returned 200 HTML; `/api/health/live` returned 200 `{ok:true}`; `/api/health/readiness` and `/api/health/db` returned 503 because reviewer access was intentionally unconfigured; `/api/not-a-route` returned JSON 404.
+- `/api/capabilities` reported local test-mode storage capabilities in that boot. This is not a production capability result. `routes-security.test.ts` separately verifies that production capabilities do not advertise the unconnected legacy R2 uploader when only legacy R2 configuration is present.
+- In `NODE_ENV=production` with `DATABASE_URL` and R2 configuration absent, `npm run start` exited 1 before listening: `Refusing to start: journey case storage is not durably available.` Safe startup logs contained sanitized error categories and no URL, credentials, PII, or stack.
+- No production database or R2 behavior was exercised; production mode cannot serve routes without the required durable database. All check outcomes and exact limits are in the current progress ledger.
 
 ---
 
 ## 5. Remaining P0 / P1 / P2 Blockers
 
-This section is superseded by the 2026-10-15 verification batch. Selected auth/origin/logging/file
-guards and evidence/commerce/review contracts passed current focused local tests, but this report
-does not establish release readiness. Remaining blockers include real PostgreSQL validation,
-production payment-provider verification, wiring an idempotent approved-result delivery worker,
-live private-storage and deletion rehearsal, device validation, and correcting the exported Make
-scenario using verified sheet headers and isolated test destinations. Customer-content release and
-payment readiness remain closed.
+This section is superseded by the dated progress ledger. Current local tests cover auth/origin/logging/file guards, evidence/consent, commerce/review, durable outbox, and the combined paid-release chain. A disabled-by-default delivery composition and mocked Resend adapter exist; this does not validate live provider behavior or confirm inbox delivery. Remaining release blockers include isolated staging preparation/verification, real provider acceptance and delivery-event handling, private-storage access and deletion rehearsal, isolated Make test configuration, supported end-to-end customer journeys across all five product areas, and physical device/browser validation. Production customer access, charges, and customer-content release remain closed.
 
 ---
 
 ## 6. Environment Requirements
 
 ### DATABASE_URL
-- **Required** for: registration/login, session persistence, review records, consent records, delivery outbox (migration `0004` exists, provisioning only — not wired), `/api/health/db`.
-- Without it the server boots, serves the SPA, and fails closed on DB-backed routes (verified). Neon `postgresql://user:pass@host/db?sslmode=require`.
+- **Required** for: registration/login, session persistence, review records, consent records, commerce, delivery outbox/receipts, and `/api/health/db`. PostgreSQL repositories and the paid-result worker composition are wired in code; the worker and payment release gate remain disabled. The isolated database tests do not prove a deployed instance is migrated or configured.
+- In `NODE_ENV=production`, the server refuses to start without durable PostgreSQL (verified locally). A non-production/test boot can serve the SPA with database-backed operations unavailable; it is not production readiness evidence. Neon `postgresql://user:pass@host/db?sslmode=require`.
 - Must run `npm run db:push` (guarded, requires explicit target confirmation) in staging once for schema, then verify `/api/health/db` 200.
 
 ### R2 / S3 object storage
-- `DRIVABLE_EVIDENCE_S3_*` (bucket, region, endpoint, access key id, secret, force-path-style) required to enable any media upload. Until set, `/api/capabilities` reports **all four flags `false`** and both intake and follow-up reject photos/audio/video/vibration with **409** — the designed fail-closed behavior.
+- `DRIVABLE_EVIDENCE_S3_*` (bucket, region, endpoint, access key id, secret, force-path-style) is required for private object storage. In production with that adapter unavailable, the app must not advertise media upload; local/test mode can report local-storage capability and is not evidence of production storage. Actual private-bucket access, retention, and deletion remain unverified.
 - **Mobile media (audio/video/vibration) is now first-class when storage is provisioned:** intake and follow-up persist it via `EvidenceStore` (verified-byte MIME typing, per-type 413/415 limits, honest 507 on failure, rollback on partial failure), the `/api/capabilities` endpoint advertises each modality gate for that same durable-storage (or dev-local) condition, and the UI truthfully states that uploaded media is stored as case evidence but the current AI path does not analyze it.
 
 ### Feature flags
@@ -134,8 +127,8 @@ payment readiness remain closed.
 
 ## 8. Verified Beta-Readiness
 
-- **No current percentage or GO decision is asserted.** Earlier test counts and branch claims refer to a previous revision. Current local-only evidence is recorded in the dated progress ledger; it does not substitute for live-service validation or owner gates.
-- **Current policy:** payment readiness and customer-content release remain closed. The paid-result delivery consumer is not started or wired to a production idempotent provider. No live database, provider transaction, Make/Render setting, or device path was tested in this batch.
+- **No readiness percentage or GO decision is asserted.** A single percentage would obscure the independent database, provider, privacy, staging, product-journey, and device gates; no evidence-based denominator is defined. Earlier percentages and test counts refer to old revisions.
+- **Current policy:** payment readiness and customer-content release remain closed. The paid-result delivery consumer is composed with a disabled-by-default worker and mocked Resend HTTP transport tests; no live provider call or confirmed delivery event occurred. The combined isolated PostgreSQL test passed, but it is not production database validation. No production database, provider transaction, live Make/Render setting, or device path was exercised.
 - **Verified product boundary:** stored media remains evidence for human review and is not claimed to have been analyzed by the current AI path. Storage capability and cleanup checks used local S3 stubs/fakes, not a real bucket.
 
 ---
