@@ -4,7 +4,7 @@ import type { ApprovedPaidResult } from "./paid-delivery-context.js";
 import { createResendPaidResultProvider, ResendPaidResultError, ResendPaidResultTransport,
   RESEND_CONSERVATIVE_RETRY_WINDOW_MS } from "./resend-paid-result-transport.js";
 
-const NOW = "2026-10-16T12:00:00.000Z";
+const NOW = new Date().toISOString();
 const approvedResult = Object.freeze({
   caseId: "case_test_123", versionId: "review_version_1", artifactDigest: "a".repeat(64),
   recipientEmail: "customer@example.invalid",
