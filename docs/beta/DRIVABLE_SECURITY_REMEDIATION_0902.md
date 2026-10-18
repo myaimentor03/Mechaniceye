@@ -1,5 +1,7 @@
 # Drivable Security Remediation — 09/02
 
+> **Historical assessment only — superseded 2026-10-15.** Any “CONDITIONAL GO” statement in this document is not a current release decision. See `DRIVABLE_MARATHON_PROGRESS_2026-10-15.md`; payment readiness and customer-content release remain closed pending current external validation gates.
+
 **Branch:** `fix/drivable-security-remediation-0902`
 **Base:** `origin/opencode/launch-hardening-rescue-0902`
 **Arising from:** `origin/audit/drivable-release-0902` → `docs/beta/DRIVABLE_RELEASE_SECURITY_AUDIT_0902.md`

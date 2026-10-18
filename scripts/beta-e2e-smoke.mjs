@@ -285,8 +285,11 @@ async function main() {
       DRIVABLE_EVIDENCE_S3_FORCE_PATH_STYLE: "true",
       DRIVABLE_PHOTO_UPLOAD_ENABLED: "true",
       DRIVABLE_PUBLIC_ORIGIN: "https://getdrivable.com",
-      NODE_ENV: "production",
-      ...(DATABASE_URL ? { DATABASE_URL } : {}),
+      DRIVABLE_DISABLE_LOCAL_CASE_STORE: "true",
+      DATABASE_URL,
+      DRIVABLE_COMMERCE_TEST_DATABASE_URL: "",
+      DRIVABLE_ALLOW_COMMERCE_TEST_SCHEMA_SETUP: "",
+      NODE_ENV: DATABASE_URL ? "production" : "test",
     };
 
     const mainPort = await findFreePort();
@@ -767,7 +770,7 @@ async function main() {
         // fail-closed path (DB absent -> 503 + evidence rollback), never the
         // operator's C:\MechanicsEye_Operations local case store.
         DRIVABLE_DISABLE_LOCAL_CASE_STORE: "true",
-        NODE_ENV: "production",
+        NODE_ENV: DATABASE_URL ? "production" : "test",
         ...(DATABASE_URL ? { DATABASE_URL } : {}),
       },
     });
@@ -777,6 +780,7 @@ async function main() {
     const s3 = serverConfig.s3stub;
 
     await check("valid photos persist to S3 stub, then DB fail triggers full case cleanup (503 persisted:false)", async () => {
+      const beforePuts = s3.getPutCount();
       const response = await postMultipart(`${legacyUrl}/api/diagnoses`, intakeForm({ photos: [
         { bytes: jpegBytes("photo-one"), type: "image/jpeg", name: "front.jpg" },
         { bytes: jpegBytes("photo-two"), type: "image/jpeg", name: "rear.jpg" },
@@ -784,6 +788,11 @@ async function main() {
       const body = await jsonResponse(response);
       assert(response.status === 503, `expected 503 got ${response.status}`);
       assert(body.persisted === false, "must report persisted:false");
+      if (!DATABASE_URL) {
+        assert(body.code === "EVIDENCE_METADATA_STORAGE_UNAVAILABLE", `unexpected code ${body.code}`);
+        assert(s3.getPutCount() === beforePuts, "must fail closed before writing evidence without durable metadata storage");
+        return "metadata gate blocked upload before object storage";
+      }
       assert(body.caseId, "expected caseId reference");
       const putKeys = s3.ops.filter((op) => op.op === "put" && op.status === 200).map((op) => op.key);
       const casePrefix = `evidence/${body.caseId}/`;
@@ -806,7 +815,7 @@ async function main() {
         assert(op.key.startsWith("evidence/"), `key ${op.key} outside evidence namespace`);
       }
       return "keys case-scoped";
-    });
+    }, { skipReason: DATABASE_URL ? undefined : "requires durable evidence metadata database" });
 
     await check("stored objects carry retention, case, and evidence-status metadata (no public URL)", async () => {
       const putOps = s3.ops.filter((op) => op.op === "put" && op.status === 200);
@@ -822,7 +831,7 @@ async function main() {
         assert(!metadata["public-url"] && !metadata["acl"], `no public ACL/URL metadata on ${record.key}`);
       }
       return `${photos.length} photo objects tagged`;
-    });
+    }, { skipReason: DATABASE_URL ? undefined : "requires durable evidence metadata database" });
 
     await check("protected evidence retrieval denies unauthenticated access -> 401", async () => {
       const response = await get(`${legacyUrl}/api/internal/evidence/some-case-0001/some-attachment-id`);
@@ -869,13 +878,13 @@ async function main() {
       assert(response.status === 413, `expected 413 got ${response.status}`);
       assert(body.persisted === false, "must report persisted:false");
       return "ok";
-    });
+    }, { skipReason: DATABASE_URL ? undefined : "requires durable evidence metadata before route-level photo validation" });
 
     await check("non-photo mime part (video/mp4) -> 415", async () => {
       const response = await postMultipart(`${legacyUrl}/api/diagnoses`, intakeForm({ photos: [{ bytes: Buffer.from("video"), type: "video/mp4", name: "clip.mp4" }] }), { cookie });
       assert(response.status === 415, `expected 415 got ${response.status}`);
       return "ok";
-    });
+    }, { skipReason: DATABASE_URL ? undefined : "requires durable evidence metadata before route-level photo validation" });
 
     await check("PNG bytes labeled image/jpeg -> 507 (MIME mismatch), no objects written", async () => {
       const before = s3.getPutCount();
@@ -885,7 +894,7 @@ async function main() {
       assert(body.persisted === false, "must report persisted:false");
       assert(s3.getPutCount() === before, "no objects may be written on mismatch");
       return "ok";
-    });
+    }, { skipReason: DATABASE_URL ? undefined : "requires durable evidence metadata before route-level photo validation" });
 
     await check("executable bytes labeled image/jpeg -> 507 (content sniff), no objects written", async () => {
       const before = s3.getPutCount();
@@ -893,7 +902,7 @@ async function main() {
       assert(response.status === 507, `expected 507 got ${response.status}`);
       assert(s3.getPutCount() === before, "no objects may be written for non-image bytes");
       return "ok";
-    });
+    }, { skipReason: DATABASE_URL ? undefined : "requires durable evidence metadata before route-level photo validation" });
 
     await check("0-byte photo labeled image/jpeg -> 507 empty-file rejection, no objects written", async () => {
       const beforePut = s3.getPutCount();
@@ -903,7 +912,7 @@ async function main() {
       assert(body.persisted === false, "must report persisted:false for an empty file");
       assert(s3.getPutCount() === beforePut, "no objects may be written for an empty file");
       return "ok";
-    });
+    }, { skipReason: DATABASE_URL ? undefined : "requires durable evidence metadata before route-level photo validation" });
 
     await check("S3 unavailable (storage outage) -> 507 persisted:false, no leftovers", async () => {
       s3.failAllPuts(true);
@@ -920,7 +929,7 @@ async function main() {
         s3.failAllPuts(false);
       }
       return "ok";
-    });
+    }, { skipReason: DATABASE_URL ? undefined : "requires durable evidence metadata before object-storage outage handling" });
 
     await check("partial mid-upload S3 failure rolls back the already-written photo", async () => {
       const before = s3.getPutCount();
@@ -939,7 +948,7 @@ async function main() {
         s3.failPutIndex(null);
       }
       return "ok";
-    });
+    }, { skipReason: DATABASE_URL ? undefined : "requires durable evidence metadata before object storage" });
 
     if (DATABASE_URL) {
       await check("(db mode) text-only intake persists -> 200", async () => {
@@ -993,21 +1002,23 @@ async function main() {
       return `distinct ${first.caseId.slice(0, 8)} !== ${second.caseId.slice(0, 8)}`;
     });
 
-    await check("follow-up with media on a missing case -> 404 and no temp file leak", async () => {
+    await check("reviewer-only follow-up is denied before multipart parsing", async () => {
       const before = uploadsDirFileCount();
       const response = await postMultipart(`${legacyUrl}/api/diagnoses/qa-missing-case/follow-up`, followUpForm({ video: Buffer.from("video bytes"), audio: Buffer.from("audio bytes") }), { authorization: bearer });
-      assert(response.status === 404, `expected 404 got ${response.status}`);
-      await response.text();
+      const body = await jsonResponse(response);
+      assert(response.status === 401, `expected 401 got ${response.status}`);
+      assert(body.code === "CUSTOMER_AUTH_REQUIRED", `unexpected code ${body.code}`);
       await assertUploadsCountStable(before);
       return "clean";
     });
 
-    await check("follow-up with vibration + media -> 422 and temp files are cleaned", async () => {
+    await check("missing customer-owned case is rejected before multipart parsing", async () => {
       const before = uploadsDirFileCount();
-      const response = await postMultipart(`${legacyUrl}/api/diagnoses/qa-missing-case/follow-up`, followUpForm({ video: Buffer.from("video bytes"), vibration: true }), { authorization: bearer });
+      const cookie = sessionCookieHeader({ id: "qa-missing-owner", email: "missing-owner@example.test", secret: SESSION_SECRET });
+      const response = await postMultipart(`${legacyUrl}/api/diagnoses/qa-missing-case/follow-up`, followUpForm({ video: Buffer.from("video bytes"), vibration: true }), { cookie });
       const body = await jsonResponse(response);
-      assert(response.status === 422, `expected 422 got ${response.status}`);
-      assert(body.code === "VIBRATION_CAPTURE_DEPRECATED" || body.code === "VIBRATION_CAPTURE_UNAVAILABLE", `unexpected code ${body.code}`);
+      assert(response.status === 404, `expected 404 got ${response.status}`);
+      assert(body.message === "Original diagnosis not found", `unexpected response ${body.message}`);
       await assertUploadsCountStable(before);
       return "clean";
     });
@@ -1019,7 +1030,7 @@ async function main() {
         DRIVABLE_REVIEWER_TOKEN: REVIEWER_TOKEN,
         DRIVABLE_SESSION_SECRET: SESSION_SECRET,
         DRIVABLE_BETA_INVITE_CODE: BETA_INVITE,
-        NODE_ENV: "production",
+        NODE_ENV: DATABASE_URL ? "production" : "test",
         DRIVABLE_DISABLE_LOCAL_CASE_STORE: "true",
         DRIVABLE_EVIDENCE_S3_BUCKET: "qa-evidence",
         DRIVABLE_EVIDENCE_S3_REGION: "us-east-1",
@@ -1241,14 +1252,14 @@ async function main() {
     return "ok";
   });
 
-  await check("follow-up with vibrationData -> 422 (VIBRATION_CAPTURE_DEPRECATED) before any DB lookup", async () => {
+  await check("reviewer-only follow-up is denied before multipart parsing", async () => {
     const form = new FormData();
     form.append("vibrationData", JSON.stringify({ samples: [0.1, 0.2] }));
     form.append("additionalInfo", "still rough after repair");
     const response = await postMultipart(`${baseUrl}/api/diagnoses/some-case/follow-up`, form, { authorization: bearer });
     const body = await jsonResponse(response);
-    assert(response.status === 422, `expected 422 got ${response.status}`);
-    assert(body.code === "VIBRATION_CAPTURE_DEPRECATED" || body.code === "VIBRATION_CAPTURE_UNAVAILABLE", `unexpected code ${body.code}`);
+    assert(response.status === 401, `expected 401 got ${response.status}`);
+    assert(body.code === "CUSTOMER_AUTH_REQUIRED", `unexpected code ${body.code}`);
     return "ok";
   });
 
@@ -1278,7 +1289,7 @@ async function main() {
           DRIVABLE_BETA_INVITE_CODE: BETA_INVITE,
           DRIVABLE_LAUNCH_CONTROLS_ENABLED: "true",
           DRIVABLE_DISABLE_LOCAL_CASE_STORE: "true",
-          NODE_ENV: "production",
+          NODE_ENV: DATABASE_URL ? "production" : "test",
         },
       });
       runners.push(weak);

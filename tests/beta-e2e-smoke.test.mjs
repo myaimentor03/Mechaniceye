@@ -13,10 +13,22 @@ const __dirname = path.dirname(__filename);
 const SMOKE_SCRIPT = path.join(__dirname, "..", "scripts", "beta-e2e-smoke.mjs");
 const SECRET = "qa-marathon-session-secret-0902-abcdef-1234567890";
 
+function isolatedAutoSmokeEnvironment(parentEnv, overrides = {}) {
+  return {
+    ...parentEnv,
+    ...overrides,
+    BASE_URL: "",
+    DATABASE_URL: "",
+    DRIVABLE_COMMERCE_TEST_DATABASE_URL: "",
+    DRIVABLE_ALLOW_COMMERCE_TEST_SCHEMA_SETUP: "",
+  };
+}
+
 function runSmoke(env = {}) {
+  const childEnv = isolatedAutoSmokeEnvironment(process.env, env);
   return new Promise((resolve) => {
     execFile("node", [SMOKE_SCRIPT], {
-      env: { ...process.env, ...env },
+      env: childEnv,
       timeout: 120000,
     }, (error, stdout, stderr) => {
       resolve({ exitCode: error ? error.code ?? 1 : 0, stdout, stderr });
@@ -44,6 +56,20 @@ test("sessionCookieHeader encodes a valid drivable_session cookie", () => {
   const token = header.slice("drivable_session=".length);
   const decoded = decodeURIComponent(token);
   assert.match(decoded, /^\S+\.\S+$/);
+});
+
+test("auto smoke isolates inherited external URLs and database write targets", () => {
+  const env = isolatedAutoSmokeEnvironment({
+    BASE_URL: "https://production.example.test",
+    DATABASE_URL: "postgres://production.example.test/production",
+    DRIVABLE_COMMERCE_TEST_DATABASE_URL: "postgres://production.example.test/commerce",
+    DRIVABLE_ALLOW_COMMERCE_TEST_SCHEMA_SETUP: "true",
+  });
+
+  assert.equal(env.BASE_URL, "");
+  assert.equal(env.DATABASE_URL, "");
+  assert.equal(env.DRIVABLE_COMMERCE_TEST_DATABASE_URL, "");
+  assert.equal(env.DRIVABLE_ALLOW_COMMERCE_TEST_SCHEMA_SETUP, "");
 });
 
 test("beta-e2e smoke script passes end-to-end in auto mode (built server + stubs)", async () => {

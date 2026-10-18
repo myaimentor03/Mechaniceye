@@ -1,5 +1,7 @@
 # Drivable Beta Release Security Audit — 09/02
 
+> **Historical audit only — superseded 2026-10-15.** The “CONDITIONAL GO” language below is not a current release decision. See `DRIVABLE_MARATHON_PROGRESS_2026-10-15.md`; payment readiness and customer-content release remain closed pending current external validation gates.
+
 **Auditor:** OpenCode Worker 2 (Independent Release/Security Auditor)
 **Worktree/branch:** `audit/drivable-release-0902` (based on `origin/opencode/launch-hardening-rescue-0902`)
 **Date:** 2026-09-02

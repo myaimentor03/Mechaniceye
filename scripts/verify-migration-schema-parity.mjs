@@ -9,7 +9,7 @@
  *      the SQL set.
  *   3. Every CREATE TABLE in the SQL set is either in schema.ts or known as a
  *      launch-control/manual table (0001 consent/review + 0004 optional
- *      delivery outbox; 0003 hardening adds no tables, only
+ *      delivery outbox + 0009 durable delivery receipts; 0003 hardening adds no tables, only
  *      constraints/indexes).
  *   4. No SQL table is missing its CREATE INDEX IF NOT EXISTS for the
  *      schema-declared indexes.
@@ -63,7 +63,7 @@ for (const line of lines) {
   }
 }
 
-const indexNames = [...schemaSource.matchAll(/index\((["'`])([^"'`]+)\1/g)].map((m) => m[2]);
+const indexNames = [...schemaSource.matchAll(/(?:index|uniqueIndex)\((["'`])([^"'`]+)\1/g)].map((m) => m[2]);
 
 const migrationFiles = fs
   .readdirSync(migrationsDir)
@@ -76,7 +76,7 @@ const sqlIndexes = new Set();
 
 for (const file of migrationFiles) {
   const sql = fs.readFileSync(path.join(migrationsDir, file), "utf8");
-  for (const match of sql.matchAll(/create table if not exists ([a-z0-9_]+)/gi)) {
+  for (const match of sql.matchAll(/create table(?: if not exists)? ([a-z0-9_]+)/gi)) {
     const name = match[1];
     if (!sqlTables.has(name)) sqlTables.set(name, file);
   }
@@ -100,11 +100,12 @@ const EXPECTED_LAUNCH_CONTROL_TABLES = Object.freeze([
 ]);
 
 // Optional manual tables that live outside shared/schema.ts but ARE committed
-// migrations (unlike the ephemeral seed tables). schema.ts stays the source of
-// truth for wired runtime tables; the outbox is advisory until a durable
-// outbox implementation is wired.
+// migrations (unlike the ephemeral seed tables). The outbox and its delivery
+// receipt table have explicit SQL repositories and remain outside Drizzle's
+// application schema.
 const EXPECTED_OPTIONAL_MANUAL_TABLES = Object.freeze([
   "drivable_delivery_outbox",
+  "drivable_delivery_receipts",
 ]);
 
 for (const table of tableNames) {

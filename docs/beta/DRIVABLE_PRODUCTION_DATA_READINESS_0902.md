@@ -1,3 +1,5 @@
+> **Historical readiness assessment — superseded 2026-10-15.** Its “CONDITIONAL GO” verdict and production-readiness steps are not current authorization. See `DRIVABLE_MARATHON_PROGRESS_2026-10-15.md`; the 2026-10-15 preparation checkpoint did not access or write a database, while later authorized isolated tests used only random schemas in `drivable_commerce_test`. No production database was touched; payment/customer-content release remain closed.
+
 > [!IMPORTANT] ARCHIVED SOURCE AUDIT (2026-09-02)
 > This file is the verbatim source readiness audit that this branch was built
 > against. It is archived for reference ("audit memo" references in
@@ -496,5 +498,4 @@ npm run dev
 ```
 
 Total expected database rows after full import: **270 seed rows + 30 NHTSA packs + app data = 300+ rows minimum**.
-
 

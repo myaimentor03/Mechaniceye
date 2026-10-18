@@ -1,5 +1,7 @@
 # Drivable Beta Final Integration Report 0902
 
+> **Historical checkpoint only — superseded 2026-10-15.** The prior “95%”, “no code blockers”, and “CONDITIONAL GO” statements below are not current readiness evidence and do not authorize beta or customer-content release. Current local verification and unresolved gates are recorded in `DRIVABLE_MARATHON_PROGRESS_2026-10-15.md`. Isolated PostgreSQL commerce/outbox and review-approval repository tests have since passed on the dedicated test database, but the combined release chain, production payment/provider, live storage, and device validation remain unverified; payment readiness and customer-content release remain closed.
+
 **Branch:** `integration/drivable-beta-0902`
 **Final SHA:** `a0f0501` (`integrate upstream journey/evidence multimodal lanes after 0902 rescue merges`)
 **Base:** DRIVABLE beta integration worktree (`C:\Users\Hall7\opencode-next\integration`)
@@ -88,11 +90,13 @@ client navigation contract, buyer evidence draft, beta E2E.
 
 ## 5. Remaining P0 / P1 / P2 Blockers
 
-**None at code/branch level.** All P0 findings (console.error leakage) and P1 findings (origin
-enforcement, registration enumeration, file-access width, duplicate case IDs, 413/415 contract,
-follow-up evidence ordering, mobile-media durability fail-open) are closed in this branch. The only
-paces left are deployment-time provisioning (Section 6) and the documented Owner actions
-(Section 7) — not code blockers.
+This section is superseded by the 2026-10-15 verification batch. Selected auth/origin/logging/file
+guards and evidence/commerce/review contracts passed current focused local tests, but this report
+does not establish release readiness. Remaining blockers include real PostgreSQL validation,
+production payment-provider verification, wiring an idempotent approved-result delivery worker,
+live private-storage and deletion rehearsal, device validation, and correcting the exported Make
+scenario using verified sheet headers and isolated test destinations. Customer-content release and
+payment readiness remain closed.
 
 ---
 
@@ -130,15 +134,13 @@ paces left are deployment-time provisioning (Section 6) and the documented Owner
 
 ## 8. Verified Beta-Readiness
 
-- **Code/branch readiness: ~95%.** All integrated work type-checks, builds, passes every safe automated suite (journey 81, journey-routes 34, journey-pg-store 12, journey-events 8, journey-evidence-planner 28, evidence 16, consent ×4, review ×6, persistence-truth 12, production-smoke 8, safe-contracts 417/417, beta E2E 7/7 with all smoke checks, client-nav 4/4, buyer-draft 4/4, plus security/auth/readiness/origin/routes/media suites), the production-ready built server boots and serves the SPA with fail-closed security/storage/database behavior, and no conflict markers or secrets remain in the tree.
-- **Remaining ~5% (owner-dependent, not code):** live Neon provision + guarded `db:push`, live R2/S3 provisioning, real (non-stub) webhook and `.onrender.com` smoke, iPhone device verification, AI live-mode validation. These are exactly the actions in Section 7.
-- **Deliberate product boundaries this release:** all media upload is gated on durable private evidence storage (or local dev) — a production process never advertises or accepts uploads it can only persist to ephemeral disk; uploaded media is stored for human review and never claimed as an analyzed model input (`buildFollowUpEvidenceBoundary`); origin enforcement returns 403 (with `Vary: Origin`) for disallowed state-changing cross-origin requests; path traversal on `/api/files` returns 404 (Not Found) to avoid revealing detection.
+- **No current percentage or GO decision is asserted.** Earlier test counts and branch claims refer to a previous revision. Current local-only evidence is recorded in the dated progress ledger; it does not substitute for live-service validation or owner gates.
+- **Current policy:** payment readiness and customer-content release remain closed. The paid-result delivery consumer is not started or wired to a production idempotent provider. No live database, provider transaction, Make/Render setting, or device path was tested in this batch.
+- **Verified product boundary:** stored media remains evidence for human review and is not claimed to have been analyzed by the current AI path. Storage capability and cleanup checks used local S3 stubs/fakes, not a real bucket.
 
 ---
 
-**GO / CONDITIONAL GO / NO-GO: CONDITIONAL GO**
-
-All code and branch requirements are met. Deployment requires owner actions in Section 7 (DB provisioning, R2/S3 bucket setup, feature flag configuration). With those actions completed, the beta is ready for controlled tester traffic.
+**Release decision: NOT AUTHORIZED by this historical report.** Obtain a fresh, owner-reviewed decision only after the gates in the current progress ledger pass.
 
 ---
 
