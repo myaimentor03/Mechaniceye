@@ -1,5 +1,5 @@
 import type { DeliveryOutboxRepository } from "../jobs/delivery-outbox.js";
-import { HumanReviewReleaseGate } from "../review/release-gate.js";
+import { AsyncHumanReviewReleaseGate, type AsyncReviewReleaseReader } from "../review/async-release-gate.js";
 import type {
   RecipientIdentityBinding,
   ReleaseDenialCode,
@@ -84,13 +84,15 @@ export type PaidFulfillmentEligibilityDecision =
     reviewCode?: ReleaseDenialCode;
   }>;
 
-type CommerceOrderLookup = Pick<CommerceOrderRepository, "capabilities" | "get">;
+type CommerceOrderLookup = Pick<CommerceOrderRepository, "capabilities" | "get"> & {
+  hasVerifiedPayment?: (orderId: string) => Promise<boolean>;
+};
 type DeliveryOutboxCapability = Pick<DeliveryOutboxRepository, "capabilities">;
 
 export type PaidFulfillmentEligibilityDependencies = Readonly<{
   commerceOrders: CommerceOrderLookup;
   cases: PaidCasePersistenceRepository;
-  reviews: ReviewRepository;
+  reviews: ReviewRepository | AsyncReviewReleaseReader;
   deliveryOutbox: DeliveryOutboxCapability;
 }>;
 
@@ -138,8 +140,15 @@ export class PaidFulfillmentEligibilityService {
       return deny("dependency_unavailable", evaluatedAt);
     }
     if (order.caseId !== request.caseId) return deny("wrong_case", evaluatedAt);
-    if (order.state !== "verified" || order.provider === null) {
+    if (order.state !== "verified" || order.provider === null || (order.refundedAmountMinor ?? 0) > 0) {
       return deny("payment_not_verified", evaluatedAt);
+    }
+    try {
+      if (!await this.dependencies.commerceOrders.hasVerifiedPayment?.(order.orderId)) {
+        return deny("payment_not_verified", evaluatedAt);
+      }
+    } catch {
+      return deny("dependency_unavailable", evaluatedAt);
     }
 
     if (!isDurableCaseRepository(this.dependencies.cases)) {
@@ -170,7 +179,7 @@ export class PaidFulfillmentEligibilityService {
 
     let releaseDecision;
     try {
-      releaseDecision = new HumanReviewReleaseGate(this.dependencies.reviews, {
+      releaseDecision = await new AsyncHumanReviewReleaseGate(asAsyncReviewReader(this.dependencies.reviews), {
         now: () => new Date(evaluatedAt),
       }).decide({
         versionId: request.versionId,
@@ -297,13 +306,25 @@ function isDurableCaseRepository(repository: PaidCasePersistenceRepository): boo
     && value.versionedPersistence;
 }
 
-function isDurableReviewRepository(repository: ReviewRepository): boolean {
+function isDurableReviewRepository(repository: Pick<ReviewRepository, "capabilities">): boolean {
   const value = repository.capabilities;
   return value.backendClass === "durable-repository"
     && value.durable
     && value.appendOnlyAudit
     && value.caseBoundTransitions
     && value.generatedIdentifiers;
+}
+
+function asAsyncReviewReader(repository: ReviewRepository | AsyncReviewReleaseReader): AsyncReviewReleaseReader {
+  if ("createDraft" in repository) {
+    return {
+      capabilities: repository.capabilities,
+      async getVersion(versionId) { return repository.getVersion(versionId); },
+      async getVersionState(versionId) { return repository.getVersionState(versionId); },
+      async getCurrentVersionId(caseId) { return repository.getCurrentVersionId(caseId); },
+    };
+  }
+  return repository;
 }
 
 function isDurableDeliveryOutbox(outbox: DeliveryOutboxCapability): boolean {
@@ -317,7 +338,7 @@ function isDurableDeliveryOutbox(outbox: DeliveryOutboxCapability): boolean {
 }
 
 function isValidOrderRecord(order: CommerceOrder, requestedOrderId: string): boolean {
-  const validState = ["pending", "verified", "failed", "refund_required", "refunded"]
+  const validState = ["pending", "verified", "failed", "refund_required", "refunded", "partial_refund"]
     .includes(order.state);
   const validProvider = order.provider === null
     ? order.state === "pending"

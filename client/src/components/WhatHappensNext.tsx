@@ -5,7 +5,7 @@ const PROCESS_STEPS = [
   },
   {
     title: "We check what is missing",
-    text: "If the information is not enough, we ask for specific photos, manual codes, or written details. Audio and video upload are not enabled in this photo-first release."
+    text: "If the information is not enough, we ask for specific photos, manual codes, or written details. Audio, video, and vibration uploads are stored as case evidence when private hosted storage is available; they are not analyzed."
   },
   {
     title: "We organize the likely options",

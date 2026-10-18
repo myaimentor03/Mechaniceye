@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
-import { storeEvidenceFilesWithClient, type UploadedEvidenceFiles } from "./r2-evidence-storage.js";
+import { storeEvidenceFilesWithClient } from "./r2-evidence-storage.js";
+import type { UploadedEvidenceFiles } from "./evidence-storage.js";
 
 type StoredObject = {
   key: string;
@@ -18,7 +19,7 @@ async function makeTemporaryFiles(files: UploadedEvidenceFiles): Promise<{ root:
   for (const [field, list] of Object.entries(files) as Array<[keyof UploadedEvidenceFiles, Express.Multer.File[]]>) {
     withPath[field] = [];
     for (const file of list ?? []) {
-      const filename = path.join(root, `${file.originalname}`);
+      const filename = path.join(root, path.basename(file.originalname));
       await writeFile(filename, file.buffer || Buffer.from("test-content"));
       withPath[field]?.push({
         ...file,

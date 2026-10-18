@@ -82,7 +82,10 @@ export class PostgresReviewReleaseReader implements AsyncReviewReleaseReader {
     const approval = row.approval_id ? parseApproval(row, version) : undefined;
     const rejection = row.rejection_id ? parseRejection(row, version) : undefined;
     const supersession = row.supersession_id ? parseSupersession(row, version) : undefined;
-    if ([approval, rejection, supersession].filter(Boolean).length > 1) throw new ReviewReadRepositoryError();
+    // Approval/rejection are mutually exclusive terminal decisions. A later
+    // append-only supersession may coexist with either decision: it revokes
+    // current release authority while preserving the historical decision.
+    if (approval && rejection) throw new ReviewReadRepositoryError();
     const status = supersession ? "superseded" : rejection ? "rejected" : approval ? "approved" : version.status;
     return Object.freeze({ version, status, approval, rejection, supersession });
   }

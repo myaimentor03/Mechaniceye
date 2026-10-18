@@ -8,12 +8,14 @@ export type CommerceOrderState =
   | "verified"
   | "failed"
   | "refund_required"
-  | "refunded";
+  | "refunded"
+  | "partial_refund";
 
 export type ProviderPaymentEventKind =
   | "payment_verified"
   | "payment_failed"
-  | "refund_confirmed";
+  | "refund_confirmed"
+  | "refund_partial";
 
 export type CommerceOfferSnapshot = Readonly<{
   offerId: string;
@@ -41,6 +43,7 @@ export type CommerceOrder = Readonly<{
   createdAt: string;
   updatedAt: string;
   refundReasonCode: string | null;
+  refundedAmountMinor?: number;
 }>;
 
 export type CommerceOrderRepositoryCapabilities = Readonly<{
@@ -68,6 +71,10 @@ export type CommitCommerceEventInput = Readonly<{
   provider: CommerceProviderBinding | null;
   occurredAt: string;
   refundReasonCode: string | null;
+  eventKind?: ProviderPaymentEventKind;
+  refundedAmountMinor?: number;
+  providerOccurredAt?: string;
+  proof?: NormalizedProviderPaymentEvent;
 }>;
 
 export type CommitCommerceEventResult =
@@ -98,7 +105,7 @@ export interface PaymentProviderAdapter {
   verifyAndNormalize(payload: unknown): Promise<unknown>;
 }
 
-type NormalizedProviderPaymentEvent = Readonly<{
+export type NormalizedProviderPaymentEvent = Readonly<{
   schemaVersion: typeof PAYMENT_PROVIDER_EVENT_SCHEMA_VERSION;
   eventId: string;
   provider: string;
@@ -108,6 +115,7 @@ type NormalizedProviderPaymentEvent = Readonly<{
   amountMinor: number;
   currency: string;
   occurredAt: string;
+  refundedAmountMinor?: number;
 }>;
 
 export type CommerceEventApplication = Readonly<{
@@ -192,6 +200,7 @@ export class CommerceOrderService {
       createdAt: timestamp,
       updatedAt: timestamp,
       refundReasonCode: null,
+      refundedAmountMinor: 0,
     });
 
     let persisted: CommerceOrder;
@@ -224,6 +233,7 @@ export class CommerceOrderService {
     try {
       untrustedEvent = await adapter.verifyAndNormalize(payload);
     } catch (cause) {
+      if (cause instanceof CommerceContractError && cause.code === "persistence_failed") throw cause;
       throw new CommerceContractError(
         "invalid_provider_event",
         "The payment provider event could not be authenticated and normalized",
@@ -232,7 +242,7 @@ export class CommerceOrderService {
     }
     const event = parseProviderPaymentEvent(untrustedEvent);
 
-    if (event.kind === "payment_verified" || event.kind === "refund_confirmed") {
+    if (event.kind !== "payment_failed") {
       assertDurableCommerceOrderRepository(this.repository);
     }
 
@@ -264,7 +274,11 @@ export class CommerceOrderService {
       eventFingerprint,
       nextState,
       provider,
-      occurredAt: event.occurredAt,
+      occurredAt: latestTimestamp(this.timestamp(), current.updatedAt),
+      providerOccurredAt: event.occurredAt,
+      eventKind: event.kind,
+      proof: event,
+      refundedAmountMinor: Math.max(current.refundedAmountMinor ?? 0, event.refundedAmountMinor ?? (event.kind === "refund_confirmed" ? event.amountMinor : 0)),
       refundReasonCode: current.refundReasonCode,
     });
   }
@@ -422,6 +436,7 @@ function parseProviderPaymentEvent(value: unknown): NormalizedProviderPaymentEve
       "amountMinor",
       "currency",
       "occurredAt",
+      ...(Object.prototype.hasOwnProperty.call(value ?? {}, "refundedAmountMinor") ? ["refundedAmountMinor"] : []),
     ],
     "provider event",
     "invalid_provider_event",
@@ -433,6 +448,7 @@ function parseProviderPaymentEvent(value: unknown): NormalizedProviderPaymentEve
     record.kind !== "payment_verified"
     && record.kind !== "payment_failed"
     && record.kind !== "refund_confirmed"
+    && record.kind !== "refund_partial"
   ) {
     invalidProviderEvent("Unsupported provider event kind");
   }
@@ -451,6 +467,7 @@ function parseProviderPaymentEvent(value: unknown): NormalizedProviderPaymentEve
       amountMinor: requirePositiveMinorUnits(record.amountMinor, "amountMinor"),
       currency: requireCurrency(record.currency),
       occurredAt: requireIsoDateTime(record.occurredAt, "occurredAt"),
+      ...(record.refundedAmountMinor !== undefined ? { refundedAmountMinor: requirePositiveMinorUnits(record.refundedAmountMinor, "refundedAmountMinor") } : {}),
     });
   } catch (cause) {
     if (cause instanceof CommerceContractError && cause.code === "invalid_provider_event") throw cause;
@@ -492,13 +509,17 @@ function assertProviderEventMatchesOrder(
   if (event.amountMinor !== order.offer.amountMinor) {
     throw new CommerceContractError("amount_mismatch", "Provider event amount does not match order");
   }
+  if ((event.kind === "refund_partial" && (!event.refundedAmountMinor || event.refundedAmountMinor >= event.amountMinor))
+    || (event.kind === "refund_confirmed" && event.refundedAmountMinor !== undefined && event.refundedAmountMinor !== event.amountMinor)) {
+    throw new CommerceContractError("invalid_provider_event", "Refund total does not match refund kind");
+  }
   if (event.currency !== order.offer.currency) {
     throw new CommerceContractError("currency_mismatch", "Provider event currency does not match order");
   }
-  if (Date.parse(event.occurredAt) < Date.parse(order.updatedAt)) {
+  if (Date.parse(event.occurredAt) < Math.floor(Date.parse(order.createdAt) / 1000) * 1000) {
     throw new CommerceContractError(
       "invalid_provider_event",
-      "Provider event occurred before the order's current state",
+      "Provider event occurred before the order was created",
     );
   }
   if (Date.parse(event.occurredAt) > Date.parse(evaluatedAt) + 5 * 60 * 1000) {
@@ -522,25 +543,27 @@ function assertProviderEventMatchesOrder(
   }
 }
 
-function nextProviderState(
+export function nextProviderState(
   current: CommerceOrderState,
   kind: ProviderPaymentEventKind,
 ): CommerceOrderState {
-  if (current === "pending" && kind === "payment_verified") return "verified";
-  if (current === "pending" && kind === "payment_failed") return "failed";
-  if (
-    (current === "verified" || current === "refund_required")
-    && kind === "refund_confirmed"
-  ) {
-    return "refunded";
-  }
+  if (["pending", "failed"].includes(current) && kind === "payment_verified") return "verified";
+  if (["pending", "failed"].includes(current) && kind === "payment_failed") return "failed";
+  // Late failure/success events never undo confirmed payment or refund state.
+  if (["verified", "refund_required", "partial_refund", "refunded"].includes(current)
+      && ["payment_failed", "payment_verified"].includes(kind)) return current;
+  if (["verified", "refund_required", "partial_refund", "refunded"].includes(current)
+      && kind === "refund_confirmed") return "refunded";
+  if (["verified", "refund_required", "partial_refund"].includes(current)
+      && kind === "refund_partial") return "partial_refund";
+  if (current === "refunded" && kind === "refund_partial") return "refunded";
   throw new CommerceContractError(
     "illegal_transition",
     `Cannot apply ${kind} to an order in ${current}`,
   );
 }
 
-function fingerprintProviderEvent(
+export function fingerprintProviderEvent(
   adapterId: string,
   event: NormalizedProviderPaymentEvent,
 ): string {

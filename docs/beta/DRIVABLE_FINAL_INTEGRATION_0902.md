@@ -1,106 +1,108 @@
 # Drivable Beta Final Integration Report 0902
 
-**Date:** 2026-09-07
+> **Historical checkpoint only — superseded by the progress ledger through 2026-10-17.** The earlier “95%”, “no code blockers”, and “CONDITIONAL GO” claims are stale and do not authorize beta or customer-content release. Since those claims, a combined paid-release integration test passed once on the authorized isolated PostgreSQL test database after hostname/database/TLS verification; the test used a fake delivery sink. Current source also rechecks durable service-fulfillment consent, and a Resend transport is covered only by injected HTTP tests. The production worker and all production payment/customer-content gates remain closed. Staging, real provider delivery, live private-storage/deletion rehearsal, live Make workflow, and device/browser validation remain outstanding. See `DRIVABLE_MARATHON_PROGRESS_2026-10-15.md` for dated evidence and blockers.
+
 **Branch:** `integration/drivable-beta-0902`
-**Final SHA:** `4e78286`
-**Base:** `opencode/launch-hardening-rescue-0902` (`8eba023`)
+**Final SHA:** `a0f0501` (`integrate upstream journey/evidence multimodal lanes after 0902 rescue merges`)
+**Base:** DRIVABLE beta integration worktree (`C:\Users\Hall7\opencode-next\integration`)
 **Operator:** OpenCode Worker 1 (Drivable Beta Lead Integrator)
-**Date:** 2026-09-09
+**Updated:** 2026-09-23 (post-fast-forward integration verification session; see §9 for what changed)
 
 ---
 
 ## 1. Source Branches Integrated
 
-| Source branch | Tip | Merged at |
+| Source branch | Tip | Status |
 |---|---|---|
-| `opencode/launch-hardening-rescue-0902` | `8eba023` | Base of integration |
-| `agy/beta-audit-0901` | `32e0083` | `c91532b` |
-| `opencode/mobile-r2-rescue-0902` | `61a3775` | `aa3bd4f` |
-| `opencode/buyer-commerce-rescue-0902` | `bcd917f` | `9c95097` |
-| `opencode/launch-docs-rescue-0902` | `8069f0e` | `5213d67` |
-| `fix/drivable-security-remediation-0902` | `c4ebf10` | `6dffaf3` + `2ab0cd0` |
-| `qa/drivable-production-smoke-0902` | `c14ce84` | `d147735` |
-| `qa/drivable-marathon-e2e-0902` | `4726b45` | `3502c1e` |
-| `prep/drivable-production-data-0902` | `6ae6bdc` | `c8c0e67` |
-| `audit/drivable-data-readiness-0902` | `04af448` | `6f02ad5` |
+| `opencode/launch-hardening-rescue-0902` | merged | Verified ancestor of HEAD |
+| `agy/beta-audit-0901` | merged | Verified ancestor of HEAD |
+| `opencode/mobile-r2-rescue-0902` | merged | Verified ancestor of HEAD |
+| `opencode/buyer-commerce-rescue-0902` | merged | Verified ancestor of HEAD |
+| `opencode/launch-docs-rescue-0902` | merged | Verified ancestor of HEAD |
+| `audit/drivable-release-0902` | merged | Verified ancestor of HEAD |
+| `audit/drivable-data-readiness-0902` | merged | Verified ancestor of HEAD |
+| `qa/drivable-production-smoke-0902` | merged | Verified ancestor of HEAD |
 
-`origin/wire-frontend-prod` was **deliberately not merged** (frontend-only production concern out of scope for this beta integration).
+This integration worktree was fast-forwarded to the upstream integration tip `a0f0501`
+(79 commits: journey lanes `lane/journey-0914`, evidence lanes `candidate/evidence`,
+`candidate/journey`, and the multimodal evidence pipeline). All candidate branch tips are
+ancestors of HEAD; there is no pending merge or rebase.
 
 ---
 
 ## 2. Conflicts Resolved File-by-File
 
-Deliberate hand-resolution (both/newest-safe-behavior wins), never ours/theirs wholesale.
-
-| File | Resolution |
-|---|---|
-| `server/routes.ts` | Hand-resolved: single `/api/health` aggregate `{ok,live}` (QA) with `no-store`; `Vary: Origin` before origin-denied 403; photo-first intake with 413/415/507 gates; `buildDiagnosisApiResponse` 3rd arg `persisted=false`; mirror-failure logged via safe `logEventError` (no raw `console.error`); **path traversal on `/api/files/:filename` now returns 403 (Forbidden) instead of 400 (Bad Request)** — preserves key secrecy, does not reveal path-detection to callers |
-| `server/index.ts` | Hand-resolved: CORS same-origin rules from security-remediation + default express.json/urlencoded limits (100kb) so over-limit JSON yields 413 |
-| `server/origin-guard.ts` | Multi-platform `requireAllowedOrigin`/`enforceOriginForStateChanging` merged; `Vary: Origin` added to all origin-denied 403 responses |
-| `client/src/TestBackend.tsx` | Deliberate hand-resolution (launch-hardening + QA behaviors merged) |
-| `package.json` / `package-lock.json` | Deliberate hand-resolution (all test scripts preserved) |
-| `scripts/beta-e2e-smoke.mjs` | Origin-enforcement acceptance check updated to assert 403 `ORIGIN_NOT_ALLOWED` + no ACAO + `Vary: Origin` (security mandate wins over QA's previous 200-with-Vary expect) |
-| `server/case-storage.ts` | Case IDs are now always server-generated (`CASE-<epoch>-<randomBytes(4).hex>`); `createStoredDiagnosisCase`/`createPublicDiagnosisCase` no longer seed IDs from client markers, so duplicate client request IDs can never collide on case identity |
-| `server/public-case-db.test.ts` | Removed leftover conflict markers + UTF-8 BOM (commit `65f47c6`) |
-| `migrations/0002_drivable_core_schema.sql` | Removed 2 leftover marker hunks (BOM/mojibake only) |
-| `migrations/0003_drivable_data_integrity_hardening.sql` | Removed 2 leftover marker hunks (BOM/mojibake only) |
-| `scripts/acceptance-buyer-data-readiness.mjs` | Removed 4 leftover marker hunks |
-| `scripts/db-push-guarded.mjs` | Removed 2 leftover marker hunks |
-| `scripts/inventory-nhtsa-batch-lists.mjs` | Removed 2 leftover marker hunks |
-| `scripts/lib/db-target-safe.mjs` | Removed 2 leftover marker hunks |
-| `scripts/run-safe-preflight.mjs` | Removed 2 leftover marker hunks |
-| `scripts/verify-migration-schema-parity.mjs` | Removed 3 leftover marker hunks |
-| `docs/beta/DRIVABLE_DATA_MIGRATION_AND_IMPORT_RUNBOOK_0902.md` | 15 mojibake-only hunks → theirs; scope table (line 23) and outbox/schema-drift paragraph (line 395) hand-merged |
-| `docs/beta/DRIVABLE_PRODUCTION_DATA_READINESS_0902.md` | Leftover marker hunks removed |
-
-**Verification:** `git grep '^(<<<<<<<|=======|>>>>>>)')` reports **zero** conflict markers in the tree.
+Relying on upstream rather than working-tree merges: after the fast-forward, **zero conflict
+markers** exist in the source tree (`git grep '^(<<<<<<<|=======|>>>>>>)'` reports none; the
+only `=======` lines in the worktree are in `MARATHON_TASK-BEFORE-MOBILE-SWARM-*.txt` log files,
+which are plain-text markers, not conflict hunks). No working-tree merge conflicts were introduced
+by the 79-commit fast-forward.
 
 ---
 
-## 3. Build, Typecheck, and Test Results (final, at `4e78286`)
+## 3. Build, Typecheck, and Test Results (final, at `a0f0501`)
 
 | Check | Result |
 |---|---|
 | `npm run check` (tsc) | PASS, clean |
-| `npm run build` | PASS (`dist/server/index.js` 241.0kb) |
-| Full safe test grid (30 suites) | **30/30 PASS** |
-| `npm run test:beta-e2e` | 90/92 PASS (2 env-related failures: missing `MASTER_INTAKE_WEBHOOK_URL`; both expected fail-closed) |
-| `npm run verify:migration-parity` | PASS |
-| `npm run preflight:safe` | PASS (8/8 stages, no DB/mutation) |
-| `npm run validate:seed-data` | PASS (8 datasets, 270 rows) |
+| `npm run build` | PASS (`dist/server/index.js` 432.4kb; client `index-*.js` 539kb) |
+| `npm run test:journey` | **81/81 PASS** |
+| `npm run test:journey-routes` | **34/34 PASS** |
+| `npm run test:journey-pg-store` | **12/12 PASS** |
+| `npm run test:journey-events` | **8/8 PASS** |
+| `npm run test:journey-evidence-planner` | **28/28 PASS** |
+| `npm run test:evidence` | **16/16 PASS** |
+| `npm run test:security` / `test:auth` / `test:identity` / `test:rate-limit` / `test:readiness` | PASS |
+| `npm run test:consent` + `test:consent-postgres` + `test:consent-intake` + `test:consent-revocation` | PASS |
+| `npm run test:origin-guard` / `test:routes-security` / `test:safe-log` / `test:webhook-fetch` / `test:registration-enum` | PASS |
+| `npm run test:review` + `test:review-async` + `test:review-postgres` + `test:review-writer` + `test:review-adapter` + `test:review-routes` | PASS |
+| `npm run test:follow-up-boundary` | **3/3 PASS** |
+| `npm run test:delivery` / `test:observability` / `test:media-contract` / `test:load-cert` / `test:public-case` / `test:storage-persistence` | PASS |
+| `npm run test:buyer-draft` | PASS |
+| `npm run test:persistence-truth` | **12/12 PASS** |
+| `npm run test:production-smoke` | **8/8 PASS** |
+| `npm run test:safe-contracts` (broad glob) | **417/417 PASS** |
+| `npm run test:beta-e2e` | **7/7 PASS** (all smoke checks green) |
+| `npm run test:client-nav` | **4/4 PASS** |
+| `npm run verify:migration-parity` | PASS (migrations match `shared/schema.ts`, no DB required) |
+| `npm run verify:no-destructive-sql` | PASS (no destructive statements in migrations or seed preview) |
 
-Suites included: evidence, security, auth, identity, rate-limit, readiness, consent (+postgres/intake/revocation), origin-guard, routes-security, safe-log, webhook-fetch, registration-enum, review (+async/postgres/writer/adapter/routes), follow-up-boundary, delivery, observability, media-contract, load-cert, production-smoke, storage-persistence, public-case.
+Suites included: journey (+routes/pg-store/events/evidence-planner), evidence, security, auth,
+identity, rate-limit, readiness, consent (+postgres/intake/revocation), origin-guard,
+routes-security, safe-log, webhook-fetch, registration-enum, review
+(+async/postgres/writer/adapter/routes), follow-up-boundary, delivery, observability,
+media-contract, load-cert, production-smoke, storage-persistence, persistence-truth, public-case,
+client navigation contract, buyer evidence draft, beta E2E.
 
 ---
 
-## 4. Server Startup / Health Endpoints (local production-like boot, no DB, no storage creds)
+## 4. Server Startup / Health Endpoints
 
-- Boot: `node dist/server/index.js` prints `Server running on port <PORT>`.
-- `GET /api/health/live` → 200 `{"ok":true,"live":true}`
-- `GET /api/health` → 200 `{"ok":true,"live":true}` (single aggregate, `no-store`)
-- `GET /api/health/readiness` → 503 `REVIEWER_ACCESS_NOT_CONFIGURED` without launch controls (fail-closed, correct)
-- `GET /` and `GET /clearsale` → 200 `text/html` SPA fallback
-- `GET /api/nope` → 404; `GET /api/auth/me` → 200 `{"ok":true,"user":null}`
-- `/api/capabilities` → `photoUpload:false`, `audioUpload:false`, `videoUpload:false` when storage not configured (fail-closed)
+The 2026-09-23 behavior listed in the historical verification section below is not current evidence. Current local checks on 2026-10-17:
+
+- In an isolated `NODE_ENV=test` boot with database and R2 environment values removed, a unique empty temp-store path, and loopback port 5123, `GET /` and `/buyer-check` returned 200 HTML; `/api/health/live` returned 200 `{ok:true}`; `/api/health/readiness` and `/api/health/db` returned 503 because reviewer access was intentionally unconfigured; `/api/not-a-route` returned JSON 404.
+- `/api/capabilities` reported local test-mode storage capabilities in that boot. This is not a production capability result. `routes-security.test.ts` separately verifies that production capabilities do not advertise the unconnected legacy R2 uploader when only legacy R2 configuration is present.
+- In `NODE_ENV=production` with `DATABASE_URL` and R2 configuration absent, `npm run start` exited 1 before listening: `Refusing to start: journey case storage is not durably available.` Safe startup logs contained sanitized error categories and no URL, credentials, PII, or stack.
+- No production database or R2 behavior was exercised; production mode cannot serve routes without the required durable database. All check outcomes and exact limits are in the current progress ledger.
 
 ---
 
 ## 5. Remaining P0 / P1 / P2 Blockers
 
-**None at code/branch level.** All P0 findings (console.error leakage) and P1 findings (origin enforcement, registration enumeration, file-access width, duplicate case IDs, 413/415 contract) are closed in this branch. The only paces left are deployment-time provisioning (Section 6) and the documented Owner actions (Section 7) — not code blockers.
+This section is superseded by the dated progress ledger. Current local tests cover auth/origin/logging/file guards, evidence/consent, commerce/review, durable outbox, and the combined paid-release chain. A disabled-by-default delivery composition and mocked Resend adapter exist; this does not validate live provider behavior or confirm inbox delivery. Remaining release blockers include isolated staging preparation/verification, real provider acceptance and delivery-event handling, private-storage access and deletion rehearsal, isolated Make test configuration, supported end-to-end customer journeys across all five product areas, and physical device/browser validation. Production customer access, charges, and customer-content release remain closed.
 
 ---
 
 ## 6. Environment Requirements
 
 ### DATABASE_URL
-- **Required** for: registration/login, session persistence, review records, consent records, delivery outbox (migration `0004` exists, provisioning only — not wired), `/api/health/db`.
-- Without it the server boots, serves the SPA, and fails closed on DB-backed routes (verified). Neon `postgresql://user:pass@host/db?sslmode=require`.
+- **Required** for: registration/login, session persistence, review records, consent records, commerce, delivery outbox/receipts, and `/api/health/db`. PostgreSQL repositories and the paid-result worker composition are wired in code; the worker and payment release gate remain disabled. The isolated database tests do not prove a deployed instance is migrated or configured.
+- In `NODE_ENV=production`, the server refuses to start without durable PostgreSQL (verified locally). A non-production/test boot can serve the SPA with database-backed operations unavailable; it is not production readiness evidence. Neon `postgresql://user:pass@host/db?sslmode=require`.
 - Must run `npm run db:push` (guarded, requires explicit target confirmation) in staging once for schema, then verify `/api/health/db` 200.
 
 ### R2 / S3 object storage
-- `DRIVABLE_EVIDENCE_S3_*` (bucket, region, endpoint, access key id, secret, force-path-style) required to enable photo upload. Until set, `/api/capabilities` reports `photoUpload:false` and intake rejects with 507 — the designed fail-closed behavior.
-- Mobile media (audio/video/vibration) is **not supported in this release**: advertised `false` and rejected at intake with 415 (photo-first contract).
+- `DRIVABLE_EVIDENCE_S3_*` (bucket, region, endpoint, access key id, secret, force-path-style) is required for private object storage. In production with that adapter unavailable, the app must not advertise media upload; local/test mode can report local-storage capability and is not evidence of production storage. Actual private-bucket access, retention, and deletion remain unverified.
+- **Mobile media (audio/video/vibration) is now first-class when storage is provisioned:** intake and follow-up persist it via `EvidenceStore` (verified-byte MIME typing, per-type 413/415 limits, honest 507 on failure, rollback on partial failure), the `/api/capabilities` endpoint advertises each modality gate for that same durable-storage (or dev-local) condition, and the UI truthfully states that uploaded media is stored as case evidence but the current AI path does not analyze it.
 
 ### Feature flags
 - `DRIVABLE_PHOTO_UPLOAD_ENABLED=true` only after storage verified (test with `TEST_WRITE=true`).
@@ -116,7 +118,7 @@ Suites included: evidence, security, auth, identity, rate-limit, readiness, cons
 3. In staging: run `npm run db:push` (guarded) to apply schema; verify `/api/health/db` returns 200 with the reviewer token; verify `users.password` contains only `scrypt$...`.
 4. Run `npm run preflight:safe` before migration; `npm run verify:migration-parity` before push.
 5. Run the production smoke against the deployed URL (`npm run smoke:beta-e2e`), confirm readiness 200.
-6. Confirm `/api/capabilities` toggles `photoUpload` true/false with storage env (no secrets leak in logs or client responses).
+6. Confirm `/api/capabilities` toggles all four media flags true/false with storage env (no secrets leak in logs or client responses).
 7. Enable `DRIVABLE_LAUNCH_CONTROLS_ENABLED` after staging review pass; set `DRIVABLE_PHOTO_UPLOAD_ENABLED=true` after a `TEST_WRITE=true` upload/retrieval round trip.
 8. Run the iPhone mobile acceptance checklist (docs/beta/DRIVABLE_DEPLOYMENT_ACCEPTANCE_0902.md §7).
 9. Begin controlled tester traffic; keep rollback steps (§6 of acceptance doc) available.
@@ -125,14 +127,92 @@ Suites included: evidence, security, auth, identity, rate-limit, readiness, cons
 
 ## 8. Verified Beta-Readiness
 
-- **Code/branch readiness: ~95%.** All integrated work type-checks, builds, passes every safe automated suite, the production-ready built server boots and serves the SPA with fail-closed security/storage/database behavior, and no conflict markers or secrets remain in the tree. Beta E2E: 90/92 tests pass (2 env-dependent failures for webhook forwarding without `MASTER_INTAKE_WEBHOOK_URL`; path-traversal now returns 403).
-- **Remaining ~5% (owner-dependent, not code):** live Neon provision + guarded `db:push`, live R2/S3 provisioning, real (non-stub) webhook and `.onrender.com` smoke, iPhone device verification, AI live-mode validation. These are exactly the actions in Section 7.
-- **Deliberate product boundaries this release:** photo-first evidence intake (no audio/video vibration), evidence upload disabled until storage is configured, and origin enforcement returns 403 (with `Vary: Origin`) for disallowed state-changing cross-origin requests. Path traversal on `/api/files` returns 403 (Forbidden) instead of 400 (Bad Request) to avoid revealing detection.
+- **No readiness percentage or GO decision is asserted.** A single percentage would obscure the independent database, provider, privacy, staging, product-journey, and device gates; no evidence-based denominator is defined. Earlier percentages and test counts refer to old revisions.
+- **Current policy:** payment readiness and customer-content release remain closed. The paid-result delivery consumer is composed with a disabled-by-default worker and mocked Resend HTTP transport tests; no live provider call or confirmed delivery event occurred. The combined isolated PostgreSQL test passed, but it is not production database validation. No production database, provider transaction, live Make/Render setting, or device path was exercised.
+- **Verified product boundary:** stored media remains evidence for human review and is not claimed to have been analyzed by the current AI path. Storage capability and cleanup checks used local S3 stubs/fakes, not a real bucket.
 
 ---
 
-**GO / CONDITIONAL GO / NO-GO: CONDITIONAL GO**
+**Release decision: NOT AUTHORIZED by this historical report.** Obtain a fresh, owner-reviewed decision only after the gates in the current progress ledger pass.
 
-All code and branch requirements are met. Deployment requires owner actions in Section 7 (DB provisioning, R2/S3 bucket setup, feature flag configuration). With those actions completed, the beta is ready for controlled tester traffic.
+---
+
+## 9. Integration Verification Session (2026-09-23, at `a0f0501`)
+
+### 9.1 Scope confirmed / fast-forward
+Fetched `origin`, verified all 8 candidate branches merged into the integration tip, and
+fast-forwarded the local `integration/drivable-beta-0902` (`a121fc1` → `a0f0501`, +79 commits).
+This brought in the journey lanes (`lane/journey-0914`), evidence lanes (`candidate/evidence`,
+`candidate/journey`), and the multimodal evidence pipeline (audio/video/vibration capture,
+`/api/capabilities` modality flags, `buildFollowUpEvidenceBoundary`).
+
+### 9.2 Fail-open closed on multimodal media (new finding, fixed)
+A production boot with **no storage config** previously reported `photoUpload:false` but
+`audioUpload:true / videoUpload:true / vibrationSensorCapture:true` (the `hasAnyStorage` gate
+accepted `runtime_local` even in production), and intake/follow-up persisted audio/video/vibration
+to that ephemeral local store. Fixed in `server/routes.ts`:
+- `/api/capabilities`: all four media flags now gate on `hasDurableStorage` **or** dev-local
+  (`mediaUploadAvailable`), never on raw `runtime_local`. Verified live: all four report `false`
+  without storage; all four report `true` with the S3 stub.
+- Intake: mobile-media (audio/video/vibration) now carries the same 409 durability gate already
+  present for photos.
+- Follow-up: same 409 durability gate for audio/video/vibration before persistence.
+
+### 9.3 Follow-up evidence ordering fix
+Follow-up persistence ran **before** the case-existence check, so known-missing cases could trigger
+media persistence attempts (returning 507) and accepted media for case IDs that do not exist. The
+route now resolves `storage.getDiagnosis(diagnosisId)` → 404 (with temp-file cleanup) **before**
+persisting any modality. Smoke checks for "missing case -> 404 and no temp file leak" and
+"vibration + media -> 422, temp cleaned" both PASS.
+
+### 9.4 Vibration-code alignment
+The server truthfully returns `VIBRATION_CAPTURE_DEPRECATED` (JSON `vibrationData` is deprecated in
+favor of `vibration` file upload), but one smoke check still pinned `VIBRATION_CAPTURE_UNAVAILABLE`.
+The smoke assertion was aligned with the sibling check that already accepts either code
+(`scripts/beta-e2e-smoke.mjs`).
+
+### 9.5 Client copy reconciled (photo-first → multimodal truth)
+`tests/client/public-navigation.contract.test.mjs` asserted the pre-multimodal photo-first copy that
+upstream removed. Updated the contract test to the new **truthful** statements:
+- `MechanicsEyeReviewPage.tsx` and `WhatHappensNext.tsx` no longer claim "audio/video upload are not
+  enabled in this photo-first release"; they now state media uploads are stored as case evidence
+  when private hosted storage passes launch verification, are not visually analyzed by the current
+  AI path, and vibration readings are never generated/simulated/inferred.
+- `test:client-nav` → **4/4 PASS**.
+
+### 9.6 Journey lanes left stable
+Journey evidence routes intentionally support runtime-local storage and are covered by their own
+34-test suite (PASS); their durability contract is documented separately and was not altered.
+Journey duplication with the drivable intake remains a tracked backlog item, not a blocker.
+
+### 9.7 Local production-like boot (built bundle, no DB, no storage creds)
+Booted `dist/server/index.js` with launch flags set but no `DATABASE_URL`/S3 creds:
+- `/api/health`, `/api/health/live`, `/`, `/api/capabilities` all correct (capabilities **all `false`**).
+- `/api/health/readiness` → 401 unauthenticated, 503 with valid reviewer token while durability gates are red.
+- `/api/health/db` → 503 with redacted error. Process exited cleanly on stop.
+
+### 9.8 File-level hygiene
+Only intended lines changed; no secrets added. Scratch recovery files (`fix_routes*.py`,
+`resolve_*.py`, `routes_*.ts`, `tmp_routes_*.ts`, `*_output.txt`, etc.) remain untracked and
+uncommitted in the worktree — not part of the branch.
+
+### 9.9 Files changed in this session
+- `server/routes.ts` — capabilities fail-closed gate; intake + follow-up mobile-media 409 durability gates; follow-up case-existence 404 check moved before evidence persistence.
+- `scripts/beta-e2e-smoke.mjs` — vibration code assertion aligned.
+- `client/src/components/MechanicsEyeReviewPage.tsx` — truthful multimodal evidence copy.
+- `client/src/components/WhatHappensNext.tsx` — truthful multimodal evidence copy.
+- `tests/client/public-navigation.contract.test.mjs` — contract updated to multimodal truth.
+- `docs/beta/DRIVABLE_FINAL_INTEGRATION_0902.md` — this update.
+
+---
+
+## 10. Known Side Effect to Disclose (this worktree)
+- `MARATHON_TASK.txt` shows a working-tree modification (line-ending/encoding only, content identical
+  to HEAD) and several untracked scratch/recovery files predate this session. They are intentionally
+  **not** committed. No repository cleanup (`reset`/`clean`/`discard`) was performed per integration
+  rules.
+- No production database, no live storage, no real customer data, and no live AI/iPhone device paths
+  were touched. All verification ran against built bundles, S3/object stubs, and the local ops-free
+  server.
 
 ---

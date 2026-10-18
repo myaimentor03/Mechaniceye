@@ -4,7 +4,7 @@
 
 Document a future fallback branch for Drivable Master Intake Router payloads whose `intakeType` does not match any approved primary route.
 
-This is a planning document only. Do not build this route until the five main branches are tested and proven.
+This is a planning document only. Do not build this route until the five main branches are tested and proven. The current contract and safe correlation-only behavior are superseded by [`MAKE_MASTER_INTAKE_ROUTER_REPAIR_PLAN_2026-10-15.md`](MAKE_MASTER_INTAKE_ROUTER_REPAIR_PLAN_2026-10-15.md).
 
 ## Why an Unmatched Intake Route Matters
 
@@ -13,7 +13,7 @@ Without a fallback, a misspelled, new, empty, or unexpected `intakeType` can ent
 An unmatched route should:
 
 - Capture enough safe information for an administrator to investigate.
-- Preserve the original payload in an approved raw JSON location.
+- Preserve only safe correlation metadata; do not write or email the full private payload.
 - Avoid sending customer confirmations.
 - Avoid guessing which workflow should receive the intake.
 - Create a visible routing-review task.
@@ -31,13 +31,13 @@ Configure the route with all conditions joined by `AND`:
 intakeType does not equal support-concierge-request
 AND intakeType does not equal marketplace-seller
 AND intakeType does not equal diagnosis
-AND intakeType does not equal buyer-interest
+AND intakeType does not equal marketplace-buyer-interest
 AND intakeType does not equal internal-diagnosis-response
 ```
 
 The filter must evaluate the incoming `intakeType` value. Do not filter on a sheet name, route label, source value, or email subject.
 
-Also test missing, blank, and null `intakeType` behavior before enabling the route.
+The five `does not equal` checks cover unsupported nonblank values. For a missing, blank, or null value, use Make's explicit fallback/default-route behavior if available; otherwise add a verified `intakeType is empty` condition with OR semantics. Do not guess whether Make treats a missing value as unequal to every string. Test missing, blank, null, `mechanic-match-request`, and an arbitrary unsupported value before enabling the route.
 
 ## Recommended Destination Sheet
 
@@ -56,7 +56,7 @@ Do not create or rename the workbook tab casually after Make mappings are config
 | `intakeType` | Exact received value, including blank or unknown values |
 | `source` | Originating flow when supplied |
 | `appBrand` | Brand identifier when supplied |
-| `raw JSON` | Complete original bundle stored in an approved secure location |
+| `correlationId` | Make-generated opaque reference for routing review |
 | `errorReason` | Plain-language explanation such as `No approved router filter matched` |
 | `nextAction` | Required investigation or routing decision |
 | `assignedTo` | Internal owner responsible for review |
@@ -83,7 +83,7 @@ Do not automatically convert this status to resolved. A person should confirm wh
   "intakeType": "{{incoming intakeType}}",
   "source": "{{incoming source}}",
   "appBrand": "{{incoming appBrand}}",
-  "raw JSON": "{{approved raw bundle reference}}",
+  "correlationId": "{{Make-generated opaque reference}}",
   "errorReason": "No approved router filter matched.",
   "nextAction": "Review the payload and assign it to an approved route or correct the producing integration.",
   "assignedTo": "{{internal owner}}",
@@ -109,7 +109,7 @@ After the five main branches pass:
 3. Verify only `Unknown Intake Type` fires.
 4. Verify none of the five approved branches fires.
 5. Verify one error record is written to the approved destination.
-6. Verify raw JSON is retained in the approved location.
+6. Verify only approved correlation metadata is recorded; do not retain the full customer bundle.
 7. Verify status is `NEEDS_ROUTING_REVIEW`.
 8. Verify only the approved admin test inbox receives a warning.
 9. Verify no customer email is sent.
@@ -122,10 +122,10 @@ Do not build or enable this route until all five main branches are tested:
 - `support-concierge-request`
 - `marketplace-seller`
 - `diagnosis`
-- `buyer-interest`
+- `marketplace-buyer-interest`
 - `internal-diagnosis-response`
 
-Building the unmatched branch too early can hide incorrect primary filters by catching payloads that should have reached a real route. First prove every main route with its matching payload, sheet row, raw JSON retention, OpenAI result, and test-email behavior.
+Keep `mechanic-match-request` on this safe internal-review fallback until its dedicated workflow is verified. The fallback must not run customer-facing OpenAI or send a customer email. Building the unmatched branch too early can hide incorrect primary filters by catching payloads that should have reached a real route. First prove every main route with its matching synthetic payload, approved test destination, OpenAI result, and internal-only test-email behavior.
 
 ## Enablement Gate
 

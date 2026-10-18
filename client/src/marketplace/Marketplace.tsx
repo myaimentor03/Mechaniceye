@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import { NeedHelpPanel } from "../components/NeedHelpPanel";
+import { ClearSaleSellerListingsPage } from "../components/ClearSaleSellerListingsPage";
 import {
   PUBLIC_REVIEW_PATH,
   PublicHeaderNavigation,
@@ -675,6 +676,7 @@ export default function Marketplace() {
   if (path === "/marketplace/browse") return <BrowsePage />;
   if (path === "/marketplace/listing/sample") return <SampleListingPage />;
   if (path === "/marketplace/buyer-interest") return <BuyerInterestPage />;
+  if (path === "/marketplace/my-listings") return <ClearSaleSellerListingsPage />;
   if (path === "/marketplace/sell") return <SellPage />;
   if (path === "/marketplace/sell/intake") return <SellerIntakePage />;
   if (path === "/marketplace/sell/submitted") return <SubmittedPage />;

@@ -33,6 +33,7 @@ function safeTargetDescription(databaseUrl) {
 }
 
 async function main() {
+  const { mutationTargetGuard, verifyConnectedDatabaseTarget } = await import("./lib/db-target-safe.mjs");
   const databaseUrl = process.env.DATABASE_URL?.trim();
 
   if (!databaseUrl) {
@@ -40,6 +41,8 @@ async function main() {
   }
 
   console.log(`Read-only verification target: ${safeTargetDescription(databaseUrl)}`);
+  const targetGuard = mutationTargetGuard(databaseUrl);
+  if (!targetGuard.ok) throw new Error(`Read-only verification refused before connection: ${targetGuard.reason}`);
 
   const sourceFile = "data/nhtsa/batch-lists/tier2-common-used-vehicles.csv";
   const outputFile = "data/nhtsa/batch-lists/tier2-missing-vehicles.csv";
@@ -61,6 +64,7 @@ async function main() {
 
   try {
     await client.connect();
+    await verifyConnectedDatabaseTarget(client);
 
     const result = await client.query(
       "SELECT pack_id FROM drivable_vehicle_knowledge_packs WHERE pack_id = ANY($1)",

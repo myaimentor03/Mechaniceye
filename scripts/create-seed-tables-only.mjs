@@ -3,6 +3,7 @@ import {
   mutationTargetGuard,
   safeTargetDescription,
   sslConfigForUrl,
+  verifyConnectedDatabaseTarget,
 } from "./lib/db-target-safe.mjs";
 
 const { Client } = pg;
@@ -194,9 +195,9 @@ ON drivable_vehicle_knowledge_packs (vehicle_year, vehicle_make, vehicle_model);
 `
 ];
 
-await client.connect();
-
 try {
+  await client.connect();
+  await verifyConnectedDatabaseTarget(client);
   for (const statement of statements) {
     await client.query(statement);
   }

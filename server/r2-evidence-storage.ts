@@ -74,9 +74,12 @@ function extensionFor(file: Express.Multer.File) {
     "audio/wav": ".wav",
     "audio/mp4": ".m4a",
     "audio/x-m4a": ".m4a",
+    "audio/webm": ".webm",
+    "audio/ogg": ".ogg",
     "video/mp4": ".mp4",
     "video/quicktime": ".mov",
-    "video/x-msvideo": ".avi"
+    "video/x-msvideo": ".avi",
+    "video/webm": ".webm"
   };
 
   return extensionsByMime[file.mimetype] || ".bin";

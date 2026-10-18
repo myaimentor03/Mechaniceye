@@ -1,5 +1,5 @@
 ﻿import pg from "pg";
-import { safeTargetDescription, sslConfigForUrl } from "./lib/db-target-safe.mjs";
+import { mutationTargetGuard, safeTargetDescription, sslConfigForUrl, verifyConnectedDatabaseTarget } from "./lib/db-target-safe.mjs";
 
 const { Client } = pg;
 
@@ -7,6 +7,8 @@ if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is missing. This read-only verification requires a configured target.");
 }
 console.log(`Read-only verification target: ${safeTargetDescription(process.env.DATABASE_URL)}`);
+const targetGuard = mutationTargetGuard(process.env.DATABASE_URL);
+if (!targetGuard.ok) throw new Error(`Read-only verification refused before connection: ${targetGuard.reason}`);
 
 const client = new Client({
   connectionString: process.env.DATABASE_URL,
@@ -35,12 +37,12 @@ const expectedCounts = {
   drivable_seed_seller_disclosure_prompts: 30
 };
 
-await client.connect();
-
 let failed = false;
 let total = 0;
 
 try {
+  await client.connect();
+  await verifyConnectedDatabaseTarget(client);
   for (const table of tables) {
     const result = await client.query(`SELECT count(*)::int AS count FROM ${table}`);
     const count = result.rows[0].count;

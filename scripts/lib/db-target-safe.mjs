@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { isIP } from "node:net";
+
 /**
  * Safe database-target helpers for Drivable preflight, import, and
  * read-only verification scripts.
@@ -27,6 +30,12 @@ export const PRODUCTION_HOST_MARKERS = [
 
 /** Explicit gate required before any mutating script touches a non-local target. */
 export const CONFIRM_MUTATION_TARGET_ENV = "DRIVABLE_CONFIRM_AUTHENTICATED_TARGET";
+export const ISOLATED_TEST_DATABASE = "drivable_commerce_test";
+export const ALLOW_ISOLATED_TEST_DATABASE_ENV = "DRIVABLE_ALLOW_ISOLATED_TEST_DATABASE";
+export const EXPECTED_TEST_DATABASE_FINGERPRINT_ENV = "DRIVABLE_EXPECTED_TEST_DATABASE_FINGERPRINT";
+export const EXPECTED_TEST_INSTANCE_ID_ENV = "DRIVABLE_EXPECTED_TEST_DATABASE_INSTANCE_ID";
+export const CONFIRMED_TEST_INSTANCE_ID_ENV = "DRIVABLE_CONFIRMED_TEST_DATABASE_INSTANCE_ID";
+export const EXPECTED_TEST_SERVER_ADDRESS_ENV = "DRIVABLE_EXPECTED_TEST_DATABASE_SERVER_ADDRESS";
 
 /** Set this to "1" when the target is a deliberate, owner-approved remote database. */
 export function mutationTargetConfirmed(env = process.env) {
@@ -36,6 +45,18 @@ export function mutationTargetConfirmed(env = process.env) {
 function isLocalHost(hostname) {
   const host = String(hostname || "").toLowerCase().replace(/^\[|\]$/g, "");
   return host === "localhost" || host.startsWith("127.") || host === "::1" || host === "0.0.0.0";
+}
+
+/** PostgreSQL renders inet_server_addr() as a host CIDR (for example, 10.0.0.1/32). */
+function normalizeServerAddress(value) {
+  const parts = String(value || "").trim().split("/");
+  if (parts.length > 2) return null;
+  const version = isIP(parts[0]);
+  if (!version) return null;
+  if (parts.length === 1) return parts[0];
+  const prefix = Number(parts[1]);
+  const fullHostPrefix = version === 4 ? 32 : 128;
+  return Number.isInteger(prefix) && prefix === fullHostPrefix ? parts[0] : null;
 }
 
 function parseDatabaseUrl(raw) {
@@ -52,6 +73,7 @@ function parseDatabaseUrl(raw) {
     } catch {
       return {
         raw: input,
+        protocol: "",
         host: "",
         port: "",
         database: "",
@@ -71,6 +93,7 @@ function parseDatabaseUrl(raw) {
 
   return {
     raw: input,
+    protocol: parsed.protocol,
     host: parsed.hostname,
     port: parsed.port || (parsed.protocol === "postgresql:" ? "5432" : "5432"),
     database: decodeURIComponent(parsed.pathname.replace(/^\//, "").replace(/\/$/, "")),
@@ -107,7 +130,7 @@ export function targetRisk(databaseUrl) {
   const lowercaseUrl = String(databaseUrl).toLowerCase();
   const markers = PRODUCTION_HOST_MARKERS.filter((marker) => lowercaseUrl.includes(marker));
   return {
-    identified: Boolean(host && parsed.database),
+    identified: Boolean(host && parsed.database && ["postgres:", "postgresql:"].includes(parsed.protocol)),
     local: isLocalHost(host),
     markers,
     host: parsed.host,
@@ -116,31 +139,57 @@ export function targetRisk(databaseUrl) {
   };
 }
 
+/** Credential-free endpoint fingerprint. This identifies the URL target, not a live server. */
+export function databaseTargetFingerprint(databaseUrl) {
+  const parsed = parseDatabaseUrl(databaseUrl);
+  if (!parsed || parsed.parseError || !parsed.host || !parsed.database
+    || !["postgres:", "postgresql:"].includes(parsed.protocol)) return null;
+  const target = `${parsed.host.toLowerCase()}:${parsed.port}/${parsed.database.toLowerCase()}`;
+  return createHash("sha256").update(target, "utf8").digest("hex");
+}
+
 /**
- * Decide whether a mutating script may proceed.
- *  - No URL => blocked (mutations always need a target).
- *  - Local target => allowed (sandbox/local postgres), no gate required.
- *  - Remote target => allowed only when mutationTargetConfirmed(env) is true.
- * The returned object always explains the decision for the operator.
+ * Fail-closed policy for every mutating database script in this repo. A local URL
+ * or generic remote confirmation is not enough: only the exact isolated DB,
+ * its separately confirmed URL fingerprint and separately recorded instance ID
+ * can pass. Operators must verify the instance ID in the provider console first.
  */
 export function mutationTargetGuard(databaseUrl, env = process.env) {
-  if (!databaseUrl) {
-    return { ok: false, reason: "DATABASE_URL is not configured; nothing to mutate." };
-  }
+  if (!databaseUrl) return { ok: false, reason: "DATABASE_URL is not configured; nothing to mutate." };
   const risk = targetRisk(databaseUrl);
-  if (risk.markers.length > 0 && !mutationTargetConfirmed(env)) {
-    return {
-      ok: false,
-      reason: `target host matches production-like marker(s): ${risk.markers.join(", ")}. Set ${CONFIRM_MUTATION_TARGET_ENV}=1 only after the owner confirms this is the intended database.`,
-    };
+  if (!risk.identified) return { ok: false, reason: "DATABASE_URL target could not be identified; refusing before connection." };
+  if (risk.database !== ISOLATED_TEST_DATABASE) {
+    return { ok: false, reason: `mutations are restricted to database ${ISOLATED_TEST_DATABASE}; refusing this target before connection.` };
   }
-  if (!risk.local && !mutationTargetConfirmed(env)) {
-    return {
-      ok: false,
-      reason: `target is a non-local host (${risk.host || "unknown"}) and ${CONFIRM_MUTATION_TARGET_ENV} is not set to 1. Local inspection and explicit ownership confirmation are required before mutating commands.`,
-    };
+  if (env[ALLOW_ISOLATED_TEST_DATABASE_ENV] !== "1") {
+    return { ok: false, reason: `set ${ALLOW_ISOLATED_TEST_DATABASE_ENV}=1 only for a separately authorized isolated test run.` };
   }
-  return { ok: true, local: risk.local, markers: risk.markers };
+  const fingerprint = databaseTargetFingerprint(databaseUrl);
+  if (!fingerprint || env[EXPECTED_TEST_DATABASE_FINGERPRINT_ENV] !== fingerprint) {
+    return { ok: false, reason: `the target does not match ${EXPECTED_TEST_DATABASE_FINGERPRINT_ENV}; verify the exact endpoint before connection.` };
+  }
+  const expectedInstance = String(env[EXPECTED_TEST_INSTANCE_ID_ENV] || "").trim();
+  const confirmedInstance = String(env[CONFIRMED_TEST_INSTANCE_ID_ENV] || "").trim();
+  if (!expectedInstance || !confirmedInstance || expectedInstance !== confirmedInstance) {
+    return { ok: false, reason: `a separately verified provider instance ID is required (${EXPECTED_TEST_INSTANCE_ID_ENV} must match ${CONFIRMED_TEST_INSTANCE_ID_ENV}).` };
+  }
+  const expectedServerAddress = String(env[EXPECTED_TEST_SERVER_ADDRESS_ENV] || "").trim();
+  if (!normalizeServerAddress(expectedServerAddress)) {
+    return { ok: false, reason: `${EXPECTED_TEST_SERVER_ADDRESS_ENV} must contain the separately verified PostgreSQL server address.` };
+  }
+  return { ok: true, local: risk.local, markers: risk.markers, database: ISOLATED_TEST_DATABASE, fingerprint };
+}
+
+/** Call immediately after connect and before any write; verifies the server's actual identity. */
+export async function verifyConnectedDatabaseTarget(client, env = process.env) {
+  const expectedAddress = normalizeServerAddress(env[EXPECTED_TEST_SERVER_ADDRESS_ENV]);
+  const result = await client.query("select current_database() as database, inet_server_addr()::text as server_address");
+  const row = result.rows?.[0];
+  if (row?.database !== ISOLATED_TEST_DATABASE || !expectedAddress
+    || normalizeServerAddress(row?.server_address) !== expectedAddress) {
+    throw new Error("Connected PostgreSQL identity did not match the verified isolated test target; refusing further queries.");
+  }
+  return Object.freeze({ database: ISOLATED_TEST_DATABASE, verified: true });
 }
 
 export function sslConfigForUrl(databaseUrl) {
@@ -150,5 +199,4 @@ export function sslConfigForUrl(databaseUrl) {
   }
   return parsed.sslRequested === false ? false : { rejectUnauthorized: false };
 }
-
 

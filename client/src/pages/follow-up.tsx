@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useRoute } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,11 +7,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { AppHeader } from "@/components/app-header";
 import { BottomNavigation } from "@/components/bottom-navigation";
-import { UploadTabs } from "@/components/upload-tabs";
+import { EvidenceCapture } from "@/components/EvidenceCapture";
+import { EvidenceVerificationPanel } from "@/components/EvidenceVerificationPanel";
 import { AnalysisProgress } from "@/components/analysis-progress";
-import { apiRequest } from "@/lib/queryClient";
+import { uploadWithProgress } from "@/lib/queryClient";
 import { RefreshCw, AlertCircle } from "lucide-react";
 import type { Diagnosis } from "@shared/schema";
+import { MEDIA_UNAVAILABLE, parseMediaCapabilities, filterSubmittableEvidence, type MediaCapabilities } from "@/lib/mediaAvailability";
+import { failedUploadStatus, followUpProcessingToStatus } from "@/lib/evidenceStatus";
+import { EvidenceAttachment } from "@shared/drivableEvidence";
 
 export default function FollowUp() {
   const [, setLocation] = useLocation();
@@ -19,17 +23,26 @@ export default function FollowUp() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const diagnosisId = params?.id;
-  
+
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [additionalInfo, setAdditionalInfo] = useState("");
+  const [capabilities, setCapabilities] = useState<MediaCapabilities>(MEDIA_UNAVAILABLE);
+  const [evidenceStatus, setEvidenceStatus] = useState<{
+    photo: "persisted" | "not_provided" | "failed";
+    audio: "persisted" | "not_provided" | "failed";
+    video: "persisted" | "not_provided" | "failed";
+    vibration: "persisted" | "not_provided" | "failed";
+  } | undefined>(undefined);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
   const [formData, setFormData] = useState({
     description: "",
     vehicleInfo: "",
     timing: "",
-    audioFile: null as File | null,
-    videoFile: null as File | null,
-    capturedPhoto: null as File | null,
-    vibrationData: null as any,
+    audioFiles: [] as File[],
+    videoFiles: [] as File[],
+    photoFiles: [] as File[],
+    vibrationFiles: [] as File[],
   });
 
   const { data: originalDiagnosis, isLoading } = useQuery<Diagnosis>({
@@ -37,24 +50,56 @@ export default function FollowUp() {
     enabled: !!diagnosisId,
   });
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/capabilities", { headers: { "Cache-Control": "no-store" } })
+      .then((r) => r.json())
+      .then((body) => { if (!cancelled) setCapabilities(parseMediaCapabilities(body)); })
+      .catch(() => { if (!cancelled) setCapabilities({ ...MEDIA_UNAVAILABLE }); });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Real upload progress for follow-up evidence (parity with intake: diagnosis.tsx uses uploadWithProgress).
+  const uploadFollowUp = async (formDataToSend: FormData) => {
+    setUploadProgress(0);
+    const response = await uploadWithProgress(`/api/diagnoses/${diagnosisId}/follow-up`, formDataToSend, setUploadProgress);
+    return response.json();
+  };
+
   const followUpMutation = useMutation({
-    mutationFn: async (data: FormData) => {
-      const response = await apiRequest("POST", `/api/diagnoses/${diagnosisId}/follow-up`, data);
-      return response.json();
-    },
+    mutationFn: uploadFollowUp,
     onSuccess: (newDiagnosis) => {
       queryClient.invalidateQueries({ queryKey: ["/api/diagnoses"] });
+      // Truthful per-modality status so the capture UI reflects what was
+      // actually persisted before leaving (parity with diagnosis intake).
+      setEvidenceStatus(followUpProcessingToStatus(newDiagnosis.evidenceProcessing));
       setLocation(`/results/${newDiagnosis.id}`);
+      const ep = newDiagnosis.evidenceProcessing;
+      const parts: string[] = [];
+      if (ep?.photo && ep.photo !== "not_provided") parts.push("photos");
+      if (ep?.audio && ep.audio !== "not_provided") parts.push("audio");
+      if (ep?.video && ep.video !== "not_provided") parts.push("video");
+      if (ep?.vibration && ep.vibration !== "not_provided") parts.push("vibration");
       toast({
         title: "Follow-up Submitted",
-        description: "Your written details were processed. Any audio or video is evidence for human review and was not analyzed automatically.",
+        description: `Your details and ${parts.length > 0 ? parts.join(", ") + " evidence" : "details"} were saved. All media is stored privately for human review and has not been analyzed automatically.`,
       });
     },
     onError: (error: any) => {
       setIsAnalyzing(false);
+      setUploadProgress(0);
+      // Truthful failed status so Retry UI surfaces for modalities that had
+      // files (parity with diagnosis intake); the customer stays on this
+      // page and can clear/re-add evidence and submit again.
+      setEvidenceStatus(failedUploadStatus({
+        photo: formData.photoFiles.length,
+        audio: formData.audioFiles.length,
+        video: formData.videoFiles.length,
+        vibration: formData.vibrationFiles.length,
+      }));
       toast({
-        title: "Analysis Failed",
-        description: error.message || "Failed to analyze additional information",
+        title: "Follow-up Failed",
+        description: error.message || "Could not submit your follow-up. Please try again.",
         variant: "destructive",
       });
     },
@@ -72,25 +117,37 @@ export default function FollowUp() {
 
     setIsAnalyzing(true);
 
-    // Create FormData for file upload
+    const filtered = filterSubmittableEvidence(
+      { photos: formData.photoFiles, audio: formData.audioFiles, video: formData.videoFiles, vibration: formData.vibrationFiles },
+      capabilities,
+    );
+
+    const droppedTotal =
+      formData.photoFiles.length - filtered.photos.length +
+      formData.audioFiles.length - filtered.audio.length +
+      formData.videoFiles.length - filtered.video.length +
+      formData.vibrationFiles.length - filtered.vibration.length;
+
+    if (droppedTotal > 0) {
+      const parts: string[] = [];
+      if (formData.photoFiles.length !== filtered.photos.length) parts.push("photos");
+      if (formData.audioFiles.length !== filtered.audio.length) parts.push("audio files");
+      if (formData.videoFiles.length !== filtered.video.length) parts.push("video files");
+      if (formData.vibrationFiles.length !== filtered.vibration.length) parts.push("vibration files");
+      toast({
+        title: "Some files were not submitted",
+        description: `${parts.join(", ")} were held back because that upload type is temporarily unavailable. Your case will be saved without them.`,
+        variant: "destructive",
+      });
+    }
+
     const formDataToSend = new FormData();
     formDataToSend.append("additionalInfo", additionalInfo);
-    
-    if (formData.audioFile) {
-      formDataToSend.append("audio", formData.audioFile);
-    }
-    
-    if (formData.videoFile) {
-      formDataToSend.append("video", formData.videoFile);
-    }
-    
-    if (formData.capturedPhoto) {
-      formDataToSend.append("photo", formData.capturedPhoto);
-    }
-    
-    if (formData.vibrationData) {
-      formDataToSend.append("vibrationData", JSON.stringify(formData.vibrationData));
-    }
+
+    filtered.photos.forEach((file) => formDataToSend.append("photos", file));
+    filtered.audio.forEach((file) => formDataToSend.append("audio", file));
+    filtered.video.forEach((file) => formDataToSend.append("video", file));
+    filtered.vibration.forEach((file) => formDataToSend.append("vibration", file));
 
     followUpMutation.mutate(formDataToSend);
   };
@@ -132,7 +189,7 @@ export default function FollowUp() {
       <div className="min-h-screen bg-gray-50">
         <AppHeader />
         <main className="container mx-auto px-4 py-6 max-w-4xl pb-20 md:pb-6">
-          <AnalysisProgress />
+          <AnalysisProgress uploadProgress={uploadProgress} />
         </main>
         <BottomNavigation currentPage="diagnosis" />
       </div>
@@ -142,7 +199,7 @@ export default function FollowUp() {
   return (
     <div className="min-h-screen bg-gray-50">
       <AppHeader />
-      
+
       <main className="container mx-auto px-4 py-6 max-w-4xl pb-20 md:pb-6">
         <Card>
           <CardContent className="p-6">
@@ -152,11 +209,10 @@ export default function FollowUp() {
               </div>
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Need Another Fix?</h2>
-                <p className="text-gray-600">Let's gather more details to find a better solution</p>
+                <p className="text-gray-600">Let's gather more details and any evidence to find a better solution</p>
               </div>
             </div>
 
-            {/* Original Diagnosis Summary */}
             {originalDiagnosis && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
                 <h3 className="font-semibold text-blue-900 mb-2">Previous Diagnosis:</h3>
@@ -165,7 +221,6 @@ export default function FollowUp() {
               </div>
             )}
 
-            {/* Questions to Answer */}
             {originalDiagnosis?.additionalQuestions && originalDiagnosis.additionalQuestions.length > 0 && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
                 <div className="flex items-start space-x-2">
@@ -185,17 +240,24 @@ export default function FollowUp() {
               </div>
             )}
 
+            {/* Existing Evidence Status */}
+            {diagnosisId && (
+              <div className="mb-6">
+                <EvidenceVerificationPanel caseId={diagnosisId} />
+              </div>
+            )}
+
             {/* Additional Information Input */}
             <div className="space-y-4 mb-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   What happened when you tried the previous fixes? What additional details can you provide?
                 </label>
-                <Textarea 
+                <Textarea
                   value={additionalInfo}
                   onChange={(e) => setAdditionalInfo(e.target.value)}
-                  className="w-full resize-none focus:ring-automotive-orange focus:border-automotive-orange" 
-                  rows={6} 
+                  className="w-full resize-none focus:ring-automotive-orange focus:border-automotive-orange"
+                  rows={6}
                   placeholder="Please tell me: Which fixes did you try? What happened? Any new symptoms? What tools did you use? How did the problem change (if at all)?"
                 />
                 <div className="text-xs text-gray-500 mt-1">
@@ -204,20 +266,25 @@ export default function FollowUp() {
               </div>
             </div>
 
-            {/* Optional: Additional Files */}
+            {/* Evidence Capture - includes photo, audio, video, vibration */}
             <div className="border-t border-gray-200 pt-6 mb-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Optional: Audio or Video Evidence
+                Optional: Add Evidence (Photo, Audio, Video, Vibration)
               </h3>
-              <p className="text-gray-600 text-sm mb-4">
-                Audio and video can be saved for a human reviewer. Automated audio, video, and vibration analysis is not available yet.
-              </p>
-              <UploadTabs formData={formData} setFormData={setFormData} />
+              <EvidenceCapture
+                formData={formData}
+                setFormData={setFormData}
+                capabilities={capabilities}
+                evidenceStatus={evidenceStatus}
+                onRetry={(modality) => {
+                  setEvidenceStatus((prev) => prev ? { ...prev, [modality]: "not_provided" } : undefined);
+                }}
+              />
             </div>
 
             {/* Submit Button */}
             <div className="pt-6 border-t border-gray-200">
-              <Button 
+              <Button
                 onClick={handleSubmitFollowUp}
                 disabled={followUpMutation.isPending || additionalInfo.length < 20}
                 className="w-full bg-automotive-orange hover:bg-orange-600 text-white py-4 px-6 rounded-xl font-semibold text-lg"

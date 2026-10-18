@@ -1,6 +1,9 @@
- import type { Express } from "express";
+import type { Express, RequestHandler, Response as ExpressResponse } from "express";
+import { registerCommerceRoutes } from "./commerce/commerce-routes.js";
+import { POSTGRES_PAYMENT_VALIDATION } from "./commerce/paid-release-coordinator.js";
+import { verifyTestPaymentReadiness } from "./commerce/payment-runtime.js";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage, CapabilityNotAvailableError } from "./storage";
 // local fallback validation while DB/schema layer is disabled
 const consultationFeedbackSchema = {
   parse(input: any) {
@@ -45,12 +48,28 @@ function toOptionalText(value: unknown, field: string): string | undefined {
   if (typeof value !== "string" || value.length > 4_000) throw new TypeError(`${field} must be a string of at most 4000 characters`);
   return value;
 }
+
+/**
+ * Answers an endpoint whose capability has no durable implementation. These
+ * used to return `success: true` after discarding the write.
+ */
+function respondCapabilityUnavailable(res: ExpressResponse, error: unknown): boolean {
+  if (!(error instanceof CapabilityNotAvailableError)) return false;
+  res.setHeader("Cache-Control", "no-store");
+  res.status(501).json({
+    ok: false,
+    code: "CAPABILITY_NOT_AVAILABLE",
+    capability: error.capability,
+    message: error.message,
+  });
+  return true;
+}
 import { performEnhancedAnalysis } from "./enhanced-analysis";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { createStoredDiagnosisCase, generateCaseId, type IncomingDiagnosisCase, type StoredDiagnosisCase } from "./case-storage";
-import { checkDatabaseConnection, getDb } from "./db";
+import { checkDatabaseConnection, getDb, getPool } from "./db";
 import { sql } from "drizzle-orm";
 
 import { insertPublicDiagnosisCaseToDb } from "./public-case-db";
@@ -61,30 +80,35 @@ import {
 import { drivableEvidenceIntakeSchema, type EvidenceAttachment } from "../shared/drivableEvidence";
 import {
   ALLOWED_PHOTO_MEDIA_TYPES,
+  ALLOWED_AUDIO_MEDIA_TYPES,
+  ALLOWED_VIDEO_MEDIA_TYPES,
+  ALLOWED_VIBRATION_MEDIA_TYPES,
   PHOTO_LIMITS,
+  AUDIO_LIMITS,
+  VIDEO_LIMITS,
+  VIBRATION_LIMITS,
   createEvidenceStoreFromEnvironment,
+  type UploadedEvidenceFiles,
 } from "./evidence-storage";
 import { requireReviewer } from "./reviewer-auth";
 import { registerCustomerAuthRoutes, requireCustomer } from "./customer-auth";
+import { requireCustomerOrReviewer } from "./customer-or-reviewer-auth";
 import { applyAuthenticatedCaseIdentity, authenticatedCaseOwnerId } from "./case-identity";
 import { createRateLimit } from "./rate-limit";
 import { evaluateLaunchReadiness } from "./launch-readiness";
 import { buildFollowUpEvidenceBoundary } from "./follow-up-evidence-boundary";
+import { withFollowUpUploadCleanup } from "./follow-up-upload-lifecycle";
 import { registerDurableReviewRoutes } from "./review/review-routes";
 import { requireVerifiedLaunchControlRuntime } from "./review/launch-control-runtime";
+import { deleteEvidenceAttachmentsForCase, persistEvidenceAttachments, listEvidenceAttachmentsFromDb } from "./evidence-db";
 import { IntakeConsentError, recordConsentRevocation, persistAndAuthorizeIntakeConsent } from "./consent/intake-consent";
-import {
-  deleteStoredEvidenceForCase,
-  isR2EvidenceStorageConfigured,
-  storeEvidenceFiles,
-  type StoredEvidenceKeys,
-  type UploadedEvidenceFiles
-} from "./r2-evidence-storage";
 import { requireAllowedOrigin } from "./origin-guard";
 import { logEvent, logEventError } from "./observability/safe-log";
+import { registerJourneyRoutes } from "./journey-routes";
 import { serializeErrorSafely } from "./observability/errors";
 import { sslConfigForDatabaseUrl } from "./database-ssl";
 import { fetchWebhookWithTimeout } from "./webhook-fetch";
+import { ClearSaleListingRepository, listingInputSchema } from "./marketplace/clearsale-listing-repository";
 
 // Configure multer for file uploads
 const uploadDir = path.join(process.cwd(), 'uploads');
@@ -100,8 +124,9 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     const allowedMimes = [
       'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif',
-      'audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/x-m4a',
-      'video/mp4', 'video/quicktime', 'video/x-msvideo'
+      'audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/x-m4a', 'audio/webm', 'audio/ogg',
+      'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm',
+      'application/json', 'application/octet-stream'
     ];
     cb(null, allowedMimes.includes(file.mimetype));
   }
@@ -138,17 +163,17 @@ const diagnosisPhotoUploadMiddleware = (req: any, res: any, next: any) => {
 };
 
 const diagnosisEvidenceUpload = multer({
-  dest: uploadDir,
+  storage: multer.memoryStorage(),
   limits: {
-    fileSize: 12 * 1024 * 1024,
-    files: PHOTO_LIMITS.maxCount + 4 + 4 + 4,
+    fileSize: VIDEO_LIMITS.maxBytesEach,
+    files: PHOTO_LIMITS.maxCount + AUDIO_LIMITS.maxCount + VIDEO_LIMITS.maxCount + VIBRATION_LIMITS.maxCount,
   },
   fileFilter: (_req, file, cb) => {
     const allowedMimes = [
       ...ALLOWED_PHOTO_MEDIA_TYPES,
-      'audio/mpeg', 'audio/wav', 'audio/mp4', 'audio/x-m4a',
-      'video/mp4', 'video/quicktime', 'video/x-msvideo',
-      'application/octet-stream',
+      ...ALLOWED_AUDIO_MEDIA_TYPES,
+      ...ALLOWED_VIDEO_MEDIA_TYPES,
+      ...ALLOWED_VIBRATION_MEDIA_TYPES,
     ];
     if (!allowedMimes.includes(file.mimetype)) {
       return cb(new Error(`Unsupported evidence type: ${file.mimetype || "unknown"}`));
@@ -159,9 +184,9 @@ const diagnosisEvidenceUpload = multer({
 const diagnosisEvidenceUploadMiddleware = (req: any, res: any, next: any) => {
   diagnosisEvidenceUpload.fields([
     { name: "photos", maxCount: PHOTO_LIMITS.maxCount },
-    { name: "audio", maxCount: 4 },
-    { name: "video", maxCount: 4 },
-    { name: "vibration", maxCount: 4 }
+    { name: "audio", maxCount: AUDIO_LIMITS.maxCount },
+    { name: "video", maxCount: VIDEO_LIMITS.maxCount },
+    { name: "vibration", maxCount: VIBRATION_LIMITS.maxCount }
   ])(req, res, (error: unknown) => {
     if (!error) return next();
     const isLimitError = error instanceof multer.MulterError;
@@ -173,14 +198,77 @@ const diagnosisEvidenceUploadMiddleware = (req: any, res: any, next: any) => {
     });
   });
 };
-const removeIntakeTempFiles = (files: UploadedEvidenceFiles) => {
-  for (const file of Object.values(files || {}).flat()) {
-    if (file?.path) {
-      fs.rm(file.path, () => undefined);
+
+const followUpEvidenceUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: VIDEO_LIMITS.maxBytesEach,
+    files: PHOTO_LIMITS.maxCount + AUDIO_LIMITS.maxCount + VIDEO_LIMITS.maxCount + VIBRATION_LIMITS.maxCount,
+  },
+  fileFilter: (_req, file, cb) => {
+    const allowedMimes = [
+      ...ALLOWED_PHOTO_MEDIA_TYPES,
+      ...ALLOWED_AUDIO_MEDIA_TYPES,
+      ...ALLOWED_VIDEO_MEDIA_TYPES,
+      ...ALLOWED_VIBRATION_MEDIA_TYPES,
+    ];
+    if (!allowedMimes.includes(file.mimetype)) {
+      return cb(new Error(`Unsupported evidence type: ${file.mimetype || "unknown"}`));
     }
-  }
+    cb(null, true);
+  },
+});
+const followUpEvidenceUploadMiddleware = (req: any, res: any, next: any) => {
+  followUpEvidenceUpload.fields([
+    { name: "photos", maxCount: PHOTO_LIMITS.maxCount },
+    { name: "audio", maxCount: AUDIO_LIMITS.maxCount },
+    { name: "video", maxCount: VIDEO_LIMITS.maxCount },
+    { name: "vibration", maxCount: VIBRATION_LIMITS.maxCount }
+  ])(req, res, (error: unknown) => {
+    if (!error) return next();
+    const isLimitError = error instanceof multer.MulterError;
+    return res.status(isLimitError ? 413 : 415).json({
+      message: isLimitError
+        ? "Evidence upload exceeds the allowed limits (8 photos max, 12 MB per file, 20 files max)."
+        : error instanceof Error ? error.message : "Evidence upload was rejected.",
+      persisted: false,
+    });
+  });
+};
+const removeIntakeTempFiles = async (files: UploadedEvidenceFiles) => {
+  // Memory storage cases have .buffer, not .path. No-op cleanup for buffers.
+  await Promise.all(Object.values(files || {}).flat().map(async (file) => {
+    if (file?.path) {
+      await fs.promises.rm(file.path, { force: true });
+    }
+  }));
 };
 const evidenceStore = createEvidenceStoreFromEnvironment();
+
+async function respondAfterDiagnosisEvidenceCleanup(
+  res: ExpressResponse,
+  caseId: string,
+  status: number,
+  body: Record<string, unknown>,
+  metadataMayExist = false,
+) {
+  try {
+    if (metadataMayExist && !(await deleteEvidenceAttachmentsForCase(caseId))) {
+      throw new Error("Evidence metadata cleanup did not complete");
+    }
+    await evidenceStore.deleteCase(caseId);
+    return res.status(status).json(body);
+  } catch (error) {
+    logEventError("diagnosis.evidence_cleanup_failed", error, { caseId });
+    return res.status(503).json({
+      message: "The case could not be completed and evidence cleanup did not finish. Contact support before retrying.",
+      code: "EVIDENCE_CLEANUP_INCOMPLETE",
+      caseId,
+      persisted: false,
+      retryable: false,
+    });
+  }
+}
 
 // Subscription tier features
 const SUBSCRIPTION_FEATURES = {
@@ -219,6 +307,12 @@ type DiagnosisCaseResponse = {
     durability: "runtime_local" | "private_object_storage";
     durableStorageConfigured: boolean;
     analysisStatus: "uploaded_not_analyzed";
+  };
+  evidenceSummary?: {
+    photos: { provided: number; persisted: number; status: "persisted" | "not_provided" | "failed" };
+    audio: { provided: number; persisted: number; status: "persisted" | "not_provided" | "failed" };
+    video: { provided: number; persisted: number; status: "persisted" | "not_provided" | "failed" };
+    vibration: { provided: number; persisted: number; status: "persisted" | "not_provided" | "failed" };
   };
   casePersistence?: {
     primary: "database" | "local_case_store";
@@ -296,6 +390,7 @@ type DiagnosisInput = IncomingDiagnosisCase & {
 const localOperationsRoot = "C:\\MechanicsEye_Operations";
 
 function canUseLocalCaseStorage() {
+  if (process.env.DRIVABLE_DISABLE_LOCAL_CASE_STORE === "true") return false;
   return process.platform === "win32" && fs.existsSync(localOperationsRoot);
 }
 
@@ -383,12 +478,8 @@ function buildVehicleInfoFromParts(input: {
   return [vehicleYear, vehicleMake, vehicleModel, engine].filter(Boolean).join(" ");
 }
 
-function buildDiagnosisInput(body: any): DiagnosisInput {
+export function buildDiagnosisInput(body: any): DiagnosisInput {
   const diagnosisBody = body || {};
-  const pickStringArray = (value: unknown) =>
-    Array.isArray(value)
-      ? value.filter((item): item is string => typeof item === "string")
-      : [];
   let rawVehicleSelection = diagnosisBody.rawVehicleSelection || null;
   if (typeof rawVehicleSelection === "string") {
     try {
@@ -419,10 +510,6 @@ function buildDiagnosisInput(body: any): DiagnosisInput {
   );
 
   return {
-    source: pickString(diagnosisBody.source),
-    submittedAt: pickString(diagnosisBody.submittedAt),
-    submissionStatus: pickString(diagnosisBody.submissionStatus),
-    reviewStatus: pickString(diagnosisBody.reviewStatus),
     clientRequestId: pickString(diagnosisBody.clientRequestId),
     name: pickString(diagnosisBody.name, diagnosisBody.customerName),
     customerName: pickString(diagnosisBody.customerName, diagnosisBody.name),
@@ -452,15 +539,6 @@ function buildDiagnosisInput(body: any): DiagnosisInput {
     unsupportedVehicle: !!diagnosisBody.unsupportedVehicle,
     manualVehicleEntryUsed: !!diagnosisBody.manualVehicleEntryUsed,
     rawVehicleSelection,
-    vibrationData: diagnosisBody.vibrationData || null,
-    photoEvidenceStatus: diagnosisBody.photoEvidenceStatus || "",
-    audioEvidenceStatus: diagnosisBody.audioEvidenceStatus || "",
-    videoEvidenceStatus: diagnosisBody.videoEvidenceStatus || "",
-    vibrationEvidenceStatus: diagnosisBody.vibrationEvidenceStatus || "",
-    photoFileNames: pickStringArray(diagnosisBody.photoFileNames),
-    audioFileNames: pickStringArray(diagnosisBody.audioFileNames),
-    videoFileNames: pickStringArray(diagnosisBody.videoFileNames),
-    vibrationFileNames: pickStringArray(diagnosisBody.vibrationFileNames)
   };
 }
 
@@ -668,7 +746,7 @@ type MasterDiagnosisIntakePayload = {
   submittedAt: string;
 };
 
-function buildMasterDiagnosisIntakePayload(
+export function buildMasterDiagnosisIntakePayload(
   diagnosisCase: DiagnosisCaseResponse,
   input: DiagnosisInput
 ): MasterDiagnosisIntakePayload {
@@ -678,10 +756,10 @@ function buildMasterDiagnosisIntakePayload(
 
   return {
     intakeType: "diagnosis",
-    source: pickString(input.source, "getdrivable-public-diagnosis-intake"),
+    source: "getdrivable-public-diagnosis-intake",
     caseId: pickString(diagnosisCase.id),
-    submissionStatus: pickString(input.submissionStatus, "NEW_DIAGNOSIS_INTAKE"),
-    reviewStatus: pickString(input.reviewStatus, "PENDING_REVIEW"),
+    submissionStatus: "NEW_DIAGNOSIS_INTAKE",
+    reviewStatus: "PENDING_REVIEW",
     name: pickString(input.name, input.customerName),
     email: pickString(input.email, input.customerEmail, extractCustomerEmail(description)),
     phone: pickString(input.phone, input.customerPhone),
@@ -713,7 +791,7 @@ function buildMasterDiagnosisIntakePayload(
     soundNotes: pickString(input.soundNotes),
     obdCodes: pickString(input.obdCodes),
     repairHistory: pickString(input.repairHistory),
-    submittedAt: pickString(input.submittedAt, diagnosisCase.createdAt, new Date().toISOString())
+    submittedAt: diagnosisCase.createdAt
   };
 }
 
@@ -1222,6 +1300,7 @@ async function deliverMarketplaceSellerIntake(intake: MarketplaceSellerIntake) {
     appBrand: "Drivable by Mechanic's Eye",
     marketplaceBrand: "Drivable Marketplace",
     payloadVersion: "v1",
+    ...intake,
     vehicleYear: intake.vehicleYear,
     make: intake.make,
     model: intake.model,
@@ -1298,6 +1377,7 @@ async function deliverMarketplaceBuyerInterest(intake: MarketplaceBuyerInterest)
     appBrand: "Drivable by Mechanic's Eye",
     marketplaceBrand: "Drivable Marketplace",
     payloadVersion: "v1",
+    ...intake,
     preferredContactMethod: intake.preferredContactMethod,
     listingTitle: intake.listingTitle,
     listingUrl: intake.listingUrl,
@@ -1569,7 +1649,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   registerCustomerAuthRoutes(app);
+  registerCommerceRoutes(app);
   registerDurableReviewRoutes(app);
+  registerJourneyRoutes(app);
   const publicFormLimit = createRateLimit({ scope: "public-form", windowMs: 10 * 60_000, max: 15 });
   const vehicleKnowledgeLimit = createRateLimit({ scope: "buyer-vehicle-knowledge", windowMs: 5 * 60_000, max: 120 });
   const customerIntakeLimit = createRateLimit({
@@ -1602,19 +1684,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       durableEvidence: evidenceStore.durability === "private_object_storage",
       durableConsent: false,
       durableHumanReview,
-      verifiedPaymentEntitlement: false,
+      verifiedPaymentEntitlement: POSTGRES_PAYMENT_VALIDATION.verified && await verifyTestPaymentReadiness(),
       verifiedEmailDelivery: false,
     });
+    const paymentCheck = report.checks.find(check => check.key === "payment_entitlement");
+    if (paymentCheck) paymentCheck.detail = "Test-only signed payment gate: requires durable event proof; disabled in production.";
+    report.checks.push({ key: "test_payment_storage", ready: await verifyTestPaymentReadiness(), detail: "Signed test payment proof and canonical commerce/outbox storage verified." });
+    report.checks.push({ key: "paid_release_validation", ready: POSTGRES_PAYMENT_VALIDATION.verified, detail: POSTGRES_PAYMENT_VALIDATION.blocker });
+    report.ready = report.checks.every(check => check.ready);
     res.status(report.ready ? 200 : 503).json(report);
   });
 
   app.get("/api/capabilities", (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
+    const s3Configured = evidenceStore.durability === "private_object_storage";
+    const isDevelopment = process.env.NODE_ENV !== "production";
+    const localPhotoUpload = isDevelopment && evidenceStore.durability === "runtime_local";
+    // Capabilities must describe the storage adapter actually used by intake,
+    // not the legacy R2 config helper that is not wired into this EvidenceStore.
+    const hasDurableStorage = s3Configured;
+    // All media persistence requires durable storage (or local dev). A production
+    // process must never advertise uploads it can only persist to ephemeral disk.
+    const mediaUploadAvailable = hasDurableStorage || localPhotoUpload;
     res.json({
-      photoUpload: process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && evidenceStore.durability === "private_object_storage",
-      audioUpload: false,
-      videoUpload: false,
-      vibrationSensorCapture: false,
+      photoUpload: (process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED === "true" && hasDurableStorage) || localPhotoUpload,
+      audioUpload: mediaUploadAvailable,
+      videoUpload: mediaUploadAvailable,
+      vibrationSensorCapture: mediaUploadAvailable,
     });
   });
 
@@ -1668,6 +1764,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
       logEventError("form.marketplace_buyer_interest_failed", error);
 
       res.status(502).json({ ok: false, error: "Buyer interest could not be forwarded. Please try again." });
+    }
+  });
+
+  app.get("/api/marketplace/listings", async (_req, res) => {
+    try {
+      const listings = await new ClearSaleListingRepository(getPool()).listPublic();
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ ok: true, listings });
+    } catch (error) {
+      logEventError("marketplace.listings_unavailable", error);
+      res.status(503).json({ ok: false, error: "ClearSale listings are temporarily unavailable.", code: "LISTINGS_UNAVAILABLE" });
+    }
+  });
+
+  app.get("/api/marketplace/listings/:id", async (req, res) => {
+    try {
+      const listing = await new ClearSaleListingRepository(getPool()).getPublic(req.params.id);
+      if (!listing) return res.status(404).json({ ok: false, error: "Listing not found." });
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ ok: true, listing });
+    } catch (error) {
+      logEventError("marketplace.listing_unavailable", error);
+      res.status(503).json({ ok: false, error: "ClearSale listing is temporarily unavailable.", code: "LISTINGS_UNAVAILABLE" });
+    }
+  });
+
+  app.get("/api/marketplace/my-listings", requireCustomer, async (req, res) => {
+    try {
+      const listings = await new ClearSaleListingRepository(getPool()).listOwned(req.drivableCustomer!.id);
+      res.json({ ok: true, listings });
+    } catch (error) {
+      logEventError("marketplace.my_listings_unavailable", error);
+      res.status(503).json({ ok: false, error: "Your ClearSale listings are temporarily unavailable.", code: "LISTINGS_UNAVAILABLE" });
+    }
+  });
+
+  app.post("/api/marketplace/listings", requireCustomer, async (req, res) => {
+    const parsed = listingInputSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ ok: false, error: "Listing details are incomplete or invalid.", code: "LISTING_INVALID" });
+    try {
+      const listing = await new ClearSaleListingRepository(getPool()).create(req.drivableCustomer!.id, parsed.data);
+      res.status(201).json({ ok: true, listing });
+    } catch (error) {
+      logEventError("marketplace.listing_create_failed", error);
+      res.status(503).json({ ok: false, error: "Listing could not be saved. Nothing was published.", code: "LISTING_PERSISTENCE_FAILED" });
+    }
+  });
+
+  app.patch("/api/marketplace/listings/:id", requireCustomer, async (req, res) => {
+    const parsed = listingInputSchema.safeParse(req.body || {});
+    if (!parsed.success) return res.status(400).json({ ok: false, error: "Listing details are incomplete or invalid.", code: "LISTING_INVALID" });
+    try {
+      const listing = await new ClearSaleListingRepository(getPool()).updateOwned(req.params.id, req.drivableCustomer!.id, parsed.data);
+      if (!listing) return res.status(404).json({ ok: false, error: "Listing not found." });
+      res.json({ ok: true, listing });
+    } catch (error) {
+      logEventError("marketplace.listing_update_failed", error);
+      res.status(503).json({ ok: false, error: "Listing could not be saved. Its previous state remains unchanged.", code: "LISTING_PERSISTENCE_FAILED" });
+    }
+  });
+
+  app.post("/api/marketplace/listings/:id/submit", requireCustomer, async (req, res) => {
+    try {
+      const listing = await new ClearSaleListingRepository(getPool()).submit(req.params.id, req.drivableCustomer!.id);
+      res.json({ ok: true, listing });
+    } catch (error) {
+      res.status(409).json({ ok: false, error: error instanceof Error ? error.message : "Listing cannot be submitted.", code: "LISTING_NOT_SUBMITTABLE" });
+    }
+  });
+
+  app.post("/api/marketplace/listings/:id/withdraw", requireCustomer, async (req, res) => {
+    try {
+      const listing = await new ClearSaleListingRepository(getPool()).withdraw(req.params.id, req.drivableCustomer!.id);
+      res.json({ ok: true, listing });
+    } catch (error) {
+      res.status(404).json({ ok: false, error: error instanceof Error ? error.message : "Listing not found.", code: "LISTING_NOT_FOUND" });
+    }
+  });
+
+  app.post("/api/marketplace/listings/:id/approve", requireReviewer, async (req, res) => {
+    try {
+      const repository = new ClearSaleListingRepository(getPool());
+      const listing = req.body?.rejectionReason
+        ? await repository.reject(req.params.id, String(req.body.rejectionReason).slice(0, 1_000))
+        : await repository.approve(req.params.id);
+      res.json({ ok: true, listing });
+    } catch (error) {
+      res.status(409).json({ ok: false, error: error instanceof Error ? error.message : "Listing cannot be approved.", code: "LISTING_NOT_APPROVABLE" });
     }
   });
 
@@ -1759,6 +1943,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const history = await storage.getFixHistory(diagnosisId);
       res.json(history);
     } catch (error) {
+      if (respondCapabilityUnavailable(res, error)) return;
       logEventError("api.fix_history_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
 
       res.status(500).json({ message: "Failed to fetch fix history" });
@@ -1783,6 +1968,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(result);
     } catch (error) {
+      if (respondCapabilityUnavailable(res, error)) return;
       logEventError("api.step_completion_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
 res.status(400).json({ message: "Update step completion could not be processed." });
     }
@@ -1808,6 +1994,7 @@ res.status(400).json({ message: "Update step completion could not be processed."
       
       res.json(result);
     } catch (error) {
+      if (respondCapabilityUnavailable(res, error)) return;
       logEventError("api.fix_complete_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
 
       res.status(500).json({ message: "Failed to mark fix complete" });
@@ -1834,6 +2021,7 @@ res.status(400).json({ message: "Update step completion could not be processed."
       const result = await storage.sendToMechanic(diagnosisId);
       res.json(result);
     } catch (error) {
+      if (respondCapabilityUnavailable(res, error)) return;
       logEventError("api.send_to_mechanic_failed", error, { diagnosisId: String(req.params?.diagnosisId ?? "") });
 
       res.status(500).json({ message: "Failed to send to mechanic" });
@@ -1841,6 +2029,29 @@ res.status(400).json({ message: "Update step completion could not be processed."
   });
 
   // Get all diagnoses
+  app.get("/api/customer/cases", requireCustomer, async (req, res) => {
+    try {
+      const customerId = req.drivableCustomer?.id;
+      if (!customerId) {
+        res.status(401).json({ ok: false, error: "Please sign in to view your cases.", code: "CUSTOMER_AUTH_REQUIRED" });
+        return;
+      }
+      const records = await storage.getCustomerDiagnosesByUser(customerId);
+      res.setHeader("Cache-Control", "no-store");
+      res.json({
+        cases: records.map((record) => ({
+          id: record.id,
+          vehicleInfo: record.vehicleInfo || "Vehicle details not available",
+          status: record.status || "received",
+          createdAt: record.createdAt,
+        })),
+      });
+    } catch (error) {
+      logEventError("api.customer_cases_fetch_failed", error);
+      res.status(503).json({ ok: false, error: "Your saved cases are temporarily unavailable. Try again shortly.", code: "CUSTOMER_CASES_UNAVAILABLE" });
+    }
+  });
+
   app.get("/api/diagnoses", requireReviewer, async (req, res) => {
     try {
       const diagnoses = await storage.getDiagnosesByUser();
@@ -2003,16 +2214,138 @@ try {
     }
   });
 
-  // Get specific diagnosis
-  app.get("/api/diagnoses/:id", requireReviewer, async (req, res) => {
+  // Get specific diagnosis with evidence status
+  // Reads evidence from DB first (durable SQL records), falls back to filesystem manifest.
+  app.get("/api/diagnoses/:id", requireCustomerOrReviewer, async (req, res) => {
     try {
       const diagnosis = await storage.getDiagnosis(req.params.id);
       if (!diagnosis) {
         return res.status(404).json({ message: "Diagnosis not found" });
       }
+      if (req.drivableCustomer && diagnosis.userId !== req.drivableCustomer.id) {
+        return res.status(403).json({
+          ok: false,
+          error: "You do not have access to this case.",
+          code: "CASE_ACCESS_DENIED",
+        });
+      }
+      // Attach evidence status: prefer DB records, fall back to manifest file
+      try {
+        const caseId = req.params.id;
+        let manifest: EvidenceAttachment[] = [];
+        try {
+          manifest = await listEvidenceAttachmentsFromDb(caseId);
+        } catch { /* DB not available */ }
+        if (manifest.length === 0) {
+          try {
+            const manifestKey = path.join(process.cwd(), "uploads", "evidence", caseId, "attachments.json");
+            manifest = JSON.parse((await fs.promises.readFile(manifestKey, "utf8"))) as EvidenceAttachment[];
+          } catch { /* no manifest */ }
+        }
+        if (manifest.length > 0) {
+          const photos = manifest.filter((a) => a.kind === "photo");
+          const audio = manifest.filter((a) => a.kind === "audio");
+          const video = manifest.filter((a) => a.kind === "video");
+          const vibration = manifest.filter((a) => a.kind === "sensor_session");
+          diagnosis.attachments = manifest;
+          diagnosis.evidenceSummary = {
+            photos: { provided: photos.length, persisted: photos.length, status: photos.length > 0 ? "persisted" : "not_provided" },
+            audio: { provided: audio.length, persisted: audio.length, status: audio.length > 0 ? "persisted" : "not_provided" },
+            video: { provided: video.length, persisted: video.length, status: video.length > 0 ? "persisted" : "not_provided" },
+            vibration: { provided: vibration.length, persisted: vibration.length, status: vibration.length > 0 ? "persisted" : "not_provided" },
+          };
+        }
+      } catch {
+        // No evidence for this case
+      }
       res.json(diagnosis);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch diagnosis" });
+    }
+  });
+
+  // Customer-facing evidence list: returns the evidence manifest for the customer's own case.
+  // Reads from the database first (durable SQL records), falls back to filesystem manifest.
+  app.get("/api/cases/:caseId/evidence", requireCustomer, async (req, res) => {
+    try {
+      const caseId = req.params.caseId;
+      if (!caseId || caseId.includes("..")) {
+        return res.status(400).json({ ok: false, error: "Invalid case ID." });
+      }
+      // Verify the case belongs to this customer
+      const diagnosis = await storage.getDiagnosis(caseId);
+      if (!diagnosis) {
+        return res.status(404).json({ ok: false, error: "Case not found." });
+      }
+      if (diagnosis.userId !== req.drivableCustomer!.id) {
+        return res.status(403).json({ ok: false, error: "You do not have access to this case." });
+      }
+      // Read evidence: prefer DB records, fall back to manifest file
+      let attachments: EvidenceAttachment[] = [];
+      try {
+        attachments = await listEvidenceAttachmentsFromDb(caseId);
+      } catch { /* DB not available */ }
+      if (attachments.length === 0) {
+        try {
+          attachments = await evidenceStore.listAttachments(caseId);
+        } catch { /* manifest not available */ }
+      }
+      const photos = attachments.filter((a) => a.kind === "photo");
+      const audio = attachments.filter((a) => a.kind === "audio");
+      const video = attachments.filter((a) => a.kind === "video");
+      const vibration = attachments.filter((a) => a.kind === "sensor_session");
+      res.json({
+        ok: true,
+        caseId,
+        evidenceSummary: {
+          photos: { count: photos.length, status: photos.length > 0 ? "stored" : "not_provided" as const },
+          audio: { count: audio.length, status: audio.length > 0 ? "stored" : "not_provided" as const },
+          video: { count: video.length, status: video.length > 0 ? "stored" : "not_provided" as const },
+          vibration: { count: vibration.length, status: vibration.length > 0 ? "stored" : "not_provided" as const },
+        },
+        attachments: attachments.map((a) => ({
+          id: a.id,
+          kind: a.kind,
+          originalName: a.originalName,
+          mimeType: a.mimeType,
+          byteSize: a.byteSize,
+          status: a.status,
+          createdAt: a.createdAt,
+        })),
+      });
+    } catch (error) {
+      logEventError("api.customer_evidence_list_failed", error);
+      res.status(500).json({ ok: false, error: "Could not retrieve evidence." });
+    }
+  });
+
+  // Customer-facing evidence file serving: streams a specific attachment to the authenticated customer.
+  app.get("/api/cases/:caseId/evidence/:attachmentId", requireCustomer, async (req, res) => {
+    try {
+      const caseId = req.params.caseId;
+      const attachmentId = req.params.attachmentId;
+      if (!caseId || caseId.includes("..") || !attachmentId || attachmentId.includes("..")) {
+        return res.status(400).json({ ok: false, error: "Invalid path." });
+      }
+      // Verify the case belongs to this customer
+      const diagnosis = await storage.getDiagnosis(caseId);
+      if (!diagnosis) {
+        return res.status(404).json({ ok: false, error: "Case not found." });
+      }
+      if (diagnosis.userId !== req.drivableCustomer!.id) {
+        return res.status(403).json({ ok: false, error: "You do not have access to this case." });
+      }
+      const result = await evidenceStore.getAttachment(caseId, attachmentId);
+      if (!result) return res.status(404).json({ ok: false, error: "Evidence attachment not found." });
+      res.setHeader("Content-Type", result.attachment.mimeType);
+      res.setHeader("Content-Length", String(result.bytes.length));
+      res.setHeader("Content-Disposition", `inline; filename="${result.attachment.originalName || result.attachment.id}"`);
+      res.setHeader("Cache-Control", "private, no-store");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      return res.send(result.bytes);
+    } catch (error) {
+      logEventError("api.customer_evidence_retrieval_failed", error);
+      return res.status(502).json({ ok: false, error: "Evidence could not be retrieved." });
     }
   });
 
@@ -2063,7 +2396,7 @@ try {
         : String(evidenceIntake.vehicle.mileage);
       input.obdCodes = evidenceIntake.obd.codes.join(", ") || input.obdCodes;
     } catch (validationError) {
-      removeIntakeTempFiles(uploadedFiles);
+      await removeIntakeTempFiles(uploadedFiles);
       // Never echo parser/Zod messages: they can embed submitted values, schema
       // internals, or the request body. The client performs its own validation.
       return res.status(400).json({
@@ -2072,40 +2405,47 @@ try {
       });
     }
 
-    if (photoFiles.length && (process.env.DRIVABLE_PHOTO_UPLOAD_ENABLED !== "true" || evidenceStore.durability !== "private_object_storage")) {
-      removeIntakeTempFiles(uploadedFiles);
+    const isDevelopment = process.env.NODE_ENV !== "production";
+    const allowLocalPhotoUpload = isDevelopment && evidenceStore.durability === "runtime_local";
+    const allowPhotoUpload = allowLocalPhotoUpload || evidenceStore.durability === "private_object_storage" || isDevelopment;
+    if (photoFiles.length && !allowPhotoUpload) {
+      await removeIntakeTempFiles(uploadedFiles);
       return res.status(409).json({
         message: "Photo upload is not available until private evidence storage passes launch verification. You can continue with written symptoms and OBD-II codes.",
         persisted: false,
       });
     }
+    if (hasMobileMedia && !allowPhotoUpload) {
+      await removeIntakeTempFiles(uploadedFiles);
+      return res.status(409).json({
+        message: "Audio, video, and vibration upload are not available until private evidence storage passes launch verification. You can continue with written symptoms and OBD-II codes.",
+        persisted: false,
+      });
+    }
+    if ((photoFiles.length > 0 || hasMobileMedia) && evidenceStore.durability === "private_object_storage" && !process.env.DATABASE_URL) {
+      await removeIntakeTempFiles(uploadedFiles);
+      return res.status(503).json({
+        message: "Evidence upload is unavailable because durable evidence metadata storage is not configured.",
+        code: "EVIDENCE_METADATA_STORAGE_UNAVAILABLE",
+        persisted: false,
+      });
+    }
     if (photoFiles.some((file) => file.size > 12 * 1024 * 1024)) {
-      removeIntakeTempFiles(uploadedFiles);
+      await removeIntakeTempFiles(uploadedFiles);
       return res.status(413).json({ message: "Each photo must be 12 MB or smaller.", persisted: false });
     }
     const unsupportedPhotoMime = photoFiles.find((file) => !ALLOWED_PHOTO_MEDIA_TYPES.has(file.mimetype));
     if (unsupportedPhotoMime) {
-      removeIntakeTempFiles(uploadedFiles);
+      await removeIntakeTempFiles(uploadedFiles);
       return res.status(415).json({
         message: "A submitted photo has an unsupported file type. Supported types are JPEG, PNG, WebP, and HEIC.",
         code: "UNSUPPORTED_PHOTO_MEDIA_TYPE",
         persisted: false,
       });
     }
-    if (hasMobileMedia) {
-      // Photo-first release: audio/video/vibration capture is not advertised, so
-      // those parts are rejected outright rather than silently dropped.
-      removeIntakeTempFiles(uploadedFiles);
-      return res.status(415).json({
-        message: "Audio, video, and vibration capture are not supported yet. You can submit photos along with written symptoms and OBD-II codes.",
-        code: "UNSUPPORTED_MEDIA_TYPE",
-        persisted: false,
-      });
-    }
     let responseBody: DiagnosisCaseResponse;
     let storedCase: StoredDiagnosisCase | undefined;
     let usedPublicFallback = false;
-    let storedR2Keys: StoredEvidenceKeys = {};
 
     try {
       logEvent("diagnosis.intent_received", {
@@ -2134,6 +2474,7 @@ try {
           });
         } catch (consentError) {
           const status = consentError instanceof IntakeConsentError && consentError.code === "CONSENT_REQUIRED" ? 400 : 503;
+          await removeIntakeTempFiles(uploadedFiles);
           return res.status(status).json({
             message: consentError instanceof IntakeConsentError ? consentError.message : "Consent controls are not ready.",
             code: consentError instanceof IntakeConsentError ? consentError.code : "CONSENT_CONTROLS_UNAVAILABLE",
@@ -2167,12 +2508,12 @@ if (photoFiles.length) {
           input.photoEvidenceStatus = "Persisted";
           input.photoFileNames = attachments.map((attachment) => attachment.originalName);
           input.attachments = attachments;
-          removeIntakeTempFiles({ photos: photoFiles });
+          await removeIntakeTempFiles({ photos: photoFiles });
         } catch (storageError) {
           logEventError("api.photo_evidence_persistence_failed", storageError);
-          removeIntakeTempFiles({ photos: photoFiles });
+          await removeIntakeTempFiles({ photos: photoFiles });
 
-          return res.status(507).json({
+          return respondAfterDiagnosisEvidenceCleanup(res, responseBody.id, 507, {
             message: "The case could not be completed because its photo evidence was not persisted. Please try again.",
             caseId: responseBody.id,
             persisted: false,
@@ -2182,24 +2523,87 @@ if (photoFiles.length) {
 
       if (hasMobileMedia) {
         try {
-          storedR2Keys = await storeEvidenceFiles(responseBody.id, mobileMediaFiles);
-          if (storedR2Keys.audio?.length) input.audioFileNames = storedR2Keys.audio;
-          if (storedR2Keys.video?.length) input.videoFileNames = storedR2Keys.video;
-          if (storedR2Keys.vibration?.length) input.vibrationFileNames = storedR2Keys.vibration;
-          if (storedR2Keys.audio?.length) input.audioEvidenceStatus = "Persisted";
-          if (storedR2Keys.video?.length) input.videoEvidenceStatus = "Persisted";
-          if (storedR2Keys.vibration?.length) input.vibrationEvidenceStatus = "Persisted";
+          const audioFiles = mobileMediaFiles.audio || [];
+          const videoFiles = mobileMediaFiles.video || [];
+          let audioAttachments: import("../shared/drivableEvidence.js").EvidenceAttachment[] = [];
+          let videoAttachments: import("../shared/drivableEvidence.js").EvidenceAttachment[] = [];
+
+          if (audioFiles.length) {
+            if (audioFiles.some((file) => file.size > AUDIO_LIMITS.maxBytesEach)) {
+              await removeIntakeTempFiles(uploadedFiles);
+              return respondAfterDiagnosisEvidenceCleanup(res, responseBody.id, 413, { message: "Each audio file must be 50 MB or smaller.", persisted: false });
+            }
+            const unsupportedAudioMime = audioFiles.find((file) => !ALLOWED_AUDIO_MEDIA_TYPES.has(file.mimetype));
+            if (unsupportedAudioMime) {
+              await removeIntakeTempFiles(uploadedFiles);
+              return respondAfterDiagnosisEvidenceCleanup(res, responseBody.id, 415, {
+                message: "A submitted audio file has an unsupported type. Supported types are MP3, WAV, M4A, WebM, and OGG.",
+                code: "UNSUPPORTED_AUDIO_MEDIA_TYPE",
+                persisted: false,
+              });
+            }
+            audioAttachments = await evidenceStore.saveAudioFiles(responseBody.id, audioFiles);
+            input.audioEvidenceStatus = "Persisted";
+            input.audioFileNames = audioAttachments.map((a) => a.originalName);
+          }
+
+          if (videoFiles.length) {
+            if (videoFiles.some((file) => file.size > VIDEO_LIMITS.maxBytesEach)) {
+              await removeIntakeTempFiles(uploadedFiles);
+              return respondAfterDiagnosisEvidenceCleanup(res, responseBody.id, 413, { message: "Each video file must be 100 MB or smaller.", persisted: false });
+            }
+            const unsupportedVideoMime = videoFiles.find((file) => !ALLOWED_VIDEO_MEDIA_TYPES.has(file.mimetype));
+            if (unsupportedVideoMime) {
+              await removeIntakeTempFiles(uploadedFiles);
+              return respondAfterDiagnosisEvidenceCleanup(res, responseBody.id, 415, {
+                message: "A submitted video file has an unsupported type. Supported types are MP4, MOV, AVI, and WebM.",
+                code: "UNSUPPORTED_VIDEO_MEDIA_TYPE",
+                persisted: false,
+              });
+            }
+            videoAttachments = await evidenceStore.saveVideoFiles(responseBody.id, videoFiles);
+            input.videoEvidenceStatus = "Persisted";
+            input.videoFileNames = videoAttachments.map((a) => a.originalName);
+          }
+
+          const vibrationFiles = mobileMediaFiles.vibration || [];
+          let vibrationAttachments: import("../shared/drivableEvidence.js").EvidenceAttachment[] = [];
+          if (vibrationFiles.length) {
+            if (vibrationFiles.some((file) => file.size > VIBRATION_LIMITS.maxBytesEach)) {
+              await removeIntakeTempFiles(uploadedFiles);
+              return respondAfterDiagnosisEvidenceCleanup(res, responseBody.id, 413, { message: "Each vibration file must be 5 MB or smaller.", persisted: false });
+            }
+            const unsupportedVibrationMime = vibrationFiles.find((file) => !ALLOWED_VIBRATION_MEDIA_TYPES.has(file.mimetype));
+            if (unsupportedVibrationMime) {
+              await removeIntakeTempFiles(uploadedFiles);
+              return respondAfterDiagnosisEvidenceCleanup(res, responseBody.id, 415, {
+                message: "A submitted vibration file has an unsupported type. Use application/json.",
+                code: "UNSUPPORTED_VIBRATION_MEDIA_TYPE",
+                persisted: false,
+              });
+            }
+            vibrationAttachments = await evidenceStore.saveVibrationFiles(responseBody.id, vibrationFiles);
+            input.vibrationEvidenceStatus = "Persisted";
+            input.vibrationFileNames = vibrationAttachments.map((a) => a.originalName);
+          }
+
+          // Merge mobile attachments into response attachments for truthful receipt
+          const mobileAttachments = [...audioAttachments, ...videoAttachments, ...vibrationAttachments];
+          if (mobileAttachments.length) {
+            responseBody.attachments = [...(responseBody.attachments ?? []), ...mobileAttachments];
+          }
+
           if (!responseBody.evidencePersistence) {
             responseBody.evidencePersistence = {
-              durability: "private_object_storage",
-              durableStorageConfigured: true,
+              durability: evidenceStore.durability,
+              durableStorageConfigured: evidenceStore.durability === "private_object_storage",
               analysisStatus: "uploaded_not_analyzed",
             };
           }
         } catch (storageError) {
           logEventError("api.media_evidence_persistence_failed", storageError);
-          removeIntakeTempFiles(mobileMediaFiles);
-          return res.status(507).json({
+          await removeIntakeTempFiles(mobileMediaFiles);
+          return respondAfterDiagnosisEvidenceCleanup(res, responseBody.id, 507, {
             message: "The case could not be completed because its media evidence was not persisted. Please try again.",
             caseId: responseBody.id,
             persisted: false,
@@ -2207,11 +2611,69 @@ if (photoFiles.length) {
         }
       }
 
+      const photoPersisted = (responseBody.attachments ?? []).filter((a) => a.kind === "photo").length;
+      const audioProvided = mobileMediaFiles.audio?.length ?? 0;
+      const videoProvided = mobileMediaFiles.video?.length ?? 0;
+      const vibrationProvided = mobileMediaFiles.vibration?.length ?? 0;
+      const audioPersisted = (responseBody.attachments ?? []).filter((a) => a.kind === "audio").length;
+      const videoPersisted = (responseBody.attachments ?? []).filter((a) => a.kind === "video").length;
+      const vibrationPersisted = (responseBody.attachments ?? []).filter((a) => a.kind === "sensor_session").length;
+      responseBody.evidenceSummary = {
+        photos: {
+          provided: photoFiles.length,
+          persisted: photoPersisted,
+          status: photoFiles.length === 0 ? "not_provided" : photoPersisted > 0 ? "persisted" : "failed",
+        },
+        audio: {
+          provided: audioProvided,
+          persisted: audioPersisted,
+          status: audioProvided === 0 ? "not_provided" : audioPersisted > 0 ? "persisted" : "failed",
+        },
+        video: {
+          provided: videoProvided,
+          persisted: videoPersisted,
+          status: videoProvided === 0 ? "not_provided" : videoPersisted > 0 ? "persisted" : "failed",
+        },
+        vibration: {
+          provided: vibrationProvided,
+          persisted: vibrationPersisted,
+          status: vibrationProvided === 0 ? "not_provided" : vibrationPersisted > 0 ? "persisted" : "failed",
+        },
+      };
+
+      // Do not claim evidence upload completion unless durable attachment metadata
+      // was recorded as well as the underlying evidence object.
+      const allAttachments = responseBody.attachments ?? [];
+      const localManifestIsAuthoritative =
+        process.env.NODE_ENV !== "production"
+        && !process.env.DATABASE_URL
+        && evidenceStore.durability === "runtime_local";
+      if (allAttachments.length > 0 && !localManifestIsAuthoritative) {
+        const evidenceDbResult = await persistEvidenceAttachments(allAttachments);
+        if (!evidenceDbResult.ok) {
+          logEvent("diagnosis.evidence_metadata_persistence_failed", { caseId: responseBody.id });
+          return respondAfterDiagnosisEvidenceCleanup(res, responseBody.id, 503, {
+            message: "Your case details were received, but evidence metadata could not be saved. Do not resubmit; contact support with the case ID.",
+            code: "EVIDENCE_METADATA_PERSISTENCE_FAILED",
+            caseId: responseBody.id,
+            persisted: false,
+            caseDetailsReceived: true,
+            evidenceMetadataPersisted: false,
+            retryable: false,
+          }, true);
+        }
+      }
+
       if (usedPublicFallback) {
         const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, storedCase, authenticatedCaseOwnerId(req.drivableCustomer?.id));
         if (!dbResult.ok) {
-          if (photoFiles.length) await evidenceStore.deleteCase(responseBody.id);
-          if (hasMobileMedia) await deleteStoredEvidenceForCase(responseBody.id, storedR2Keys);
+          if (photoFiles.length || hasMobileMedia) {
+            return respondAfterDiagnosisEvidenceCleanup(res, responseBody.id, 503, {
+              message: "The case was not saved to the case database. Please try again.",
+              caseId: responseBody.id,
+              persisted: false,
+            }, allAttachments.length > 0 && !localManifestIsAuthoritative);
+          }
           return res.status(503).json({ message: "The case was not saved to the case database. Please try again.", caseId: responseBody.id, persisted: false });
         }
         responseBody.casePersistence = { primary: "database", databaseMirror: "persisted" };
@@ -2249,45 +2711,214 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
     }
   });
 
-  // Create follow-up request when previous fixes didn't work
-  app.post("/api/diagnoses/:id/follow-up", requireReviewer, reviewerWriteLimit, upload.fields([
-    { name: 'audio', maxCount: 1 },
-    { name: 'video', maxCount: 1 }
-  ]), async (req, res) => {
-    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-    const uploadedPaths = Object.values(files || {}).flat().map((file) => file.path).filter(Boolean);
-    const cleanupTemporaryFiles = async () => {
-      await Promise.all(uploadedPaths.map((filePath) => fs.promises.unlink(filePath).catch(() => undefined)));
-    };
+  const requireFollowUpCaseOwner: RequestHandler = async (req, res, next) => {
     try {
-      const diagnosisId = req.params.id;
-
-      if (req.body.vibrationData) {
-        await cleanupTemporaryFiles();
-        return res.status(422).json({
-          message: "Vibration capture is not available yet. No vibration readings were stored or analyzed.",
-          code: "VIBRATION_CAPTURE_UNAVAILABLE",
+      const diagnosis = await storage.getDiagnosis(req.params.id);
+      if (!diagnosis) return res.status(404).json({ message: "Original diagnosis not found" });
+      if (diagnosis.userId !== req.drivableCustomer?.id) {
+        return res.status(403).json({
+          ok: false,
+          error: "You do not have access to this case.",
+          code: "CASE_ACCESS_DENIED",
+          persisted: false,
         });
       }
-      
-      // Get original diagnosis
-      const originalDiagnosis = await storage.getDiagnosis(diagnosisId);
-      if (!originalDiagnosis) {
-        await cleanupTemporaryFiles();
-        return res.status(404).json({ message: "Original diagnosis not found" });
+      res.locals.followUpOriginalDiagnosis = diagnosis;
+      next();
+    } catch (error) {
+      logEventError("api.follow_up_case_authorization_failed", error, { diagnosisId: req.params.id });
+      return res.status(503).json({
+        ok: false,
+        error: "The case could not be verified. Please try again.",
+        code: "CASE_ACCESS_CHECK_FAILED",
+        persisted: false,
+      });
+    }
+  };
+
+  // Check ownership before multipart parsing so rejected requests cannot consume
+  // upload memory or CPU before being denied.
+  app.post("/api/diagnoses/:id/follow-up", requireCustomer, customerIntakeLimit, requireFollowUpCaseOwner, followUpEvidenceUploadMiddleware, async (req, res) => {
+    const uploadedFiles = (req.files || {}) as UploadedEvidenceFiles;
+    const photoFiles = uploadedFiles.photos || [];
+    const audioFiles = uploadedFiles.audio || [];
+    const videoFiles = uploadedFiles.video || [];
+    const vibrationFiles = uploadedFiles.vibration || [];
+    const cleanupTemporaryFiles = async () => {
+      await removeIntakeTempFiles(uploadedFiles);
+    };
+    return withFollowUpUploadCleanup(async () => {
+      try {
+      const diagnosisId = req.params.id;
+      const additionalInfo = typeof req.body?.additionalInfo === "string" ? req.body.additionalInfo.trim() : "";
+      if (additionalInfo.length < 20 || additionalInfo.length > 5_000) {
+        return res.status(400).json({
+          ok: false,
+          error: "Describe what changed in at least 20 characters, up to 5,000 characters.",
+          code: "INVALID_FOLLOW_UP_DETAILS",
+          persisted: false,
+        });
       }
 
-      // Create follow-up request
+      // Truthful gate: photo upload requires durable storage or local dev
+      if (photoFiles.length > 0) {
+        const isDevelopment = process.env.NODE_ENV !== "production";
+        const allowPhotoUpload = isDevelopment && evidenceStore.durability === "runtime_local";
+        if (!allowPhotoUpload && evidenceStore.durability !== "private_object_storage") {
+          return res.status(409).json({
+            message: "Photo upload is not available until private evidence storage passes launch verification.",
+            persisted: false,
+          });
+        }
+        for (const file of photoFiles) {
+          if (file.size > PHOTO_LIMITS.maxBytesEach) {
+            return res.status(413).json({ message: "Each photo must be 12 MB or smaller.", persisted: false });
+          }
+        }
+        const unsupportedPhotoMime = photoFiles.find((f) => !ALLOWED_PHOTO_MEDIA_TYPES.has(f.mimetype));
+        if (unsupportedPhotoMime) {
+          return res.status(415).json({
+            message: "A submitted photo has an unsupported file type. Supported types are JPEG, PNG, WebP, and HEIC.",
+            code: "UNSUPPORTED_PHOTO_MEDIA_TYPE",
+            persisted: false,
+          });
+        }
+      }
+
+      // Validate audio / video / vibration per-type limits truthfully before persistence
+      if (audioFiles.length > 0) {
+        if (audioFiles.some((f) => f.size > AUDIO_LIMITS.maxBytesEach)) {
+          return res.status(413).json({ message: "Each audio file must be 50 MB or smaller.", persisted: false });
+        }
+        const badAudio = audioFiles.find((f) => !ALLOWED_AUDIO_MEDIA_TYPES.has(f.mimetype));
+        if (badAudio) {
+          return res.status(415).json({ message: "A submitted audio file has an unsupported type. Supported types are MP3, WAV, M4A, WebM, and OGG.", code: "UNSUPPORTED_AUDIO_MEDIA_TYPE", persisted: false });
+        }
+      }
+      if (videoFiles.length > 0) {
+        if (videoFiles.some((f) => f.size > VIDEO_LIMITS.maxBytesEach)) {
+          return res.status(413).json({ message: "Each video file must be 100 MB or smaller.", persisted: false });
+        }
+        const badVideo = videoFiles.find((f) => !ALLOWED_VIDEO_MEDIA_TYPES.has(f.mimetype));
+        if (badVideo) {
+          return res.status(415).json({ message: "A submitted video file has an unsupported type. Supported types are MP4, MOV, AVI, and WebM.", code: "UNSUPPORTED_VIDEO_MEDIA_TYPE", persisted: false });
+        }
+      }
+      if (vibrationFiles.length > 0) {
+        if (vibrationFiles.some((f) => f.size > VIBRATION_LIMITS.maxBytesEach)) {
+          return res.status(413).json({ message: "Each vibration file must be 5 MB or smaller.", persisted: false });
+        }
+        const badVib = vibrationFiles.find((f) => !ALLOWED_VIBRATION_MEDIA_TYPES.has(f.mimetype));
+        if (badVib) {
+          return res.status(415).json({ message: "A submitted vibration file has an unsupported type. Use application/json.", code: "UNSUPPORTED_VIBRATION_MEDIA_TYPE", persisted: false });
+        }
+      }
+      if (req.body.vibrationData) {
+        return res.status(422).json({
+          message: "Vibration JSON via vibrationData is deprecated. Please upload a vibration file via the 'vibration' field or describe the vibration in text.",
+          code: "VIBRATION_CAPTURE_DEPRECATED",
+        });
+      }
+
+      // Truthful gate: audio/video/vibration persistence requires durable storage or local dev
+      if ([...audioFiles, ...videoFiles, ...vibrationFiles].length > 0) {
+        const isDevelopment = process.env.NODE_ENV !== "production";
+        const allowLocalMediaUpload = isDevelopment && evidenceStore.durability === "runtime_local";
+        const allowMobileMediaUpload = allowLocalMediaUpload || evidenceStore.durability === "private_object_storage" || isDevelopment;
+        if (!allowMobileMediaUpload) {
+          return res.status(409).json({
+            message: "Audio, video, and vibration upload are not available until private evidence storage passes launch verification.",
+            persisted: false,
+          });
+        }
+      }
+      if (
+        [...photoFiles, ...audioFiles, ...videoFiles, ...vibrationFiles].length > 0
+        && evidenceStore.durability === "private_object_storage"
+        && !process.env.DATABASE_URL
+      ) {
+        return res.status(503).json({
+          message: "Evidence upload is unavailable because durable evidence metadata storage is not configured.",
+          code: "EVIDENCE_METADATA_STORAGE_UNAVAILABLE",
+          persisted: false,
+        });
+      }
+
+      // Resolve the case before accepting any private evidence so follow-up media
+      // can never be persisted (or claimed) for a case that does not exist.
+      const originalDiagnosis = res.locals.followUpOriginalDiagnosis as NonNullable<Awaited<ReturnType<typeof storage.getDiagnosis>>>;
+
+      let vibrationStoredKeys: string[] = [];
+      let photoAttachments: EvidenceAttachment[] = [];
+      let audioAttachments: EvidenceAttachment[] = [];
+      let videoAttachments: EvidenceAttachment[] = [];
+      let vibrationAttachments: EvidenceAttachment[] = [];
+
+      // Persist each modality via EvidenceStore with honest 500-level failure handling
+      if (photoFiles.length > 0) {
+        try {
+          photoAttachments = await evidenceStore.savePhotos(diagnosisId, photoFiles);
+        } catch (storageError) {
+          logEventError("api.follow_up_photo_storage_failed", storageError, { diagnosisId });
+          return res.status(507).json({
+            message: "Photo evidence could not be persisted. Please try again.",
+            code: "PHOTO_PERSISTENCE_FAILED",
+            persisted: false,
+          });
+        }
+      }
+      if (audioFiles.length > 0) {
+        try {
+          audioAttachments = await evidenceStore.saveAudioFiles(diagnosisId, audioFiles);
+        } catch (storageError) {
+          logEventError("api.follow_up_audio_storage_failed", storageError, { diagnosisId });
+          return res.status(507).json({
+            message: "Audio evidence could not be persisted. Please try again.",
+            code: "AUDIO_PERSISTENCE_FAILED",
+            persisted: false,
+          });
+        }
+      }
+      if (videoFiles.length > 0) {
+        try {
+          videoAttachments = await evidenceStore.saveVideoFiles(diagnosisId, videoFiles);
+        } catch (storageError) {
+          logEventError("api.follow_up_video_storage_failed", storageError, { diagnosisId });
+          return res.status(507).json({
+            message: "Video evidence could not be persisted. Please try again.",
+            code: "VIDEO_PERSISTENCE_FAILED",
+            persisted: false,
+          });
+        }
+      }
+      if (vibrationFiles.length > 0) {
+        try {
+          vibrationAttachments = await evidenceStore.saveVibrationFiles(diagnosisId, vibrationFiles);
+          vibrationStoredKeys = vibrationAttachments.map((a) => a.storageKey);
+        } catch (vError) {
+          logEventError("api.follow_up_vibration_storage_failed", vError, { diagnosisId });
+          return res.status(507).json({
+            message: "Vibration evidence could not be persisted. Please try again.",
+            code: "VIBRATION_PERSISTENCE_FAILED",
+            persisted: false,
+          });
+        }
+      }
+      
+      // Create follow-up request - store first storageKey for legacy single-field, but evidence is via EvidenceStore attachments
+      const audioFile = audioAttachments[0]?.storageKey || null;
+      const videoFile = videoAttachments[0]?.storageKey || null;
       const followUpData = {
         originalDiagnosisId: diagnosisId,
         userId: originalDiagnosis.userId!,
-        additionalInfo: req.body.additionalInfo,
-        newAudioFile: files?.audio?.[0]?.filename || null,
-        newVideoFile: files?.video?.[0]?.filename || null,
-        newVibrationData: null,
+        additionalInfo,
+        newAudioFile: audioFile,
+        newVideoFile: videoFile,
+        newVibrationData: vibrationStoredKeys[0] || null,
+        photoAttachmentIds: photoAttachments.map((a) => a.id),
       };
 
-      const followUp = await storage.createFollowUp(followUpData);
+      const followUpAttachments = [...photoAttachments, ...audioAttachments, ...videoAttachments, ...vibrationAttachments];
 
       // Get previously attempted fixes
       const previousFollowUps = await storage.getFollowUpsByDiagnosis(diagnosisId);
@@ -2298,7 +2929,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
       ].filter(Boolean);
 
       // Perform enhanced analysis with iteration count
-      const iterationCount = previousFollowUps.length + 2; // +1 for original, +1 for current
+      const iterationCount = previousFollowUps.length + 2; // original diagnosis, existing follow-ups, and this follow-up
       const analysisResults = performEnhancedAnalysis(
         {
           description: `${originalDiagnosis.description}\n\nAdditional info: ${followUpData.additionalInfo}`,
@@ -2311,11 +2942,12 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
 
       // Create new diagnosis with follow-up results
       const evidenceBoundary = buildFollowUpEvidenceBoundary({
-        audioStored: Boolean(followUpData.newAudioFile),
-        videoStored: Boolean(followUpData.newVideoFile),
-        vibrationStored: Boolean(followUpData.newVibrationData),
+        photoStored: photoAttachments.length > 0,
+        audioStored: audioAttachments.length > 0,
+        videoStored: videoAttachments.length > 0,
+        vibrationStored: vibrationAttachments.length > 0,
       });
-      const newDiagnosis = await storage.createDiagnosis({
+      const { diagnosis: newDiagnosis } = await storage.createFollowUpAndDiagnosis(followUpData, {
         userId: originalDiagnosis.userId,
         vehicleInfo: originalDiagnosis.vehicleInfo!,
         description: `Follow-up #${iterationCount - 1}: ${followUpData.additionalInfo}`,
@@ -2323,27 +2955,36 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
         audioFile: followUpData.newAudioFile,
         videoFile: followUpData.newVideoFile,
         vibrationData: followUpData.newVibrationData,
+        photoAttachmentIds: followUpData.photoAttachmentIds,
         confidenceScore: analysisResults.primaryDiagnosis?.confidence || 0,
         confidenceLevel: analysisResults.primaryDiagnosis?.confidence >= 80 ? "high" : 
                        analysisResults.primaryDiagnosis?.confidence >= 60 ? "medium" : "low",
+        primaryDiagnosis: analysisResults.primaryDiagnosis,
+        alternativeScenarios: analysisResults.alternativeScenarios,
         // Only text reaches performEnhancedAnalysis. Media remains reviewer evidence
         // and must never be labeled as an analyzed model input.
-        inputTypes: [...evidenceBoundary.analyzedInputTypes],
+        inputTypes: [...evidenceBoundary.receivedInputTypes],
         iterationCount,
-      });
+      }, followUpAttachments);
 
       res.json({
         ...newDiagnosis,
         evidenceProcessing: evidenceBoundary.evidenceProcessing,
         analysisBoundary: evidenceBoundary.analysisBoundary,
       });
-    } catch (error: any) {
-      logEventError("api.follow_up_creation_failed", error);
+      } catch (error: any) {
+        logEventError("api.follow_up_creation_failed", error);
 
-      res.status(400).json({ 
-        message: "Failed to create follow-up. Please try again."
-      });
-    }
+        res.status(503).json({
+          message: "The follow-up could not be saved. Uploaded evidence may have been retained; contact support before retrying.",
+          code: "FOLLOW_UP_NOT_COMPLETED",
+          persisted: false,
+          retryable: false,
+        });
+      }
+    }, cleanupTemporaryFiles, (error) => {
+      logEventError("api.follow_up_temp_cleanup_failed", error, { diagnosisId: req.params.id });
+    });
   });
 
   // Get subscription pricing and features
@@ -2352,13 +2993,17 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
   });
 
   // Get available mechanics for consultation
-  app.get("/api/mechanics", async (req, res) => {
-    try {
-      const mechanics = await storage.getActiveMechanics();
-      res.json(mechanics);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch mechanics" });
-    }
+  // No verified mechanic network is wired. The previous handler served a
+  // hardcoded placeholder mechanic with a perfect rating from an
+  // unauthenticated endpoint, which is fabricated supply, not a listing.
+  app.get("/api/mechanics", async (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.status(501).json({
+      ok: false,
+      code: "MECHANIC_DIRECTORY_NOT_AVAILABLE",
+      message: "No verified mechanic directory is available yet.",
+      mechanics: [],
+    });
   });
 
   // Start mechanic consultation
@@ -2375,6 +3020,7 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
 
       res.json(consultation);
     } catch (error: any) {
+      if (respondCapabilityUnavailable(res, error)) return;
       logEventError("api.consultation_start_failed", error);
       res.status(400).json({ 
         message: "Failed to start consultation. Please try again."
@@ -2383,43 +3029,17 @@ const dbResult = await insertPublicDiagnosisCaseToDb(responseBody, input, stored
   });
 
   // Submit consultation feedback
-  app.post("/api/consultations/:id/feedback", requireReviewer, reviewerWriteLimit, async (req, res) => {
-    try {
-      const consultationId = req.params.id;
-      const feedbackData = consultationFeedbackSchema.parse(req.body);
-      
-      // Calculate overall score (average of ratings, with wasFixed bonus)
-      const ratingAverage = (
-        feedbackData.politenessRating + 
-        feedbackData.effectivenessRating + 
-        feedbackData.easeOfWorkRating
-      ) / 3;
-      
-      const overallScore = feedbackData.wasFixed ? 
-        Math.min(ratingAverage + 1, 10) : ratingAverage;
-
-      const consultation = await storage.updateConsultation(consultationId, {
-        ...feedbackData,
-        overallScore: overallScore.toString(),
-        status: "completed",
-        completedAt: new Date()
-      });
-
-      // Update mechanic rating based on feedback
-      const consultations = await storage.getConsultationsByMechanic(consultation.mechanicId);
-      const averageRating = consultations
-        .filter(c => c.overallScore)
-        .reduce((sum, c) => sum + parseFloat(c.overallScore!), 0) / consultations.length;
-      
-      await storage.updateMechanicRating(consultation.mechanicId, averageRating);
-
-      res.json(consultation);
-    } catch (error: any) {
-      logEventError("api.consultation_feedback_failed", error);
-      res.status(400).json({ 
-        message: "Failed to submit feedback. Please try again."
-      });
-    }
+  // Consultation feedback scores a mechanic rating. There is no durable
+  // consultation record to attach it to and no verified mechanic directory, so
+  // the route refuses rather than writing a rating derived from an empty list.
+  app.post("/api/consultations/:id/feedback", requireReviewer, reviewerWriteLimit, async (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.status(501).json({
+      ok: false,
+      code: "CAPABILITY_NOT_AVAILABLE",
+      capability: "consultation_feedback",
+      message: "Consultation feedback is not available: no verified mechanic consultation record can be stored.",
+    });
   });
 
 // Serve uploaded files (traversal-safe)
@@ -2486,6 +3106,4 @@ const filename = path.basename(String(req.params.filename || ""));
   const httpServer = createServer(app);
   return httpServer;
 }
-
-
 

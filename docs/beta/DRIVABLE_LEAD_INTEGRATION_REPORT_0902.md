@@ -1,5 +1,7 @@
 # Drivable Beta Lead Integration Report 0902
 
+> **Historical checkpoint only — superseded 2026-10-15.** The former “~95%” readiness claim is not current evidence or a release decision. See `DRIVABLE_MARATHON_PROGRESS_2026-10-15.md`; payment readiness and customer-content release remain closed.
+
 **Date:** 2026-09-07
 **Branch:** `integration/drivable-beta-0902`
 **Final SHA:** `069c4dd`

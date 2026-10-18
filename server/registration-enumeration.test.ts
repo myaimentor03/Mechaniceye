@@ -16,7 +16,7 @@ test("registration responses are identical whether or not the account exists", (
   assert.equal(JSON.stringify(existing.body), JSON.stringify(created.body));
 });
 
-test("a session is only minted for newly created accounts and never leaked in the body", () => {
+test("registration never authenticates either new or existing accounts", () => {
   const existing = registrationHttpResponse({ kind: "existing" });
   const created = registrationHttpResponse({
     kind: "created",
@@ -24,7 +24,6 @@ test("a session is only minted for newly created accounts and never leaked in th
   });
 
   assert.equal("sessionUser" in existing, false);
-  assert.deepEqual(created.sessionUser, { id: "user_123", email: "casey.driver@example.com" });
-  assert.equal("sessionUser" in created.body, false);
+  assert.equal("sessionUser" in created, false);
   assert.equal("email" in JSON.parse(JSON.stringify(created.body)), false);
 });

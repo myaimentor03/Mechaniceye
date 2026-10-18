@@ -11,6 +11,10 @@ const backend = source("client/src/TestBackend.tsx");
 const marketplace = source("client/src/marketplace/Marketplace.tsx");
 const navigation = source("client/src/components/PublicHeaderNavigation.tsx");
 const reviewPage = source("client/src/components/MechanicsEyeReviewPage.tsx");
+const caseHistoryPage = source("client/src/components/CustomerCaseHistoryPage.tsx");
+const appHeader = source("client/src/components/app-header.tsx");
+const findMyCarPage = source("client/src/components/FindMyCarPreview.tsx");
+const sellerListingsPage = source("client/src/components/ClearSaleSellerListingsPage.tsx");
 const css = source("client/src/app.css");
 
 test("both public headers use one review route that is distinct from legal pages", () => {
@@ -23,8 +27,8 @@ test("both public headers use one review route that is distinct from legal pages
 
 test("review page states the current evidence and safety boundaries", () => {
   assert.match(reviewPage, /not visually analyzed by the current AI path/i);
-  assert.match(reviewPage, /Audio and video upload are not enabled/i);
-  assert.match(reviewPage, /written, manual symptom context/i);
+  assert.match(reviewPage, /private hosted storage passes launch verification/i);
+  assert.match(reviewPage, /persisted as case\s*evidence when storage succeeds/i);
   assert.match(reviewPage, /not a confirmed\s*\n?\s*diagnosis, safety clearance, vehicle-condition certification, or certified inspection/i);
 });
 
@@ -39,6 +43,41 @@ test("shared mobile menu exposes state and restores focus on Escape", () => {
   assert.match(css, /min-height:\s*44px/);
 });
 
+test("consent legal links open separately without replacing the active intake", () => {
+  assert.match(backend, /href="\/terms" target="_blank" rel="noopener noreferrer"/);
+  assert.match(backend, /href="\/privacy" target="_blank" rel="noopener noreferrer"/);
+  assert.doesNotMatch(backend, /Review the <button type="button" onClick=\{\(\) => setPage\("terms"\)\}/);
+  assert.doesNotMatch(backend, /<button type="button" onClick=\{\(\) => setPage\("privacy"\)\}>Privacy Notice/);
+});
+
+test("case results route customers to Help with the case ID and do not promise follow-up uploads", () => {
+  assert.match(backend, /relatedCaseId=\$\{encodeURIComponent\(result\.id\)\}/);
+  assert.match(backend, /initialCaseId = searchParams\.get\("relatedCaseId"\)/);
+  assert.match(backend, /name="relatedCaseId" defaultValue=\{initialCaseId\}/);
+  assert.match(backend, /new files are not added to this case through the Help form/i);
+  assert.doesNotMatch(backend, /add evidence later via follow-up/i);
+});
+
+test("saved-case history has a reachable owner-authenticated detail route", () => {
+  assert.match(backend, /routePath\.startsWith\("\/my-cases\/"\)/);
+  assert.match(backend, /<CustomerCaseDetailPage caseId=\{decodeURIComponent\(encodedCaseId\)\}/);
+  assert.match(caseHistoryPage, /href=\{`\/my-cases\/\$\{encodeURIComponent\(item\.id\)\}`\}/);
+  assert.match(caseHistoryPage, /fetch\(`\/api\/diagnoses\/\$\{encodeURIComponent\(caseId\)\}`/);
+  assert.match(caseHistoryPage, /not a diagnosis, safety clearance, or confirmation that a human review is complete/i);
+  assert.match(appHeader, /href="\/my-cases"/);
+  assert.doesNotMatch(appHeader, /<div className="hidden md:flex[^>]*>[\s\S]*href="\/my-cases"/);
+});
+
+test("Find My Car is explicit about missing live inventory and durable search", () => {
+  assert.match(backend, /routePath === "\/find-my-car"/);
+  assert.match(backend, /<FindMyCarPreview \/>/);
+  assert.match(findMyCarPage, /no live inventory feed, saved search, dealer network, ranking system/i);
+  assert.match(findMyCarPage, /durable Find My Car request/i);
+  assert.match(findMyCarPage, /sample marketplace content is synthetic/i);
+  assert.match(findMyCarPage, /href="\/buyer-check"/);
+  assert.match(findMyCarPage, /href="\/help\?topic=find-my-car"/);
+});
+
 test("active customer copy does not imply unavailable or unperformed media analysis", () => {
   for (const unsupported of [
     "Photos, audio, video, and vibration inputs",
@@ -50,7 +89,18 @@ test("active customer copy does not imply unavailable or unperformed media analy
     assert.equal(backend.includes(unsupported), false, unsupported);
   }
 
-  assert.match(backend, /Photos are stored as case evidence when persistence succeeds/);
-  assert.match(backend, /Audio and video upload are not enabled in this photo-first release/);
-  assert.match(backend, /No readings are simulated or inferred/);
+  assert.match(backend, /Photos, audio, video, and vibration data are stored as case evidence when persistence succeeds/);
+  assert.match(backend, /the current AI path does not analyze uploaded media/);
+  assert.match(backend, /not analyzed automatically/);
+});
+
+test("ClearSale seller listings are authenticated, durable, and explicitly published", () => {
+  assert.match(marketplace, /path === "\/marketplace\/my-listings"/);
+  assert.match(sellerListingsPage, /CustomerAccountGate/);
+  assert.match(sellerListingsPage, /fetch\("\/api\/marketplace\/my-listings"/);
+  assert.match(sellerListingsPage, /method: "POST"/);
+  assert.match(sellerListingsPage, /method: editingId \? "PATCH" : "POST"/);
+  assert.match(sellerListingsPage, /method: editingId \? "PATCH" : "POST"[\s\S]*Content-Type/);
+  assert.match(sellerListingsPage, /not public until explicitly approved/i);
+  assert.match(sellerListingsPage, /does not verify title, ownership, vehicle condition/i);
 });

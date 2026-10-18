@@ -23,18 +23,20 @@ export type RegistrationDecision =
 /**
  * Maps a registration decision to its HTTP response. The status and body are
  * identical for both outcomes so an unauthenticated caller cannot tell whether
- * an email already has an account. A session is only issued for a newly created
- * account, via the route, and is never reflected in the body.
+ * an email already has an account. Registration never issues a session; the
+ * customer must explicitly log in after receiving this response.
  */
-export function registrationHttpResponse(decision: RegistrationDecision): {
+export function registrationHttpResponse(_decision: RegistrationDecision): {
   status: number;
   body: Readonly<{ ok: true }>;
-  sessionUser?: CustomerIdentity;
 } {
+  // Registration deliberately never establishes a session. Returning the same
+  // body and authentication state for new and existing addresses avoids an
+  // account-enumeration side channel and matches the client's explicit-login
+  // flow.
   return {
     status: 200,
     body: Object.freeze({ ok: true }),
-    ...(decision.kind === "created" ? { sessionUser: decision.user } : {}),
   };
 }
 
@@ -182,14 +184,10 @@ export function registerCustomerAuthRoutes(app: Express) {
       logEventError("auth.register_failed", error, { ip: requestIp(req) });
       return res.status(503).json({ ok: false, error: "Account creation is temporarily unavailable." });
     }
-    // Enumeration-safe: always return identical response body;
-    // session cookie is set only for newly created accounts but not reflected in the body.
+    // Enumeration-safe: registration never authenticates either outcome.
+    const registrationResponse = registrationHttpResponse(decision);
     res.setHeader("Cache-Control", "no-store");
-    if (decision.kind === "created") {
-      const user = decision.user;
-      setSessionCookie(res, createSessionToken(user));
-    }
-    return res.status(200).json({ ok: true });
+    return res.status(registrationResponse.status).json(registrationResponse.body);
   });
 
   app.post("/api/auth/login", loginIpLimit, loginAccountLimit, async (req, res) => {

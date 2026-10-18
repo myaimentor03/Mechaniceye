@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, json, boolean, numeric, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, json, jsonb, boolean, numeric, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -285,6 +285,76 @@ export const drivableConfirmedCases = pgTable("drivable_confirmed_cases", {
   index("confirmed_cases_vehicle_idx").on(table.vehicleYear, table.vehicleMake, table.vehicleModel),
 ]);
 
+// Journey case activity log — append-only event stream for case lifecycle.
+// Each row is one customer-visible state transition, evidence submission,
+// review action, or resolution.  Evidence belongs to the vehicle/case and
+// is reusable across FIX/SELL flows.
+export const journeyCaseEvents = pgTable("journey_case_events", {
+  eventId: varchar("event_id").primaryKey(),
+  caseId: varchar("case_id").notNull(),
+  customerId: varchar("customer_id"),
+  eventType: varchar("event_type").notNull(),
+  // state transition metadata
+  fromState: varchar("from_state"),
+  toState: varchar("to_state"),
+  transition: varchar("transition"),
+  outcome: varchar("outcome"),
+  // evidence metadata
+  evidenceKind: varchar("evidence_kind"),
+  evidenceCount: integer("evidence_count"),
+  // review metadata
+  reviewerRef: varchar("reviewer_ref"),
+  reviewAction: varchar("review_action"),
+  reasonCode: varchar("reason_code"),
+  // human-readable message for the customer
+  message: text("message"),
+  // structured payload
+  payload: json("payload").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+  }, (table) => [
+    index("journey_events_case_timeline_idx").on(table.caseId, table.createdAt),
+    index("journey_events_customer_idx").on(table.customerId, table.createdAt),
+  ]);
+
+// Journey case persistence — durable row-per-case state.
+// Complex nested fields (evidence, safetyFlags, matchedSymptomCategories,
+// plannedEvidence) are stored as JSONB and deserialised on read.
+// Evidence belongs to the vehicle/case and is reusable across FIX/SELL flows.
+export const journeyCases = pgTable("journey_cases", {
+  id: varchar("id").primaryKey(),
+  state: varchar("state").notNull().default("intake"),
+  createdAt: varchar("created_at").notNull(),
+  updatedAt: varchar("updated_at").notNull(),
+  vehicleInfo: text("vehicle_info").notNull(),
+  description: text("description").notNull(),
+  timing: text("timing"),
+  urgency: text("urgency"),
+  canDrive: text("can_drive"),
+  customerId: varchar("customer_id"),
+  customerEmail: text("customer_email"),
+  evidence: json("evidence").$type<unknown[]>().default([]),
+  safetyFlags: json("safety_flags").$type<unknown[]>().default([]),
+  safetyTriggered: boolean("safety_triggered").notNull().default(false),
+  confidenceScore: integer("confidence_score").notNull().default(0),
+  confidenceLevel: varchar("confidence_level").notNull().default("insufficient_information"),
+  riskLevel: varchar("risk_level").notNull().default("unknown"),
+  outcome: varchar("outcome"),
+  decisionPath: varchar("decision_path"),
+  resolutionNote: text("resolution_note"),
+  humanReviewRequested: boolean("human_review_requested").notNull().default(false),
+  escalationReason: text("escalation_reason"),
+  nextAction: varchar("next_action"),
+  nextActionPrompt: text("next_action_prompt"),
+  matchedSymptomCategories: json("matched_symptom_categories").$type<unknown[]>().default([]),
+  plannedEvidence: json("planned_evidence").$type<unknown[]>().default([]),
+  currentEvidencePrompt: text("current_evidence_prompt"),
+  nextServiceDestination: json("next_service_destination").$type<unknown>(),
+}, (table) => [
+  index("journey_cases_customer_idx").on(table.customerId),
+  index("journey_cases_state_idx").on(table.state),
+]);
+
+
 export const drivableVehicleKnowledgePacks = pgTable("drivable_vehicle_knowledge_packs", {
   packId: varchar("pack_id").primaryKey(),
   vehicleYear: integer("vehicle_year"),
@@ -305,6 +375,30 @@ export const drivableVehicleKnowledgePacks = pgTable("drivable_vehicle_knowledge
   index("knowledge_packs_vehicle_idx").on(table.vehicleYear, table.vehicleMake, table.vehicleModel),
 ]);
 
+
+// Evidence attachment persistence: each uploaded evidence file gets a row.
+// This is the durable source of truth for evidence metadata, written alongside
+// the filesystem/S3 manifest so evidence can be queried via SQL.
+export const drivableEvidenceAttachments = pgTable("drivable_evidence_attachments", {
+  id: varchar("id").primaryKey(),
+  caseId: varchar("case_id").notNull(),
+  kind: text("kind").notNull(),
+  originalName: text("original_name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  byteSize: integer("byte_size").notNull(),
+  status: text("status").notNull().default("persisted"),
+  storageKey: text("storage_key").notNull(),
+  provenance: text("provenance").notNull().default("uploaded_media"),
+  analysisStatus: text("analysis_status").notNull().default("uploaded_not_analyzed"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("evidence_attachments_case_idx").on(table.caseId),
+  index("evidence_attachments_kind_idx").on(table.kind),
+  index("evidence_attachments_case_kind_idx").on(table.caseId, table.kind),
+]);
+
+export const insertDrivableEvidenceAttachmentSchema = createInsertSchema(drivableEvidenceAttachments).omit({ createdAt: true });
 
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -392,6 +486,9 @@ export type FixHistoryLog = typeof fixHistoryLog.$inferSelect;
 export type InsertChatExportLog = z.infer<typeof insertChatExportLogSchema>;
 export type ChatExportLog = typeof chatExportLog.$inferSelect;
 
+export type InsertDrivableEvidenceAttachment = z.infer<typeof insertDrivableEvidenceAttachmentSchema>;
+export type DrivableEvidenceAttachment = typeof drivableEvidenceAttachments.$inferSelect;
+
 
 export type InsertDrivableSeedSymptomCategory = z.infer<typeof insertDrivableSeedSymptomCategorySchema>;
 export type DrivableSeedSymptomCategory = typeof drivableSeedSymptomCategories.$inferSelect;
@@ -413,3 +510,33 @@ export type InsertDrivableConfirmedCase = z.infer<typeof insertDrivableConfirmed
 export type DrivableConfirmedCase = typeof drivableConfirmedCases.$inferSelect;
 export type InsertDrivableVehicleKnowledgePack = z.infer<typeof insertDrivableVehicleKnowledgePackSchema>;
 export type DrivableVehicleKnowledgePack = typeof drivableVehicleKnowledgePacks.$inferSelect;
+
+export const insertJourneyCaseEventSchema = createInsertSchema(journeyCaseEvents).omit({ createdAt: true });
+export type InsertJourneyCaseEvent = z.infer<typeof insertJourneyCaseEventSchema>;
+export type JourneyCaseEvent = typeof journeyCaseEvents.$inferSelect;
+
+export const insertJourneyCaseSchema = createInsertSchema(journeyCases).omit({ createdAt: true, updatedAt: true });
+export type InsertJourneyCase = z.infer<typeof insertJourneyCaseSchema>;
+export type JourneyCaseRow = typeof journeyCases.$inferSelect;
+
+export const drivableCommerceOrders = pgTable("drivable_commerce_orders", {
+  orderId: text("order_id").primaryKey(),
+  caseId: text("case_id").notNull(),
+  snapshot: jsonb("snapshot").notNull(),
+  version: integer("version").notNull(),
+  providerReference: text("provider_reference"),
+  checkoutSessionId: text("checkout_session_id"),
+  contractVersion: integer("contract_version").notNull().default(2),
+}, (table) => [uniqueIndex("drivable_commerce_orders_provider_unique").on(table.providerReference)]);
+
+export const drivableCommerceOrderEvents = pgTable("drivable_commerce_order_events", {
+  eventId: text("event_id").primaryKey(),
+  orderId: text("order_id").notNull().references(() => drivableCommerceOrders.orderId),
+  fingerprint: text("fingerprint").notNull(),
+  nextState: text("next_state").notNull(),
+  eventKind: text("event_kind").notNull(),
+  providerReference: text("provider_reference").notNull(),
+  providerOccurredAt: timestamp("provider_occurred_at", { withTimezone: true }).notNull(),
+  proof: jsonb("proof").notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+}, (table) => [index("drivable_commerce_events_order_idx").on(table.orderId)]);

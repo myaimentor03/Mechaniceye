@@ -173,8 +173,9 @@ export function BuyerCheckPreview() {
                 <input value={vehicleModel} onChange={(event) => setVehicleModel(event.target.value)} required />
               </label>
               <label>
-                VIN (optional)
+                VIN (optional, draft only)
                 <input value={vehicleVin} maxLength={17} autoCapitalize="characters" onChange={(event) => setVehicleVin(event.target.value.toUpperCase())} placeholder="17 characters" />
+                <small>VIN stays in this browser draft. This lookup uses year, make, and model only; it does not check VIN-level recalls.</small>
               </label>
               <label>
                 Mileage (optional)

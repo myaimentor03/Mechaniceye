@@ -22,6 +22,7 @@ const routes = [
   "marketplace/listing/sample",
   "marketplace/sell",
   "marketplace/sell/intake",
+  "marketplace/my-listings",
   "marketplace/sell/submitted",
   "marketplace/offer-event",
   "marketplace/terms",

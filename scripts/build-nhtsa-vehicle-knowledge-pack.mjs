@@ -5,6 +5,7 @@ import {
   mutationTargetGuard,
   safeTargetDescription,
   sslConfigForUrl,
+  verifyConnectedDatabaseTarget,
 } from "./lib/db-target-safe.mjs";
 
 const { Client } = pg;
@@ -321,9 +322,9 @@ const client = new Client({
   ssl: sslConfigForUrl(process.env.DATABASE_URL)
 });
 
-await client.connect();
-
 try {
+  await client.connect();
+  await verifyConnectedDatabaseTarget(client);
   await client.query(
     `
     INSERT INTO drivable_vehicle_knowledge_packs (
